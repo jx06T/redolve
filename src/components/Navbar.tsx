@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, LayoutDashboard, BookOpen, Settings } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, LayoutDashboard, BookOpen, Settings, Menu, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { uploadProblem } from '../services/api';
 
@@ -9,12 +9,16 @@ export const Navbar: React.FC = () => {
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
+
   const { darkMode, toggleDarkMode, searchQuery, setSearchQuery, setIsLoading } = useStore();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      setMobileSearchOpen(false);
     }
   };
 
@@ -44,18 +48,28 @@ export const Navbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#202023]/80 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#2C2C30] px-4 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center space-x-3 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
-          <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 rounded-2xl">
-            <PenTool className="w-5 h-5" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-lg font-bold leading-none">Redolve</span>
-            <span className="text-[10px] text-[#9CA3AF] mt-0.5">iPad AI Flashcards</span>
-          </div>
-        </Link>
+        {/* Brand Logo & Mobile Menu Toggle */}
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-2xl text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
+            aria-label="選單 Toggle"
+          >
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
 
-        {/* Navigation Tabs */}
+          <Link to="/" className="flex items-center space-x-3 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
+            <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 rounded-2xl">
+              <PenTool className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold leading-none">Redolve</span>
+              <span className="text-[10px] text-[#9CA3AF] mt-0.5">iPad AI Flashcards</span>
+            </div>
+          </Link>
+        </div>
+
+        {/* Desktop Navigation Tabs */}
         <nav className="hidden md:flex items-center space-x-1">
           {navLinks.map((link) => {
             const Icon = link.icon;
@@ -78,7 +92,8 @@ export const Navbar: React.FC = () => {
         </nav>
 
         {/* Right Search & Controls */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          {/* Desktop Search */}
           <form onSubmit={handleSearchSubmit} className="relative hidden sm:block">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
             <input
@@ -86,9 +101,18 @@ export const Navbar: React.FC = () => {
               placeholder="搜尋錯題、關鍵字..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1] transition-all w-48 lg:w-64"
+              className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1] transition-all w-44 lg:w-64"
             />
           </form>
+
+          {/* Mobile Search Toggle Button */}
+          <button
+            onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
+            className="sm:hidden p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
+            title="開啟搜尋"
+          >
+            <Search className="w-4 h-4" />
+          </button>
 
           {/* Upload Button */}
           <input
@@ -116,6 +140,48 @@ export const Navbar: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Mobile Search Bar Overlay */}
+      {mobileSearchOpen && (
+        <div className="sm:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30]">
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+            <input
+              type="text"
+              placeholder="搜尋錯題、關鍵字..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+              className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
+            />
+          </form>
+        </div>
+      )}
+
+      {/* Mobile Navigation Drawer */}
+      {mobileMenuOpen && (
+        <div className="md:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30] space-y-1">
+          {navLinks.map((link) => {
+            const Icon = link.icon;
+            const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
+            return (
+              <Link
+                key={link.path}
+                to={link.path}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl text-xs font-medium transition-colors ${
+                  isActive
+                    ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{link.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </header>
   );
 };

@@ -1,0 +1,18 @@
+{
+  "name": "Redolve - 心流式 AI 錯題本",
+  "short_name": "Redolve",
+  "description": "專為 iPad + Apple Pencil 打造的邊緣運算 AI 錯題本 PWA",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F4F4F2",
+  "theme_color": "#6366F1",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
