@@ -10,7 +10,7 @@ interface UploadModalProps {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { setIsLoading } = useStore();
+  const { setIsLoading, showToast } = useStore();
 
   const [mode, setMode] = useState<'files' | 'camera'>('files');
   const [sourceInput, setSourceInput] = useState<string>(() => {
@@ -110,7 +110,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   const handleSubmitBatch = async () => {
     if (selectedFiles.length === 0) {
-      alert('請先選擇圖檔或拍攝題目照片！');
+      showToast('請先選擇圖檔或拍攝題目照片！', 'error');
       return;
     }
 
@@ -119,9 +119,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     sessionStorage.setItem('redolve_last_source', sourceInput);
 
     try {
-      await Promise.allSettled(
+      const results = await Promise.allSettled(
         selectedFiles.map((item) => uploadProblem(item.file, sourceInput))
       );
+
+      const fulfilledCount = results.filter((r) => r.status === 'fulfilled').length;
+      const rejectedCount = results.filter((r) => r.status === 'rejected').length;
+
+      if (rejectedCount === 0) {
+        showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
+      } else if (fulfilledCount > 0) {
+        showToast(`已上傳 ${fulfilledCount} 張錯題，有 ${rejectedCount} 張上傳失敗，請檢查網路！`, 'error', 6000);
+      } else {
+        showToast('錯題上傳失敗！請檢查圖片格式與網路連線後重試。', 'error', 6000);
+      }
 
       // Reset state
       selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
@@ -131,12 +142,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       if (onUploadSuccess) {
         onUploadSuccess();
-      } else {
-        window.location.reload();
       }
     } catch (err) {
       console.error('Batch upload failed:', err);
-      alert('批次上傳部分失敗，請稍後再試！');
+      showToast('上傳過程發生未知錯誤，請稍後再試！', 'error', 6000);
     } finally {
       setIsLoading(false);
     }

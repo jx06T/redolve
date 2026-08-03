@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
+import { Toast } from './components/Toast';
 import { DashboardView } from './views/DashboardView';
 import { StudyView } from './views/StudyView';
 import { ProblemDetailView } from './views/ProblemDetailView';
@@ -30,6 +31,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <div className="min-h-screen bg-[#F4F4F2] dark:bg-[#161618] text-[#374151] dark:text-[#D1D5DB] transition-colors duration-200 flex flex-col font-sans">
+        <Toast />
         <Routes>
           {/* Public Share Route without main layout header */}
           <Route path="/share/:token" element={<ShareView />} />

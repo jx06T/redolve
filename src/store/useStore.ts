@@ -1,7 +1,16 @@
 import { create } from 'zustand';
 import { Item, TaxonomyNode } from '../types';
 
+export interface ToastNotice {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
 interface StoreState {
+  // Toast Notification State
+  toast: ToastNotice | null;
+
   // Navigation & Filter State
   selectedSubjectId: string | null;
   selectedTopicId: string | null;
@@ -26,6 +35,8 @@ interface StoreState {
   taxonomies: TaxonomyNode[];
 
   // Actions
+  showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
+  hideToast: () => void;
   setSelectedSubjectId: (subjectId: string | null) => void;
   setSelectedTopicId: (topicId: string | null) => void;
   setSelectedStatus: (status: 'all' | 'unsolved' | 'resolved') => void;
@@ -48,6 +59,8 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set) => ({
+  toast: null,
+
   selectedSubjectId: null,
   selectedTopicId: null,
   selectedStatus: 'all',
@@ -66,6 +79,16 @@ export const useStore = create<StoreState>((set) => ({
   eraserActive: false,
 
   taxonomies: [],
+
+  showToast: (message, type = 'info', durationMs = 4000) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    set({ toast: { id, message, type } });
+    setTimeout(() => {
+      set((state) => (state.toast?.id === id ? { toast: null } : {}));
+    }, durationMs);
+  },
+
+  hideToast: () => set({ toast: null }),
 
   setSelectedSubjectId: (subjectId) => set({ selectedSubjectId: subjectId, selectedTopicId: null }),
   setSelectedTopicId: (topicId) => set({ selectedTopicId: topicId }),
