@@ -12,9 +12,9 @@ export const FloatingPenToolbar: React.FC = () => {
   ];
 
   return (
-    <div className="fixed top-20 right-8 z-40 bg-white/90 dark:bg-[#202023]/90 backdrop-blur-md border border-[#E5E7EB] dark:border-[#2C2C30] rounded-full px-4 py-2 flex items-center space-x-4 shadow-lg select-none transition-all">
+    <div className="fixed top-24 right-6 z-40 bg-white/90 dark:bg-[#202023]/90 backdrop-blur-md border border-[#E5E7EB] dark:border-[#2C2C30] rounded-full px-2 py-3 flex flex-col items-center space-y-3 shadow-xl select-none transition-all">
       {/* Tool Selector */}
-      <div className="flex items-center space-x-1 border-r border-stone-200 dark:border-stone-700 pr-3">
+      <div className="flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-700 pb-2.5">
         <button
           onClick={() => setTool('pen')}
           className={`p-2 rounded-full transition-all ${
@@ -41,7 +41,7 @@ export const FloatingPenToolbar: React.FC = () => {
       </div>
 
       {/* 3 Color Chips */}
-      <div className="flex items-center space-x-2 border-r border-stone-200 dark:border-stone-700 pr-3">
+      <div className="flex flex-col items-center space-y-2 border-b border-stone-200 dark:border-stone-700 pb-2.5">
         {colorPalette.map((c) => (
           <button
             key={c.hex}
@@ -56,18 +56,18 @@ export const FloatingPenToolbar: React.FC = () => {
       </div>
 
       {/* 2 Stroke Width Options */}
-      <div className="flex items-center space-x-1 font-mono text-xs">
+      <div className="flex flex-col items-center space-y-1 font-mono text-xs">
         {[2, 4].map((w) => (
           <button
             key={w}
             onClick={() => setPenWidth(w)}
-            className={`px-2.5 py-1 rounded-full text-[11px] transition-all ${
+            className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center transition-all ${
               penWidth === w
                 ? 'bg-[#6366F1] text-white font-bold'
                 : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >
-            {w}pt
+            {w}p
           </button>
         ))}
       </div>

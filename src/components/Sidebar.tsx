@@ -106,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             <span>章節篩選器</span>
           </div>
 
-          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-[calc(100vh-320px)] overflow-y-auto pr-1">
             <button
               onClick={() => {
                 setSelectedTopicId(null);

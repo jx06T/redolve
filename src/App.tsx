@@ -40,7 +40,7 @@ export default function App() {
             element={
               <>
                 <Navbar />
-                <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+                <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3">
                   <Routes>
                     <Route path="/" element={<DashboardView />} />
                     <Route path="/study" element={<Navigate to="/study/all" replace />} />
