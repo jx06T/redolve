@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Filter, PenTool, Highlighter, Layers, ChevronDown, ChevronUp, ListOrdered, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Filter, Layers, ChevronDown, ChevronUp, ListOrdered, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
@@ -16,24 +16,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     setSelectedTopicId,
     selectedStatus,
     setSelectedStatus,
-    tool,
-    setTool,
-    penColor,
-    setPenColor,
-    penWidth,
-    setPenWidth,
     problems,
     activeProblemId,
     sidebarCollapsed,
     toggleSidebarCollapsed,
   } = useStore();
-
-  const colorPalette = [
-    { name: 'Indigo', hex: '#6366F1' },
-    { name: 'Rose', hex: '#E11D48' },
-    { name: 'Blue', hex: '#3B82F6' },
-    { name: 'Dark Grey', hex: '#374151' },
-  ];
 
   // Filter taxonomy tree by selectedSubjectId if present
   const availableTaxonomy = selectedSubjectId
@@ -55,12 +42,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   }
 
   return (
-    <aside className="w-full lg:w-72 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-4 lg:p-5 space-y-4 lg:space-y-6 shrink-0 transition-all">
+    <aside className="w-full lg:w-72 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-4 lg:p-5 space-y-5 shrink-0 transition-all">
       {/* Sidebar Header & Focus Mode Toggle (UI_DESIGN01_0804 Section 2) */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-2 border-b border-stone-200 dark:border-stone-800">
         <div className="flex items-center space-x-2">
           <Filter className="w-4 h-4 text-[#6366F1]" />
-          <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">單元導航與工具</span>
+          <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">章節大綱導航</span>
         </div>
         <div className="flex items-center space-x-1">
           {/* Mobile Expand/Collapse Toggle */}
@@ -82,8 +69,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       </div>
 
       {/* Main Content */}
-      <div className={`${mobileCollapsed ? 'hidden lg:block' : 'block'} space-y-6 pt-2 lg:pt-0`}>
-        {/* Status Filter */}
+      <div className={`${mobileCollapsed ? 'hidden lg:block' : 'block'} space-y-5`}>
+        {/* Status Filter Toggle */}
         <div>
           <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
             <span>訂正狀態過濾</span>
@@ -112,84 +99,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           </div>
         </div>
 
-        {/* Drawing Toolbar Controls */}
-        <div>
-          <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
-            <PenTool className="w-3.5 h-3.5" />
-            <span>Apple Pencil 畫筆設定</span>
-          </div>
-
-          <div className="flex items-center space-x-2 mb-3">
-            <button
-              onClick={() => setTool('pen')}
-              className={`flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-2xl text-xs font-medium border transition-all ${
-                tool === 'pen'
-                  ? 'bg-[#6366F1]/10 text-[#6366F1] border-[#6366F1]/30 font-semibold'
-                  : 'border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB]'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5" />
-              <span>鋼筆</span>
-            </button>
-
-            <button
-              onClick={() => setTool('highlighter')}
-              className={`flex-1 flex items-center justify-center space-x-1.5 py-2 rounded-2xl text-xs font-medium border transition-all ${
-                tool === 'highlighter'
-                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 font-semibold'
-                  : 'border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB]'
-              }`}
-            >
-              <Highlighter className="w-3.5 h-3.5" />
-              <span>螢光筆</span>
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between px-1 mb-3">
-            <span className="text-xs text-[#9CA3AF]">墨水顏色</span>
-            <div className="flex items-center space-x-2">
-              {colorPalette.map((c) => (
-                <button
-                  key={c.hex}
-                  onClick={() => setPenColor(c.hex)}
-                  className={`w-6 h-6 rounded-full transition-transform ${
-                    penColor === c.hex ? 'scale-125 ring-2 ring-[#6366F1] ring-offset-2 dark:ring-offset-[#202023]' : ''
-                  }`}
-                  style={{ backgroundColor: c.hex }}
-                  title={c.name}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between px-1 text-xs text-[#9CA3AF]">
-            <span>筆跡粗細</span>
-            <div className="flex items-center space-x-2">
-              {[1, 2, 4].map((w) => (
-                <button
-                  key={w}
-                  onClick={() => setPenWidth(w)}
-                  className={`px-2.5 py-1 rounded-xl font-mono ${
-                    penWidth === w
-                      ? 'bg-[#6366F1] text-white font-bold'
-                      : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]'
-                  }`}
-                >
-                  {w}pt
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Subject Taxonomy Filter */}
+        {/* Subject Taxonomy Topic Filter */}
         <div>
           <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
             <Layers className="w-3.5 h-3.5" />
-            <span>課綱章節選擇</span>
+            <span>章節篩選器</span>
           </div>
 
-          <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+          <div className="space-y-1 max-h-56 overflow-y-auto pr-1">
             <button
               onClick={() => {
                 setSelectedTopicId(null);
@@ -235,13 +152,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
         {/* Problem Outline List / Minimap Navigation (UI_DESIGN01_0804 Section 2) */}
         {problems.length > 0 && (
-          <div className="pt-2 border-t border-stone-200 dark:border-stone-800">
+          <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
             <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
               <ListOrdered className="w-3.5 h-3.5" />
               <span>錯題大綱清單 ({problems.length} 題)</span>
             </div>
 
-            <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+            <div className="space-y-1 max-h-52 overflow-y-auto pr-1">
               {problems.map((item, idx) => {
                 const isActive = activeProblemId === item.id;
                 return (

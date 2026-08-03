@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { fetchProblems, updateProblemMetadata } from '../services/api';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
+import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 import { EraserFAB } from '../components/EraserFAB';
 import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
@@ -165,7 +166,7 @@ export const StudyView: React.FC = () => {
       {/* Sidebar Filter & Problem Outline Nav */}
       <Sidebar onSelectProblemOutline={handleSelectProblemOutline} />
 
-      {/* Main Virtualized Problem Stream */}
+      {/* Main Virtualized Problem Stream Feed */}
       <main className="flex-1 flex flex-col min-w-0">
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
@@ -218,10 +219,14 @@ export const StudyView: React.FC = () => {
         )}
       </main>
 
-      {/* Left Hand Spring Eraser FAB */}
+      {/* Floating UI Layer (UI_DESIGN01_0804 Section 4) */}
+      {/* 1. Top-Right Floating Pen Palette */}
+      <FloatingPenToolbar />
+
+      {/* 2. Left-Bottom Spring Eraser FAB */}
       <EraserFAB />
 
-      {/* Right Bottom Floating Smart CTA (UI_DESIGN01_0804 Section 4.3) */}
+      {/* 3. Right-Bottom Floating Smart CTA */}
       <SmartCTA onStatusResolved={handleStatusResolved} />
 
       {/* Metadata Edit Modal */}
