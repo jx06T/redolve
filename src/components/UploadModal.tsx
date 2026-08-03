@@ -194,16 +194,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 select-none">
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-stone-200 dark:border-stone-800 pb-3">
-          <div className="flex items-center space-x-2">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
+      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Fixed Header */}
+        <div className="shrink-0 px-5 sm:px-6 py-3.5 sm:py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-[#202023]">
+          <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-[#6366F1]/10 text-[#6366F1] rounded-2xl">
               <Upload className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+              <h3 className="text-sm sm:text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
                 錯題批次上傳 & Webcamera 快拍
               </h3>
               <p className="text-[11px] text-[#9CA3AF]">選擇年分與卷別後即可批次上傳多張題目照片</p>
@@ -214,105 +214,107 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               stopCamera();
               onClose();
             }}
-            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
+            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-colors"
+            title="關閉視窗 (Esc)"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 1. Separated Year & Exam Type Selector */}
-        <div className="space-y-3">
-          {/* Year Chips */}
-          <div>
-            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
-              1. 考卷年分 (Exam Year)
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {EXAM_YEARS.map((year) => (
-                <button
-                  key={year}
-                  type="button"
-                  onClick={() => handleSelectYear(year)}
-                  className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                    selectedYear === year
-                      ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                      : 'bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-                  }`}
-                >
-                  {year}
-                </button>
-              ))}
+        {/* Scrollable Body Content */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+          {/* 1. Separated Year & Exam Type Selector */}
+          <div className="space-y-3 p-3.5 bg-stone-50 dark:bg-[#1a1a1d] rounded-2xl border border-stone-200/60 dark:border-stone-800">
+            {/* Year Chips */}
+            <div>
+              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">
+                1. 考卷年分 (Exam Year)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {EXAM_YEARS.map((year) => (
+                  <button
+                    key={year}
+                    type="button"
+                    onClick={() => handleSelectYear(year)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
+                      selectedYear === year
+                        ? 'bg-[#6366F1] text-white font-bold shadow-xs'
+                        : 'bg-white dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] border border-stone-200/50 dark:border-stone-700/50'
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Exam Type Chips */}
+            <div>
+              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">
+                2. 考卷卷別 (Exam Type)
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {EXAM_TYPES.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => handleSelectType(type)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
+                      selectedType === type
+                        ? 'bg-[#6366F1] text-white font-bold shadow-xs'
+                        : 'bg-white dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] border border-stone-200/50 dark:border-stone-700/50'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Combined Source Input */}
+            <div>
+              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
+                最終套用來源標籤 (Combined Source Tag)
+              </label>
+              <input
+                type="text"
+                value={sourceInput}
+                onChange={(e) => setSourceInput(e.target.value)}
+                placeholder="例如: 113年 全模 數學"
+                className="w-full px-3.5 py-1.5 rounded-xl text-xs bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1]"
+              />
             </div>
           </div>
 
-          {/* Exam Type Chips */}
-          <div>
-            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
-              2. 考卷卷別 (Exam Type)
-            </label>
-            <div className="flex flex-wrap gap-1.5">
-              {EXAM_TYPES.map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => handleSelectType(type)}
-                  className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                    selectedType === type
-                      ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                      : 'bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+          {/* 2. Mode Switcher Tabs */}
+          <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl text-xs font-medium">
+            <button
+              onClick={() => setMode('files')}
+              className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
+                mode === 'files'
+                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
+                  : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              <span>批次選檔 ({selectedFiles.length})</span>
+            </button>
+
+            <button
+              onClick={() => setMode('camera')}
+              className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
+                mode === 'camera'
+                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
+                  : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              }`}
+            >
+              <Camera className="w-4 h-4" />
+              <span>Webcamera 快拍</span>
+            </button>
           </div>
 
-          {/* Combined Source Input */}
-          <div>
-            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
-              最終套用來源標籤 (Combinated Source Tag)
-            </label>
-            <input
-              type="text"
-              value={sourceInput}
-              onChange={(e) => setSourceInput(e.target.value)}
-              placeholder="例如: 113年 全模 數學"
-              className="w-full px-3.5 py-2 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1]"
-            />
-          </div>
-        </div>
-
-        {/* 2. Mode Switcher Tabs */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl text-xs font-medium">
-          <button
-            onClick={() => setMode('files')}
-            className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-              mode === 'files'
-                ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
-                : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>批次選檔 ({selectedFiles.length})</span>
-          </button>
-
-          <button
-            onClick={() => setMode('camera')}
-            className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-              mode === 'camera'
-                ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
-                : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-            }`}
-          >
-            <Camera className="w-4 h-4" />
-            <span>Webcamera 快拍</span>
-          </button>
-        </div>
-
-        {/* Tab 1: File Upload Mode */}
-        {mode === 'files' && (
-          <div className="space-y-3">
+          {/* Tab 1: File Upload Mode */}
+          {mode === 'files' && (
             <label
               onDragOver={(e) => {
                 e.preventDefault();
@@ -320,17 +322,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               }}
               onDragLeave={() => setIsDraggingOver(false)}
               onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-6 cursor-pointer transition-all ${
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${
                 isDraggingOver
                   ? 'border-[#6366F1] bg-[#6366F1]/10 scale-[1.01]'
                   : 'border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/50'
               }`}
             >
-              <Upload className="w-8 h-8 text-[#6366F1] mb-2" />
+              <Upload className="w-7 h-7 text-[#6366F1] mb-1.5" />
               <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
                 {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
               </span>
-              <span className="text-[10px] text-[#9CA3AF] mt-1">支援 JPG, PNG, WEBP</span>
+              <span className="text-[10px] text-[#9CA3AF] mt-0.5">支援 JPG, PNG, WEBP</span>
               <input
                 type="file"
                 multiple
@@ -339,20 +341,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 className="hidden"
               />
             </label>
-          </div>
-        )}
+          )}
 
-        {/* Tab 2: Webcamera Live Capture Mode */}
-        {mode === 'camera' && (
-          <div className="space-y-3">
-            <div className="relative rounded-2xl overflow-hidden bg-black aspect-video flex items-center justify-center">
-              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+          {/* Tab 2: Webcamera Live Capture Mode */}
+          {mode === 'camera' && (
+            <div className="relative rounded-2xl overflow-hidden bg-black h-48 sm:h-56 w-full flex items-center justify-center border border-stone-800">
+              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-contain" />
               <canvas ref={canvasRef} className="hidden" />
 
               {/* Facing Mode Toggle */}
               <button
+                type="button"
                 onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
-                className="absolute top-3 right-3 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+                className="absolute top-2.5 right-2.5 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors backdrop-blur-xs"
                 title="切換前後鏡頭"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -360,67 +361,93 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
               {/* Shutter Button */}
               <button
+                type="button"
                 onClick={handleCaptureSnapshot}
-                className="absolute bottom-3 left-1/2 -translate-x-1/2 w-12 h-12 rounded-full bg-white text-[#6366F1] border-4 border-indigo-200 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                className="absolute bottom-2.5 left-1/2 -translate-x-1/2 w-11 h-11 rounded-full bg-white text-[#6366F1] border-4 border-indigo-200 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
                 title="即時拍攝題目"
               >
-                <Camera className="w-6 h-6" />
+                <Camera className="w-5 h-5" />
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Thumbnail Preview Queue */}
-        {selectedFiles.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#9CA3AF]">
-              <span>待上傳圖片清單 ({selectedFiles.length} 張)</span>
-              <button onClick={() => setSelectedFiles([])} className="text-rose-500 hover:underline">
-                清空清單
-              </button>
-            </div>
-            <div className="flex items-center space-x-2 overflow-x-auto pb-2">
-              {selectedFiles.map((item) => (
-                <div
-                  key={item.id}
-                  className="relative w-16 h-16 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 shrink-0 group"
+          {/* Thumbnail Preview Queue */}
+          {selectedFiles.length > 0 && (
+            <div className="space-y-2 p-3 bg-stone-50 dark:bg-[#1a1a1d] rounded-2xl border border-stone-200/60 dark:border-stone-800">
+              <div className="flex items-center justify-between text-xs text-[#9CA3AF]">
+                <span className="font-semibold text-[#374151] dark:text-[#D1D5DB]">
+                  待上傳圖片清單 ({selectedFiles.length} 張)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+                    setSelectedFiles([]);
+                  }}
+                  className="text-[11px] text-rose-500 hover:underline"
                 >
-                  <img src={item.previewUrl} alt="預覽" className="w-full h-full object-cover" />
-                  <button
-                    onClick={() => handleRemoveFile(item.id)}
-                    className="absolute inset-0 bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  清空全部
+                </button>
+              </div>
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1">
+                {selectedFiles.map((item) => (
+                  <div
+                    key={item.id}
+                    className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 shrink-0 group"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
+                    <img src={item.previewUrl} alt="預覽" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(item.id)}
+                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-stone-200 dark:border-stone-800">
-          <button
-            onClick={() => {
-              stopCamera();
-              onClose();
-            }}
-            className="px-4 py-2 rounded-2xl text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
-          >
-            取消
-          </button>
-          <button
-            onClick={handleSubmitBatch}
-            disabled={selectedFiles.length === 0}
-            className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
-              selectedFiles.length > 0
-                ? 'bg-[#6366F1] hover:bg-[#4F46E5] active:scale-95'
-                : 'bg-stone-300 dark:bg-stone-700 cursor-not-allowed'
-            }`}
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>開始批次上傳 ({selectedFiles.length} 題)</span>
-          </button>
+        {/* Guaranteed Sticky / Fixed Footer */}
+        <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-stone-50 dark:bg-[#1a1a1d] border-t border-stone-200 dark:border-stone-800 flex items-center justify-between">
+          <div>
+            {selectedFiles.length > 0 ? (
+              <div className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>已選取 {selectedFiles.length} 張圖檔</span>
+              </div>
+            ) : (
+              <span className="text-xs text-[#9CA3AF]">尚未加入題目圖片</span>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => {
+                stopCamera();
+                onClose();
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmitBatch}
+              disabled={selectedFiles.length === 0}
+              className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
+                selectedFiles.length > 0
+                  ? 'bg-[#6366F1] hover:bg-[#4F46E5] active:scale-95 cursor-pointer'
+                  : 'bg-stone-300 dark:bg-stone-700 cursor-not-allowed opacity-60'
+              }`}
+            >
+              <Upload className="w-4 h-4" />
+              <span>開始批次上傳 ({selectedFiles.length} 題)</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -203,6 +203,21 @@ export const Navbar: React.FC = () => {
                 </Link>
               );
             })}
+
+            {/* Mobile Drawer Upload Action */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setUploadModalOpen(true);
+                }}
+                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+              >
+                <Upload className="w-4 h-4" />
+                <span>批次上傳錯題</span>
+              </button>
+            </div>
           </div>
         )}
       </header>
