@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, Share2, Trash2, Edit3 } from 'lucide-react';
+import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff } from 'lucide-react';
 import { Item, DrawData } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
@@ -10,17 +10,20 @@ interface ProblemCardProps {
   problem: Item;
   readOnly?: boolean;
   onEditMetadata?: (problem: Item) => void;
+  onStatusResolved?: (problemId: string) => void;
 }
 
 export const ProblemCard: React.FC<ProblemCardProps> = ({
   problem,
   readOnly = false,
   onEditMetadata,
+  onStatusResolved,
 }) => {
   const { tool, penColor, penWidth, eraserActive, updateProblemInStore, removeProblemFromStore } = useStore();
   const [seq, setSeq] = useState<number>(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
+  const [inkVisible, setInkVisible] = useState<boolean>(true); // US 3.1 Ink Toggle
 
   const isResolved = problem.status === 'resolved';
 
@@ -32,6 +35,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         status: nextStatus,
         review_count: isResolved ? problem.review_count : problem.review_count + 1,
       });
+
+      // US 4.2: Trigger auto-scroll to next problem when marked as resolved
+      if (nextStatus === 'resolved' && onStatusResolved) {
+        onStatusResolved(problem.id);
+      }
     } catch (err) {
       console.error('Failed to toggle status:', err);
     }
@@ -60,7 +68,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const handleShare = async () => {
     try {
-      const res = await createShareLink(problem.id, true);
+      const res = await createShareLink(problem.id, inkVisible);
       const url = `${window.location.origin}/share/${res.token}`;
       setShareUrl(url);
       await navigator.clipboard.writeText(url);
@@ -83,7 +91,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const imageUrl = getProblemImageUrl(problem.id);
 
   return (
-    <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 mb-6 transition-all duration-150">
+    <div
+      id={`problem-card-${problem.id}`}
+      className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 mb-6 transition-all duration-150 scroll-mt-20"
+    >
       {/* Header Bar */}
       <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
         <div className="flex items-center space-x-2">
@@ -101,6 +112,17 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         </div>
 
         <div className="flex items-center space-x-1">
+          {/* US 3.1 Ink Hide/Show Toggle Button */}
+          <button
+            onClick={() => setInkVisible((prev) => !prev)}
+            className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors ${
+              !inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
+            }`}
+            title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
+          >
+            {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-amber-500" />}
+          </button>
+
           {onEditMetadata && (
             <button
               onClick={() => onEditMetadata(problem)}
@@ -110,6 +132,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               <Edit3 className="w-4 h-4" />
             </button>
           )}
+
           <button
             onClick={handleShare}
             className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
@@ -117,6 +140,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           >
             <Share2 className="w-4 h-4" />
           </button>
+
           {!readOnly && (
             <button
               onClick={handleDelete}
@@ -162,6 +186,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           <DrawCanvas
             initialDrawData={problem.draw_data}
             readOnly={readOnly}
+            inkVisible={inkVisible}
             onSaveDrawData={handleSaveDraw}
             activeTool={tool}
             activeColor={penColor}

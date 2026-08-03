@@ -110,6 +110,13 @@ export const StudyView: React.FC = () => {
     }
   };
 
+  const handleStatusResolved = (problemId: string) => {
+    const currentIndex = problems.findIndex((p) => p.id === problemId);
+    if (currentIndex >= 0 && currentIndex < problems.length - 1) {
+      rowVirtualizer.scrollToIndex(currentIndex + 1, { align: 'start', behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 relative min-h-[calc(100vh-100px)]">
       {/* Sidebar Filter */}
@@ -144,6 +151,7 @@ export const StudyView: React.FC = () => {
                     <ProblemCard
                       problem={problem}
                       onEditMetadata={handleOpenEditModal}
+                      onStatusResolved={handleStatusResolved}
                     />
                   </div>
                 );

@@ -5,6 +5,7 @@ import { DrawData, Stroke, EraserMask } from '../types';
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
   readOnly?: boolean;
+  inkVisible?: boolean;
   onSaveDrawData?: (drawData: DrawData) => void;
   activeTool?: 'pen' | 'highlighter' | 'eraser';
   activeColor?: string;
@@ -30,6 +31,7 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
 export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   initialDrawData,
   readOnly = false,
+  inkVisible = true,
   onSaveDrawData,
   activeTool = 'pen',
   activeColor = '#6366F1',
@@ -41,6 +43,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [canvasHeight, setCanvasHeight] = useState<number>(400);
+  const [canvasWidth, setCanvasWidth] = useState<number>(800);
 
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const [eraserMasks, setEraserMasks] = useState<EraserMask[]>([]);
@@ -60,6 +63,21 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
     }
   }, [initialDrawData]);
+
+  // Sync canvas pixel width to container width dynamically
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const updateWidth = () => {
+      if (containerRef.current) {
+        setCanvasWidth(containerRef.current.clientWidth || 800);
+      }
+    };
+    updateWidth();
+
+    const resizeObserver = new ResizeObserver(() => updateWidth());
+    resizeObserver.observe(containerRef.current);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   // Viewport-Only Canvas Mount (IntersectionObserver)
   useEffect(() => {
@@ -109,7 +127,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
   // Pointer Event Handlers (PointerType Separation)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (readOnly) return;
+    if (readOnly || !inkVisible) return;
 
     // PointerType Separation: Pen draws, Touch native scrolls
     if (e.pointerType === 'touch' && !e.isPrimary) return; // Palm rejection guard
@@ -143,7 +161,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || readOnly) return;
+    if (!isDrawing || readOnly || !inkVisible) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -190,6 +208,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    if (!inkVisible) return; // Hide Ink Toggle for US 3.1
+
     // Render Completed Strokes
     strokes.forEach((stroke) => {
       const strokePoints = getStroke(stroke.points, {
@@ -228,7 +248,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         ctx.restore();
       }
     }
-  }, [isVisible, strokes, currentPoints, activeColor, activeWidth, activeTool, canvasHeight]);
+  }, [isVisible, inkVisible, strokes, currentPoints, activeColor, activeWidth, activeTool, canvasHeight, canvasWidth]);
 
   return (
     <div
@@ -239,10 +259,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       {isVisible ? (
         <canvas
           ref={canvasRef}
-          width={800}
+          width={canvasWidth}
           height={canvasHeight}
           className={`w-full h-full touch-none select-none ${
-            readOnly ? 'pointer-events-none' : 'cursor-crosshair'
+            readOnly || !inkVisible ? 'pointer-events-none' : 'cursor-crosshair'
           }`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -252,16 +272,17 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       ) : (
         /* Static SVG Snapshot fallback for unmounted canvas */
         <svg className="w-full h-full pointer-events-none">
-          {strokes.map((stroke, i) => {
-            const strokePoints = getStroke(stroke.points, {
-              size: stroke.width * 2,
-              thinning: 0.5,
-              smoothing: 0.5,
-              streamline: 0.5,
-            });
-            const d = getSvgPathFromStroke(strokePoints);
-            return <path key={i} d={d} fill={stroke.color} opacity={stroke.opacity ?? 1.0} />;
-          })}
+          {inkVisible &&
+            strokes.map((stroke, i) => {
+              const strokePoints = getStroke(stroke.points, {
+                size: stroke.width * 2,
+                thinning: 0.5,
+                smoothing: 0.5,
+                streamline: 0.5,
+              });
+              const d = getSvgPathFromStroke(strokePoints);
+              return <path key={i} d={d} fill={stroke.color} opacity={stroke.opacity ?? 1.0} />;
+            })}
         </svg>
       )}
     </div>

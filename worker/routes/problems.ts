@@ -229,6 +229,13 @@ problemsRouter.put('/:id', async (c) => {
     .bind(topic_id || null, keywordsStr || null, keywordTokensStr || null, source || null, problemId, userId)
     .run();
 
+  // Sync FTS5 Index
+  await c.env.DB.prepare(
+    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, '網頁編輯'), ?)`
+  )
+    .bind(problemId, userId, source || null, keywordTokensStr || '')
+    .run();
+
   return c.json({ status: 'ok' });
 });
 
