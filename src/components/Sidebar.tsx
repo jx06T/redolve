@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, Compass, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
@@ -21,6 +21,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     sidebarCollapsed,
     toggleSidebarCollapsed,
   } = useStore();
+
+  // Close mobile drawer on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileDrawerOpen) {
+        setMobileDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileDrawerOpen]);
 
   // Filter taxonomy tree by selectedSubjectId if present
   const availableTaxonomy = selectedSubjectId
@@ -157,7 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
   return (
     <>
-      {/* 1. Mobile Floating Trigger FAB (Positioned at bottom-24 left-6, separate from drawing toolbar) */}
+      {/* 1. Mobile Floating Trigger FAB */}
       <div className="lg:hidden fixed bottom-24 left-6 z-40">
         <button
           onClick={() => setMobileDrawerOpen(true)}
@@ -168,26 +179,34 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         </button>
       </div>
 
-      {/* 2. Mobile Floating Slide-over Backdrop Drawer */}
-      {mobileDrawerOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start">
-          <div className="w-80 max-w-[85vw] bg-white dark:bg-[#202023] border-r border-[#E5E7EB] dark:border-[#2C2C30] h-full p-5 flex flex-col shadow-2xl animate-in slide-in-from-left duration-200">
-            <div className="flex items-center justify-between pb-3 mb-3 border-b border-stone-200 dark:border-stone-800">
-              <div className="flex items-center space-x-2">
-                <Filter className="w-4 h-4 text-[#6366F1]" />
-                <span className="text-sm font-bold text-[#374151] dark:text-[#D1D5DB]">章節導航與篩選</span>
-              </div>
-              <button
-                onClick={() => setMobileDrawerOpen(false)}
-                className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
-              >
-                <X className="w-5 h-5" />
-              </button>
+      {/* 2. Mobile Floating Slide-over Drawer with Blur & Backdrop Click Dismissal */}
+      <div
+        onClick={() => setMobileDrawerOpen(false)}
+        className={`lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start transition-opacity duration-300 ease-out ${
+          mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className={`w-80 max-w-[85vw] bg-white dark:bg-[#202023] border-r border-[#E5E7EB] dark:border-[#2C2C30] h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${
+            mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-stone-200 dark:border-stone-800">
+            <div className="flex items-center space-x-2">
+              <Filter className="w-4 h-4 text-[#6366F1]" />
+              <span className="text-sm font-bold text-[#374151] dark:text-[#D1D5DB]">章節導航與篩選</span>
             </div>
-            <div className="flex-1 overflow-y-auto pr-1">{NavigationContent}</div>
+            <button
+              onClick={() => setMobileDrawerOpen(false)}
+              className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
+          <div className="flex-1 overflow-y-auto pr-1">{NavigationContent}</div>
         </div>
-      )}
+      </div>
 
       {/* 3. Desktop Permanent Sidebar (< 1024px hidden, >= 1024px visible) */}
       {sidebarCollapsed ? (
