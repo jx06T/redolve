@@ -32,3 +32,19 @@
 
 ### 5. AI 標籤重試與靜默降級 (AI Resilience)
 - **決策內容**：Worker `ctx.waitUntil()` 呼叫 Gemini 服務時，實作 3 次指數退避重試 (1s, 2s, 4s)。若重試失敗，靜默將 `status` 設定為 `'unsolved'`、`topic_id` 設定為 `null`，前端顯示橘色「尚未分類 — 點此編輯」 Badge，不中斷圖片上傳流程。
+
+### 6. FTS5 全文檢索索引手動編輯同步 (FTS5 Search Sync)
+- **問題發現**：原先 `PUT /api/problems/:id` 在使用者手動修正題目單元或關鍵字時，僅更新 `items` 表，並未同步寫入 `items_fts` 虛擬表，導致搜尋該自訂關鍵字時無法被索引查出。
+- **決策與優化**：在 `PUT /api/problems/:id` 更新 D1 時補上 `INSERT OR REPLACE INTO items_fts` 指令，確保手動標籤與 FTS5 檢索保持一致。
+
+### 7. 筆跡顯隱 Toggle 與二刷原題 (US 3.1 Implementation)
+- **需求核對**：PRD US 3.1 要求使用者二刷題目時可一鍵隱藏舊筆跡對著乾淨考卷重新解題。
+- **決策與優化**：在 `ProblemCard.tsx` 的工具列新增 Eye / EyeOff 眼睛按鈕，控管 `inkVisible` 狀態，並傳遞至 `<DrawCanvas>` 控管 Canvas 2D / SVG 筆跡圖層的不透明度與繪製開關。
+
+### 8. 訂正完成自動順暢滾動至下一題 (US 4.2 Implementation)
+- **需求核對**：PRD US 4.2 要求點擊「標記為已訂正」時，題目除標示完成外應自動滾動到下一題。
+- **決策與優化**：在 `ProblemCard.tsx` 的 `handleToggleStatus` 中新增 `onStatusResolved` 回調，並在 `StudyView.tsx` 透過 `@tanstack/react-virtual` 的 `rowVirtualizer.scrollToIndex(currentIndex + 1, { align: 'start', behavior: 'smooth' })` 實現自動無縫平滑滾動。
+
+### 9. 畫布動態寬度自適應 (Dynamic Canvas Width Scaling)
+- **問題發現**：原本 `<canvas>` width 寫死 800px，在不同 iPad 或螢幕寬度下可能導致指針點位 `x, y` 與 Canvas 內建像素解析度不完全等比，造成筆劃偏移。
+- **決策與優化**：在 `DrawCanvas.tsx` 引入 `ResizeObserver` 動態捕捉容器 `clientWidth`，實時設定 `canvasWidth` 狀態，確保 1:1 像素精準對齊。
