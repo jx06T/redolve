@@ -14,17 +14,21 @@
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.10.8",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
     "hono": "^4.6.0",
+    "idb": "^8.0.3",
     "lucide-react": "^0.453.0",
     "perfect-freehand": "^1.2.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.2",
     "tailwind-merge": "^2.5.4",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241022.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.7.9",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",

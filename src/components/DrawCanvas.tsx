@@ -1,0 +1,269 @@
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import getStroke from 'perfect-freehand';
+import { DrawData, Stroke, EraserMask } from '../types';
+
+interface DrawCanvasProps {
+  initialDrawData?: DrawData | string | null;
+  readOnly?: boolean;
+  onSaveDrawData?: (drawData: DrawData) => void;
+  activeTool?: 'pen' | 'highlighter' | 'eraser';
+  activeColor?: string;
+  activeWidth?: number;
+  isEraserActive?: boolean;
+}
+
+function getSvgPathFromStroke(strokePoints: number[][]): string {
+  if (!strokePoints || strokePoints.length === 0) return '';
+  const d = strokePoints.reduce(
+    (acc, [x0, y0], i, arr) => {
+      if (i === 0) return `M ${x0},${y0}`;
+      const [x1, y1] = arr[i - 1];
+      const mx = (x0 + x1) / 2;
+      const my = (y0 + y1) / 2;
+      return `${acc} Q ${x1},${y1} ${mx},${my}`;
+    },
+    ''
+  );
+  return d;
+}
+
+export const DrawCanvas: React.FC<DrawCanvasProps> = ({
+  initialDrawData,
+  readOnly = false,
+  onSaveDrawData,
+  activeTool = 'pen',
+  activeColor = '#6366F1',
+  activeWidth = 2,
+  isEraserActive = false,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  const [isVisible, setIsVisible] = useState<boolean>(true);
+  const [canvasHeight, setCanvasHeight] = useState<number>(400);
+
+  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [eraserMasks, setEraserMasks] = useState<EraserMask[]>([]);
+  const [currentPoints, setCurrentPoints] = useState<[number, number, number][]>([]);
+  const [isDrawing, setIsDrawing] = useState<boolean>(false);
+
+  // Parse Initial Draw Data
+  useEffect(() => {
+    if (initialDrawData) {
+      try {
+        const parsed: DrawData =
+          typeof initialDrawData === 'string' ? JSON.parse(initialDrawData) : initialDrawData;
+        setStrokes(parsed.strokes || []);
+        setEraserMasks(parsed.eraserMasks || []);
+      } catch (err) {
+        console.warn('Failed to parse draw_data:', err);
+      }
+    }
+  }, [initialDrawData]);
+
+  // Viewport-Only Canvas Mount (IntersectionObserver)
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          setIsVisible(entry.isIntersecting);
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Save Debounce Helper
+  const triggerSave = useCallback(() => {
+    if (onSaveDrawData) {
+      onSaveDrawData({
+        strokes,
+        eraserMasks,
+        expansions: [{ addedHeight: canvasHeight - 400, atY: canvasHeight }],
+      });
+    }
+  }, [strokes, eraserMasks, canvasHeight, onSaveDrawData]);
+
+  // Two-Finger Undo Listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || readOnly) return;
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        setStrokes((prev) => prev.slice(0, prev.length - 1));
+        triggerSave();
+      }
+    };
+
+    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    return () => container.removeEventListener('touchstart', handleTouchStart);
+  }, [readOnly, triggerSave]);
+
+  // Pointer Event Handlers (PointerType Separation)
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (readOnly) return;
+
+    // PointerType Separation: Pen draws, Touch native scrolls
+    if (e.pointerType === 'touch' && !e.isPrimary) return; // Palm rejection guard
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pressure = e.pressure || 0.5;
+
+    const effectiveTool = isEraserActive ? 'eraser' : activeTool;
+
+    if (effectiveTool === 'eraser') {
+      // Vector Segment Clipping (Geometric Erase against stored strokes)
+      const eraserRadius = 16;
+      setStrokes((prevStrokes) =>
+        prevStrokes.filter((stroke) => {
+          return !stroke.points.some(([px, py]) => {
+            const dist = Math.hypot(px - x, py - y);
+            return dist < eraserRadius;
+          });
+        })
+      );
+      triggerSave();
+    } else {
+      setIsDrawing(true);
+      setCurrentPoints([[x, y, pressure]]);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || readOnly) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const pressure = e.pressure || 0.5;
+
+    // Auto-Expanding Card Canvas: Pen within 100px of bottom
+    if (canvasHeight - y < 100) {
+      setCanvasHeight((prev) => prev + 400);
+    }
+
+    setCurrentPoints((prev) => [...prev, [x, y, pressure]]);
+  };
+
+  const handlePointerUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+
+    if (currentPoints.length > 0) {
+      const newStroke: Stroke = {
+        color: activeColor,
+        width: activeWidth,
+        points: currentPoints,
+        tool: activeTool === 'highlighter' ? 'highlighter' : 'pen',
+        opacity: activeTool === 'highlighter' ? 0.35 : 1.0,
+      };
+
+      setStrokes((prev) => [...prev, newStroke]);
+      setCurrentPoints([]);
+      triggerSave();
+    }
+  };
+
+  // Render Canvas Context
+  useEffect(() => {
+    if (!isVisible || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Render Completed Strokes
+    strokes.forEach((stroke) => {
+      const strokePoints = getStroke(stroke.points, {
+        size: stroke.width * 2,
+        thinning: 0.5,
+        smoothing: 0.5,
+        streamline: 0.5,
+      });
+
+      const pathData = getSvgPathFromStroke(strokePoints);
+      if (pathData) {
+        ctx.save();
+        ctx.fillStyle = stroke.color;
+        ctx.globalAlpha = stroke.opacity ?? 1.0;
+        const path = new Path2D(pathData);
+        ctx.fill(path);
+        ctx.restore();
+      }
+    });
+
+    // Render Live In-progress Stroke
+    if (currentPoints.length > 0) {
+      const liveStrokePoints = getStroke(currentPoints, {
+        size: activeWidth * 2,
+        thinning: 0.5,
+        smoothing: 0.5,
+        streamline: 0.5,
+      });
+      const pathData = getSvgPathFromStroke(liveStrokePoints);
+      if (pathData) {
+        ctx.save();
+        ctx.fillStyle = activeColor;
+        ctx.globalAlpha = activeTool === 'highlighter' ? 0.35 : 1.0;
+        const path = new Path2D(pathData);
+        ctx.fill(path);
+        ctx.restore();
+      }
+    }
+  }, [isVisible, strokes, currentPoints, activeColor, activeWidth, activeTool, canvasHeight]);
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden transition-all duration-200"
+      style={{ height: `${canvasHeight}px` }}
+    >
+      {isVisible ? (
+        <canvas
+          ref={canvasRef}
+          width={800}
+          height={canvasHeight}
+          className={`w-full h-full touch-none select-none ${
+            readOnly ? 'pointer-events-none' : 'cursor-crosshair'
+          }`}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        />
+      ) : (
+        /* Static SVG Snapshot fallback for unmounted canvas */
+        <svg className="w-full h-full pointer-events-none">
+          {strokes.map((stroke, i) => {
+            const strokePoints = getStroke(stroke.points, {
+              size: stroke.width * 2,
+              thinning: 0.5,
+              smoothing: 0.5,
+              streamline: 0.5,
+            });
+            const d = getSvgPathFromStroke(strokePoints);
+            return <path key={i} d={d} fill={stroke.color} opacity={stroke.opacity ?? 1.0} />;
+          })}
+        </svg>
+      )}
+    </div>
+  );
+};

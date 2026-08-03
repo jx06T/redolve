@@ -18,5 +18,11 @@
       "binding": "STORAGE",
       "bucket_name": "redolve-images"
     }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "local-kv-id"
+    }
   ]
 }

@@ -2,15 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --color-primary: #6366F1;
+  --color-primary-hover: #4F46E5;
+  --color-page-bg: #F4F4F2;
+  --color-surface: #FFFFFF;
+  --color-border-subtle: #E5E7EB;
+  --color-text-main: #374151;
+  --color-text-muted: #9CA3AF;
+  --color-accent-rose: #F4A0A0;
+  --color-accent-peach: #F5C6A0;
+  --color-accent-sage: #A8C5BD;
+  --color-status-resolved: #10B981;
+  --color-status-eraser: #E11D48;
+}
+
+.dark {
+  --color-page-bg: #161618;
+  --color-surface: #202023;
+  --color-border-subtle: #2C2C30;
+  --color-text-main: #D1D5DB;
+}
+
 @layer base {
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: var(--color-page-bg);
+    color: var(--color-text-main);
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Outfit', 'Inter', sans-serif;
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   }
 }
 

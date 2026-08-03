@@ -1,24 +1,36 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
+import { Bindings, Variables } from './types';
+import { errorHandler } from './middleware/error';
+import { corsMiddleware } from './middleware/cors';
+import { adminRouter } from './routes/admin';
+import { problemsRouter } from './routes/problems';
+import { keysRouter } from './routes/keys';
+import { sharesRouter } from './routes/shares';
+import { searchRouter } from './routes/search';
+import { dashboardRouter } from './routes/dashboard';
 
-type Bindings = {
-  DB: D1Database;
-  STORAGE: R2Bucket;
-  GEMINI_API_KEY?: string;
-};
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-const app = new Hono<{ Bindings: Bindings }>();
-
-app.use('*', cors());
+// Global Middlewares
+app.use('*', corsMiddleware);
+app.onError(errorHandler);
 
 // Health Check
 app.get('/api/health', (c) => {
-  return c.json({ status: 'ok', service: 'Redolve API Engine', timestamp: new Date().toISOString() });
+  return c.json({
+    status: 'ok',
+    service: 'Redolve API Engine',
+    version: '1.3.0',
+    timestamp: new Date().toISOString(),
+  });
 });
 
-// Mock or Scaffold API Routes
-app.get('/api/problems', async (c) => {
-  return c.json({ items: [], total: 0 });
-});
+// Route Modules
+app.route('/api/admin', adminRouter);
+app.route('/api/problems', problemsRouter);
+app.route('/api/keys', keysRouter);
+app.route('/api/search', searchRouter);
+app.route('/api/dashboard', dashboardRouter);
+app.route('/', sharesRouter);
 
 export default app;
