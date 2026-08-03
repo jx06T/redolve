@@ -1,0 +1,9 @@
+# Robots.txt for Redolve (https://redolve.pages.dev)
+User-agent: *
+Allow: /
+Allow: /study
+Allow: /share/
+Disallow: /api/
+Disallow: /settings
+
+Sitemap: https://redolve.pages.dev/sitemap.xml

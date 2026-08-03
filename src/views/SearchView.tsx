@@ -2,12 +2,18 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import { searchProblems } from '../services/api';
+import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { Item } from '../types';
 
 export const SearchView: React.FC = () => {
   const [searchParams] = useSearchParams();
   const query = searchParams.get('q') || '';
+
+  useSEO({
+    title: query ? `搜尋「${query}」` : '全域錯題搜尋',
+    description: query ? `搜尋關鍵字「${query}」的錯題與解析。` : '透過 FTS5 中文全文檢索快速找到錯題。',
+  });
 
   const [results, setResults] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(false);

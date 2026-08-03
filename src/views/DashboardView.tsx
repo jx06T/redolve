@@ -2,9 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, CheckCircle2, HelpCircle, Loader2, ArrowRight, Sparkles, TrendingUp } from 'lucide-react';
 import { fetchDashboard } from '../services/api';
+import { useSEO } from '../hooks/useSEO';
 import { DashboardData } from '../types';
 
 export const DashboardView: React.FC = () => {
+  useSEO({
+    title: '進度儀表板',
+    description: '查看高中學測・分科錯題複習進度、已訂正比率與最需加強的弱點單元 Top 3。',
+  });
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 

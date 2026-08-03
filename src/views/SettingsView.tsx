@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { Key, Plus, Trash2, Copy, Check, ShieldCheck } from 'lucide-react';
 import { fetchApiKeys, createApiKey, deleteApiKey } from '../services/api';
+import { useSEO } from '../hooks/useSEO';
 import { ApiKeyItem } from '../types';
 
 export const SettingsView: React.FC = () => {
+  useSEO({
+    title: 'iOS 捷徑 API Key 設定',
+    description: '管理 iPad / iPhone 捷徑傳輸金鑰，實現拍照即傳 Redolve 錯題本。',
+  });
+
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
   const [newKey, setNewKey] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');

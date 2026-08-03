@@ -4,6 +4,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { fetchProblems, updateProblemMetadata } from '../services/api';
+import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
 import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
@@ -14,6 +15,16 @@ import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
+  
+  const currentSubObj = TAXONOMY_SEED_DATA.find((s) => s.id === subject);
+  const currentSubjectLabel = currentSubObj ? currentSubObj.label : subject && subject !== 'all' ? subject : '全部科目';
+  const currentTopicLabel = topic ? ` - ${topic}` : '';
+
+  useSEO({
+    title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,
+    description: `Redolve ${currentSubjectLabel} 錯題複習專區。支援 iPad + Apple Pencil 向量手寫訂正、AI 題型分析與單元沉浸式演練。`,
+  });
+
   const {
     problems,
     setProblems,
@@ -204,7 +215,8 @@ export const StudyView: React.FC = () => {
       <Sidebar onSelectProblemOutline={handleSelectProblemOutline} />
 
       {/* Main Virtualized Problem Stream Feed */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <section className="flex-1 flex flex-col min-w-0" aria-label="錯題串流列表">
+        <h1 className="sr-only">{currentSubjectLabel}{currentTopicLabel} 錯題刷題複習</h1>
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
@@ -256,7 +268,7 @@ export const StudyView: React.FC = () => {
             )}
           </div>
         )}
-      </main>
+      </section>
 
       {/* Floating UI Layer (UI_DESIGN01_0804 Section 4) */}
       {/* 1. Top-Right Floating Pen Palette */}

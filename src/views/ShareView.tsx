@@ -2,11 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, AlertTriangle, BookOpen } from 'lucide-react';
 import { fetchSharedProblem, getSharedImageUrl } from '../services/api';
+import { useSEO } from '../hooks/useSEO';
 import { DrawCanvas } from '../components/DrawCanvas';
 import { Item } from '../types';
 
 export const ShareView: React.FC = () => {
   const { token } = useParams<{ token: string }>();
+
+  useSEO({
+    title: '公開錯題分享檢視',
+    description: 'Redolve 公開唯讀錯題分享，支援原圖與作者手寫筆跡同步展示。',
+    ogType: 'article',
+  });
+
   const [data, setData] = useState<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);

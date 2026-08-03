@@ -1,18 +1,37 @@
 {
   "name": "Redolve - 心流式 AI 錯題本",
   "short_name": "Redolve",
-  "description": "專為 iPad + Apple Pencil 打造的邊緣運算 AI 錯題本 PWA",
+  "description": "專為 iPad + Apple Pencil 打造的心流式 AI 錯題本 PWA。支援批次拍照上傳、AI 智慧打標題型、向量手寫筆跡同步、無干擾沉浸式訂正與弱點分析。",
+  "lang": "zh-TW",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#F4F4F2",
   "theme_color": "#6366F1",
+  "categories": ["education", "productivity"],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "開始刷題",
+      "short_name": "刷題",
+      "description": "進入錯題本進行心流手寫訂正",
+      "url": "/study/all",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "全域搜尋",
+      "short_name": "搜尋",
+      "description": "快速搜尋考題與知識點",
+      "url": "/search",
+      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
     }
   ]
 }
