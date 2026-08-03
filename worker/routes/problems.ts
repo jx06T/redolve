@@ -253,8 +253,11 @@ problemsRouter.delete('/:id', async (c) => {
   }
 
   await c.env.STORAGE.delete(item.image_url);
-  await c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(problemId, userId).run();
-  await c.env.DB.prepare('DELETE FROM items_fts WHERE id = ?').bind(problemId).run();
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(problemId, userId),
+    c.env.DB.prepare('DELETE FROM items_fts WHERE id = ?').bind(problemId),
+    c.env.DB.prepare('DELETE FROM shares WHERE item_id = ?').bind(problemId),
+  ]);
 
   return c.json({ status: 'deleted' });
 });
