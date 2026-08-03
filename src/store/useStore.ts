@@ -3,10 +3,13 @@ import { Item, TaxonomyNode } from '../types';
 
 interface StoreState {
   // Navigation & Filter State
+  selectedSubjectId: string | null;
   selectedTopicId: string | null;
   selectedStatus: 'all' | 'unsolved' | 'resolved';
   searchQuery: string;
   darkMode: boolean;
+  activeProblemId: string | null;
+  sidebarCollapsed: boolean;
 
   // Problem Items State
   problems: Item[];
@@ -23,11 +26,15 @@ interface StoreState {
   taxonomies: TaxonomyNode[];
 
   // Actions
+  setSelectedSubjectId: (subjectId: string | null) => void;
   setSelectedTopicId: (topicId: string | null) => void;
   setSelectedStatus: (status: 'all' | 'unsolved' | 'resolved') => void;
   setSearchQuery: (query: string) => void;
   setDarkMode: (darkMode: boolean) => void;
   toggleDarkMode: () => void;
+  setActiveProblemId: (problemId: string | null) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  toggleSidebarCollapsed: () => void;
   setProblems: (problems: Item[], nextCursor: string | null) => void;
   appendProblems: (problems: Item[], nextCursor: string | null) => void;
   updateProblemInStore: (id: string, updates: Partial<Item>) => void;
@@ -41,10 +48,13 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set) => ({
+  selectedSubjectId: null,
   selectedTopicId: null,
   selectedStatus: 'all',
   searchQuery: '',
   darkMode: false,
+  activeProblemId: null,
+  sidebarCollapsed: false,
 
   problems: [],
   nextCursor: null,
@@ -57,6 +67,7 @@ export const useStore = create<StoreState>((set) => ({
 
   taxonomies: [],
 
+  setSelectedSubjectId: (subjectId) => set({ selectedSubjectId: subjectId, selectedTopicId: null }),
   setSelectedTopicId: (topicId) => set({ selectedTopicId: topicId }),
   setSelectedStatus: (status) => set({ selectedStatus: status }),
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -78,6 +89,10 @@ export const useStore = create<StoreState>((set) => ({
       }
       return { darkMode: next };
     }),
+
+  setActiveProblemId: (activeProblemId) => set({ activeProblemId }),
+  setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
+  toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 
   setProblems: (problems, nextCursor) => set({ problems, nextCursor }),
   appendProblems: (newItems, nextCursor) =>

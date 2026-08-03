@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, LayoutDashboard, BookOpen, Settings, Menu, X } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, LayoutDashboard, BookOpen, Settings, Menu, X, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { uploadProblem } from '../services/api';
+import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -12,7 +13,15 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
 
-  const { darkMode, toggleDarkMode, searchQuery, setSearchQuery, setIsLoading } = useStore();
+  const {
+    darkMode,
+    toggleDarkMode,
+    searchQuery,
+    setSearchQuery,
+    setIsLoading,
+    selectedSubjectId,
+    setSelectedSubjectId,
+  } = useStore();
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +48,13 @@ export const Navbar: React.FC = () => {
     }
   };
 
+  const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const newSubjectId = val === 'all' ? null : val;
+    setSelectedSubjectId(newSubjectId);
+    navigate(`/study/${val}`);
+  };
+
   const navLinks = [
     { path: '/', label: '總覽 Dashboard', icon: LayoutDashboard },
     { path: '/study/all', label: '刷題本 Study', icon: BookOpen },
@@ -48,7 +64,7 @@ export const Navbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#202023]/80 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#2C2C30] px-4 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Brand Logo & Mobile Menu Toggle */}
+        {/* Brand Logo & Subject Selector */}
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -58,7 +74,7 @@ export const Navbar: React.FC = () => {
             {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
 
-          <Link to="/" className="flex items-center space-x-3 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
+          <Link to="/" className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
             <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 rounded-2xl">
               <PenTool className="w-5 h-5" />
             </div>
@@ -67,6 +83,23 @@ export const Navbar: React.FC = () => {
               <span className="text-[10px] text-[#9CA3AF] mt-0.5">iPad AI Flashcards</span>
             </div>
           </Link>
+
+          {/* Subject Selector Dropdown (UI_DESIGN01_0804 Section 1) */}
+          <div className="relative hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
+            <select
+              value={selectedSubjectId || 'all'}
+              onChange={handleSubjectChange}
+              className="appearance-none bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] text-xs font-bold px-3 py-1.5 pr-7 rounded-xl border border-stone-200 dark:border-stone-700 cursor-pointer focus:outline-none focus:border-[#6366F1]"
+            >
+              <option value="all">全部科目 ▾</option>
+              {TAXONOMY_SEED_DATA.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2 text-[#9CA3AF] pointer-events-none" />
+          </div>
         </div>
 
         {/* Desktop Navigation Tabs */}
@@ -160,7 +193,24 @@ export const Navbar: React.FC = () => {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30] space-y-1">
+        <div className="md:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30] space-y-2">
+          {/* Mobile Subject Selector */}
+          <div className="px-2 pb-2">
+            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">科目選擇</label>
+            <select
+              value={selectedSubjectId || 'all'}
+              onChange={handleSubjectChange}
+              className="w-full p-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]"
+            >
+              <option value="all">全部科目</option>
+              {TAXONOMY_SEED_DATA.map((sub) => (
+                <option key={sub.id} value={sub.id}>
+                  {sub.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {navLinks.map((link) => {
             const Icon = link.icon;
             const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));

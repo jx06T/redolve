@@ -6,6 +6,7 @@ import { fetchProblems, updateProblemMetadata } from '../services/api';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
 import { EraserFAB } from '../components/EraserFAB';
+import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
@@ -15,11 +16,13 @@ export const StudyView: React.FC = () => {
     setProblems,
     appendProblems,
     nextCursor,
+    selectedSubjectId,
     selectedTopicId,
     selectedStatus,
     isLoading,
     setIsLoading,
     updateProblemInStore,
+    setActiveProblemId,
   } = useStore();
 
   const [editingProblem, setEditingProblem] = useState<Item | null>(null);
@@ -70,9 +73,42 @@ export const StudyView: React.FC = () => {
   const rowVirtualizer = useVirtualizer({
     count: problems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 580, // estimated card height
+    estimateSize: () => 620, // estimated card height with divider
     overscan: 2,
   });
+
+  // IntersectionObserver for Scroll Sync & URL Update (UI_DESIGN01_0804 Section 2)
+  useEffect(() => {
+    const parent = parentRef.current;
+    if (!parent || problems.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.4) {
+            const problemId = entry.target.getAttribute('data-problem-id');
+            if (problemId) {
+              setActiveProblemId(problemId);
+              // Update URL replaceState without triggering page refresh
+              const subjectStr = selectedSubjectId || 'all';
+              const topicStr = selectedTopicId || 'all';
+              window.history.replaceState(
+                null,
+                '',
+                `/study/${subjectStr}/${topicStr}/${problemId}`
+              );
+            }
+          }
+        });
+      },
+      { root: parent, threshold: [0.4, 0.7] }
+    );
+
+    const cards = parent.querySelectorAll('[data-problem-id]');
+    cards.forEach((card) => observer.observe(card));
+
+    return () => observer.disconnect();
+  }, [problems, selectedSubjectId, selectedTopicId, setActiveProblemId]);
 
   const handleOpenEditModal = (problem: Item) => {
     setEditingProblem(problem);
@@ -117,13 +153,20 @@ export const StudyView: React.FC = () => {
     }
   };
 
+  const handleSelectProblemOutline = (problemId: string) => {
+    const index = problems.findIndex((p) => p.id === problemId);
+    if (index >= 0) {
+      rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 relative min-h-[calc(100vh-100px)]">
-      {/* Sidebar Filter */}
-      <Sidebar />
+      {/* Sidebar Filter & Problem Outline Nav */}
+      <Sidebar onSelectProblemOutline={handleSelectProblemOutline} />
 
       {/* Main Virtualized Problem Stream */}
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
@@ -150,6 +193,7 @@ export const StudyView: React.FC = () => {
                   >
                     <ProblemCard
                       problem={problem}
+                      problemIndex={virtualRow.index}
                       onEditMetadata={handleOpenEditModal}
                       onStatusResolved={handleStatusResolved}
                     />
@@ -174,8 +218,11 @@ export const StudyView: React.FC = () => {
         )}
       </main>
 
-      {/* Left Hand Spring Eraser Floating Action Button */}
+      {/* Left Hand Spring Eraser FAB */}
       <EraserFAB />
+
+      {/* Right Bottom Floating Smart CTA (UI_DESIGN01_0804 Section 4.3) */}
+      <SmartCTA onStatusResolved={handleStatusResolved} />
 
       {/* Metadata Edit Modal */}
       {editingProblem && (
