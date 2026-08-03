@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PenTool, Highlighter, GripVertical, GripHorizontal } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { COLOR_PALETTE, STROKE_WIDTHS } from '../config/constants';
 
 export const FloatingPenToolbar: React.FC = () => {
   const { tool, setTool, penColor, setPenColor, penWidth, setPenWidth } = useStore();
@@ -85,12 +86,6 @@ export const FloatingPenToolbar: React.FC = () => {
     }
   };
 
-  const colorPalette = [
-    { name: 'Indigo', hex: '#6366F1' },
-    { name: 'Rose', hex: '#E11D48' },
-    { name: 'Blue', hex: '#3B82F6' },
-  ];
-
   if (!position) return null;
 
   const isHorizontal = orientation === 'horizontal';
@@ -103,67 +98,67 @@ export const FloatingPenToolbar: React.FC = () => {
       style={{
         left: `${position.x}px`,
         top: `${position.y}px`,
+        touchAction: 'none',
       }}
-      className={`fixed z-40 bg-white/90 dark:bg-[#202023]/90 backdrop-blur-md border border-[#E5E7EB] dark:border-[#2C2C30] rounded-full shadow-xl select-none touch-none ${
-        isHorizontal
-          ? 'px-3 py-2 flex flex-row items-center space-x-3'
-          : 'px-2 py-3 flex flex-col items-center space-y-3'
-      } ${
-        isDragging ? 'cursor-grabbing scale-105 shadow-2xl' : 'cursor-grab transition-all duration-200 ease-out'
-      }`}
+      className={`fixed z-40 bg-white/90 dark:bg-[#202023]/90 backdrop-blur-md border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-2 shadow-xl select-none transition-all duration-200 ${
+        isHorizontal ? 'flex flex-row items-center space-x-2' : 'flex flex-col items-center space-y-2'
+      } ${isDragging ? 'scale-105 shadow-2xl opacity-90 cursor-grabbing' : 'cursor-grab'}`}
     >
-      {/* Drag Grip Handle */}
-      <div className="text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] cursor-grab">
-        {isHorizontal ? <GripHorizontal className="w-3.5 h-3.5" /> : <GripVertical className="w-3.5 h-3.5" />}
+      {/* Drag Handle Indicator */}
+      <div className="text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]">
+        {isHorizontal ? <GripHorizontal className="w-4 h-4" /> : <GripVertical className="w-4 h-4" />}
       </div>
 
-      {/* Tool Selector */}
+      {/* Tool Selector: Pen vs Highlighter */}
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-1.5 border-r border-stone-200 dark:border-stone-700 pr-2.5'
-            : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-700 pb-2.5'
+            ? 'flex flex-row items-center space-x-1 border-r border-stone-200 dark:border-stone-800 pr-2'
+            : 'flex flex-col items-center space-y-1 border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
         <button
           onClick={() => setTool('pen')}
-          className={`p-2 rounded-full transition-all ${
+          className={`p-2 rounded-2xl transition-colors ${
             tool === 'pen'
-              ? 'bg-[#6366F1] text-white shadow-xs'
+              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold'
               : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
           }`}
-          title="鋼筆 (Pen)"
+          title="鋼筆"
         >
           <PenTool className="w-4 h-4" />
         </button>
 
         <button
           onClick={() => setTool('highlighter')}
-          className={`p-2 rounded-full transition-all ${
+          className={`p-2 rounded-2xl transition-colors ${
             tool === 'highlighter'
-              ? 'bg-amber-500 text-white shadow-xs'
+              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold'
               : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
           }`}
-          title="螢光筆 (Highlighter)"
+          title="螢光筆"
         >
           <Highlighter className="w-4 h-4" />
         </button>
       </div>
 
-      {/* 3 Color Chips */}
+      {/* Color Palette Chips */}
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-2 border-r border-stone-200 dark:border-stone-700 pr-2.5'
-            : 'flex flex-col items-center space-y-2 border-b border-stone-200 dark:border-stone-700 pb-2.5'
+            ? 'flex flex-row items-center space-x-1.5 border-r border-stone-200 dark:border-stone-800 pr-2'
+            : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
-        {colorPalette.map((c) => (
+        {COLOR_PALETTE.map((c) => (
           <button
             key={c.hex}
-            onClick={() => setPenColor(c.hex)}
-            className={`w-5 h-5 rounded-full transition-transform ${
-              penColor === c.hex ? 'scale-125 ring-2 ring-[#6366F1] ring-offset-2 dark:ring-offset-[#202023]' : 'hover:scale-110'
+            onClick={() => {
+              setPenColor(c.hex);
+              if (tool === 'eraser') setTool('pen');
+            }}
+            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 ${
+              penColor === c.hex ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs' : 'hover:scale-110'
             }`}
             style={{ backgroundColor: c.hex }}
             title={c.name}
@@ -171,7 +166,7 @@ export const FloatingPenToolbar: React.FC = () => {
         ))}
       </div>
 
-      {/* 2 Stroke Width Options */}
+      {/* Stroke Width Selector */}
       <div
         className={
           isHorizontal
@@ -179,13 +174,13 @@ export const FloatingPenToolbar: React.FC = () => {
             : 'flex flex-col items-center space-y-1 font-mono text-xs'
         }
       >
-        {[2, 4].map((w) => (
+        {STROKE_WIDTHS.map((w) => (
           <button
             key={w}
             onClick={() => setPenWidth(w)}
             className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center transition-all ${
               penWidth === w
-                ? 'bg-[#6366F1] text-[#FFFFFF] font-bold'
+                ? 'bg-[#6366F1] text-white font-bold'
                 : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
             }`}
           >

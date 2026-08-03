@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, LayoutDashboard, BookOpen, Settings, Menu, X, ChevronDown } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, Menu, X, ChevronDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
+import { NAV_LINKS } from '../config/constants';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -37,11 +38,7 @@ export const Navbar: React.FC = () => {
     navigate(`/study/${val}`);
   };
 
-  const navLinks = [
-    { path: '/', label: '總覽 Dashboard', icon: LayoutDashboard },
-    { path: '/study/all', label: '刷題本 Study', icon: BookOpen },
-    { path: '/settings', label: '設定 Settings', icon: Settings },
-  ];
+  const navLinks = NAV_LINKS;
 
   return (
     <>

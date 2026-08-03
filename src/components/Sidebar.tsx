@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, Compass, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { STATUS_FILTER_ITEMS } from '../config/constants';
 
 interface SidebarProps {
   onSelectProblemOutline?: (problemId: string) => void;
@@ -47,11 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           <span>訂正狀態過濾</span>
         </div>
         <div className="grid grid-cols-3 gap-1.5 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl">
-          {[
-            { key: 'all', label: '全部' },
-            { key: 'unsolved', label: '未訂正' },
-            { key: 'resolved', label: '已完成' },
-          ].map((item) => {
+          {STATUS_FILTER_ITEMS.map((item) => {
             const isSelected = selectedStatus === item.key;
             return (
               <button

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, Camera, Trash2, CheckCircle2, RefreshCw, Layers } from 'lucide-react';
 import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
+import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -13,8 +14,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const { setIsLoading, showToast } = useStore();
 
   const [mode, setMode] = useState<'files' | 'camera'>('files');
+  const [selectedYear, setSelectedYear] = useState<string>('113年');
+  const [selectedType, setSelectedType] = useState<string>('全模');
   const [sourceInput, setSourceInput] = useState<string>(() => {
-    return sessionStorage.getItem('redolve_last_source') || '113年全模數學';
+    return sessionStorage.getItem('redolve_last_source') || '113年 全模';
   });
   const [selectedFiles, setSelectedFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
 
@@ -24,7 +27,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  const presetChips = ['113年學測', '112年分科', '北模', '中模', '全模', '建中段考', '課本例題'];
+  // Sync year and type selection into sourceInput
+  const handleSelectYear = (year: string) => {
+    setSelectedYear(year);
+    setSourceInput(`${year} ${selectedType}`);
+  };
+
+  const handleSelectType = (type: string) => {
+    setSelectedType(type);
+    setSourceInput(`${selectedYear} ${type}`);
+  };
 
   // Handle Camera Stream Start/Stop
   const startCamera = async (facing: 'environment' | 'user') => {
@@ -41,7 +53,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       }
     } catch (err) {
       console.error('Failed to access webcamera:', err);
-      alert('無法存取視訊鏡頭，請確認瀏覽器相機權限！');
+      showToast('無法存取視訊鏡頭，請確認瀏覽器相機權限！', 'error');
     }
   };
 
@@ -102,6 +114,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           previewUrl: URL.createObjectURL(blob),
         };
         setSelectedFiles((prev) => [...prev, newItem]);
+        showToast('完成相機快拍！已加入待上傳清單', 'info', 2000);
       },
       'image/jpeg',
       0.85
@@ -164,7 +177,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               <h3 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
                 錯題批次上傳 & Webcamera 快拍
               </h3>
-              <p className="text-[11px] text-[#9CA3AF]">設定考卷來源後即可批次上傳多張題目照片</p>
+              <p className="text-[11px] text-[#9CA3AF]">選擇年分與卷別後即可批次上傳多張題目照片</p>
             </div>
           </div>
           <button
@@ -178,34 +191,66 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           </button>
         </div>
 
-        {/* 1. Preset Source Input & Quick Chips */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
-            預設題目/考卷來源 (Preset Source)
-          </label>
-          <input
-            type="text"
-            value={sourceInput}
-            onChange={(e) => setSourceInput(e.target.value)}
-            placeholder="例如: 113年全模數學、建中二次段考"
-            className="w-full px-3.5 py-2 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1]"
-          />
-          {/* Quick Chips */}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {presetChips.map((chip) => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setSourceInput(chip)}
-                className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                  sourceInput === chip
-                    ? 'bg-[#6366F1] text-white font-bold'
-                    : 'bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-                }`}
-              >
-                #{chip}
-              </button>
-            ))}
+        {/* 1. Separated Year & Exam Type Selector */}
+        <div className="space-y-3">
+          {/* Year Chips */}
+          <div>
+            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
+              1. 考卷年分 (Exam Year)
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {EXAM_YEARS.map((year) => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => handleSelectYear(year)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
+                    selectedYear === year
+                      ? 'bg-[#6366F1] text-white font-bold shadow-xs'
+                      : 'bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+                  }`}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Exam Type Chips */}
+          <div>
+            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
+              2. 考卷卷別 (Exam Type)
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {EXAM_TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => handleSelectType(type)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
+                    selectedType === type
+                      ? 'bg-[#6366F1] text-white font-bold shadow-xs'
+                      : 'bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Combined Source Input */}
+          <div>
+            <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
+              最終套用來源標籤 (Combinated Source Tag)
+            </label>
+            <input
+              type="text"
+              value={sourceInput}
+              onChange={(e) => setSourceInput(e.target.value)}
+              placeholder="例如: 113年 全模 數學"
+              className="w-full px-3.5 py-2 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1]"
+            />
           </div>
         </div>
 

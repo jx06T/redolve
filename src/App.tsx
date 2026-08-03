@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Toast } from './components/Toast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardView } from './views/DashboardView';
 import { StudyView } from './views/StudyView';
 import { ProblemDetailView } from './views/ProblemDetailView';
@@ -29,34 +30,36 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <div className="min-h-screen bg-[#F4F4F2] dark:bg-[#161618] text-[#374151] dark:text-[#D1D5DB] transition-colors duration-200 flex flex-col font-sans">
-        <Toast />
-        <Routes>
-          {/* Public Share Route without main layout header */}
-          <Route path="/share/:token" element={<ShareView />} />
+    <ErrorBoundary>
+      <BrowserRouter>
+        <div className="min-h-screen bg-[#F4F4F2] dark:bg-[#161618] text-[#374151] dark:text-[#D1D5DB] transition-colors duration-200 flex flex-col font-sans">
+          <Toast />
+          <Routes>
+            {/* Public Share Route without main layout header */}
+            <Route path="/share/:token" element={<ShareView />} />
 
-          {/* Main App Routes */}
-          <Route
-            path="*"
-            element={
-              <>
-                <Navbar />
-                <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3">
-                  <Routes>
-                    <Route path="/" element={<DashboardView />} />
-                    <Route path="/study" element={<Navigate to="/study/all" replace />} />
-                    <Route path="/study/*" element={<StudyView />} />
-                    <Route path="/problem/:id" element={<ProblemDetailView />} />
-                    <Route path="/search" element={<SearchView />} />
-                    <Route path="/settings" element={<SettingsView />} />
-                  </Routes>
-                </main>
-              </>
-            }
-          />
-        </Routes>
-      </div>
-    </BrowserRouter>
+            {/* Main App Routes */}
+            <Route
+              path="*"
+              element={
+                <>
+                  <Navbar />
+                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3">
+                    <Routes>
+                      <Route path="/" element={<DashboardView />} />
+                      <Route path="/study" element={<Navigate to="/study/all" replace />} />
+                      <Route path="/study/*" element={<StudyView />} />
+                      <Route path="/problem/:id" element={<ProblemDetailView />} />
+                      <Route path="/search" element={<SearchView />} />
+                      <Route path="/settings" element={<SettingsView />} />
+                    </Routes>
+                  </main>
+                </>
+              }
+            />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 };
