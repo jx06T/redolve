@@ -119,9 +119,10 @@ export const FloatingPenToolbar: React.FC = () => {
       >
         <button
           onClick={() => setTool('pen')}
-          className={`p-2 rounded-2xl transition-colors ${
+          aria-label="鋼筆書寫工具"
+          className={`p-2.5 rounded-2xl active:scale-95 transition-all ${
             tool === 'pen'
-              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold'
+              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold ring-1 ring-[#6366F1]/30'
               : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
           }`}
           title="鋼筆"
@@ -131,9 +132,10 @@ export const FloatingPenToolbar: React.FC = () => {
 
         <button
           onClick={() => setTool('highlighter')}
-          className={`p-2 rounded-2xl transition-colors ${
+          aria-label="螢光筆標記工具"
+          className={`p-2.5 rounded-2xl active:scale-95 transition-all ${
             tool === 'highlighter'
-              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold'
+              ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold ring-1 ring-[#6366F1]/30'
               : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
           }`}
           title="螢光筆"
@@ -157,7 +159,8 @@ export const FloatingPenToolbar: React.FC = () => {
               setPenColor(c.hex);
               if (tool === 'eraser') setTool('pen');
             }}
-            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 ${
+            aria-label={`選取顏色: ${c.name}`}
+            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${
               penColor === c.hex ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs' : 'hover:scale-110'
             }`}
             style={{ backgroundColor: c.hex }}
@@ -178,7 +181,8 @@ export const FloatingPenToolbar: React.FC = () => {
           <button
             key={w}
             onClick={() => setPenWidth(w)}
-            className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center transition-all ${
+            aria-label={`選取筆觸粗細 ${w} pt`}
+            className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center active:scale-95 transition-all ${
               penWidth === w
                 ? 'bg-[#6366F1] text-white font-bold'
                 : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'

@@ -161,8 +161,9 @@ export const DashboardView: React.FC = () => {
                     </div>
                   </div>
                   <Link
-                    to={`/study/${topic.topic_id}`}
-                    className="p-2 rounded-xl bg-white dark:bg-stone-700 text-[#6366F1] hover:bg-stone-100 transition-colors"
+                    to={`/study/all/${topic.topic_id}`}
+                    aria-label={`前往 ${topic.topic_label} 錯題列表`}
+                    className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 transition-all"
                   >
                     <ArrowRight className="w-4 h-4" />
                   </Link>

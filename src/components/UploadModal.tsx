@@ -27,6 +27,21 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+
+  // Close modal on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        stopCamera();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Sync year and type selection into sourceInput
   const handleSelectYear = (year: string) => {
     setSelectedYear(year);
@@ -83,6 +98,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       previewUrl: URL.createObjectURL(file),
     }));
     setSelectedFiles((prev) => [...prev, ...newItems]);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const files = Array.from(e.dataTransfer.files || []).filter((f) => f.type.startsWith('image/'));
+    if (files.length > 0) {
+      const newItems = files.map((file) => ({
+        id: Math.random().toString(36).substring(2, 9),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      }));
+      setSelectedFiles((prev) => [...prev, ...newItems]);
+    }
   };
 
   const handleRemoveFile = (id: string) => {
@@ -284,10 +313,22 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         {/* Tab 1: File Upload Mode */}
         {mode === 'files' && (
           <div className="space-y-3">
-            <label className="flex flex-col items-center justify-center border-2 border-dashed border-stone-200 dark:border-stone-700 rounded-3xl p-6 cursor-pointer hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors">
+            <label
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={() => setIsDraggingOver(false)}
+              onDrop={handleDrop}
+              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-3xl p-6 cursor-pointer transition-all ${
+                isDraggingOver
+                  ? 'border-[#6366F1] bg-[#6366F1]/10 scale-[1.01]'
+                  : 'border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/50'
+              }`}
+            >
               <Upload className="w-8 h-8 text-[#6366F1] mb-2" />
               <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
-                點擊或拖曳選擇考卷圖檔 (可多選)
+                {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
               </span>
               <span className="text-[10px] text-[#9CA3AF] mt-1">支援 JPG, PNG, WEBP</span>
               <input

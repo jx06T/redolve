@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -12,6 +13,7 @@ import { Item } from '../types';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export const StudyView: React.FC = () => {
+  const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
   const {
     problems,
     setProblems,
@@ -20,6 +22,8 @@ export const StudyView: React.FC = () => {
     selectedSubjectId,
     selectedTopicId,
     selectedStatus,
+    setSelectedSubjectId,
+    setSelectedTopicId,
     isLoading,
     setIsLoading,
     updateProblemInStore,
@@ -31,6 +35,26 @@ export const StudyView: React.FC = () => {
   const [editKeywordsStr, setEditKeywordsStr] = useState<string>('');
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const initialScrollDone = useRef(false);
+
+  // Sync URL Route Params to Zustand Store on direct navigation
+  useEffect(() => {
+    if (subject && subject !== 'all') {
+      if (selectedSubjectId !== subject) {
+        setSelectedSubjectId(subject);
+      }
+    } else if (subject === 'all' && selectedSubjectId !== null) {
+      setSelectedSubjectId(null);
+    }
+
+    if (topic && topic !== 'all') {
+      if (selectedTopicId !== topic) {
+        setSelectedTopicId(topic);
+      }
+    } else if (topic === 'all' && selectedTopicId !== null) {
+      setSelectedTopicId(null);
+    }
+  }, [subject, topic, selectedSubjectId, selectedTopicId, setSelectedSubjectId, setSelectedTopicId]);
 
   const loadInitialProblems = useCallback(async () => {
     setIsLoading(true);
@@ -70,13 +94,26 @@ export const StudyView: React.FC = () => {
     }
   };
 
-  // Virtualizer Setup
+  // Virtualizer Setup with dynamic size measurement
   const rowVirtualizer = useVirtualizer({
     count: problems.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 620, // estimated card height with divider
-    overscan: 2,
+    overscan: 3,
   });
+
+  // Scroll to initial problem from URL param once loaded
+  useEffect(() => {
+    if (problemId && problems.length > 0 && !initialScrollDone.current) {
+      const index = problems.findIndex((p) => p.id === problemId);
+      if (index >= 0) {
+        initialScrollDone.current = true;
+        setTimeout(() => {
+          rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
+        }, 150);
+      }
+    }
+  }, [problemId, problems, rowVirtualizer]);
 
   // IntersectionObserver for Scroll Sync & URL Update (UI_DESIGN01_0804 Section 2)
   useEffect(() => {
@@ -87,16 +124,16 @@ export const StudyView: React.FC = () => {
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio > 0.4) {
-            const problemId = entry.target.getAttribute('data-problem-id');
-            if (problemId) {
-              setActiveProblemId(problemId);
+            const pid = entry.target.getAttribute('data-problem-id');
+            if (pid) {
+              setActiveProblemId(pid);
               // Update URL replaceState without triggering page refresh
               const subjectStr = selectedSubjectId || 'all';
               const topicStr = selectedTopicId || 'all';
               window.history.replaceState(
                 null,
                 '',
-                `/study/${subjectStr}/${topicStr}/${problemId}`
+                `/study/${subjectStr}/${topicStr}/${pid}`
               );
             }
           }
@@ -187,6 +224,8 @@ export const StudyView: React.FC = () => {
                 return (
                   <div
                     key={problem.id}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualRow.index}
                     className="absolute top-0 left-0 w-full"
                     style={{
                       transform: `translateY(${virtualRow.start}px)`,

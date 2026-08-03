@@ -48,7 +48,9 @@ export default function App() {
                     <Routes>
                       <Route path="/" element={<DashboardView />} />
                       <Route path="/study" element={<Navigate to="/study/all" replace />} />
-                      <Route path="/study/*" element={<StudyView />} />
+                      <Route path="/study/:subject" element={<StudyView />} />
+                      <Route path="/study/:subject/:topic" element={<StudyView />} />
+                      <Route path="/study/:subject/:topic/:problemId" element={<StudyView />} />
                       <Route path="/problem/:id" element={<ProblemDetailView />} />
                       <Route path="/search" element={<SearchView />} />
                       <Route path="/settings" element={<SettingsView />} />

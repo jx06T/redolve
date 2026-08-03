@@ -121,7 +121,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
             />
             {problem.source && (
-              <span className="text-xs text-[#9CA3AF] px-2 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800/60">
+              <span className="text-xs text-[#9CA3AF] px-2.5 py-1 rounded-xl bg-stone-100 dark:bg-stone-800/60 font-medium">
                 {problem.source}
               </span>
             )}
@@ -131,7 +131,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {/* US 3.1 Ink Hide/Show Toggle Button */}
             <button
               onClick={() => setInkVisible((prev) => !prev)}
-              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors ${
+              aria-label={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
+              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${
                 !inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
               }`}
               title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
@@ -142,7 +143,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {onEditMetadata && (
               <button
                 onClick={() => onEditMetadata(problem)}
-                className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+                aria-label="編輯標籤與分類"
+                className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
                 title="編輯標籤"
               >
                 <Edit3 className="w-4 h-4" />
@@ -151,7 +153,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
             <button
               onClick={handleShare}
-              className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+              aria-label="複製公開分享連結"
+              className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
               title="分享題目"
             >
               <Share2 className="w-4 h-4" />
@@ -160,7 +163,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {!readOnly && (
               <button
                 onClick={handleDelete}
-                className="p-2 rounded-xl text-[#9CA3AF] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                aria-label="刪除此錯題"
+                className="p-2 rounded-xl text-[#9CA3AF] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
                 title="刪除"
               >
                 <Trash2 className="w-4 h-4" />
@@ -182,7 +186,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {keywordsArray.map((kw, idx) => (
               <span
                 key={idx}
-                className="px-2.5 py-0.5 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]"
+                className="px-2.5 py-1 text-xs rounded-xl bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] font-medium"
               >
                 #{kw}
               </span>
@@ -219,7 +223,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
           <button
             onClick={handleToggleStatus}
-            className={`inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-medium transition-all ${
+            aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
+            className={`inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-medium active:scale-95 transition-all ${
               isResolved
                 ? 'bg-[#10B981] text-white hover:bg-[#059669]'
                 : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'

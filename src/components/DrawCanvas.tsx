@@ -135,6 +135,12 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore if pointer capture fails
+    }
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -179,7 +185,15 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setCurrentPoints((prev) => [...prev, [x, y, pressure]]);
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+
     if (!isDrawing) return;
     setIsDrawing(false);
 
