@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Inter', sans-serif;
+  }
+}
+
+/* Custom Low-contrast Exam Paper Filter for Dark Mode */
+.dark .exam-paper-image {
+  filter: invert(0.9) hue-rotate(180deg) grayscale(0.2);
+}
+
+/* Prevent native scrolling when using Apple Pencil on Canvas */
+canvas.pencil-active {
+  touch-action: none;
+}

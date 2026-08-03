@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "redolve-api",
+  "main": "worker/index.ts",
+  "compatibility_date": "2024-10-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "redolve-db",
+      "database_id": "local-redolve-db"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "redolve-images"
+    }
+  ]
+}
