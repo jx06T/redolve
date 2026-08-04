@@ -19,6 +19,19 @@ const ALL_RECOMMENDED_COLORS = [
   { name: '櫻花淡粉', hex: '#EC4899' },
 ];
 
+type SettingsTab = 'pencil' | 'taxonomy' | 'apikeys';
+const VALID_TABS: SettingsTab[] = ['pencil', 'taxonomy', 'apikeys'];
+
+const getInitialTab = (): SettingsTab => {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.replace('#', '') as SettingsTab;
+    if (VALID_TABS.includes(hash)) {
+      return hash;
+    }
+  }
+  return 'pencil';
+};
+
 export const SettingsView: React.FC = () => {
   useSEO({
     title: '系統設定與 iOS 捷徑管理',
@@ -37,7 +50,7 @@ export const SettingsView: React.FC = () => {
     showToast,
   } = useStore();
 
-  const [activeTab, setActiveTab] = useState<'apikeys' | 'taxonomy' | 'pencil'>('pencil');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialTab);
   const [customHexInput, setCustomHexInput] = useState<string>('#10B981');
   const pickerInputRef = useRef<HTMLInputElement>(null);
 
@@ -171,12 +184,33 @@ export const SettingsView: React.FC = () => {
     showToast('已還原為經典預設調色盤', 'info');
   };
 
+  const handleTabChange = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', `#${tab}`);
+    }
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '') as SettingsTab;
+      if (VALID_TABS.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    if (!window.location.hash || !VALID_TABS.includes(window.location.hash.replace('#', '') as SettingsTab)) {
+      window.history.replaceState(null, '', `#${activeTab}`);
+    }
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeTab]);
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Navigation Tabs */}
       <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] p-1.5 rounded-2xl select-none">
         <button
-          onClick={() => setActiveTab('pencil')}
+          onClick={() => handleTabChange('pencil')}
           className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'pencil'
               ? 'bg-[#6366F1] text-white shadow-xs'
@@ -188,7 +222,7 @@ export const SettingsView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('taxonomy')}
+          onClick={() => handleTabChange('taxonomy')}
           className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'taxonomy'
               ? 'bg-[#6366F1] text-white shadow-xs'
@@ -200,7 +234,7 @@ export const SettingsView: React.FC = () => {
         </button>
 
         <button
-          onClick={() => setActiveTab('apikeys')}
+          onClick={() => handleTabChange('apikeys')}
           className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'apikeys'
               ? 'bg-[#6366F1] text-white shadow-xs'
