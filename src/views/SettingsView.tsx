@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Key, Plus, Trash2, Copy, Check, ShieldCheck, Tag, Sliders, FolderPlus, Palette, X, RotateCcw } from 'lucide-react';
-import { fetchApiKeys, createApiKey, deleteApiKey } from '../services/api';
+import { Key, Plus, Trash2, Copy, Check, ShieldCheck, Tag, Sliders, FolderPlus, Palette, X, RotateCcw, AlertTriangle, Shield, RefreshCw } from 'lucide-react';
+import { fetchApiKeys, createApiKey, deleteApiKey, fetchTaxonomyTree, createCustomTaxonomy, deleteCustomTaxonomy } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
@@ -62,17 +62,15 @@ export const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
 
   // Custom Taxonomy state
-  const [customTaxonomies, setCustomTaxonomies] = useState<TaxonomyNode[]>(() => {
-    try {
-      const saved = localStorage.getItem('redolve_custom_taxonomies');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [customTaxonomies, setCustomTaxonomies] = useState<TaxonomyNode[]>([]);
   const [newSubjectLabel, setNewSubjectLabel] = useState<string>('');
   const [selectedParentSubject, setSelectedParentSubject] = useState<string>('math');
   const [newUnitLabel, setNewUnitLabel] = useState<string>('');
+
+  // Admin state
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isSeedingTaxonomy, setIsSeedingTaxonomy] = useState<boolean>(false);
+  const [lastSeedResult, setLastSeedResult] = useState<{ count: number } | null>(null);
 
   const loadKeys = async () => {
     setLoading(true);
@@ -86,8 +84,26 @@ export const SettingsView: React.FC = () => {
     }
   };
 
+  const loadTaxonomyData = async () => {
+    try {
+      const res = await fetchTaxonomyTree();
+      if (res.customNodes) {
+        setCustomTaxonomies(res.customNodes);
+      }
+      useStore.getState().loadTaxonomies();
+    } catch (err) {
+      console.error('Failed to load taxonomy data:', err);
+    }
+  };
+
   useEffect(() => {
     loadKeys();
+    loadTaxonomyData();
+    // Check admin status
+    fetch('/api/admin/me', { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => setIsAdmin((d as { isAdmin?: boolean }).isAdmin ?? false))
+      .catch(() => setIsAdmin(false));
   }, []);
 
   const handleCreateKey = async (e: React.FormEvent) => {
@@ -126,46 +142,66 @@ export const SettingsView: React.FC = () => {
     }
   };
 
-  const handleAddCustomSubject = (e: React.FormEvent) => {
+  const handleAddCustomSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubjectLabel.trim()) return;
-    const newId = `custom-sub-${Date.now()}`;
-    const newNode: TaxonomyNode = {
-      id: newId,
-      parent_id: null,
-      label: newSubjectLabel.trim(),
-      level: 0,
-      children: [],
-    };
-    const updated = [...customTaxonomies, newNode];
-    setCustomTaxonomies(updated);
-    localStorage.setItem('redolve_custom_taxonomies', JSON.stringify(updated));
-    setNewSubjectLabel('');
-    showToast(`已新增自訂科目：${newNode.label}`, 'success');
+    try {
+      const res = await createCustomTaxonomy({ label: newSubjectLabel.trim() });
+      setNewSubjectLabel('');
+      await loadTaxonomyData();
+      showToast(`已成功新增並同步自訂科目：${res.node.label}`, 'success');
+    } catch (err: any) {
+      console.error('Failed to add custom subject:', err);
+      showToast(err.message || '新增自訂科目失敗', 'error');
+    }
   };
 
-  const handleAddCustomUnit = (e: React.FormEvent) => {
+  const handleAddCustomUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUnitLabel.trim()) return;
-    const newId = `custom-unit-${Date.now()}`;
-    const newNode: TaxonomyNode = {
-      id: newId,
-      parent_id: selectedParentSubject,
-      label: newUnitLabel.trim(),
-      level: 1,
-    };
-    const updated = [...customTaxonomies, newNode];
-    setCustomTaxonomies(updated);
-    localStorage.setItem('redolve_custom_taxonomies', JSON.stringify(updated));
-    setNewUnitLabel('');
-    showToast(`已新增自訂單元：${newNode.label}`, 'success');
+    try {
+      const res = await createCustomTaxonomy({
+        label: newUnitLabel.trim(),
+        parent_id: selectedParentSubject,
+      });
+      setNewUnitLabel('');
+      await loadTaxonomyData();
+      showToast(`已成功新增並同步自訂單元：${res.node.label}`, 'success');
+    } catch (err: any) {
+      console.error('Failed to add custom unit:', err);
+      showToast(err.message || '新增自訂單元失敗', 'error');
+    }
   };
 
-  const handleDeleteCustomNode = (nodeId: string) => {
-    const updated = customTaxonomies.filter((n) => n.id !== nodeId && n.parent_id !== nodeId);
-    setCustomTaxonomies(updated);
-    localStorage.setItem('redolve_custom_taxonomies', JSON.stringify(updated));
-    showToast('已刪除自訂項目', 'info');
+  const handleDeleteCustomNode = async (nodeId: string) => {
+    try {
+      await deleteCustomTaxonomy(nodeId);
+      await loadTaxonomyData();
+      showToast('已成功刪除並同步自訂項目', 'info');
+    } catch (err: any) {
+      console.error('Failed to delete custom node:', err);
+      showToast(err.message || '刪除自訂項目失敗', 'error');
+    }
+  };
+
+  const handleSeedTaxonomy = async () => {
+    if (!confirm('確定要重新初始化系統課綱嗎？這將覆蓋所有官方節點。')) return;
+    setIsSeedingTaxonomy(true);
+    try {
+      const res = await fetch('/api/admin/taxonomy/seed', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { status: string; count: number };
+      setLastSeedResult({ count: data.count });
+      showToast(`課綱初始化完成，共植入 ${data.count} 個節點`, 'success');
+    } catch (err) {
+      console.error('Seed failed:', err);
+      showToast('課綱初始化失敗，請確認管理者權限', 'error');
+    } finally {
+      setIsSeedingTaxonomy(false);
+    }
   };
 
   const handleAddCustomColor = (e?: React.FormEvent) => {
@@ -446,6 +482,15 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
 
+          {/* Cross-device sync notice */}
+          <div className="flex items-start space-x-2.5 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40">
+            <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+            <div className="text-xs text-amber-700 dark:text-amber-300 space-y-0.5">
+              <p className="font-semibold">自訂科目目前僅儲存於本裝置（Phase 1）</p>
+              <p className="text-amber-600 dark:text-amber-400">跨裝置同步（iPad / Mac 一致）將於 Phase 2 實作。目前在其他裝置上不會看到此處新增的科目。</p>
+            </div>
+          </div>
+
           {/* Add Custom Subject Form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <form onSubmit={handleAddCustomSubject} className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 space-y-3">
@@ -556,6 +601,43 @@ export const SettingsView: React.FC = () => {
               ))}
             </div>
           </div>
+
+          {/* Admin Section — only visible to admin accounts */}
+          {isAdmin && (
+            <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-2xl">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#374151] dark:text-[#D1D5DB]">系統管理（管理者專區）</h3>
+                  <p className="text-xs text-[#9CA3AF]">此區塊僅對 ADMIN_EMAILS 白名單帳號顯示</p>
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 space-y-3">
+                <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]">重新初始化官方課綱（Seed）</div>
+                <div className="text-xs text-[#9CA3AF]">
+                  將學測/分科測驗課綱全量寫入 D1 資料庫與 KV 快取。
+                  第一次部署後執行一次，課綱改版時可再次執行。
+                </div>
+                {lastSeedResult && (
+                  <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                    上次執行結果：成功植入 {lastSeedResult.count} 個節點
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSeedTaxonomy}
+                  disabled={isSeedingTaxonomy}
+                  className="flex items-center space-x-1.5 px-4 py-2 rounded-2xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSeedingTaxonomy ? 'animate-spin' : ''}`} />
+                  <span>{isSeedingTaxonomy ? '初始化中...' : '執行課綱 Seed'}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

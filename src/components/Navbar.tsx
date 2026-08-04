@@ -34,9 +34,12 @@ export const Navbar: React.FC = () => {
     currentUser,
     setCurrentUser,
     setAuthModalOpen,
+    taxonomies,
+    loadTaxonomies,
   } = useStore();
 
   useEffect(() => {
+    loadTaxonomies();
     if (!currentUser) {
       fetchCurrentUser()
         .then((res) => {
@@ -44,7 +47,7 @@ export const Navbar: React.FC = () => {
         })
         .catch((err) => console.error('Failed to load initial user:', err));
     }
-  }, [currentUser, setCurrentUser]);
+  }, [currentUser, setCurrentUser, loadTaxonomies]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,7 +98,7 @@ export const Navbar: React.FC = () => {
                 className="appearance-none bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] text-xs font-bold px-3 py-1.5 pr-7 rounded-xl border border-stone-200 dark:border-stone-700 cursor-pointer focus:outline-none focus:border-[#6366F1]"
               >
                 <option value="all">全部科目 ▾</option>
-                {TAXONOMY_SEED_DATA.map((sub) => (
+                {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                   <option key={sub.id} value={sub.id}>
                     {sub.label}
                   </option>
@@ -223,7 +226,7 @@ export const Navbar: React.FC = () => {
                 className="w-full p-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]"
               >
                 <option value="all">全部科目</option>
-                {TAXONOMY_SEED_DATA.map((sub) => (
+                {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                   <option key={sub.id} value={sub.id}>
                     {sub.label}
                   </option>

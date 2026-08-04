@@ -1,5 +1,7 @@
 import { Loader2, Tag, AlertCircle } from 'lucide-react';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { useStore } from '../store/useStore';
+import { TaxonomyNode } from '../types';
 
 interface StatusBadgeProps {
   status: 'processing' | 'unsolved' | 'resolved';
@@ -8,15 +10,20 @@ interface StatusBadgeProps {
   onClickEdit?: () => void;
 }
 
-function resolveTopicLabel(topicId: string | null, customLabel?: string): string {
+function resolveTopicLabel(topicId: string | null, customLabel?: string, tree: TaxonomyNode[] = TAXONOMY_SEED_DATA): string {
   if (customLabel) return customLabel;
   if (!topicId) return '未指定單元';
 
-  for (const subject of TAXONOMY_SEED_DATA) {
+  for (const subject of tree) {
     if (subject.id === topicId) return subject.label;
     if (subject.children) {
       for (const unit of subject.children) {
         if (unit.id === topicId) return unit.label;
+        if (unit.children) {
+          for (const point of unit.children) {
+            if (point.id === topicId) return point.label;
+          }
+        }
       }
     }
   }
@@ -24,6 +31,8 @@ function resolveTopicLabel(topicId: string | null, customLabel?: string): string
 }
 
 export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: StatusBadgeProps) {
+  const { taxonomies } = useStore();
+
   if (status === 'processing') {
     return (
       <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] border border-[#E5E7EB] dark:border-[#2C2C30]">
@@ -46,7 +55,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
     );
   }
 
-  const displayLabel = resolveTopicLabel(topicId, topicLabel);
+  const displayLabel = resolveTopicLabel(topicId, topicLabel, taxonomies);
 
   return (
     <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-300 border border-[#6366F1]/20">

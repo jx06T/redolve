@@ -15,16 +15,6 @@ import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
-  
-  const currentSubObj = TAXONOMY_SEED_DATA.find((s) => s.id === subject);
-  const currentSubjectLabel = currentSubObj ? currentSubObj.label : subject && subject !== 'all' ? subject : '全部科目';
-  const currentTopicLabel = topic ? ` - ${topic}` : '';
-
-  useSEO({
-    title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,
-    description: `Redolve ${currentSubjectLabel} 錯題複習專區。支援 iPad + Apple Pencil 向量手寫訂正、AI 題型分析與單元沉浸式演練。`,
-  });
-
   const {
     problems,
     setProblems,
@@ -39,7 +29,18 @@ export const StudyView: React.FC = () => {
     setIsLoading,
     updateProblemInStore,
     setActiveProblemId,
+    taxonomies,
   } = useStore();
+
+  const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
+  const currentSubObj = activeTaxonomies.find((s) => s.id === subject);
+  const currentSubjectLabel = currentSubObj ? currentSubObj.label : subject && subject !== 'all' ? subject : '全部科目';
+  const currentTopicLabel = topic ? ` - ${topic}` : '';
+
+  useSEO({
+    title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,
+    description: `Redolve ${currentSubjectLabel} 錯題複習專區。支援 iPad + Apple Pencil 向量手寫訂正、AI 題型分析與單元沉浸式演練。`,
+  });
 
   const [editingProblem, setEditingProblem] = useState<Item | null>(null);
   const [editTopicId, setEditTopicId] = useState<string>('');
@@ -305,7 +306,7 @@ export const StudyView: React.FC = () => {
                   className="w-full p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
                 >
                   <option value="">未指定單元</option>
-                  {TAXONOMY_SEED_DATA.map((subject) => (
+                  {activeTaxonomies.map((subject) => (
                     <optgroup key={subject.id} label={subject.label}>
                       {subject.children?.map((unit) => (
                         <option key={unit.id} value={unit.id}>

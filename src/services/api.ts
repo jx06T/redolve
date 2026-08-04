@@ -1,4 +1,4 @@
-import { Item, DashboardData, ApiKeyItem, User } from '../types';
+import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 
 const API_BASE = '/api';
 
@@ -63,6 +63,34 @@ export async function fetchAuthUsers(): Promise<{ users: User[] }> {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch users');
+  return res.json();
+}
+
+// Taxonomy Sync Endpoints
+export async function fetchTaxonomyTree(): Promise<{ tree: TaxonomyNode[]; customNodes: TaxonomyNode[] }> {
+  const res = await fetch(`${API_BASE}/taxonomy`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to fetch taxonomy tree');
+  return res.json();
+}
+
+export async function createCustomTaxonomy(data: { label: string; parent_id?: string | null }): Promise<{ node: TaxonomyNode }> {
+  const res = await fetch(`${API_BASE}/taxonomy`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error('Failed to create custom taxonomy');
+  return res.json();
+}
+
+export async function deleteCustomTaxonomy(id: string): Promise<{ status: string; message: string }> {
+  const res = await fetch(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to delete custom taxonomy');
   return res.json();
 }
 

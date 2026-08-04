@@ -21,6 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     activeProblemId,
     sidebarCollapsed,
     toggleSidebarCollapsed,
+    taxonomies,
   } = useStore();
 
   // Close mobile drawer on Escape key press
@@ -35,9 +36,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   }, [mobileDrawerOpen]);
 
   // Filter taxonomy tree by selectedSubjectId if present
+  const baseTaxonomy = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
   const availableTaxonomy = selectedSubjectId
-    ? TAXONOMY_SEED_DATA.filter((s) => s.id === selectedSubjectId)
-    : TAXONOMY_SEED_DATA;
+    ? baseTaxonomy.filter((s) => s.id === selectedSubjectId)
+    : baseTaxonomy;
 
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (

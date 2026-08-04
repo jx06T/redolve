@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Item, TaxonomyNode, User } from '../types';
 import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
+import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export interface ToastNotice {
   id: string;
@@ -72,6 +73,7 @@ interface StoreState {
   setPenWidth: (width: number) => void;
   setEraserActive: (active: boolean) => void;
   setTaxonomies: (tree: TaxonomyNode[]) => void;
+  loadTaxonomies: () => Promise<void>;
 }
 
 export const useStore = create<StoreState>((set) => ({
@@ -113,7 +115,7 @@ export const useStore = create<StoreState>((set) => ({
   penWidth: 2,
   eraserActive: false,
 
-  taxonomies: [],
+  taxonomies: TAXONOMY_SEED_DATA,
 
   showToast: (message, type = 'info', durationMs = 4000) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -247,5 +249,22 @@ export const useStore = create<StoreState>((set) => ({
   setPenWidth: (penWidth) => set({ penWidth }),
   setEraserActive: (eraserActive) => set({ eraserActive }),
   setTaxonomies: (taxonomies) => set({ taxonomies }),
+  loadTaxonomies: async () => {
+    try {
+      const res = await fetch('/api/taxonomy', {
+        headers: localStorage.getItem('redolve_auth_token')
+          ? { Authorization: `Bearer ${localStorage.getItem('redolve_auth_token')}` }
+          : {},
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { tree?: TaxonomyNode[] };
+        if (data.tree && data.tree.length > 0) {
+          set({ taxonomies: data.tree });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to sync taxonomies from server:', err);
+    }
+  },
 }));
 

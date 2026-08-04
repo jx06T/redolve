@@ -18,12 +18,14 @@ CREATE TABLE IF NOT EXISTS api_keys (
     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- 課綱分類樹表 (學測/分科測驗標準)
+-- 課綱分類樹表 (學測/分科測驗標準與使用者自訂科目/單元)
 CREATE TABLE IF NOT EXISTS taxonomies (
     id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT NULL,
     parent_id TEXT,
     label TEXT NOT NULL,
     level INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(parent_id) REFERENCES taxonomies(id)
 );
 
