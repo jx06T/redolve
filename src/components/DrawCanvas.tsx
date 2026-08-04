@@ -187,15 +187,6 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const y = e.clientY - rect.top;
     const pressure = e.pressure || 0.5;
 
-    // Auto-Expanding Card Canvas: Pen within 80px of bottom
-    if (canvasHeight - y < 80) {
-      if (onExpandSpace) {
-        onExpandSpace(300);
-      } else {
-        setCanvasHeight((prev) => prev + 300);
-      }
-    }
-
     setCurrentPoints((prev) => [...prev, [x, y, pressure]]);
   };
 

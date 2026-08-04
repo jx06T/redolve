@@ -137,11 +137,11 @@ problemsRouter.get('/', async (c) => {
   }
 
   if (decodedCursor) {
-    query += ' AND (created_at < ? OR (created_at = ? AND id < ?))';
+    query += ' AND (created_at > ? OR (created_at = ? AND id > ?))';
     bindings.push(decodedCursor.created_at, decodedCursor.created_at, decodedCursor.id);
   }
 
-  query += ' ORDER BY created_at DESC, id DESC LIMIT ?';
+  query += ' ORDER BY created_at ASC, id ASC LIMIT ?';
   bindings.push(limitParam + 1);
 
   const stmt = c.env.DB.prepare(query);
@@ -303,29 +303,20 @@ problemsRouter.patch('/:id/draw', async (c) => {
     // fallback seq comparison
   }
 
-  if (incomingSeq >= currentSeq) {
-    const drawDataStr = typeof draw_data === 'string' ? draw_data : JSON.stringify(draw_data);
-    const vcStr = typeof vector_clock === 'string' ? vector_clock : JSON.stringify(vector_clock);
+  const drawDataStr = typeof draw_data === 'string' ? draw_data : JSON.stringify(draw_data);
+  const finalSeq = Math.max(incomingSeq, currentSeq + 1);
+  const vcObj = typeof vector_clock === 'object' && vector_clock !== null
+    ? { ...vector_clock, seq: finalSeq }
+    : { node: 'client', seq: finalSeq };
+  const vcStr = JSON.stringify(vcObj);
 
-    await c.env.DB.prepare(
-      `UPDATE items SET draw_data = ?, vector_clock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
-    )
-      .bind(drawDataStr, vcStr, problemId, userId)
-      .run();
+  await c.env.DB.prepare(
+    `UPDATE items SET draw_data = ?, vector_clock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
+  )
+    .bind(drawDataStr, vcStr, problemId, userId)
+    .run();
 
-    return c.json({ status: 'ok' }, 200);
-  } else {
-    return c.json(
-      {
-        status: 'conflict',
-        current: {
-          draw_data: current.draw_data,
-          vector_clock: current.vector_clock,
-        },
-      },
-      409
-    );
-  }
+  return c.json({ status: 'ok', seq: finalSeq }, 200);
 });
 
 // 8. Toggle Problem Status

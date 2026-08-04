@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download, FileText, Plus, PenLine } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download, FileText, Plus, Minus, RotateCcw, PenLine } from 'lucide-react';
 import { Item, DrawData } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
@@ -30,14 +30,35 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   onStatusResolved,
 }) => {
   const { tool, penColor, penWidth, eraserActive, updateProblemInStore, removeProblemFromStore, showToast } = useStore();
-  const [seq, setSeq] = useState<number>(0);
+
+  const getInitialSeq = useCallback(() => {
+    if (problem.vector_clock) {
+      try {
+        const parsed = typeof problem.vector_clock === 'string' ? JSON.parse(problem.vector_clock) : problem.vector_clock;
+        return typeof parsed.seq === 'number' ? parsed.seq : 0;
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  }, [problem.vector_clock]);
+
+  const seqRef = useRef<number>(getInitialSeq());
+
+  useEffect(() => {
+    const currentSeq = getInitialSeq();
+    if (currentSeq > seqRef.current) {
+      seqRef.current = currentSeq;
+    }
+  }, [getInitialSeq]);
+
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [inkVisible, setInkVisible] = useState<boolean>(true); // US 3.1 Ink Toggle
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  // Extended Calculation Workspace Height
-  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(260);
+  // Extended Calculation Workspace Height (default 240px, min 100px)
+  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(240);
 
   // Typed Notes Workspace
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
@@ -89,12 +110,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleSaveDraw = async (drawData: DrawData) => {
-    const nextSeq = seq + 1;
-    setSeq(nextSeq);
+    const nextSeq = seqRef.current + 1;
+    seqRef.current = nextSeq;
 
     // Update local Zustand store immediately so ink persists during re-renders/view switching
     updateProblemInStore(problem.id, {
       draw_data: JSON.stringify(drawData),
+      vector_clock: JSON.stringify({ node: 'client', seq: nextSeq }),
     });
 
     try {
@@ -293,17 +315,40 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               <span>手寫計算與推導草稿區</span>
             </div>
 
-            {/* Manual Space Extension Button */}
+            {/* Workspace Height Controls */}
             {!readOnly && (
-              <button
-                type="button"
-                onClick={() => setCalcSpaceHeight((h) => h + 300)}
-                className="absolute bottom-2.5 right-3.5 z-10 px-3 py-1.5 text-xs rounded-xl bg-white/90 dark:bg-stone-800/90 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 transition-all font-medium flex items-center space-x-1.5 shadow-xs backdrop-blur-xs active:scale-95"
-                title="擴增草稿空間"
-              >
-                <Plus className="w-3.5 h-3.5 text-indigo-500" />
-                <span>延伸空間 (+300px)</span>
-              </button>
+              <div className="absolute bottom-2.5 right-3.5 z-10 flex items-center space-x-1.5 bg-white/90 dark:bg-stone-800/90 border border-stone-200 dark:border-stone-700/80 rounded-xl p-1 shadow-xs backdrop-blur-xs">
+                {calcSpaceHeight > 120 && (
+                  <button
+                    type="button"
+                    onClick={() => setCalcSpaceHeight((h) => Math.max(100, h - 200))}
+                    className="px-2 py-1 text-xs rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all font-medium flex items-center space-x-1 active:scale-95"
+                    title="收回空間 (-200px)"
+                  >
+                    <Minus className="w-3 h-3 text-stone-500" />
+                    <span>收回</span>
+                  </button>
+                )}
+                {calcSpaceHeight !== 240 && (
+                  <button
+                    type="button"
+                    onClick={() => setCalcSpaceHeight(240)}
+                    className="p-1 text-xs rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 text-[#6B7280] dark:text-[#9CA3AF] transition-all active:scale-95"
+                    title="重設為預設高度 (240px)"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCalcSpaceHeight((h) => Math.min(1600, h + 200))}
+                  className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95"
+                  title="擴增草稿空間 (+200px)"
+                >
+                  <Plus className="w-3 h-3 text-indigo-500" />
+                  <span>延伸 (+200px)</span>
+                </button>
+              </div>
             )}
           </div>
 

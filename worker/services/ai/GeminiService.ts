@@ -14,7 +14,6 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
 
 function cleanJsonString(raw: string): string {
   let cleaned = raw.trim();
-  // Remove markdown code fences if present
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
   } else if (cleaned.startsWith('```')) {
@@ -23,13 +22,22 @@ function cleanJsonString(raw: string): string {
   return cleaned.trim();
 }
 
+const CANDIDATE_MODELS = [
+  'gemini-1.5-flash-latest',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-flash-8b',
+  'gemini-2.5-flash',
+  'gemini-1.5-pro-latest',
+];
+
 export class GeminiService implements AIService {
   private apiKey: string;
-  private modelName: string;
+  private preferredModel: string;
 
-  constructor(apiKey: string, modelName = 'gemini-1.5-flash') {
+  constructor(apiKey: string, modelName = 'gemini-1.5-flash-latest') {
     this.apiKey = apiKey;
-    this.modelName = modelName;
+    this.preferredModel = modelName;
   }
 
   async tagProblem(imageBytes: ArrayBuffer, taxonomyTree: TaxonomyNode[]): Promise<TagResult | null> {
@@ -40,8 +48,6 @@ export class GeminiService implements AIService {
 
     const base64Image = arrayBufferToBase64(imageBytes);
     const systemPrompt = buildClassificationPrompt(taxonomyTree);
-
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
 
     const payload = {
       contents: [
@@ -63,10 +69,13 @@ export class GeminiService implements AIService {
       },
     };
 
-    // 3 次指數退避重試 (1s, 2s, 4s)
-    const delays = [1000, 2000, 4000];
+    const modelsToTry = [
+      this.preferredModel,
+      ...CANDIDATE_MODELS.filter((m) => m !== this.preferredModel),
+    ];
 
-    for (let attempt = 0; attempt <= 3; attempt++) {
+    for (const model of modelsToTry) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -88,14 +97,14 @@ export class GeminiService implements AIService {
           }
         } else {
           const errText = await response.text();
-          console.warn(`[GeminiService] HTTP ${response.status} Error on attempt ${attempt + 1}:`, errText);
+          console.warn(`[GeminiService] Model "${model}" failed (HTTP ${response.status}):`, errText);
+          // If 404 (model not found on key/region), try next candidate model immediately
+          if (response.status === 404) {
+            continue;
+          }
         }
       } catch (err) {
-        console.warn(`[GeminiService] Network/parsing error on attempt ${attempt + 1}:`, err);
-      }
-
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+        console.warn(`[GeminiService] Network error with model "${model}":`, err);
       }
     }
 
