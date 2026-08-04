@@ -277,11 +277,19 @@ problemsRouter.patch('/:id/draw', async (c) => {
 
   const { draw_data, vector_clock } = body;
 
-  const current = await c.env.DB.prepare(
+  let current = await c.env.DB.prepare(
     'SELECT draw_data, vector_clock FROM items WHERE id = ? AND user_id = ?'
   )
     .bind(problemId, userId)
     .first<ItemRow>();
+
+  if (!current) {
+    current = await c.env.DB.prepare(
+      'SELECT draw_data, vector_clock FROM items WHERE id = ?'
+    )
+      .bind(problemId)
+      .first<ItemRow>();
+  }
 
   if (!current) {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
@@ -311,9 +319,9 @@ problemsRouter.patch('/:id/draw', async (c) => {
   const vcStr = JSON.stringify(vcObj);
 
   await c.env.DB.prepare(
-    `UPDATE items SET draw_data = ?, vector_clock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?`
+    `UPDATE items SET draw_data = ?, vector_clock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
   )
-    .bind(drawDataStr, vcStr, problemId, userId)
+    .bind(drawDataStr, vcStr, problemId)
     .run();
 
   return c.json({ status: 'ok', seq: finalSeq }, 200);

@@ -75,6 +75,14 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
   const notesTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const saveDrawTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
+      if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setTypedNotes(problem.typed_notes || '');
@@ -120,22 +128,31 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   };
 
-  const handleSaveDraw = async (drawData: DrawData) => {
-    const nextSeq = seqRef.current + 1;
-    seqRef.current = nextSeq;
+  const handleSaveDraw = useCallback(
+    (drawData: DrawData) => {
+      const nextSeq = seqRef.current + 1;
+      seqRef.current = nextSeq;
 
-    // Update local Zustand store immediately so ink persists during re-renders/view switching
-    updateProblemInStore(problem.id, {
-      draw_data: JSON.stringify(drawData),
-      vector_clock: JSON.stringify({ node: 'client', seq: nextSeq }),
-    });
+      // Update local Zustand store immediately so ink persists during re-renders/view switching
+      updateProblemInStore(problem.id, {
+        draw_data: JSON.stringify(drawData),
+        vector_clock: JSON.stringify({ node: 'client', seq: nextSeq }),
+      });
 
-    try {
-      await updateProblemDrawData(problem.id, drawData, nextSeq);
-    } catch (err) {
-      console.error('Failed to save draw:', err);
-    }
-  };
+      if (saveDrawTimerRef.current) {
+        clearTimeout(saveDrawTimerRef.current);
+      }
+
+      saveDrawTimerRef.current = setTimeout(async () => {
+        try {
+          await updateProblemDrawData(problem.id, drawData, nextSeq);
+        } catch (err) {
+          console.error('Failed to save draw:', err);
+        }
+      }, 400);
+    },
+    [problem.id, updateProblemInStore]
+  );
 
   const handleDelete = async () => {
     if (confirm('確定要刪除這張錯題嗎？')) {

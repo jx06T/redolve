@@ -29,6 +29,19 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
   return d;
 }
 
+function parseDrawData(raw: DrawData | string | null | undefined): { strokes: Stroke[]; eraserMasks: EraserMask[] } {
+  if (!raw) return { strokes: [], eraserMasks: [] };
+  try {
+    const parsed: DrawData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return {
+      strokes: Array.isArray(parsed?.strokes) ? parsed.strokes : [],
+      eraserMasks: Array.isArray(parsed?.eraserMasks) ? parsed.eraserMasks : [],
+    };
+  } catch {
+    return { strokes: [], eraserMasks: [] };
+  }
+}
+
 export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   initialDrawData,
   readOnly = false,
@@ -46,22 +59,31 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const [canvasHeight, setCanvasHeight] = useState<number>(400);
   const [canvasWidth, setCanvasWidth] = useState<number>(800);
 
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [eraserMasks, setEraserMasks] = useState<EraserMask[]>([]);
+  const initialParsed = parseDrawData(initialDrawData);
+  const [strokes, setStrokes] = useState<Stroke[]>(() => initialParsed.strokes);
+  const [eraserMasks, setEraserMasks] = useState<EraserMask[]>(() => initialParsed.eraserMasks);
   const [currentPoints, setCurrentPoints] = useState<[number, number, number][]>([]);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
 
-  // Parse Initial Draw Data
+  const strokesRef = useRef<Stroke[]>(strokes);
+  strokesRef.current = strokes;
+  const eraserMasksRef = useRef<EraserMask[]>(eraserMasks);
+  eraserMasksRef.current = eraserMasks;
+  const canvasHeightRef = useRef<number>(canvasHeight);
+  canvasHeightRef.current = canvasHeight;
+
+  const lastSavedDataJsonRef = useRef<string>(
+    typeof initialDrawData === 'string' ? initialDrawData : JSON.stringify(initialDrawData || {})
+  );
+
+  // Sync Initial Draw Data from parent (only if changed from external source)
   useEffect(() => {
-    if (initialDrawData) {
-      try {
-        const parsed: DrawData =
-          typeof initialDrawData === 'string' ? JSON.parse(initialDrawData) : initialDrawData;
-        setStrokes(parsed.strokes || []);
-        setEraserMasks(parsed.eraserMasks || []);
-      } catch (err) {
-        console.warn('Failed to parse draw_data:', err);
-      }
+    const currentJson = typeof initialDrawData === 'string' ? initialDrawData : JSON.stringify(initialDrawData || {});
+    if (currentJson && currentJson !== lastSavedDataJsonRef.current) {
+      lastSavedDataJsonRef.current = currentJson;
+      const parsed = parseDrawData(initialDrawData);
+      setStrokes(parsed.strokes);
+      setEraserMasks(parsed.eraserMasks);
     }
   }, [initialDrawData]);
 
@@ -70,8 +92,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     if (!containerRef.current) return;
     const updateSize = () => {
       if (containerRef.current) {
-        setCanvasWidth(containerRef.current.clientWidth || 800);
-        setCanvasHeight(containerRef.current.clientHeight || 400);
+        const w = containerRef.current.clientWidth || 800;
+        const h = containerRef.current.clientHeight || 400;
+        setCanvasWidth(w);
+        setCanvasHeight(h);
       }
     };
     updateSize();
@@ -89,7 +113,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           setIsVisible(entry.isIntersecting);
         });
       },
-      { threshold: 0.1 }
+      { threshold: 0.05 }
     );
 
     if (containerRef.current) {
@@ -101,16 +125,18 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
   // Save Emitter Helper
   const emitSave = useCallback(
-    (updatedStrokes: Stroke[], updatedErasers: EraserMask[] = eraserMasks, currentHeight: number = canvasHeight) => {
+    (updatedStrokes: Stroke[], updatedErasers: EraserMask[] = eraserMasksRef.current, currentHeight: number = canvasHeightRef.current) => {
+      const payload: DrawData = {
+        strokes: updatedStrokes,
+        eraserMasks: updatedErasers,
+        expansions: [{ addedHeight: Math.max(0, currentHeight - 400), atY: currentHeight }],
+      };
+      lastSavedDataJsonRef.current = JSON.stringify(payload);
       if (onSaveDrawData) {
-        onSaveDrawData({
-          strokes: updatedStrokes,
-          eraserMasks: updatedErasers,
-          expansions: [{ addedHeight: Math.max(0, currentHeight - 400), atY: currentHeight }],
-        });
+        onSaveDrawData(payload);
       }
     },
-    [eraserMasks, canvasHeight, onSaveDrawData]
+    [onSaveDrawData]
   );
 
   // Two-Finger Undo Listener
@@ -121,24 +147,22 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
-        setStrokes((prev) => {
-          const next = prev.slice(0, prev.length - 1);
-          emitSave(next, eraserMasks, canvasHeight);
-          return next;
-        });
+        const next = strokesRef.current.slice(0, strokesRef.current.length - 1);
+        setStrokes(next);
+        emitSave(next, eraserMasksRef.current, canvasHeightRef.current);
       }
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
     return () => container.removeEventListener('touchstart', handleTouchStart);
-  }, [readOnly, emitSave, eraserMasks, canvasHeight]);
+  }, [readOnly, emitSave]);
 
   // Pointer Event Handlers (PointerType Separation)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly || !inkVisible) return;
 
-    // PointerType Separation: Pen draws, Touch native scrolls
-    if (e.pointerType === 'touch' && !e.isPrimary) return; // Palm rejection guard
+    // Palm rejection guard for secondary touch points
+    if (e.pointerType === 'touch' && !e.isPrimary) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -158,17 +182,15 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     if (effectiveTool === 'eraser') {
       // Vector Segment Clipping (Geometric Erase against stored strokes)
-      const eraserRadius = 16;
-      setStrokes((prevStrokes) => {
-        const nextStrokes = prevStrokes.filter((stroke) => {
-          return !stroke.points.some(([px, py]) => {
-            const dist = Math.hypot(px - x, py - y);
-            return dist < eraserRadius;
-          });
+      const eraserRadius = 18;
+      const nextStrokes = strokesRef.current.filter((stroke) => {
+        return !stroke.points.some(([px, py]) => {
+          const dist = Math.hypot(px - x, py - y);
+          return dist < eraserRadius;
         });
-        emitSave(nextStrokes, eraserMasks, canvasHeight);
-        return nextStrokes;
       });
+      setStrokes(nextStrokes);
+      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current);
     } else {
       setIsDrawing(true);
       setCurrentPoints([[x, y, pressure]]);
@@ -210,10 +232,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         opacity: activeTool === 'highlighter' ? 0.35 : 1.0,
       };
 
-      const nextStrokes = [...strokes, newStroke];
+      const nextStrokes = [...strokesRef.current, newStroke];
       setStrokes(nextStrokes);
       setCurrentPoints([]);
-      emitSave(nextStrokes, eraserMasks, canvasHeight);
+      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current);
     }
   };
 
