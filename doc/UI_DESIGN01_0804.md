@@ -100,3 +100,76 @@
 - **快門拍攝按鈕 (Camera Shutter FAB)**：大尺寸柔和快門按鈕，點擊瞬間凍結畫格轉為 JPEG 並加入待上傳縮圖佇列。
 - **鏡頭前後切換**：提供一鍵切換「前置/後置鏡頭」之導覽控制。
 
+
+
+這類 UI 風格可以總結為「粉彩極簡風 (Pastel Minimalism)」或平面化的「柔和卡片式設計 (Soft Card UI)」。在排除掉 3D 黏土/擬物效果後，其核心在於透過低飽和色彩與圓潤的幾何圖形來傳遞親和力與溫暖感。
+
+以下為您整理的配色、其他視覺特色以及在前端開發上的實踐方式：
+
+一、 配色美學 (Color Palette)
+這組設計的靈魂在於「低對比、高明度、低飽和」的色彩計畫。
+
+背景與基底色 (Base Colors)：
+
+以溫暖的奶油白 (Cream White)、米色 (Beige) 或淺燕麥色為主，取代傳統生硬的純白或冷灰色。這能降低視覺疲勞。
+
+點綴色 (Accent Colors)：
+
+採用馬卡龍/粉彩色系 (Pastel colors) 進行數據或模塊的區分。
+
+蜜桃粉 / 珊瑚橘 (Peach / Soft Coral)：作為主要的強調色或進度條。
+
+薄荷綠 (Mint Green)：用於對比區塊或正向數據。
+
+薰衣草紫 (Lavender) & 奶油黃 (Butter Yellow)：作為輔助標籤或次要圖表區塊。
+
+文字與圖標顏色：
+
+避免使用純黑 (#000000)，而是使用深褐灰或深暖灰色，以維持整體柔和的對比度。
+
+二、 其他視覺與排版特色 (非 3D 部分)
+極致的圓角幾何 (Maximum Border Radius)：
+
+幾乎沒有銳角。卡片邊緣使用大圓角，按鈕和標籤大量使用「膠囊形狀 (Pill-shape)」或完整的圓形。
+
+流體與波浪數據圖表 (Fluid Data Viz)：
+
+有別於傳統折線圖，這裡的面積圖 (Area Charts) 採用平滑的貝茲曲線 (Bezier Curves)，形成類似波浪或沙丘的流動感。
+
+環形圖 (Donut Charts) 使用極粗的線條與圓滑的端點 (Round Caps)。
+
+模組化卡片佈局 (Bento/Modular Layout)：
+
+介面採用類似便當盒 (Bento box) 的網格系統，將不同數據封裝在獨立的卡片中，並留有非常寬裕的元件間距 (Negative Space/Gap)，讓畫面具備呼吸感。
+
+無框線設計 (Borderless)：
+
+卡片與卡片之間不依賴實體線條 (Border) 分隔，而是依賴底色差異或極其微弱的色彩過渡來界定邊界。
+
+三、 前端實踐方式 (Implementation)
+在網頁應用（如 React、Next.js 或 Astro 等框架）的開發中，可以透過以下方式實踐此風格：
+
+1. 色彩變數設定 (CSS Variables / Tailwind 擴充)：
+將粉彩顏色定義在全域，方便在組件中重複調用。
+
+CSS
+:root {
+  --bg-cream: #d4c6bd;
+  --card-base: #fcf9f4;
+  --text-soft: #4A4543;
+  --accent-peach: #F6B8A2;
+  --accent-mint: #a6cccc;
+  --accent-lavender: #c1c2d6;
+  --accent-yellow: #edcea3;
+}
+2. 幾何與排版 (CSS 屬性)：
+
+圓角控制：卡片外框設定 border-radius: 24px 或更大；膠囊按鈕直接使用 border-radius: 9999px。
+
+佈局：大量依賴 CSS Grid (如 grid-template-columns: repeat(auto-fit, minmax(250px, 1fr))) 結合較大的 gap (例如 gap: 24px 或 32px) 來實踐 Bento 排版。
+
+3. 波浪圖表與視覺化實踐 (SVG & Libraries)：
+
+SVG 繪製：若是自定義波浪形狀，可使用 SVG 的 <path> 搭配三次貝茲曲線 (C 或 c 指令) 來刻畫流體波浪。
+
+圖表套件：若使用 Recharts 或 Chart.js，可以將折線圖/面積圖的曲線屬性設定為平滑。例如在 Recharts 中設定 <Area ... type="monotone"/>，並將線條端點樣式 (strokeLinecap) 設為 round，最後將折線下方的填充 (fill) 設為上述定義的粉彩純色，拔除預設的網格線與座標軸，即可達到極簡的視覺效果。

@@ -45,7 +45,9 @@ export default function App() {
     }
 
     // Register PWA Service Worker
-    registerServiceWorker();
+    if ((import.meta as any).env.PROD) {
+      registerServiceWorker();
+    }
 
     // Register Online Auto-Sync Handler
     initOnlineSync(async (item) => {

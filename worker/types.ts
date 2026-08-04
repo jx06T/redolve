@@ -15,6 +15,7 @@ export interface Bindings {
   AI_PROVIDER?: string;
   ALLOWED_ORIGINS?: string;
   ENV?: string;
+  FRONTEND_URL?: string;
 }
 
 export interface Variables {

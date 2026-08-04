@@ -65,15 +65,21 @@ authRouter.get('/callback/google', async (c) => {
   const code = c.req.query('code');
   const error = c.req.query('error');
 
+  // 【新增】判斷前端 URL
+  // 如果在本地端開發 (127.0.0.1 或 localhost)，就導向 Vite 的 3000 埠
+  // 如果是正式上線，建議在 .dev.vars 加上 FRONTEND_URL 變數，或者預設導向 Worker 的首頁
+  const isLocal = c.req.url.includes('127.0.0.1') || c.req.url.includes('localhost');
+  const frontendUrl = isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || '');
+
   if (error || !code) {
-    return c.redirect(`/?auth_error=${encodeURIComponent(error || '授權已取消')}`);
+    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(error || '授權已取消')}`);
   }
 
   const clientId = c.env.GOOGLE_CLIENT_ID;
   const clientSecret = c.env.GOOGLE_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return c.redirect(`/?auth_error=${encodeURIComponent('後端缺少 GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 設定')}`);
+    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('後端缺少 GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 設定')}`);
   }
 
   const origin = new URL(c.req.url).origin;
@@ -96,7 +102,7 @@ authRouter.get('/callback/google', async (c) => {
     if (!tokenRes.ok) {
       const errBody = await tokenRes.text();
       console.error('Google token exchange error:', errBody);
-      return c.redirect(`/?auth_error=${encodeURIComponent('Google 授權碼兌換失敗')}`);
+      return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('Google 授權碼兌換失敗')}`);
     }
 
     const tokenData: any = await tokenRes.json();
@@ -108,7 +114,7 @@ authRouter.get('/callback/google', async (c) => {
     });
 
     if (!profileRes.ok) {
-      return c.redirect(`/?auth_error=${encodeURIComponent('無法獲取 Google 使用者資料')}`);
+      return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('無法獲取 Google 使用者資料')}`);
     }
 
     const profile: any = await profileRes.json();
@@ -124,11 +130,11 @@ authRouter.get('/callback/google', async (c) => {
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`
     ).bind(userId, email, name).run();
 
-    // Redirect to root with token
-    return c.redirect(`/?auth_token=${encodeURIComponent(userId)}&auth_name=${encodeURIComponent(name)}&auth_email=${encodeURIComponent(email)}`);
+    // 【修正】將使用者正確導向前端首頁，並附帶 Token 參數
+    return c.redirect(`${frontendUrl}/?auth_token=${encodeURIComponent(userId)}&auth_name=${encodeURIComponent(name)}&auth_email=${encodeURIComponent(email)}`);
   } catch (err: any) {
     console.error('Google OAuth callback error:', err);
-    return c.redirect(`/?auth_error=${encodeURIComponent(err.message || 'Google 登入處理異常')}`);
+    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(err.message || 'Google 登入處理異常')}`);
   }
 });
 
