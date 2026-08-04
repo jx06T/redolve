@@ -22,6 +22,47 @@ wrangler r2 bucket create redolve-images
 wrangler kv namespace create REDOLVE_KV
 ```
 
+
+√ Select an account » 50313tjx06@gmail.com's Account
+✅ Successfully created DB 'redolve-db' in region APAC
+Created your new D1 database.
+
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "redolve-db",
+      "database_id": "966ad241-9a03-4719-99d6-c18314d7bf94"
+    }
+  ]
+}
+
+✅ Created bucket 'redolve-images' with default storage class of Standard.
+
+Configure your Worker to write objects to this bucket:
+
+{
+  "r2_buckets": [
+    {
+      "bucket_name": "redolve-images",
+      "binding": "redolve_images"
+    }
+  ]
+}
+
+
+🌀 Creating namespace with title "redolve-api-REDOLVE_KV"
+✨ Success!
+Add the following to your configuration file in your kv_namespaces array:
+{
+  "kv_namespaces": [
+    {
+      "binding": "REDOLVE_KV",
+      "id": "b09131c5f54446f6bff12e368190572a"
+    }
+  ]
+}
+
 ---
 
 ## 2. Secrets 金鑰注入
@@ -35,8 +76,9 @@ wrangler secret put GEMINI_API_KEY
 # better-auth Session 簽名密鑰 (可使用 openssl rand -hex 32 生成)
 wrangler secret put BETTER_AUTH_SECRET
 
-# 課綱 Seed API 管理者憑證 (用於初始化與更新課綱樹)
-wrangler secret put ADMIN_SECRET
+# 管理者 Google 帳號白名單（逗號分隔多個 email）
+# 取代原來的 ADMIN_SECRET，讓 Seed 操作綁定到 Google 帳號而非靜態 token
+wrangler secret put ADMIN_EMAILS
 
 # (選用) AI 供應商指定，預設為 gemini
 wrangler secret put AI_PROVIDER
@@ -81,33 +123,42 @@ wrangler secret put AI_PROVIDER
 
 ## 4. Google OAuth 2.0 憑證設定
 
-供更好的網頁端登入體驗（better-auth 整合）：
+供網頁端登入體驗（better-auth Google provider 整合，尚在規劃中）：
 
 1. 前往 [Google Cloud Console](https://console.cloud.google.com/)。
-2. 建立 OAuth 2.0 轉發憑證（Web Application）。
+2. 建立 OAuth 2.0 憑證（Web Application）。
 3. 設定授權轉向 URI：
    - 本地開發：`http://localhost:5173/api/auth/callback/google`
    - 生產環境：`https://<YOUR_WORKER_DOMAIN>/api/auth/callback/google`
-4. 將 Client ID 與 Client Secret 填入系統設定或 Secret。
+4. 填入憑證：
+
+**本地開發** → 填入 `.dev.vars`：
+```ini
+GOOGLE_CLIENT_ID="your_client_id_here"
+GOOGLE_CLIENT_SECRET="your_client_secret_here"
+```
+
+**生產部署** → 注入為 Worker Secret：
+```powershell
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+```
 
 ---
 
-## 5. 課綱分類樹初始化 (Seed API 呼叫)
+## 5. 課綱分類樹初始化 (Seed)
 
-Worker 部署完成後，請執行一次 Seed API 寫入學測/分科測驗課綱至 D1 與 KV：
+Worker 部署完成後，以**管理者 Google 帳號登入** PWA ，們進「設定」頁面的「自訂科目與單元分類」標籤頁。
 
-```powershell
-# 呼叫管理者 Seed 端點
-curl -X POST https://<YOUR_WORKER_DOMAIN>/api/admin/taxonomy/seed `
-  -H "Authorization: Bearer <填入你的 ADMIN_SECRET>"
+頁面底部會顯示「系統管理（管理者專區）」區塊（對非管理者帳號不顯示）。
+點擊「執行課綱 Seed」按鈕即可全量寫入 D1 + KV，頁面上會顯示植入節點數量。
+
+> 管理者帳號由 `ADMIN_EMAILS` secret 控制（逗號分隔多個 email）。
+> 課綱改版時點擊一次即可全量更新。
+
+預期回應（顯示於頁面）：
 ```
-
-預期回應：
-```json
-{
-  "status": "seeded",
-  "count": 48
-}
+上次執行結果：成功植入 48 個節點
 ```
 
 ---

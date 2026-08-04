@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import bcrypt from 'bcryptjs';
-import { Bindings, Variables, ApiKeyRow } from '../types';
+import { Bindings, Variables, ApiKeyRow, UserRow } from '../types';
 
 export async function authMiddleware(
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
@@ -58,5 +58,18 @@ export async function authMiddleware(
   }
 
   c.set('userId', userId);
+
+  // Resolve user email from DB for admin whitelist checks
+  let userEmail: string | null = null;
+  try {
+    const userRow = await c.env.DB.prepare(
+      'SELECT email FROM users WHERE id = ?'
+    ).bind(userId).first<Pick<UserRow, 'email'>>();
+    userEmail = userRow?.email ?? null;
+  } catch {
+    // Non-critical: admin checks will simply fail gracefully
+  }
+  c.set('userEmail', userEmail);
+
   await next();
 }

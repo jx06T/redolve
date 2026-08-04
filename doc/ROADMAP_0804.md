@@ -35,7 +35,7 @@
 ```powershell
 wrangler secret put GEMINI_API_KEY
 wrangler secret put BETTER_AUTH_SECRET
-wrangler secret put ADMIN_SECRET
+wrangler secret put ADMIN_EMAILS   # 逗號分隔多個管理者 email
 ```
 
 ### 0.3 `wrangler.jsonc` 更新
@@ -105,8 +105,9 @@ npm install -D @types/bcryptjs wrangler@latest
   - level 0：各科目（數學、物理、化學、生物...）
   - level 1：各單元
   - level 2 (選用)：各子主題
-- [ ] `POST /api/admin/taxonomy/seed`：驗證 `ADMIN_SECRET`，寫入 D1 `taxonomies` + KV `taxonomy:tree`
-- [ ] 執行種子 API 建立課綱樹
+- [ ] `POST /api/admin/taxonomy/seed`：驗證 session user email 在 `ADMIN_EMAILS` 白名單中，寫入 D1 `taxonomies` + KV `taxonomy:seed`
+- [ ] `GET /api/admin/me`：回傳 `{ isAdmin }` 供前端條件顯示管理區塊
+- [ ] 執行 Seed（登入管理者帳號後，在設定頁點擊按鈕）
 
 ### 2.2 AIService 抽象層
 
@@ -226,7 +227,7 @@ npm install -D @types/bcryptjs wrangler@latest
 
 - [ ] `npm run worker:deploy`
 - [ ] 確認生產環境 Secrets 已注入（`wrangler secret list`）
-- [ ] 執行一次 `POST /api/admin/taxonomy/seed` 建立課綱樹
+- [ ] 以管理者 Google 帳號登入 PWA，途徑 設定 > 自訂科目與單元分類，點擊「執行課綱 Seed」建立課綱樹
 
 ### 5.3 CORS Origin 更新
 

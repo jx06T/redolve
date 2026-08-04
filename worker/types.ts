@@ -6,7 +6,12 @@ export interface Bindings {
   KV: KVNamespace;
   GEMINI_API_KEY?: string;
   BETTER_AUTH_SECRET?: string;
-  ADMIN_SECRET?: string;
+  /** Comma-separated Google account emails with admin access. Replaces ADMIN_SECRET. */
+  ADMIN_EMAILS?: string;
+  /** Google OAuth 2.0 Client ID (better-auth Google provider) */
+  GOOGLE_CLIENT_ID?: string;
+  /** Google OAuth 2.0 Client Secret (better-auth Google provider) */
+  GOOGLE_CLIENT_SECRET?: string;
   AI_PROVIDER?: string;
   ALLOWED_ORIGINS?: string;
   ENV?: string;
@@ -14,6 +19,8 @@ export interface Bindings {
 
 export interface Variables {
   userId: string;
+  /** Authenticated user's Google email, resolved by authMiddleware. */
+  userEmail: string | null;
 }
 
 export interface StandardErrorResponse {

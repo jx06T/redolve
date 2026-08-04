@@ -1,8 +1,20 @@
 import { Hono } from 'hono';
+import { authMiddleware } from '../middleware/auth';
 import { Bindings, Variables, TaxonomyNode } from '../types';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 
 export const adminRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// Helper: check if the currently authenticated user is an admin
+function isAdminUser(c: { get: (key: string) => unknown; env: Bindings }): boolean {
+  const email = c.get('userEmail') as string | null;
+  if (!email) return false;
+  const adminEmails = (c.env.ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(email.toLowerCase());
+}
 
 async function insertNodeToD1(db: D1Database, node: TaxonomyNode) {
   await db
@@ -28,19 +40,19 @@ function countNodes(nodes: TaxonomyNode[]): number {
   return count;
 }
 
-adminRouter.post('/taxonomy/seed', async (c) => {
-  const authHeader = c.req.header('Authorization');
-  const expectedSecret = c.env.ADMIN_SECRET;
+// GET /api/admin/me — returns whether the current session user is an admin
+adminRouter.get('/me', authMiddleware, async (c) => {
+  const admin = isAdminUser(c as Parameters<typeof isAdminUser>[0]);
+  return c.json({ isAdmin: admin });
+});
 
-  if (expectedSecret && authHeader !== `Bearer ${expectedSecret}`) {
+// POST /api/admin/taxonomy/seed — seeds official taxonomy into D1 + KV
+// Requires: authenticated session with an email listed in ADMIN_EMAILS
+adminRouter.post('/taxonomy/seed', authMiddleware, async (c) => {
+  if (!isAdminUser(c as Parameters<typeof isAdminUser>[0])) {
     return c.json(
-      {
-        error: {
-          code: 'UNAUTHORIZED',
-          message: '無效的管理者憑證',
-        },
-      },
-      401
+      { error: { code: 'FORBIDDEN', message: '僅限管理者帳號執行此操作' } },
+      403
     );
   }
 
@@ -51,7 +63,8 @@ adminRouter.post('/taxonomy/seed', async (c) => {
   }
 
   if (c.env.KV) {
-    await c.env.KV.put('taxonomy:tree', JSON.stringify(tree));
+    // Key: taxonomy:seed (global, user-independent seed tree)
+    await c.env.KV.put('taxonomy:seed', JSON.stringify(tree));
   }
 
   const totalCount = countNodes(tree);

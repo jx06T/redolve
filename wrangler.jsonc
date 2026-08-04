@@ -10,7 +10,7 @@
     {
       "binding": "DB",
       "database_name": "redolve-db",
-      "database_id": "local-redolve-db"
+      "database_id": "966ad241-9a03-4719-99d6-c18314d7bf94"
     }
   ],
   "r2_buckets": [
@@ -22,7 +22,7 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "local-kv-id"
+      "id": "b09131c5f54446f6bff12e368190572a"
     }
   ]
 }
