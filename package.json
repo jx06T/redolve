@@ -13,6 +13,7 @@
     "d1:init": "wrangler d1 execute redolve-db --local --file=./worker/schema.sql"
   },
   "dependencies": {
+    "@google/genai": "^2.15.0",
     "@tanstack/react-virtual": "^3.10.8",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
@@ -27,7 +28,7 @@
     "zustand": "^4.5.5"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241022.0",
+    "@cloudflare/workers-types": "^5.20260804.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22.7.9",
     "@types/react": "^18.3.11",
@@ -38,6 +39,6 @@
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.9",
-    "wrangler": "^3.83.0"
+    "wrangler": "^4.118.0"
   }
 }
