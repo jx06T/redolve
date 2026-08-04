@@ -21,6 +21,56 @@ function decodeCursor(cursor: string): { created_at: string; id: string } | null
   }
 }
 
+/**
+ * Validates whether topicId exists in D1 taxonomies table.
+ * If not present, automatically auto-seeds missing nodes from TAXONOMY_SEED_DATA
+ * or falls back to null to strictly prevent SQLite FOREIGN KEY constraint errors.
+ */
+async function validateAndEnsureTopicId(db: any, topicId: string | null | undefined): Promise<string | null> {
+  if (!topicId || typeof topicId !== 'string') return null;
+  const cleanId = topicId.trim();
+  if (!cleanId) return null;
+
+  try {
+    const existing = await db.prepare('SELECT id FROM taxonomies WHERE id = ?').bind(cleanId).first();
+    if (existing) return cleanId;
+
+    // Flatten seed nodes
+    const flattenNodes = (nodes: TaxonomyNode[]): { id: string; parent_id: string | null; label: string; level: number }[] => {
+      const list: any[] = [];
+      const traverse = (items: TaxonomyNode[]) => {
+        for (const item of items) {
+          list.push({ id: item.id, parent_id: item.parent_id || null, label: item.label, level: item.level || 0 });
+          if (item.children) traverse(item.children);
+        }
+      };
+      traverse(nodes);
+      return list;
+    };
+
+    const flat = flattenNodes(TAXONOMY_SEED_DATA);
+    const targetNode = flat.find((n) => n.id === cleanId);
+    if (targetNode) {
+      // Build lineage from root to target node
+      const lineage: typeof flat = [];
+      let cur: typeof targetNode | undefined = targetNode;
+      while (cur) {
+        lineage.unshift(cur);
+        cur = flat.find((n) => n.id === cur?.parent_id);
+      }
+      for (const node of lineage) {
+        await db.prepare(
+          'INSERT OR IGNORE INTO taxonomies (id, user_id, parent_id, label, level) VALUES (?, NULL, ?, ?, ?)'
+        ).bind(node.id, node.parent_id, node.label, node.level).run();
+      }
+      return cleanId;
+    }
+  } catch (err) {
+    console.warn('[validateAndEnsureTopicId] Failed to verify or auto-seed topic:', err);
+  }
+  return null;
+}
+
 // 1. Upload Problem (FormData) -> R2 + D1 + Background AI Tagging
 problemsRouter.post('/', async (c) => {
   const userId = c.get('userId');
@@ -41,6 +91,7 @@ problemsRouter.post('/', async (c) => {
   });
 
   const now = new Date().toISOString();
+  const initialTopicId = await validateAndEnsureTopicId(c.env.DB, body['topic_id'] as string);
 
   // Insert D1 item record with status 'processing'
   await c.env.DB.prepare(
@@ -50,7 +101,7 @@ problemsRouter.post('/', async (c) => {
     .bind(
       problemId,
       userId,
-      (body['topic_id'] as string) || null,
+      initialTopicId,
       (body['source'] as string) || 'iOS Shortcut',
       imageKey,
       now,
@@ -76,21 +127,7 @@ problemsRouter.post('/', async (c) => {
         if (tagResult) {
           const keywordTokensStr = tagResult.keyword_tokens.join(' ');
           const keywordsJson = JSON.stringify(tagResult.keywords);
-
-          // Validate topic_id exists in D1 taxonomies table to prevent foreign key constraint violations
-          let validTopicId: string | null = null;
-          if (tagResult.topic_id) {
-            try {
-              const taxRow = await c.env.DB.prepare('SELECT id FROM taxonomies WHERE id = ?')
-                .bind(tagResult.topic_id)
-                .first();
-              if (taxRow) {
-                validTopicId = tagResult.topic_id;
-              }
-            } catch {
-              // Ignore taxonomy query errors
-            }
-          }
+          const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
 
           await c.env.DB.prepare(
             `UPDATE items
@@ -457,13 +494,14 @@ problemsRouter.post('/:id/analyze', async (c) => {
 
   const keywordTokensStr = tagResult.keyword_tokens.join(' ');
   const keywordsJson = JSON.stringify(tagResult.keywords);
+  const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
 
   await c.env.DB.prepare(
     `UPDATE items
      SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved', updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND user_id = ?`
   )
-    .bind(tagResult.topic_id, keywordsJson, keywordTokensStr, problemId, userId)
+    .bind(validTopicId, keywordsJson, keywordTokensStr, problemId, userId)
     .run();
 
   // Sync FTS5
