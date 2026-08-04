@@ -28,6 +28,7 @@ interface StoreState {
   // Active Drawing Tool State
   tool: 'pen' | 'highlighter' | 'eraser';
   penColor: string;
+  customColors: string[];
   penWidth: number;
   eraserActive: boolean; // Left hand spring FAB hold
 
@@ -53,6 +54,8 @@ interface StoreState {
   setIsLoading: (loading: boolean) => void;
   setTool: (tool: 'pen' | 'highlighter' | 'eraser') => void;
   setPenColor: (color: string) => void;
+  addCustomColor: (hex: string) => void;
+  removeCustomColor: (hex: string) => void;
   setPenWidth: (width: number) => void;
   setEraserActive: (active: boolean) => void;
   setTaxonomies: (tree: TaxonomyNode[]) => void;
@@ -75,6 +78,14 @@ export const useStore = create<StoreState>((set) => ({
 
   tool: 'pen',
   penColor: '#6366F1', // Primary low-contrast indigo
+  customColors: (() => {
+    try {
+      const saved = localStorage.getItem('redolve_custom_colors');
+      return saved ? JSON.parse(saved) : ['#10B981', '#F59E0B', '#8B5CF6'];
+    } catch {
+      return ['#10B981', '#F59E0B', '#8B5CF6'];
+    }
+  })(),
   penWidth: 2,
   eraserActive: false,
 
@@ -137,7 +148,30 @@ export const useStore = create<StoreState>((set) => ({
   setIsLoading: (isLoading) => set({ isLoading }),
   setTool: (tool) => set({ tool }),
   setPenColor: (penColor) => set({ penColor }),
+  addCustomColor: (hex) =>
+    set((state) => {
+      const normalized = hex.toUpperCase();
+      if (state.customColors.includes(normalized)) return {};
+      const updated = [normalized, ...state.customColors].slice(0, 12);
+      try {
+        localStorage.setItem('redolve_custom_colors', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to persist custom colors:', err);
+      }
+      return { customColors: updated, penColor: normalized };
+    }),
+  removeCustomColor: (hex) =>
+    set((state) => {
+      const updated = state.customColors.filter((c) => c.toUpperCase() !== hex.toUpperCase());
+      try {
+        localStorage.setItem('redolve_custom_colors', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to persist custom colors:', err);
+      }
+      return { customColors: updated };
+    }),
   setPenWidth: (penWidth) => set({ penWidth }),
   setEraserActive: (eraserActive) => set({ eraserActive }),
   setTaxonomies: (taxonomies) => set({ taxonomies }),
 }));
+

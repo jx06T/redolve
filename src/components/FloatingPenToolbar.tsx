@@ -1,10 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PenTool, Highlighter, GripVertical, GripHorizontal } from 'lucide-react';
+import { PenTool, Highlighter, GripVertical, GripHorizontal, Plus } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { COLOR_PALETTE, STROKE_WIDTHS } from '../config/constants';
 
 export const FloatingPenToolbar: React.FC = () => {
-  const { tool, setTool, penColor, setPenColor, penWidth, setPenWidth } = useStore();
+  const {
+    tool,
+    setTool,
+    penColor,
+    setPenColor,
+    customColors,
+    addCustomColor,
+    penWidth,
+    setPenWidth,
+    showToast,
+  } = useStore();
+
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
@@ -28,7 +40,7 @@ export const FloatingPenToolbar: React.FC = () => {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button')) return;
+    if (target.closest('button') || target.closest('input')) return;
 
     if (!position) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -83,6 +95,15 @@ export const FloatingPenToolbar: React.FC = () => {
       setOrientation('vertical');
       const clampedY = Math.max(80, Math.min(window.innerHeight - 260, position.y));
       setPosition({ x: window.innerWidth - 64, y: clampedY });
+    }
+  };
+
+  const handleCustomColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newHex = e.target.value;
+    if (newHex) {
+      addCustomColor(newHex);
+      if (tool === 'eraser') setTool('pen');
+      showToast(`已套用自訂筆觸顏色：${newHex.toUpperCase()}`, 'success', 1500);
     }
   };
 
@@ -152,6 +173,7 @@ export const FloatingPenToolbar: React.FC = () => {
             : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
+        {/* Preset Palette */}
         {COLOR_PALETTE.map((c) => (
           <button
             key={c.hex}
@@ -159,15 +181,59 @@ export const FloatingPenToolbar: React.FC = () => {
               setPenColor(c.hex);
               if (tool === 'eraser') setTool('pen');
             }}
-            aria-label={`選取顏色: ${c.name}`}
+            aria-label={`選取預設顏色: ${c.name}`}
             className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${
-              penColor === c.hex ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs' : 'hover:scale-110'
+              penColor.toUpperCase() === c.hex.toUpperCase()
+                ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs'
+                : 'hover:scale-110'
             }`}
             style={{ backgroundColor: c.hex }}
             title={c.name}
           />
         ))}
+
+        {/* Custom Colors (Max 3 in floating toolbar) */}
+        {customColors.slice(0, 3).map((hex) => (
+          <button
+            key={hex}
+            onClick={() => {
+              setPenColor(hex);
+              if (tool === 'eraser') setTool('pen');
+            }}
+            aria-label={`選取自訂顏色: ${hex}`}
+            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${
+              penColor.toUpperCase() === hex.toUpperCase()
+                ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs'
+                : 'hover:scale-110'
+            }`}
+            style={{ backgroundColor: hex }}
+            title={`自訂顏色 ${hex}`}
+          />
+        ))}
+
+        {/* Custom Color Picker Trigger Button */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => colorInputRef.current?.click()}
+            aria-label="自訂調色盤選色"
+            title="開啟自訂調色盤"
+            className="w-6 h-6 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#374151] dark:text-[#D1D5DB] flex items-center justify-center border border-stone-300 dark:border-stone-600 transition-all hover:scale-110 active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
+          <input
+            ref={colorInputRef}
+            type="color"
+            value={penColor}
+            onChange={handleCustomColorChange}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+        </div>
       </div>
+
 
       {/* Stroke Width Selector */}
       <div
