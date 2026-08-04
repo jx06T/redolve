@@ -66,6 +66,26 @@ export async function fetchAuthUsers(): Promise<{ users: User[] }> {
   return res.json();
 }
 
+export async function getGoogleAuthUrl(): Promise<{ configured: boolean; url?: string; message?: string }> {
+  const res = await fetch(`${API_BASE}/auth/google/url`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to get Google Auth URL');
+  return res.json();
+}
+
+export async function loginWithGoogleCredential(credential: string): Promise<{ token: string; user: User }> {
+  const res = await fetch(`${API_BASE}/auth/google/credential`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential }),
+  });
+  if (!res.ok) throw new Error('Google authentication failed');
+  const data = (await res.json()) as { token: string; user: User };
+  setAuthToken(data.token);
+  return data;
+}
+
 // Taxonomy Sync Endpoints
 export async function fetchTaxonomyTree(): Promise<{ tree: TaxonomyNode[]; customNodes: TaxonomyNode[] }> {
   const res = await fetch(`${API_BASE}/taxonomy`, {

@@ -12,9 +12,38 @@ import { SettingsView } from './views/SettingsView';
 import { registerServiceWorker } from './services/swRegister';
 import { initOnlineSync } from './services/offlineStorage';
 import { updateProblemDrawData } from './services/api';
+import { useStore } from './store/useStore';
 
 export default function App() {
+  const { setCurrentUser, showToast } = useStore();
+
   useEffect(() => {
+    // Check for Google OAuth callback parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const authToken = urlParams.get('auth_token');
+    const authName = urlParams.get('auth_name');
+    const authEmail = urlParams.get('auth_email');
+    const authError = urlParams.get('auth_error');
+
+    if (authToken) {
+      setCurrentUser(
+        {
+          id: authToken,
+          name: authName || authEmail || 'Google User',
+          email: authEmail || `${authToken}@google.user`,
+          created_at: new Date().toISOString(),
+        },
+        authToken
+      );
+      showToast(`已透過 Google 帳號成功登入為「${authName || authEmail}」`, 'success', 3500);
+
+      // Clean query parameters from URL
+      window.history.replaceState(null, '', window.location.pathname);
+    } else if (authError) {
+      showToast(`Google 登入失敗: ${decodeURIComponent(authError)}`, 'error', 4000);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
     // Register PWA Service Worker
     registerServiceWorker();
 
@@ -27,7 +56,7 @@ export default function App() {
         return false;
       }
     });
-  }, []);
+  }, [setCurrentUser, showToast]);
 
   return (
     <ErrorBoundary>

@@ -33,7 +33,148 @@ authRouter.get('/me', async (c) => {
   });
 });
 
-// 2. Login or Switch User Account
+// 2. Google OAuth 2.0 Auth URL Generator
+authRouter.get('/google/url', (c) => {
+  const clientId = c.env.GOOGLE_CLIENT_ID;
+  if (!clientId) {
+    return c.json({
+      configured: false,
+      message: '尚未配置 GOOGLE_CLIENT_ID。請在 .dev.vars 或 Cloudflare Secrets 設定。',
+    });
+  }
+
+  const origin = new URL(c.req.url).origin;
+  const redirectUri = `${origin}/api/auth/callback/google`;
+  const state = crypto.randomUUID();
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
+    clientId
+  )}&redirect_uri=${encodeURIComponent(
+    redirectUri
+  )}&response_type=code&scope=openid%20email%20profile&state=${state}&prompt=select_account`;
+
+  return c.json({
+    configured: true,
+    url: authUrl,
+    state,
+  });
+});
+
+// 3. Google OAuth 2.0 Callback Handler
+authRouter.get('/callback/google', async (c) => {
+  const code = c.req.query('code');
+  const error = c.req.query('error');
+
+  if (error || !code) {
+    return c.redirect(`/?auth_error=${encodeURIComponent(error || '授權已取消')}`);
+  }
+
+  const clientId = c.env.GOOGLE_CLIENT_ID;
+  const clientSecret = c.env.GOOGLE_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    return c.redirect(`/?auth_error=${encodeURIComponent('後端缺少 GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 設定')}`);
+  }
+
+  const origin = new URL(c.req.url).origin;
+  const redirectUri = `${origin}/api/auth/callback/google`;
+
+  try {
+    // Exchange Code for Access Token
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    });
+
+    if (!tokenRes.ok) {
+      const errBody = await tokenRes.text();
+      console.error('Google token exchange error:', errBody);
+      return c.redirect(`/?auth_error=${encodeURIComponent('Google 授權碼兌換失敗')}`);
+    }
+
+    const tokenData: any = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    // Fetch Google User Profile
+    const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!profileRes.ok) {
+      return c.redirect(`/?auth_error=${encodeURIComponent('無法獲取 Google 使用者資料')}`);
+    }
+
+    const profile: any = await profileRes.json();
+    const googleId = profile.sub;
+    const email = (profile.email || '').trim().toLowerCase();
+    const name = profile.name || email.split('@')[0] || 'Google User';
+    const userId = `usr_google_${googleId}`;
+
+    // Upsert into D1 users
+    await c.env.DB.prepare(
+      `INSERT INTO users (id, email, name)
+       VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`
+    ).bind(userId, email, name).run();
+
+    // Redirect to root with token
+    return c.redirect(`/?auth_token=${encodeURIComponent(userId)}&auth_name=${encodeURIComponent(name)}&auth_email=${encodeURIComponent(email)}`);
+  } catch (err: any) {
+    console.error('Google OAuth callback error:', err);
+    return c.redirect(`/?auth_error=${encodeURIComponent(err.message || 'Google 登入處理異常')}`);
+  }
+});
+
+// 4. Google ID Token / One Tap Direct Verification
+authRouter.post('/google/credential', async (c) => {
+  const body = await c.req.json();
+  const credential = body.credential || body.id_token;
+
+  if (!credential) {
+    return c.json({ error: { code: 'INVALID_INPUT', message: '請提供 Google Credential' } }, 400);
+  }
+
+  try {
+    const verifyRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    if (!verifyRes.ok) {
+      return c.json({ error: { code: 'INVALID_TOKEN', message: '無效的 Google Token' } }, 401);
+    }
+
+    const tokenInfo: any = await verifyRes.json();
+    const googleId = tokenInfo.sub;
+    const email = (tokenInfo.email || '').trim().toLowerCase();
+    const name = tokenInfo.name || email.split('@')[0] || 'Google User';
+    const userId = `usr_google_${googleId}`;
+
+    // Upsert into D1
+    await c.env.DB.prepare(
+      `INSERT INTO users (id, email, name)
+       VALUES (?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`
+    ).bind(userId, email, name).run();
+
+    const user = await c.env.DB.prepare(
+      'SELECT id, email, name, created_at FROM users WHERE id = ?'
+    ).bind(userId).first<UserRow>();
+
+    return c.json({
+      status: 'ok',
+      token: userId,
+      user,
+    });
+  } catch (err: any) {
+    return c.json({ error: { code: 'AUTH_FAILED', message: err.message } }, 500);
+  }
+});
+
+// 5. Standard Email / Account Switch
 authRouter.post('/login', async (c) => {
   const body = await c.req.json();
   const email = (body.email || '').trim().toLowerCase();
@@ -65,7 +206,7 @@ authRouter.post('/login', async (c) => {
   });
 });
 
-// 3. List Registered Users for Quick Account Switching (Dev & Testing)
+// 6. List Registered Users for Quick Account Switching (Dev & Testing)
 authRouter.get('/users', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(
@@ -81,7 +222,7 @@ authRouter.get('/users', async (c) => {
   }
 });
 
-// 4. Logout
+// 7. Logout
 authRouter.post('/logout', async (c) => {
   return c.json({ status: 'ok', message: '已成功登出' });
 });
