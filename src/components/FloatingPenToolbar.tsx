@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PenTool, Highlighter, GripVertical, GripHorizontal, Plus } from 'lucide-react';
+import { PenTool, Highlighter, Plus } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { COLOR_PALETTE, STROKE_WIDTHS } from '../config/constants';
+import { STROKE_WIDTHS } from '../config/constants';
 
 export const FloatingPenToolbar: React.FC = () => {
   const {
@@ -9,14 +9,15 @@ export const FloatingPenToolbar: React.FC = () => {
     setTool,
     penColor,
     setPenColor,
-    customColors,
-    addCustomColor,
+    paletteColors,
+    addPaletteColor,
     penWidth,
     setPenWidth,
     showToast,
   } = useStore();
 
   const colorInputRef = useRef<HTMLInputElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
@@ -101,7 +102,7 @@ export const FloatingPenToolbar: React.FC = () => {
   const handleCustomColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newHex = e.target.value;
     if (newHex) {
-      addCustomColor(newHex);
+      addPaletteColor({ hex: newHex });
       if (tool === 'eraser') setTool('pen');
       showToast(`已套用自訂筆觸顏色：${newHex.toUpperCase()}`, 'success', 1500);
     }
@@ -113,24 +114,24 @@ export const FloatingPenToolbar: React.FC = () => {
 
   return (
     <div
+      ref={toolbarRef}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       style={{
-        left: `${position.x}px`,
-        top: `${position.y}px`,
+        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         touchAction: 'none',
       }}
-      className={`fixed z-40 bg-white/90 dark:bg-[#202023]/90 backdrop-blur-md border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-2 shadow-xl select-none transition-all duration-200 ${
-        isHorizontal ? 'flex flex-row items-center space-x-2' : 'flex flex-col items-center space-y-2'
-      } ${isDragging ? 'scale-105 shadow-2xl opacity-90 cursor-grabbing' : 'cursor-grab'}`}
+      className={`fixed top-0 left-0 z-50 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-lg rounded-3xl p-1.5 flex select-none transition-shadow ${
+        isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-[#6366F1]/50' : 'cursor-grab'
+      } ${
+        isHorizontal
+          ? 'flex-row items-center space-x-2'
+          : 'flex-col items-center space-y-2'
+      }`}
     >
-      {/* Drag Handle Indicator */}
-      <div className="text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]">
-        {isHorizontal ? <GripHorizontal className="w-4 h-4" /> : <GripVertical className="w-4 h-4" />}
-      </div>
-
-      {/* Tool Selector: Pen vs Highlighter */}
+      {/* Tool Selector */}
       <div
         className={
           isHorizontal
@@ -165,7 +166,7 @@ export const FloatingPenToolbar: React.FC = () => {
         </button>
       </div>
 
-      {/* Color Palette Chips */}
+      {/* Unified Color Palette Chips */}
       <div
         className={
           isHorizontal
@@ -173,51 +174,31 @@ export const FloatingPenToolbar: React.FC = () => {
             : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
-        {/* Preset Palette */}
-        {COLOR_PALETTE.map((c) => (
+        {paletteColors.slice(0, 6).map((c) => (
           <button
             key={c.hex}
             onClick={() => {
               setPenColor(c.hex);
               if (tool === 'eraser') setTool('pen');
             }}
-            aria-label={`選取預設顏色: ${c.name}`}
+            aria-label={`選取顏色: ${c.name || c.hex}`}
             className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${
               penColor.toUpperCase() === c.hex.toUpperCase()
                 ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs'
                 : 'hover:scale-110'
             }`}
             style={{ backgroundColor: c.hex }}
-            title={c.name}
+            title={c.name || c.hex}
           />
         ))}
 
-        {/* Custom Colors (Max 3 in floating toolbar) */}
-        {customColors.slice(0, 3).map((hex) => (
-          <button
-            key={hex}
-            onClick={() => {
-              setPenColor(hex);
-              if (tool === 'eraser') setTool('pen');
-            }}
-            aria-label={`選取自訂顏色: ${hex}`}
-            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${
-              penColor.toUpperCase() === hex.toUpperCase()
-                ? 'scale-125 ring-2 ring-[#6366F1] shadow-xs'
-                : 'hover:scale-110'
-            }`}
-            style={{ backgroundColor: hex }}
-            title={`自訂顏色 ${hex}`}
-          />
-        ))}
-
-        {/* Custom Color Picker Trigger Button */}
+        {/* Color Picker Trigger Button */}
         <div className="relative">
           <button
             type="button"
             onClick={() => colorInputRef.current?.click()}
             aria-label="自訂調色盤選色"
-            title="開啟自訂調色盤"
+            title="開啟調色盤新增色彩"
             className="w-6 h-6 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#374151] dark:text-[#D1D5DB] flex items-center justify-center border border-stone-300 dark:border-stone-600 transition-all hover:scale-110 active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -233,7 +214,6 @@ export const FloatingPenToolbar: React.FC = () => {
           />
         </div>
       </div>
-
 
       {/* Stroke Width Selector */}
       <div

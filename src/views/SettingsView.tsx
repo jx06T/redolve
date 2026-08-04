@@ -1,13 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Key, Plus, Trash2, Copy, Check, ShieldCheck, Tag, Sliders, FolderPlus, Palette, X } from 'lucide-react';
+import { Key, Plus, Trash2, Copy, Check, ShieldCheck, Tag, Sliders, FolderPlus, Palette, X, RotateCcw } from 'lucide-react';
 import { fetchApiKeys, createApiKey, deleteApiKey } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { ApiKeyItem, TaxonomyNode } from '../types';
-import { COLOR_PALETTE } from '../config/constants';
 
-const SUGGESTED_PALETTES = [
+const ALL_RECOMMENDED_COLORS = [
+  { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
+  { name: 'Indigo (鋼筆經典)', hex: '#6366F1' },
+  { name: 'Rose (重點批註)', hex: '#E11D48' },
+  { name: 'Blue (觀念補強)', hex: '#3B82F6' },
   { name: '薄荷翠綠', hex: '#10B981' },
   { name: '暖陽琥珀', hex: '#F59E0B' },
   { name: '薰衣草紫', hex: '#8B5CF6' },
@@ -25,9 +28,10 @@ export const SettingsView: React.FC = () => {
   const {
     penColor,
     setPenColor,
-    customColors,
-    addCustomColor,
-    removeCustomColor,
+    paletteColors,
+    addPaletteColor,
+    removePaletteColor,
+    resetPaletteColors,
     penWidth,
     setPenWidth,
     showToast,
@@ -153,13 +157,18 @@ export const SettingsView: React.FC = () => {
 
   const handleAddCustomColor = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const hex = customHexInput.trim();
+    const hex = customHexInput.trim().toUpperCase();
     if (!/^#([0-9A-F]{3}){1,2}$/i.test(hex)) {
       showToast('請輸入合法的 Hex 色碼 (例如: #10B981)', 'error');
       return;
     }
-    addCustomColor(hex);
-    showToast(`已加入自訂顏色：${hex.toUpperCase()}`, 'success');
+    addPaletteColor({ hex });
+    showToast(`已新增顏色 ${hex} 至調色盤`, 'success');
+  };
+
+  const handleResetPalette = () => {
+    resetPaletteColors();
+    showToast('已還原為經典預設調色盤', 'info');
   };
 
   return (
@@ -219,100 +228,74 @@ export const SettingsView: React.FC = () => {
           </div>
 
           <div className="space-y-6 pt-2">
-            {/* System Presets */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
-                  系統經典調色盤 (Classic Presets)
-                </label>
-                <span className="text-[11px] font-mono text-[#9CA3AF]">
-                  當前選取：<span className="font-bold text-[#6366F1]">{penColor.toUpperCase()}</span>
-                </span>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {COLOR_PALETTE.map((c) => (
-                  <button
-                    key={c.hex}
-                    onClick={() => {
-                      setPenColor(c.hex);
-                      showToast(`已套用筆觸顏色：${c.name}`, 'success', 1500);
-                    }}
-                    className={`group relative flex items-center space-x-2 px-3 py-2 rounded-2xl border-2 transition-all active:scale-95 ${
-                      penColor.toUpperCase() === c.hex.toUpperCase()
-                        ? 'border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/30 shadow-xs'
-                        : 'border-stone-200 dark:border-stone-700 hover:border-stone-300 dark:hover:border-stone-600 bg-stone-50 dark:bg-stone-800/40'
-                    }`}
-                  >
-                    <span
-                      className="w-5 h-5 rounded-full border border-black/10 shadow-xs shrink-0"
-                      style={{ backgroundColor: c.hex }}
-                    />
-                    <span className="text-xs font-medium text-[#374151] dark:text-[#D1D5DB]">{c.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Custom Color Palette */}
+            {/* Unified Pen Color Palette Management */}
             <div className="p-5 rounded-2xl bg-stone-50 dark:bg-stone-800/30 border border-stone-200/60 dark:border-stone-800 space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Palette className="w-4 h-4 text-[#6366F1]" />
                   <label className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
-                    自訂調色盤 (Custom Color Palette)
+                    筆觸調色盤 (Pen Color Palette)
                   </label>
+                  <span className="text-[11px] font-mono text-[#9CA3AF] ml-2">
+                    當前選取：<span className="font-bold text-[#6366F1]">{penColor.toUpperCase()}</span>
+                  </span>
                 </div>
-                <span className="text-[11px] text-[#9CA3AF]">
-                  可自由新增並同步至浮動工具列
-                </span>
+                <button
+                  type="button"
+                  onClick={handleResetPalette}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs text-stone-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-stone-200/60 dark:hover:bg-stone-700/60 transition-colors"
+                  title="還原為系統經典 4 色預設"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>還原經典配色</span>
+                </button>
               </div>
 
-              {/* Custom Color Chips */}
-              {customColors.length > 0 ? (
-                <div className="flex flex-wrap items-center gap-2.5">
-                  {customColors.map((hex) => (
-                    <div
-                      key={hex}
-                      className={`group relative flex items-center space-x-1.5 pl-2 pr-1.5 py-1.5 rounded-xl border transition-all ${
-                        penColor.toUpperCase() === hex.toUpperCase()
-                          ? 'border-indigo-500 bg-white dark:bg-[#202023] ring-2 ring-indigo-500/20 shadow-xs'
-                          : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-[#202023] hover:border-stone-300'
-                      }`}
+              {/* All Palette Color Chips */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {paletteColors.map((c) => (
+                  <div
+                    key={c.hex}
+                    className={`group relative flex items-center space-x-1.5 pl-2 pr-1.5 py-1.5 rounded-xl border transition-all ${
+                      penColor.toUpperCase() === c.hex.toUpperCase()
+                        ? 'border-indigo-500 bg-white dark:bg-[#202023] ring-2 ring-indigo-500/20 shadow-xs'
+                        : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-[#202023] hover:border-stone-300'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPenColor(c.hex);
+                        showToast(`已選取筆觸顏色：${c.name || c.hex}`, 'success', 1500);
+                      }}
+                      className="flex items-center space-x-2 text-left"
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPenColor(hex);
-                          showToast(`已選取自訂顏色：${hex}`, 'success', 1500);
-                        }}
-                        className="flex items-center space-x-2 text-left"
-                      >
-                        <span
-                          className="w-5 h-5 rounded-full border border-black/10 shrink-0"
-                          style={{ backgroundColor: hex }}
-                        />
-                        <span className="text-xs font-mono font-medium text-[#374151] dark:text-[#D1D5DB]">
-                          {hex}
-                        </span>
-                      </button>
+                      <span
+                        className="w-5 h-5 rounded-full border border-black/10 shrink-0"
+                        style={{ backgroundColor: c.hex }}
+                      />
+                      <span className="text-xs font-medium text-[#374151] dark:text-[#D1D5DB]">
+                        {c.name || c.hex}
+                      </span>
+                    </button>
+                    {paletteColors.length > 1 && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          removeCustomColor(hex);
-                          showToast(`已自調色盤移除 ${hex}`, 'info');
+                          removePaletteColor(c.hex);
+                          showToast(`已自調色盤移除 ${c.name || c.hex}`, 'info');
                         }}
-                        aria-label={`刪除顏色 ${hex}`}
+                        aria-label={`刪除顏色 ${c.name || c.hex}`}
                         className="p-1 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                        title="自調色盤刪除"
                       >
                         <X className="w-3 h-3" />
                       </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-[#9CA3AF]">目前尚未新增任何自訂筆觸顏色。</p>
-              )}
+                    )}
+                  </div>
+                ))}
+              </div>
 
               {/* Add Custom Color Controls */}
               <form onSubmit={handleAddCustomColor} className="flex flex-wrap items-center gap-3 pt-2">
@@ -347,23 +330,23 @@ export const SettingsView: React.FC = () => {
                   className="flex items-center space-x-1.5 px-4 py-2 rounded-2xl text-xs font-semibold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-95 transition-all shadow-xs"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>加入自訂調色盤</span>
+                  <span>加入調色盤</span>
                 </button>
               </form>
 
               {/* Suggested Colors Row */}
               <div className="pt-2">
                 <div className="text-[11px] font-semibold text-[#9CA3AF] mb-2">
-                  快速推薦莫蘭迪色系：
+                  快速推薦莫蘭迪與經典色系（點擊加入）：
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {SUGGESTED_PALETTES.map((s) => (
+                  {ALL_RECOMMENDED_COLORS.map((s) => (
                     <button
                       key={s.hex}
                       type="button"
                       onClick={() => {
                         setCustomHexInput(s.hex);
-                        addCustomColor(s.hex);
+                        addPaletteColor({ hex: s.hex, name: s.name });
                         showToast(`已加入並選取：${s.name} (${s.hex})`, 'success');
                       }}
                       className="flex items-center space-x-1.5 px-2.5 py-1 rounded-xl text-[11px] bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] hover:border-indigo-400 hover:scale-105 active:scale-95 transition-all"

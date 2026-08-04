@@ -32,15 +32,21 @@ export const EXAM_TYPES = [
   '課本例題',
 ];
 
-// Drawing Tool Color Palettes (Soft Pastel Morandi Palette)
-export const COLOR_PALETTE = [
+export interface PaletteColorItem {
+  name?: string;
+  hex: string;
+}
+
+// Default Drawing Tool Color Palettes (Soft Pastel Morandi Palette)
+export const DEFAULT_PALETTE_COLORS: PaletteColorItem[] = [
+  { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
   { name: 'Indigo (鋼筆經典)', hex: '#6366F1' },
   { name: 'Rose (重點批註)', hex: '#E11D48' },
   { name: 'Blue (觀念補強)', hex: '#3B82F6' },
-  { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
 ];
 
-export const PEN_COLORS = ['#374151', '#6366F1', '#E11D48', '#3B82F6'];
+export const COLOR_PALETTE = DEFAULT_PALETTE_COLORS;
+export const PEN_COLORS = DEFAULT_PALETTE_COLORS.map((c) => c.hex);
 
 // Stroke Width Options (pt)
 export const STROKE_WIDTHS = [1, 2, 4];

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { Item, TaxonomyNode } from '../types';
+import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 
 export interface ToastNotice {
   id: string;
@@ -28,6 +29,7 @@ interface StoreState {
   // Active Drawing Tool State
   tool: 'pen' | 'highlighter' | 'eraser';
   penColor: string;
+  paletteColors: PaletteColorItem[];
   customColors: string[];
   penWidth: number;
   eraserActive: boolean; // Left hand spring FAB hold
@@ -54,6 +56,9 @@ interface StoreState {
   setIsLoading: (loading: boolean) => void;
   setTool: (tool: 'pen' | 'highlighter' | 'eraser') => void;
   setPenColor: (color: string) => void;
+  addPaletteColor: (color: { hex: string; name?: string }) => void;
+  removePaletteColor: (hex: string) => void;
+  resetPaletteColors: () => void;
   addCustomColor: (hex: string) => void;
   removeCustomColor: (hex: string) => void;
   setPenWidth: (width: number) => void;
@@ -77,15 +82,22 @@ export const useStore = create<StoreState>((set) => ({
   isLoading: false,
 
   tool: 'pen',
-  penColor: '#6366F1', // Primary low-contrast indigo
-  customColors: (() => {
+  penColor: '#374151', // Default graphite grey
+  paletteColors: (() => {
     try {
-      const saved = localStorage.getItem('redolve_custom_colors');
-      return saved ? JSON.parse(saved) : ['#10B981', '#F59E0B', '#8B5CF6'];
+      const saved = localStorage.getItem('redolve_pen_palette');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      return DEFAULT_PALETTE_COLORS;
     } catch {
-      return ['#10B981', '#F59E0B', '#8B5CF6'];
+      return DEFAULT_PALETTE_COLORS;
     }
   })(),
+  get customColors() {
+    return this.paletteColors.map((c) => c.hex);
+  },
   penWidth: 2,
   eraserActive: false,
 
@@ -148,28 +160,60 @@ export const useStore = create<StoreState>((set) => ({
   setIsLoading: (isLoading) => set({ isLoading }),
   setTool: (tool) => set({ tool }),
   setPenColor: (penColor) => set({ penColor }),
-  addCustomColor: (hex) =>
+  addPaletteColor: (color) =>
     set((state) => {
-      const normalized = hex.toUpperCase();
-      if (state.customColors.includes(normalized)) return {};
-      const updated = [normalized, ...state.customColors].slice(0, 12);
-      try {
-        localStorage.setItem('redolve_custom_colors', JSON.stringify(updated));
-      } catch (err) {
-        console.error('Failed to persist custom colors:', err);
+      const normalizedHex = color.hex.toUpperCase();
+      const existing = state.paletteColors.find((c) => c.hex.toUpperCase() === normalizedHex);
+      if (existing) {
+        return { penColor: normalizedHex };
       }
-      return { customColors: updated, penColor: normalized };
+      const newEntry: PaletteColorItem = {
+        hex: normalizedHex,
+        name: color.name || `自訂顏色 ${normalizedHex}`,
+      };
+      const updated = [...state.paletteColors, newEntry];
+      try {
+        localStorage.setItem('redolve_pen_palette', JSON.stringify(updated));
+      } catch (err) {
+        console.error('Failed to persist palette colors:', err);
+      }
+      return { paletteColors: updated, penColor: normalizedHex };
     }),
-  removeCustomColor: (hex) =>
+  removePaletteColor: (hex) =>
     set((state) => {
-      const updated = state.customColors.filter((c) => c.toUpperCase() !== hex.toUpperCase());
+      const targetHex = hex.toUpperCase();
+      const updated = state.paletteColors.filter((c) => c.hex.toUpperCase() !== targetHex);
       try {
-        localStorage.setItem('redolve_custom_colors', JSON.stringify(updated));
+        localStorage.setItem('redolve_pen_palette', JSON.stringify(updated));
       } catch (err) {
-        console.error('Failed to persist custom colors:', err);
+        console.error('Failed to persist palette colors:', err);
       }
-      return { customColors: updated };
+      const nextPenColor =
+        state.penColor.toUpperCase() === targetHex
+          ? (updated[0]?.hex ?? '#374151')
+          : state.penColor;
+      return { paletteColors: updated, penColor: nextPenColor };
     }),
+  resetPaletteColors: () =>
+    set(() => {
+      try {
+        localStorage.setItem('redolve_pen_palette', JSON.stringify(DEFAULT_PALETTE_COLORS));
+      } catch (err) {
+        console.error('Failed to reset palette colors:', err);
+      }
+      return {
+        paletteColors: DEFAULT_PALETTE_COLORS,
+        penColor: DEFAULT_PALETTE_COLORS[0].hex,
+      };
+    }),
+  addCustomColor: (hex) => {
+    const { addPaletteColor } = useStore.getState();
+    addPaletteColor({ hex });
+  },
+  removeCustomColor: (hex) => {
+    const { removePaletteColor } = useStore.getState();
+    removePaletteColor(hex);
+  },
   setPenWidth: (penWidth) => set({ penWidth }),
   setEraserActive: (eraserActive) => set({ eraserActive }),
   setTaxonomies: (taxonomies) => set({ taxonomies }),
