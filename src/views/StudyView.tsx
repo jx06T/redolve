@@ -71,6 +71,8 @@ export const StudyView: React.FC = () => {
 
   const loadInitialProblems = useCallback(async () => {
     setIsLoading(true);
+    hasPerformedInitialScrollRef.current = false;
+    isInitialScrollPendingRef.current = true;
     try {
       const res = await fetchProblems({
         topic_id: selectedTopicId ?? undefined,
