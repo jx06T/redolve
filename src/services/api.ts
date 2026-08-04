@@ -1,6 +1,70 @@
-import { Item, DashboardData, ApiKeyItem } from '../types';
+import { Item, DashboardData, ApiKeyItem, User } from '../types';
 
 const API_BASE = '/api';
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem('redolve_auth_token');
+}
+
+export function setAuthToken(token: string | null) {
+  if (token) {
+    localStorage.setItem('redolve_auth_token', token);
+  } else {
+    localStorage.removeItem('redolve_auth_token');
+  }
+}
+
+function getAuthHeaders(includeContentType = true): HeadersInit {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {};
+  if (includeContentType) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+// User Authentication Endpoints
+export async function fetchCurrentUser(): Promise<{ user: User; isDevFallback: boolean }> {
+  const res = await fetch(`${API_BASE}/auth/me`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to fetch current user');
+  return res.json();
+}
+
+export async function loginUser(payload: { email?: string; name?: string; userId?: string }): Promise<{ token: string; user: User }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Login failed');
+  const data = (await res.json()) as { token: string; user: User };
+  setAuthToken(data.token);
+  return data;
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  } finally {
+    setAuthToken(null);
+  }
+}
+
+export async function fetchAuthUsers(): Promise<{ users: User[] }> {
+  const res = await fetch(`${API_BASE}/auth/users`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to fetch users');
+  return res.json();
+}
 
 export async function fetchHealth() {
   const res = await fetch(`${API_BASE}/health`);
@@ -8,7 +72,9 @@ export async function fetchHealth() {
 }
 
 export async function fetchDashboard(): Promise<DashboardData> {
-  const res = await fetch(`${API_BASE}/dashboard`);
+  const res = await fetch(`${API_BASE}/dashboard`, {
+    headers: getAuthHeaders(false),
+  });
   if (!res.ok) throw new Error('Failed to fetch dashboard data');
   return res.json();
 }
@@ -25,19 +91,24 @@ export async function fetchProblems(params?: {
   if (params?.cursor) query.append('cursor', params.cursor);
   if (params?.limit) query.append('limit', params.limit.toString());
 
-  const res = await fetch(`${API_BASE}/problems?${query.toString()}`);
+  const res = await fetch(`${API_BASE}/problems?${query.toString()}`, {
+    headers: getAuthHeaders(false),
+  });
   if (!res.ok) throw new Error('Failed to fetch problems');
   return res.json();
 }
 
 export async function fetchProblemById(id: string): Promise<Item> {
-  const res = await fetch(`${API_BASE}/problems/${id}`);
+  const res = await fetch(`${API_BASE}/problems/${id}`, {
+    headers: getAuthHeaders(false),
+  });
   if (!res.ok) throw new Error('Problem not found');
   return res.json();
 }
 
 export function getProblemImageUrl(id: string): string {
-  return `${API_BASE}/problems/${id}/image`;
+  const token = getAuthToken();
+  return token ? `${API_BASE}/problems/${id}/image?auth=${encodeURIComponent(token)}` : `${API_BASE}/problems/${id}/image`;
 }
 
 export async function uploadProblem(file: File, source?: string, topicId?: string): Promise<{ id: string }> {
@@ -46,8 +117,15 @@ export async function uploadProblem(file: File, source?: string, topicId?: strin
   if (source) formData.append('source', source);
   if (topicId) formData.append('topic_id', topicId);
 
+  const headers: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}/problems`, {
     method: 'POST',
+    headers,
     body: formData,
   });
 
@@ -65,7 +143,7 @@ export async function updateProblemDrawData(
 
   const res = await fetch(`${API_BASE}/problems/${id}/draw`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({
       draw_data: drawData,
       vector_clock: { clientId, seq },
@@ -79,7 +157,7 @@ export async function updateProblemDrawData(
 export async function updateProblemStatus(id: string, status: 'unsolved' | 'resolved') {
   const res = await fetch(`${API_BASE}/problems/${id}/status`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error('Failed to update status');
@@ -92,7 +170,7 @@ export async function updateProblemMetadata(
 ) {
   const res = await fetch(`${API_BASE}/problems/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error('Failed to update metadata');
@@ -102,19 +180,24 @@ export async function updateProblemMetadata(
 export async function deleteProblem(id: string) {
   const res = await fetch(`${API_BASE}/problems/${id}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to delete problem');
   return res.json();
 }
 
 export async function searchProblems(query: string): Promise<{ items: Item[] }> {
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
+    headers: getAuthHeaders(false),
+  });
   if (!res.ok) throw new Error('Search failed');
   return res.json();
 }
 
 export async function fetchApiKeys(): Promise<{ keys: ApiKeyItem[] }> {
-  const res = await fetch(`${API_BASE}/keys`);
+  const res = await fetch(`${API_BASE}/keys`, {
+    headers: getAuthHeaders(false),
+  });
   if (!res.ok) throw new Error('Failed to fetch API keys');
   return res.json();
 }
@@ -122,7 +205,7 @@ export async function fetchApiKeys(): Promise<{ keys: ApiKeyItem[] }> {
 export async function createApiKey(description?: string): Promise<{ key: string; key_prefix: string }> {
   const res = await fetch(`${API_BASE}/keys`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ description }),
   });
   if (!res.ok) throw new Error('Failed to create API key');
@@ -132,6 +215,7 @@ export async function createApiKey(description?: string): Promise<{ key: string;
 export async function deleteApiKey(keyHash: string) {
   const res = await fetch(`${API_BASE}/keys/${encodeURIComponent(keyHash)}`, {
     method: 'DELETE',
+    headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to revoke API key');
   return res.json();
@@ -140,7 +224,7 @@ export async function deleteApiKey(keyHash: string) {
 export async function createShareLink(id: string, allowInk = true): Promise<{ token: string }> {
   const res = await fetch(`${API_BASE}/problems/${id}/share`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ allow_ink: allowInk }),
   });
   if (!res.ok) throw new Error('Failed to create share link');

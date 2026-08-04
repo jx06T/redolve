@@ -8,6 +8,7 @@ import { keysRouter } from './routes/keys';
 import { sharesRouter } from './routes/shares';
 import { searchRouter } from './routes/search';
 import { dashboardRouter } from './routes/dashboard';
+import { authRouter } from './routes/auth';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -26,6 +27,7 @@ app.get('/api/health', (c) => {
 });
 
 // Route Modules
+app.route('/api/auth', authRouter);
 app.route('/api/admin', adminRouter);
 app.route('/api/problems', problemsRouter);
 app.route('/api/keys', keysRouter);

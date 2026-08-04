@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PenTool, Search, Moon, Sun, Upload, Menu, X, ChevronDown, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
 import { ShortcutsModal } from './ShortcutsModal';
+import { AuthModal } from './AuthModal';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
+import { fetchCurrentUser } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -29,7 +31,20 @@ export const Navbar: React.FC = () => {
     setSearchQuery,
     selectedSubjectId,
     setSelectedSubjectId,
+    currentUser,
+    setCurrentUser,
+    setAuthModalOpen,
   } = useStore();
+
+  useEffect(() => {
+    if (!currentUser) {
+      fetchCurrentUser()
+        .then((res) => {
+          if (res?.user) setCurrentUser(res.user);
+        })
+        .catch((err) => console.error('Failed to load initial user:', err));
+    }
+  }, [currentUser, setCurrentUser]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -162,6 +177,20 @@ export const Navbar: React.FC = () => {
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+
+            {/* User Session & Auth Profile Button */}
+            <button
+              onClick={() => setAuthModalOpen(true)}
+              className="flex items-center space-x-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+              title="使用者帳號與身分管理"
+            >
+              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold">
+                {(currentUser?.name || currentUser?.email || 'D').charAt(0).toUpperCase()}
+              </div>
+              <span className="hidden sm:inline text-xs font-semibold max-w-[90px] truncate">
+                {currentUser?.name || '帳號設定'}
+              </span>
+            </button>
           </div>
         </div>
 
@@ -255,6 +284,9 @@ export const Navbar: React.FC = () => {
         isOpen={shortcutsModalOpen}
         onClose={() => setShortcutsModalOpen(false)}
       />
+
+      {/* User Session Auth Modal */}
+      <AuthModal />
     </>
   );
 };

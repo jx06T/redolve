@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Item, TaxonomyNode } from '../types';
+import { Item, TaxonomyNode, User } from '../types';
 import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 
 export interface ToastNotice {
@@ -11,6 +11,11 @@ export interface ToastNotice {
 interface StoreState {
   // Toast Notification State
   toast: ToastNotice | null;
+
+  // User Authentication State
+  currentUser: User | null;
+  authToken: string | null;
+  authModalOpen: boolean;
 
   // Navigation & Filter State
   selectedSubjectId: string | null;
@@ -40,6 +45,9 @@ interface StoreState {
   // Actions
   showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
   hideToast: () => void;
+  setAuthModalOpen: (open: boolean) => void;
+  setCurrentUser: (user: User | null, token?: string | null) => void;
+  logout: () => void;
   setSelectedSubjectId: (subjectId: string | null) => void;
   setSelectedTopicId: (topicId: string | null) => void;
   setSelectedStatus: (status: 'all' | 'unsolved' | 'resolved') => void;
@@ -68,6 +76,10 @@ interface StoreState {
 
 export const useStore = create<StoreState>((set) => ({
   toast: null,
+
+  currentUser: null,
+  authToken: typeof window !== 'undefined' ? localStorage.getItem('redolve_auth_token') : null,
+  authModalOpen: false,
 
   selectedSubjectId: null,
   selectedTopicId: null,
@@ -112,6 +124,24 @@ export const useStore = create<StoreState>((set) => ({
   },
 
   hideToast: () => set({ toast: null }),
+
+  setAuthModalOpen: (authModalOpen) => set({ authModalOpen }),
+  setCurrentUser: (user, token) => {
+    if (token !== undefined) {
+      if (token) {
+        localStorage.setItem('redolve_auth_token', token);
+      } else {
+        localStorage.removeItem('redolve_auth_token');
+      }
+      set({ currentUser: user, authToken: token });
+    } else {
+      set({ currentUser: user });
+    }
+  },
+  logout: () => {
+    localStorage.removeItem('redolve_auth_token');
+    set({ currentUser: null, authToken: null });
+  },
 
   setSelectedSubjectId: (subjectId) => set({ selectedSubjectId: subjectId, selectedTopicId: null }),
   setSelectedTopicId: (topicId) => set({ selectedTopicId: topicId }),
