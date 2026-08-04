@@ -1,4 +1,25 @@
 import { TaxonomyNode } from '../../types';
+import { Type } from '@google/genai';
+
+/**
+ * Extracts all leaf/unit topic IDs from the taxonomy tree.
+ */
+export function extractAllTopicIds(tree: TaxonomyNode[]): string[] {
+  const ids: string[] = [];
+
+  function traverse(nodes: TaxonomyNode[]) {
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      } else {
+        ids.push(node.id);
+      }
+    }
+  }
+
+  traverse(tree);
+  return ids;
+}
 
 /**
  * Formats a taxonomy tree into a compact, hierarchical list of IDs and labels
@@ -21,7 +42,8 @@ export function formatTaxonomyTreeForPrompt(tree: TaxonomyNode[]): string {
 }
 
 /**
- * Builds the system prompt for Gemini visual classification of high-school exam problems.
+ * Builds the system prompt for Gemini visual classification of high-school exam problems
+ * using the real database taxonomy tree.
  */
 export function buildClassificationPrompt(taxonomyTree: TaxonomyNode[]): string {
   const treeOutline = formatTaxonomyTreeForPrompt(taxonomyTree);
@@ -36,4 +58,74 @@ JSON 格式必須包含以下欄位：
 1. "topic_id": string (必須精確對應上述課綱中最適當的單元 ID，例如 "math-bayes", "math-matrix", "physics-kinematics" 等)
 2. "keywords": string[] (3至5個中文核心學術概念關鍵字，例如 ["貝氏定理", "條件機率", "樣本空間"])
 3. "keyword_tokens": string[] (拆解為細粒度單詞與片語的搜尋 token 陣列，例如 ["機率", "條件", "貝氏", "定理", "條件機率", "樣本空間"])`;
+}
+
+/**
+ * Dynamically builds the SDK responseSchema with strict enum validation against database topic IDs.
+ */
+export function buildSdkResponseSchema(taxonomyTree: TaxonomyNode[]) {
+  const topicIds = extractAllTopicIds(taxonomyTree);
+
+  return {
+    type: Type.OBJECT,
+    properties: {
+      subject: {
+        type: Type.STRING,
+        description: '高中學科科目名稱 (例如: 數學, 物理, 化學, 生物, 地科)',
+      },
+      chapter: {
+        type: Type.STRING,
+        description: '所屬大章節名稱',
+      },
+      topic_id: {
+        type: Type.STRING,
+        description: '精確對應課綱單元清單中的單元 ID',
+        ...(topicIds.length > 0 ? { enum: topicIds } : {}),
+      },
+      keywords: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: '3至5個核心概念關鍵字 (例如: ["貝氏定理", "條件機率", "樣本空間"])',
+      },
+      keyword_tokens: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: '繁簡中文與符號切分搜尋 tokens (例如: ["機率", "條件", "貝氏", "定理"])',
+      },
+      problem_text_summary: {
+        type: Type.STRING,
+        description: '題目題幹重點與考點簡要摘要',
+      },
+    },
+    required: ['topic_id', 'keywords', 'keyword_tokens'],
+  };
+}
+
+/**
+ * Dynamically builds the REST response_schema with strict enum validation against database topic IDs.
+ */
+export function buildRestResponseSchema(taxonomyTree: TaxonomyNode[]) {
+  const topicIds = extractAllTopicIds(taxonomyTree);
+
+  return {
+    type: 'OBJECT',
+    properties: {
+      subject: { type: 'STRING' },
+      chapter: { type: 'STRING' },
+      topic_id: {
+        type: 'STRING',
+        ...(topicIds.length > 0 ? { enum: topicIds } : {}),
+      },
+      keywords: {
+        type: 'ARRAY',
+        items: { type: 'STRING' },
+      },
+      keyword_tokens: {
+        type: 'ARRAY',
+        items: { type: 'STRING' },
+      },
+      problem_text_summary: { type: 'STRING' },
+    },
+    required: ['topic_id', 'keywords', 'keyword_tokens'],
+  };
 }

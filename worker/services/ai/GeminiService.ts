@@ -1,7 +1,11 @@
 import { AIService, TagResult } from './AIService';
 import { TaxonomyNode } from '../../types';
-import { buildClassificationPrompt } from './prompts';
-import { GoogleGenAI, Type } from '@google/genai';
+import {
+  buildClassificationPrompt,
+  buildSdkResponseSchema,
+  buildRestResponseSchema,
+} from './prompts';
+import { GoogleGenAI } from '@google/genai';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
@@ -22,42 +26,6 @@ function cleanJsonString(raw: string): string {
   }
   return cleaned.trim();
 }
-
-/**
- * Standard structured output schema for problem classification.
- */
-const CLASSIFICATION_SCHEMA = {
-  type: Type.OBJECT,
-  properties: {
-    subject: {
-      type: Type.STRING,
-      description: '高中學科科目名稱 (例如: 數學, 物理, 化學, 生物, 地科)',
-    },
-    chapter: {
-      type: Type.STRING,
-      description: '所屬大章節名稱',
-    },
-    topic_id: {
-      type: Type.STRING,
-      description: '精確對應課綱單元清單中的單元 ID (例如: math-bayes, physics-kinematics)',
-    },
-    keywords: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '3至5個核心概念關鍵字 (例如: ["貝氏定理", "條件機率", "樣本空間"])',
-    },
-    keyword_tokens: {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-      description: '繁簡中文與符號切分搜尋 tokens (例如: ["機率", "條件", "貝氏", "定理"])',
-    },
-    problem_text_summary: {
-      type: Type.STRING,
-      description: '題目題幹重點與考點簡要摘要',
-    },
-  },
-  required: ['topic_id', 'keywords', 'keyword_tokens'],
-};
 
 // Recommended models ranked by performance, speed and latency
 const CANDIDATE_MODELS = [
@@ -95,13 +63,15 @@ export class GeminiService implements AIService {
 
     const base64Image = arrayBufferToBase64(imageBytes);
     const systemPrompt = buildClassificationPrompt(taxonomyTree);
+    const sdkSchema = buildSdkResponseSchema(taxonomyTree);
+    const restSchema = buildRestResponseSchema(taxonomyTree);
 
     const modelsToTry = [
       this.preferredModel,
       ...CANDIDATE_MODELS.filter((m) => m !== this.preferredModel),
     ];
 
-    // Attempt 1: Using official @google/genai SDK with Structured Outputs
+    // Attempt 1: Using official @google/genai SDK with dynamic Structured Outputs from real DB taxonomy
     if (this.aiClient) {
       for (const model of modelsToTry) {
         try {
@@ -123,7 +93,7 @@ export class GeminiService implements AIService {
             ],
             config: {
               responseMimeType: 'application/json',
-              responseSchema: CLASSIFICATION_SCHEMA,
+              responseSchema: sdkSchema as any,
               temperature: 0.1,
             },
           });
@@ -145,7 +115,7 @@ export class GeminiService implements AIService {
       }
     }
 
-    // Attempt 2: Direct REST Fetch Fallback with Native Structured Outputs Schema
+    // Attempt 2: Direct REST Fetch Fallback with Native Structured Outputs Schema from real DB taxonomy
     const restPayload = {
       contents: [
         {
@@ -162,24 +132,7 @@ export class GeminiService implements AIService {
       ],
       generationConfig: {
         response_mime_type: 'application/json',
-        response_schema: {
-          type: 'OBJECT',
-          properties: {
-            subject: { type: 'STRING' },
-            chapter: { type: 'STRING' },
-            topic_id: { type: 'STRING' },
-            keywords: {
-              type: 'ARRAY',
-              items: { type: 'STRING' },
-            },
-            keyword_tokens: {
-              type: 'ARRAY',
-              items: { type: 'STRING' },
-            },
-            problem_text_summary: { type: 'STRING' },
-          },
-          required: ['topic_id', 'keywords', 'keyword_tokens'],
-        },
+        response_schema: restSchema,
         temperature: 0.1,
       },
     };
