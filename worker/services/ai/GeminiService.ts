@@ -27,13 +27,14 @@ function cleanJsonString(raw: string): string {
   return cleaned.trim();
 }
 
-// Recommended models ranked by performance, speed and latency
+// 根據 Google AI Studio / Gemini API 官方支援之模型清單配置
 const CANDIDATE_MODELS = [
+  'gemini-2.0-flash',
+  'gemini-2.0-flash-lite',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash-latest',
-  'gemini-1.5-flash',
 ];
 
 export class GeminiService implements AIService {
@@ -41,7 +42,7 @@ export class GeminiService implements AIService {
   private preferredModel: string;
   private aiClient: GoogleGenAI | null = null;
 
-  constructor(apiKey: string, modelName = 'gemini-2.5-flash') {
+  constructor(apiKey: string, modelName = 'gemini-2.0-flash') {
     this.apiKey = apiKey;
     this.preferredModel = modelName;
     if (apiKey) {
@@ -66,6 +67,7 @@ export class GeminiService implements AIService {
     const sdkSchema = buildSdkResponseSchema(taxonomyTree);
     const restSchema = buildRestResponseSchema(taxonomyTree);
 
+    // 將首選模型放在陣列第一位，並過濾掉重複項
     const modelsToTry = [
       this.preferredModel,
       ...CANDIDATE_MODELS.filter((m) => m !== this.preferredModel),

@@ -41,6 +41,12 @@ export async function authMiddleware(
     if (match) {
       userId = match[1];
     }
+  } else if (c.req.query('auth')) {
+    // Query param fallback for <img> tags and media streams
+    const authQuery = c.req.query('auth')!.trim();
+    if (authQuery.length > 0) {
+      userId = authQuery;
+    }
   }
 
   // Development Fallback User ID

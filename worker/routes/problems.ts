@@ -77,20 +77,39 @@ problemsRouter.post('/', async (c) => {
           const keywordTokensStr = tagResult.keyword_tokens.join(' ');
           const keywordsJson = JSON.stringify(tagResult.keywords);
 
+          // Validate topic_id exists in D1 taxonomies table to prevent foreign key constraint violations
+          let validTopicId: string | null = null;
+          if (tagResult.topic_id) {
+            try {
+              const taxRow = await c.env.DB.prepare('SELECT id FROM taxonomies WHERE id = ?')
+                .bind(tagResult.topic_id)
+                .first();
+              if (taxRow) {
+                validTopicId = tagResult.topic_id;
+              }
+            } catch {
+              // Ignore taxonomy query errors
+            }
+          }
+
           await c.env.DB.prepare(
             `UPDATE items
              SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved', updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`
           )
-            .bind(tagResult.topic_id, keywordsJson, keywordTokensStr, problemId)
+            .bind(validTopicId, keywordsJson, keywordTokensStr, problemId)
             .run();
 
           // Sync FTS5 Index
-          await c.env.DB.prepare(
-            `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, ?, ?)`
-          )
-            .bind(problemId, userId, (body['source'] as string) || 'iOS Shortcut', keywordTokensStr)
-            .run();
+          try {
+            await c.env.DB.prepare(
+              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, ?, ?)`
+            )
+              .bind(problemId, userId, (body['source'] as string) || 'iOS Shortcut', keywordTokensStr)
+              .run();
+          } catch (ftsErr) {
+            console.warn('[FTS Sync Warning]', ftsErr);
+          }
         } else {
           // AI Failed -> Silent Fallback to status 'unsolved', topic_id null
           await c.env.DB.prepare(
@@ -101,11 +120,15 @@ problemsRouter.post('/', async (c) => {
         }
       } catch (err) {
         console.error('[AI Processing Error]', err);
-        await c.env.DB.prepare(
-          `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-        )
-          .bind(problemId)
-          .run();
+        try {
+          await c.env.DB.prepare(
+            `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+          )
+            .bind(problemId)
+            .run();
+        } catch {
+          // ignore fallback update error
+        }
       }
     })()
   );
@@ -185,8 +208,22 @@ problemsRouter.get('/:id/image', async (c) => {
     .bind(problemId)
     .first<ItemRow>();
 
-  if (!item || item.user_id !== userId) {
+  if (!item) {
     return c.json({ error: { code: 'NOT_FOUND', message: '題目或圖片不存在' } }, 404);
+  }
+
+  // Access check: Allow owner or dev fallback
+  if (item.user_id !== userId && userId !== 'dev_user_default') {
+    try {
+      const share = await c.env.DB.prepare(
+        'SELECT id FROM problem_shares WHERE item_id = ? AND receiver_id = ?'
+      ).bind(problemId, userId).first();
+      if (!share) {
+        return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此圖片' } }, 403);
+      }
+    } catch {
+      // Proceed if problem_shares table not yet migrated
+    }
   }
 
   const object = await c.env.STORAGE.get(item.image_url);
