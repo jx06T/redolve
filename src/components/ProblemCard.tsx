@@ -322,7 +322,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {/* Unified Image & Calculation Scratchpad Workspace */}
-        <div className="relative mt-3 rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
+        <div className="relative mt-3 rounded-t-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
           {/* Top Exam Question Image */}
           <div className="w-full relative select-none">
             <img
@@ -340,48 +340,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           >
             {/* Subtle Dot Grid Background Pattern */}
             <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-
-            {/* Visual Workspace Label */}
-            <div className="absolute top-2.5 left-3.5 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] pointer-events-none select-none font-medium">
-              <PenLine className="w-3.5 h-3.5 text-indigo-500/70" />
-              <span>手寫計算與推導草稿區</span>
-            </div>
-
-            {/* Workspace Height Controls */}
-            {!readOnly && (
-              <div className="absolute bottom-2.5 right-3.5 z-10 flex items-center space-x-1.5 bg-white/90 dark:bg-stone-800/90 border border-stone-200 dark:border-stone-700/80 rounded-xl p-1 shadow-xs backdrop-blur-xs">
-                {calcSpaceHeight > 120 && (
-                  <button
-                    type="button"
-                    onClick={() => setCalcSpaceHeight((h) => Math.max(100, h - 200))}
-                    className="px-2 py-1 text-xs rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all font-medium flex items-center space-x-1 active:scale-95"
-                    title="收回空間 (-200px)"
-                  >
-                    <Minus className="w-3 h-3 text-stone-500" />
-                    <span>收回</span>
-                  </button>
-                )}
-                {calcSpaceHeight !== 240 && (
-                  <button
-                    type="button"
-                    onClick={() => setCalcSpaceHeight(240)}
-                    className="p-1 text-xs rounded-lg hover:bg-stone-100 dark:hover:bg-stone-700 text-[#6B7280] dark:text-[#9CA3AF] transition-all active:scale-95"
-                    title="重設為預設高度 (240px)"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCalcSpaceHeight((h) => Math.min(1600, h + 200))}
-                  className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95"
-                  title="擴增草稿空間 (+200px)"
-                >
-                  <Plus className="w-3 h-3 text-indigo-500" />
-                  <span>延伸 (+200px)</span>
-                </button>
-              </div>
-            )}
           </div>
 
           {/* Overlay DrawCanvas Spanning Image + Calculation Area */}
@@ -391,7 +349,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               readOnly={readOnly}
               inkVisible={inkVisible}
               onSaveDrawData={handleSaveDraw}
-              onExpandSpace={(added) => setCalcSpaceHeight((h) => h + added)}
+              onExpandSpace={(added) => setCalcSpaceHeight((h) => Math.min(2000, h + added))}
               activeTool={tool}
               activeColor={penColor}
               activeWidth={penWidth}
@@ -399,6 +357,50 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             />
           </div>
         </div>
+
+        {/* Scratchpad Height Control Bar (Unblocked Dedicated Toolbar) */}
+        {!readOnly && (
+          <div className="rounded-b-2xl border border-t-0 border-stone-200/60 dark:border-stone-800/80 bg-stone-50/90 dark:bg-[#18181B] px-3.5 py-2 flex items-center justify-between shadow-xs">
+            <div className="flex items-center space-x-1.5 text-[11px] text-[#6B7280] dark:text-[#9CA3AF] font-medium select-none">
+              <PenLine className="w-3.5 h-3.5 text-indigo-500/80" />
+              <span>手寫計算與推導草稿區</span>
+              <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">({calcSpaceHeight}px)</span>
+            </div>
+
+            <div className="flex items-center space-x-1.5">
+              {calcSpaceHeight > 120 && (
+                <button
+                  type="button"
+                  onClick={() => setCalcSpaceHeight((h) => Math.max(100, h - 200))}
+                  className="px-2 py-1 text-xs rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/80 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
+                  title="收回空間 (-200px)"
+                >
+                  <Minus className="w-3 h-3 text-stone-500" />
+                  <span>收回 (-200px)</span>
+                </button>
+              )}
+              {calcSpaceHeight !== 240 && (
+                <button
+                  type="button"
+                  onClick={() => setCalcSpaceHeight(240)}
+                  className="p-1 text-xs rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/80 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#6B7280] dark:text-[#9CA3AF] transition-all active:scale-95 shadow-2xs"
+                  title="重設為預設高度 (240px)"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setCalcSpaceHeight((h) => Math.min(2000, h + 200))}
+                className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
+                title="擴增草稿空間 (+200px)"
+              >
+                <Plus className="w-3 h-3 text-indigo-500" />
+                <span>延伸 (+200px)</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Typed Notes & Calculation Summary Section */}
         <div className="mt-3.5 rounded-2xl bg-stone-50/70 dark:bg-[#18181B] border border-stone-200/60 dark:border-stone-800/80 p-3.5 transition-all">
