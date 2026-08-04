@@ -7,6 +7,7 @@ interface DrawCanvasProps {
   readOnly?: boolean;
   inkVisible?: boolean;
   onSaveDrawData?: (drawData: DrawData) => void;
+  onExpandSpace?: (addedHeight: number) => void;
   activeTool?: 'pen' | 'highlighter' | 'eraser';
   activeColor?: string;
   activeWidth?: number;
@@ -33,6 +34,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   readOnly = false,
   inkVisible = true,
   onSaveDrawData,
+  onExpandSpace,
   activeTool = 'pen',
   activeColor = '#6366F1',
   activeWidth = 2,
@@ -64,17 +66,18 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
   }, [initialDrawData]);
 
-  // Sync canvas pixel width to container width dynamically
+  // Sync canvas pixel dimensions to container dimensions dynamically
   useEffect(() => {
     if (!containerRef.current) return;
-    const updateWidth = () => {
+    const updateSize = () => {
       if (containerRef.current) {
         setCanvasWidth(containerRef.current.clientWidth || 800);
+        setCanvasHeight(containerRef.current.clientHeight || 400);
       }
     };
-    updateWidth();
+    updateSize();
 
-    const resizeObserver = new ResizeObserver(() => updateWidth());
+    const resizeObserver = new ResizeObserver(() => updateSize());
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
   }, []);
@@ -184,9 +187,13 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const y = e.clientY - rect.top;
     const pressure = e.pressure || 0.5;
 
-    // Auto-Expanding Card Canvas: Pen within 100px of bottom
-    if (canvasHeight - y < 100) {
-      setCanvasHeight((prev) => prev + 400);
+    // Auto-Expanding Card Canvas: Pen within 80px of bottom
+    if (canvasHeight - y < 80) {
+      if (onExpandSpace) {
+        onExpandSpace(300);
+      } else {
+        setCanvasHeight((prev) => prev + 300);
+      }
     }
 
     setCurrentPoints((prev) => [...prev, [x, y, pressure]]);
@@ -275,8 +282,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden transition-all duration-200"
-      style={{ height: `${canvasHeight}px` }}
+      className="relative w-full h-full overflow-hidden"
     >
       {isVisible ? (
         <canvas

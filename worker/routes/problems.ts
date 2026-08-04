@@ -202,13 +202,13 @@ problemsRouter.get('/:id/image', async (c) => {
   });
 });
 
-// 5. Update Metadata (Manual Edit)
+// 5. Update Metadata (Manual Edit & Typed Notes)
 problemsRouter.put('/:id', async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
   const body = await c.req.json();
 
-  const { topic_id, keywords, source } = body;
+  const { topic_id, keywords, source, typed_notes } = body;
 
   const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
     .bind(problemId, userId)
@@ -218,23 +218,30 @@ problemsRouter.put('/:id', async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
-  const keywordsStr = Array.isArray(keywords) ? JSON.stringify(keywords) : keywords;
+  const keywordsStr = Array.isArray(keywords) ? JSON.stringify(keywords) : (keywords !== undefined ? keywords : null);
   const keywordTokensStr = Array.isArray(keywords) ? keywords.join(' ') : (keywords || '');
 
   await c.env.DB.prepare(
     `UPDATE items
-     SET topic_id = ?, keywords = ?, keyword_tokens = ?, source = COALESCE(?, source), updated_at = CURRENT_TIMESTAMP
+     SET topic_id = COALESCE(?, topic_id),
+         keywords = COALESCE(?, keywords),
+         keyword_tokens = COALESCE(?, keyword_tokens),
+         source = COALESCE(?, source),
+         typed_notes = COALESCE(?, typed_notes),
+         updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND user_id = ?`
   )
-    .bind(topic_id || null, keywordsStr || null, keywordTokensStr || null, source || null, problemId, userId)
+    .bind(topic_id ?? null, keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
     .run();
 
-  // Sync FTS5 Index
-  await c.env.DB.prepare(
-    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, '網頁編輯'), ?)`
-  )
-    .bind(problemId, userId, source || null, keywordTokensStr || '')
-    .run();
+  // Sync FTS5 Index if keywords or source provided
+  if (keywordsStr !== null || source !== null) {
+    await c.env.DB.prepare(
+      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, '網頁編輯'), ?)`
+    )
+      .bind(problemId, userId, source || null, keywordTokensStr || '')
+      .run();
+  }
 
   return c.json({ status: 'ok' });
 });

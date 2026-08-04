@@ -86,7 +86,10 @@ export async function updateProblemStatus(id: string, status: 'unsolved' | 'reso
   return res.json();
 }
 
-export async function updateProblemMetadata(id: string, data: { topic_id?: string; keywords?: string[] }) {
+export async function updateProblemMetadata(
+  id: string,
+  data: { topic_id?: string; keywords?: string[]; source?: string; typed_notes?: string }
+) {
   const res = await fetch(`${API_BASE}/problems/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },

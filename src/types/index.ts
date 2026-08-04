@@ -35,6 +35,7 @@ export interface Item {
   source: string | null;
   image_url: string;
   draw_data: string | null; // JSON string or DrawData
+  typed_notes?: string | null;
   status: 'processing' | 'unsolved' | 'resolved';
   review_count: number;
   vector_clock: string | null;

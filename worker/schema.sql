@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS items (
     source TEXT,
     image_url TEXT NOT NULL,
     draw_data TEXT,
+    typed_notes TEXT,
     status TEXT DEFAULT 'processing',
     review_count INTEGER DEFAULT 0,
     vector_clock TEXT,

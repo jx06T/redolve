@@ -1,9 +1,16 @@
-import React, { useState } from 'react';
-import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download, FileText, Plus, PenLine } from 'lucide-react';
 import { Item, DrawData } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
-import { getProblemImageUrl, updateProblemStatus, updateProblemDrawData, deleteProblem, createShareLink } from '../services/api';
+import {
+  getProblemImageUrl,
+  updateProblemStatus,
+  updateProblemDrawData,
+  updateProblemMetadata,
+  deleteProblem,
+  createShareLink,
+} from '../services/api';
 import { useStore } from '../store/useStore';
 import { exportProblemAsImage } from '../utils/exportImage';
 
@@ -29,6 +36,38 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [inkVisible, setInkVisible] = useState<boolean>(true); // US 3.1 Ink Toggle
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
+  // Extended Calculation Workspace Height
+  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(260);
+
+  // Typed Notes Workspace
+  const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
+  const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+  const notesTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setTypedNotes(problem.typed_notes || '');
+  }, [problem.typed_notes]);
+
+  const handleTypedNotesChange = (val: string) => {
+    setTypedNotes(val);
+    updateProblemInStore(problem.id, { typed_notes: val });
+
+    if (notesTimerRef.current) {
+      clearTimeout(notesTimerRef.current);
+    }
+
+    setIsSavingNotes(true);
+    notesTimerRef.current = setTimeout(async () => {
+      try {
+        await updateProblemMetadata(problem.id, { typed_notes: val });
+      } catch (err) {
+        console.error('Failed to save typed notes:', err);
+      } finally {
+        setIsSavingNotes(false);
+      }
+    }, 800);
+  };
+
   const isResolved = problem.status === 'resolved';
 
   const handleToggleStatus = async () => {
@@ -52,7 +91,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const handleSaveDraw = async (drawData: DrawData) => {
     const nextSeq = seq + 1;
     setSeq(nextSeq);
-    
+
     // Update local Zustand store immediately so ink persists during re-renders/view switching
     updateProblemInStore(problem.id, {
       draw_data: JSON.stringify(drawData),
@@ -228,26 +267,81 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         )}
 
-        {/* Image & Canvas Section */}
-        <div className="relative mt-3 rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800">
-          <img
-            src={imageUrl}
-            alt="錯題題目圖片"
-            className="exam-paper-image w-full h-auto object-contain block select-none"
-            loading="lazy"
-          />
+        {/* Unified Image & Calculation Scratchpad Workspace */}
+        <div className="relative mt-3 rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
+          {/* Top Exam Question Image */}
+          <div className="w-full relative select-none">
+            <img
+              src={imageUrl}
+              alt="錯題題目圖片"
+              className="exam-paper-image w-full h-auto object-contain block select-none pointer-events-none"
+              loading="lazy"
+            />
+          </div>
+
+          {/* Extended Calculation Workspace Below Image */}
+          <div
+            style={{ height: `${calcSpaceHeight}px` }}
+            className="w-full relative border-t border-dashed border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-all duration-150 select-none"
+          >
+            {/* Subtle Dot Grid Background Pattern */}
+            <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
+
+            {/* Visual Workspace Label */}
+            <div className="absolute top-2.5 left-3.5 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] pointer-events-none select-none font-medium">
+              <PenLine className="w-3.5 h-3.5 text-indigo-500/70" />
+              <span>手寫計算與推導草稿區</span>
+            </div>
+
+            {/* Manual Space Extension Button */}
+            {!readOnly && (
+              <button
+                type="button"
+                onClick={() => setCalcSpaceHeight((h) => h + 300)}
+                className="absolute bottom-2.5 right-3.5 z-10 px-3 py-1.5 text-xs rounded-xl bg-white/90 dark:bg-stone-800/90 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 transition-all font-medium flex items-center space-x-1.5 shadow-xs backdrop-blur-xs active:scale-95"
+                title="擴增草稿空間"
+              >
+                <Plus className="w-3.5 h-3.5 text-indigo-500" />
+                <span>延伸空間 (+300px)</span>
+              </button>
+            )}
+          </div>
+
+          {/* Overlay DrawCanvas Spanning Image + Calculation Area */}
           <div className="absolute inset-0 pointer-events-auto">
             <DrawCanvas
               initialDrawData={problem.draw_data}
               readOnly={readOnly}
               inkVisible={inkVisible}
               onSaveDrawData={handleSaveDraw}
+              onExpandSpace={(added) => setCalcSpaceHeight((h) => h + added)}
               activeTool={tool}
               activeColor={penColor}
               activeWidth={penWidth}
               isEraserActive={eraserActive}
             />
           </div>
+        </div>
+
+        {/* Typed Notes & Calculation Summary Section */}
+        <div className="mt-3.5 rounded-2xl bg-stone-50/70 dark:bg-[#18181B] border border-stone-200/60 dark:border-stone-800/80 p-3.5 transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2 text-xs font-semibold text-[#4B5563] dark:text-[#D1D5DB]">
+              <FileText className="w-3.5 h-3.5 text-indigo-500" />
+              <span>文字筆記 / 解題思路與觀念總結</span>
+            </div>
+            <span className="text-[10px] text-[#9CA3AF] font-mono">
+              {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
+            </span>
+          </div>
+          <textarea
+            value={typedNotes}
+            onChange={(e) => handleTypedNotesChange(e.target.value)}
+            disabled={readOnly}
+            placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
+            rows={2}
+            className="w-full p-2.5 rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-y leading-relaxed"
+          />
         </div>
 
         {/* Bottom Footer Actions */}
