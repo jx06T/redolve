@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download } from 'lucide-react';
 import { Item, DrawData } from '../types';
 import { StatusBadge } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
 import { getProblemImageUrl, updateProblemStatus, updateProblemDrawData, deleteProblem, createShareLink } from '../services/api';
 import { useStore } from '../store/useStore';
+import { exportProblemAsImage } from '../utils/exportImage';
 
 interface ProblemCardProps {
   problem: Item;
@@ -21,11 +22,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   onEditMetadata,
   onStatusResolved,
 }) => {
-  const { tool, penColor, penWidth, eraserActive, updateProblemInStore, removeProblemFromStore } = useStore();
+  const { tool, penColor, penWidth, eraserActive, updateProblemInStore, removeProblemFromStore, showToast } = useStore();
   const [seq, setSeq] = useState<number>(0);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [inkVisible, setInkVisible] = useState<boolean>(true); // US 3.1 Ink Toggle
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const isResolved = problem.status === 'resolved';
 
@@ -81,6 +83,21 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      showToast('正在合成高清訂正圖檔...', 'info', 2000);
+      const filename = `redolve_${problem.topic_id || 'problem'}_${problem.id.substring(0, 8)}.png`;
+      await exportProblemAsImage(imageUrl, inkVisible ? problem.draw_data : null, filename);
+      showToast('錯題卡片已順利導出！', 'success', 2500);
+    } catch (err) {
+      console.error('Export failed:', err);
+      showToast('圖檔導出失敗，請稍後重試', 'error', 3000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const keywordsArray: string[] = (() => {
     if (!problem.keywords) return [];
     try {
@@ -94,7 +111,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   return (
     <div className="space-y-4 mb-6">
-      {/* Visual Divider (UI_DESIGN01_0804 Section 3) */}
+      {/* Visual Divider */}
       {problemIndex !== undefined && (
         <div className="flex items-center space-x-3 text-[#9CA3AF] my-2 select-none">
           <div className="flex-1 h-px bg-stone-200 dark:bg-stone-800" />
@@ -138,6 +155,17 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
             >
               {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-amber-500" />}
+            </button>
+
+            {/* Export High-res Image Button */}
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              aria-label="導出高清訂正圖檔"
+              className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
+              title="導出合成圖檔 (PNG)"
+            >
+              <Download className="w-4 h-4" />
             </button>
 
             {onEditMetadata && (

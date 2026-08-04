@@ -65,15 +65,14 @@ Redolve 的核心定位為針對 **iPad + Apple Pencil** 深度優化的 AI 錯�
 
 ---
 
-## 四、 待辦與評估清單 (TODO Backlog for Future Exploration)
+## 四、 待辦與評估清單 (TODO Backlog Status)
 
-針對涉及更廣架構或需後續測試的項目，記錄為待辦事項：
-
-- [ ] **TODO-UI-01: 離線手寫筆跡向量 SVG 導出功能**
-  - **說明**：目前分享模式為唯讀 Canvas/SVG 預覽。可評估支援一鍵將整張考卷與訂正筆跡合併導出為向量 PDF 或高解析度 PNG。
-- [ ] **TODO-UI-02: iPad 外接鍵盤快速鍵 (Hardware Keyboard Shortcuts)**
-  - **說明**：支援 iPad Magic Keyboard 快捷鍵（如 `Cmd+Z` 復原、`E` 橡皮擦、`P` 鋼筆、`Enter` 標記完成）。
+- [x] **TODO-UI-01: 離線手寫筆跡向量 SVG / 高解析度 PNG 導出功能**
+  - **說明**：已在 `ProblemCard.tsx` 與 `ShareView.tsx` 實作一鍵合成導出功能 (`exportProblemAsImage`)，支援將考卷原圖與作者手寫筆跡無損向量合成後下載為高清 PNG 圖檔。
+- [x] **TODO-UI-02: iPad 外接鍵盤快速鍵 (Hardware Keyboard Shortcuts) & 快捷鍵指南**
+  - **說明**：已實作 `useKeyboardShortcuts` hook 與 `ShortcutsModal` 導覽視窗，支援 iPad Magic Keyboard 快捷鍵（`P` 鋼筆、`H` 螢光筆、`E` 橡皮擦、`1~4` 調色盤、`[`/`]` 筆觸粗細、`Cmd+Enter` 快速訂正、`?` 開啟快速鍵指南、`Cmd+D` 切換深淺色）。
 - [ ] **TODO-UI-03: WebGL 筆跡加速渲染引擎評估**
   - **說明**：目前 2D Canvas + `perfect-freehand` 在 50+ 題時表現良好。若未來單題筆跡超過 1000 筆，可評估 WebGL Shader 筆跡渲染。
-- [ ] **TODO-UI-04: 自訂題庫科目分類管理介面**
-  - **說明**：目前課綱分類由種子資料提供，未來可新增使用者自行擴充自訂科目與章節之管理 UI。
+- [x] **TODO-UI-04: 自訂題庫科目與單元分類管理介面**
+  - **說明**：已於 `SettingsView.tsx` 擴充自訂科目與單元章節管理面板，支援使用者新增與管理頂層科目或擴充特定科目的單元標籤，並自動同步持久化於本機儲存與分類樹。
+

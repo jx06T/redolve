@@ -40,8 +40,11 @@ export const COLOR_PALETTE = [
   { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
 ];
 
+export const PEN_COLORS = ['#374151', '#6366F1', '#E11D48', '#3B82F6'];
+
 // Stroke Width Options (pt)
 export const STROKE_WIDTHS = [1, 2, 4];
+export const PEN_WIDTHS = [1, 2, 4];
 
 // Problem Status Filter Options
 export const STATUS_FILTER_ITEMS = [
@@ -49,3 +52,4 @@ export const STATUS_FILTER_ITEMS = [
   { key: 'unsolved', label: '未訂正' },
   { key: 'resolved', label: '已完成' },
 ] as const;
+

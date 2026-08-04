@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Loader2, AlertTriangle, BookOpen } from 'lucide-react';
+import { Loader2, AlertTriangle, BookOpen, Download } from 'lucide-react';
 import { fetchSharedProblem, getSharedImageUrl } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { DrawCanvas } from '../components/DrawCanvas';
+import { exportProblemAsImage } from '../utils/exportImage';
 import { Item } from '../types';
 
 export const ShareView: React.FC = () => {
@@ -18,6 +19,7 @@ export const ShareView: React.FC = () => {
   const [data, setData] = useState<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   useEffect(() => {
     if (token) {
@@ -27,6 +29,23 @@ export const ShareView: React.FC = () => {
         .finally(() => setLoading(false));
     }
   }, [token]);
+
+  const handleExport = async () => {
+    if (!data) return;
+    try {
+      setIsExporting(true);
+      const filename = `redolve_shared_${token?.substring(0, 8)}.png`;
+      await exportProblemAsImage(
+        imageUrl,
+        data.share.allow_ink ? data.item.draw_data || null : null,
+        filename
+      );
+    } catch (err) {
+      console.error('Failed to export shared problem:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -69,9 +88,19 @@ export const ShareView: React.FC = () => {
               <p className="text-xs text-[#9CA3AF]">唯讀檢視模式</p>
             </div>
           </div>
-          <span className="px-3 py-1 rounded-xl text-xs bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]">
-            {share.allow_ink ? '包含作者筆跡' : '無筆跡原圖'}
-          </span>
+          <div className="flex items-center space-x-2">
+            <span className="px-3 py-1 rounded-xl text-xs bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]">
+              {share.allow_ink ? '包含作者筆跡' : '無筆跡原圖'}
+            </span>
+            <button
+              onClick={handleExport}
+              disabled={isExporting}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-medium hover:bg-[#4F46E5] active:scale-95 transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{isExporting ? '下載中...' : '下載圖檔'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Card View */}
@@ -93,3 +122,4 @@ export const ShareView: React.FC = () => {
     </div>
   );
 };
+

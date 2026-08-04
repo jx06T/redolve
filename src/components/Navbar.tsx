@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, Menu, X, ChevronDown } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, Menu, X, ChevronDown, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
+import { ShortcutsModal } from './ShortcutsModal';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
 
 export const Navbar: React.FC = () => {
@@ -13,6 +15,12 @@ export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
   const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
+  const [shortcutsModalOpen, setShortcutsModalOpen] = useState<boolean>(false);
+
+  // Global Keyboard Shortcuts Hook
+  useKeyboardShortcuts({
+    onToggleShortcutsModal: () => setShortcutsModalOpen((prev) => !prev),
+  });
 
   const {
     darkMode,
@@ -64,7 +72,7 @@ export const Navbar: React.FC = () => {
               </div>
             </Link>
 
-            {/* Subject Selector Dropdown (UI_DESIGN01_0804 Section 1) */}
+            {/* Subject Selector Dropdown */}
             <div className="relative hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
               <select
                 value={selectedSubjectId || 'all'}
@@ -127,6 +135,16 @@ export const Navbar: React.FC = () => {
               <Search className="w-4 h-4" />
             </button>
 
+            {/* Keyboard Shortcuts Trigger Button */}
+            <button
+              onClick={() => setShortcutsModalOpen(true)}
+              className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-medium border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+              title="鍵盤快捷鍵指南 (?)"
+            >
+              <Command className="w-3.5 h-3.5 text-[#9CA3AF]" />
+              <span>快捷鍵</span>
+            </button>
+
             {/* Upload Modal Trigger Button */}
             <button
               onClick={() => setUploadModalOpen(true)}
@@ -140,7 +158,7 @@ export const Navbar: React.FC = () => {
             <button
               onClick={toggleDarkMode}
               className="p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
-              title="切換深淺色模式"
+              title="切換深淺色模式 (Cmd+D)"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -230,6 +248,12 @@ export const Navbar: React.FC = () => {
           navigate('/study/all');
           window.location.reload();
         }}
+      />
+
+      {/* Shortcuts Guide Modal */}
+      <ShortcutsModal
+        isOpen={shortcutsModalOpen}
+        onClose={() => setShortcutsModalOpen(false)}
       />
     </>
   );
