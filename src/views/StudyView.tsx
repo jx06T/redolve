@@ -28,6 +28,7 @@ export const StudyView: React.FC = () => {
     isLoading,
     setIsLoading,
     updateProblemInStore,
+    activeProblemId,
     setActiveProblemId,
     taxonomies,
     showToast,
@@ -116,51 +117,76 @@ export const StudyView: React.FC = () => {
     overscan: 3,
   });
 
-  // Scroll to initial problem from URL param once loaded
+  // Set default active problem to the first problem if none active
   useEffect(() => {
-    if (problemId && problems.length > 0 && !initialScrollDone.current) {
-      const index = problems.findIndex((p) => p.id === problemId);
-      if (index >= 0) {
-        initialScrollDone.current = true;
-        setTimeout(() => {
-          rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
-        }, 150);
+    if (problems.length > 0) {
+      if (!activeProblemId || !problems.some((p) => p.id === activeProblemId)) {
+        setActiveProblemId(problems[0].id);
       }
     }
-  }, [problemId, problems, rowVirtualizer]);
+  }, [problems, activeProblemId, setActiveProblemId]);
 
-  // IntersectionObserver for Scroll Sync & URL Update (UI_DESIGN01_0804 Section 2)
+  // Scroll to initial problem from URL hash (#problem-xxx or #xxx) or route param
+  useEffect(() => {
+    if (problems.length > 0 && !initialScrollDone.current) {
+      const hash = window.location.hash.replace(/^#problem-/, '').replace(/^#/, '');
+      const targetId = problemId || hash;
+      if (targetId) {
+        const index = problems.findIndex((p) => p.id === targetId);
+        if (index >= 0) {
+          initialScrollDone.current = true;
+          setActiveProblemId(targetId);
+          setTimeout(() => {
+            rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
+          }, 100);
+        }
+      }
+    }
+  }, [problemId, problems, rowVirtualizer, setActiveProblemId]);
+
+  // Scroll Listener on Virtualizer container for real-time focus detection & URL Hash sync
   useEffect(() => {
     const parent = parentRef.current;
     if (!parent || problems.length === 0) return;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0.4) {
-            const pid = entry.target.getAttribute('data-problem-id');
-            if (pid) {
-              setActiveProblemId(pid);
-              // Update URL replaceState without triggering page refresh
-              const subjectStr = selectedSubjectId || 'all';
-              const topicStr = selectedTopicId || 'all';
-              window.history.replaceState(
-                null,
-                '',
-                `/study/${subjectStr}/${topicStr}/${pid}`
-              );
-            }
+    let debounceTimer: any = null;
+    const handleScroll = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const virtualItems = rowVirtualizer.getVirtualItems();
+        if (virtualItems.length === 0) return;
+
+        // Find the item closest to top viewport
+        const scrollTop = parent.scrollTop;
+        const currentItem = virtualItems.reduce((closest, item) => {
+          const distance = Math.abs(item.start - scrollTop);
+          const closestDistance = Math.abs(closest.start - scrollTop);
+          return distance < closestDistance ? item : closest;
+        }, virtualItems[0]);
+
+        if (currentItem && problems[currentItem.index]) {
+          const currentProblem = problems[currentItem.index];
+          setActiveProblemId(currentProblem.id);
+
+          // Update URL Hash
+          const newHash = `#problem-${currentProblem.id}`;
+          if (window.location.hash !== newHash) {
+            window.history.replaceState(
+              null,
+              '',
+              `${window.location.pathname}${newHash}`
+            );
           }
-        });
-      },
-      { root: parent, threshold: [0.4, 0.7] }
-    );
+        }
+      }, 50);
+    };
 
-    const cards = parent.querySelectorAll('[data-problem-id]');
-    cards.forEach((card) => observer.observe(card));
-
-    return () => observer.disconnect();
-  }, [problems, selectedSubjectId, selectedTopicId, setActiveProblemId]);
+    parent.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      clearTimeout(debounceTimer);
+      parent.removeEventListener('scroll', handleScroll);
+    };
+  }, [problems, rowVirtualizer, setActiveProblemId]);
 
   const handleOpenEditModal = (problem: Item) => {
     setEditingProblem(problem);
@@ -229,9 +255,11 @@ export const StudyView: React.FC = () => {
     }
   };
 
-  const handleSelectProblemOutline = (problemId: string) => {
-    const index = problems.findIndex((p) => p.id === problemId);
+  const handleSelectProblemOutline = (targetProblemId: string) => {
+    const index = problems.findIndex((p) => p.id === targetProblemId);
     if (index >= 0) {
+      setActiveProblemId(targetProblemId);
+      window.history.replaceState(null, '', `${window.location.pathname}#problem-${targetProblemId}`);
       rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
     }
   };

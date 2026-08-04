@@ -8,7 +8,7 @@ import { ShortcutsModal } from './ShortcutsModal';
 import { AuthModal } from './AuthModal';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
-import { fetchCurrentUser } from '../services/api';
+import { fetchCurrentUser, fetchProblems } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -36,6 +36,7 @@ export const Navbar: React.FC = () => {
     setAuthModalOpen,
     taxonomies,
     loadTaxonomies,
+    setProblems,
   } = useStore();
 
   useEffect(() => {
@@ -276,9 +277,14 @@ export const Navbar: React.FC = () => {
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onUploadSuccess={() => {
+        onUploadSuccess={async () => {
+          try {
+            const res = await fetchProblems({ limit: 50 });
+            setProblems(res.items, res.nextCursor);
+          } catch (err) {
+            console.error('Failed to reload problems after upload:', err);
+          }
           navigate('/study/all');
-          window.location.reload();
         }}
       />
 

@@ -29,7 +29,18 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   onEditMetadata,
   onStatusResolved,
 }) => {
-  const { tool, penColor, penWidth, eraserActive, updateProblemInStore, removeProblemFromStore, showToast } = useStore();
+  const {
+    tool,
+    penColor,
+    penWidth,
+    eraserActive,
+    updateProblemInStore,
+    removeProblemFromStore,
+    showToast,
+    activeProblemId,
+  } = useStore();
+
+  const isActive = activeProblemId === problem.id;
 
   const getInitialSeq = useCallback(() => {
     if (problem.vector_clock) {
@@ -191,9 +202,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
       {/* Main Problem Card Container */}
       <div
-        id={`problem-card-${problem.id}`}
+        id={`problem-${problem.id}`}
         data-problem-id={problem.id}
-        className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 transition-all duration-150 scroll-mt-24 shadow-xs"
+        className={`bg-white dark:bg-[#202023] border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${
+          isActive
+            ? 'border-[#6366F1] shadow-md ring-2 ring-[#6366F1]/20 dark:ring-[#6366F1]/30'
+            : 'border-[#E5E7EB] dark:border-[#2C2C30] shadow-xs'
+        }`}
       >
         {/* Header Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">

@@ -34,7 +34,6 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   readOnly = false,
   inkVisible = true,
   onSaveDrawData,
-  onExpandSpace,
   activeTool = 'pen',
   activeColor = '#6366F1',
   activeWidth = 2,

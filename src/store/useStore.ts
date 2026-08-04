@@ -60,6 +60,7 @@ interface StoreState {
   toggleSidebarCollapsed: () => void;
   setProblems: (problems: Item[], nextCursor: string | null) => void;
   appendProblems: (problems: Item[], nextCursor: string | null) => void;
+  addProblemToStore: (problem: Item) => void;
   updateProblemInStore: (id: string, updates: Partial<Item>) => void;
   removeProblemFromStore: (id: string) => void;
   setIsLoading: (loading: boolean) => void;
@@ -177,6 +178,10 @@ export const useStore = create<StoreState>((set) => ({
     set((state) => ({
       problems: [...state.problems, ...newItems],
       nextCursor,
+    })),
+  addProblemToStore: (problem) =>
+    set((state) => ({
+      problems: [...state.problems, problem],
     })),
 
   updateProblemInStore: (id, updates) =>
