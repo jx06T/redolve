@@ -28,7 +28,6 @@ export const StudyView: React.FC = () => {
     isLoading,
     setIsLoading,
     updateProblemInStore,
-    activeProblemId,
     setActiveProblemId,
     taxonomies,
     showToast,
@@ -50,7 +49,6 @@ export const StudyView: React.FC = () => {
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
   const parentRef = useRef<HTMLDivElement>(null);
-  const initialScrollDone = useRef(false);
 
   // Sync URL Route Params to Zustand Store on direct navigation
   useEffect(() => {
@@ -109,6 +107,14 @@ export const StudyView: React.FC = () => {
     }
   };
 
+  const targetHashProblemIdRef = useRef<string | null>(
+    typeof window !== 'undefined'
+      ? window.location.hash.replace(/^#problem-/, '').replace(/^#/, '') || null
+      : null
+  );
+  const isInitialScrollPendingRef = useRef<boolean>(true);
+  const hasPerformedInitialScrollRef = useRef<boolean>(false);
+
   // Virtualizer Setup with dynamic size measurement
   const rowVirtualizer = useVirtualizer({
     count: problems.length,
@@ -117,30 +123,34 @@ export const StudyView: React.FC = () => {
     overscan: 3,
   });
 
-  // Set default active problem to the first problem if none active
+  // Handle Initial Problem Focus & Scroll on Page Load / Refresh
   useEffect(() => {
-    if (problems.length > 0) {
-      if (!activeProblemId || !problems.some((p) => p.id === activeProblemId)) {
-        setActiveProblemId(problems[0].id);
-      }
-    }
-  }, [problems, activeProblemId, setActiveProblemId]);
+    if (problems.length > 0 && !hasPerformedInitialScrollRef.current) {
+      hasPerformedInitialScrollRef.current = true;
+      const targetId = problemId || targetHashProblemIdRef.current;
 
-  // Scroll to initial problem from URL hash (#problem-xxx or #xxx) or route param
-  useEffect(() => {
-    if (problems.length > 0 && !initialScrollDone.current) {
-      const hash = window.location.hash.replace(/^#problem-/, '').replace(/^#/, '');
-      const targetId = problemId || hash;
       if (targetId) {
         const index = problems.findIndex((p) => p.id === targetId);
         if (index >= 0) {
-          initialScrollDone.current = true;
           setActiveProblemId(targetId);
-          setTimeout(() => {
-            rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
-          }, 100);
+          window.history.replaceState(null, '', `${window.location.pathname}#problem-${targetId}`);
+          
+          // Instant jump to target index
+          requestAnimationFrame(() => {
+            rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'auto' });
+            setTimeout(() => {
+              isInitialScrollPendingRef.current = false;
+            }, 350);
+          });
+          return;
         }
       }
+
+      // Default fallback to first problem if no valid hash
+      const firstProblem = problems[0];
+      setActiveProblemId(firstProblem.id);
+      window.history.replaceState(null, '', `${window.location.pathname}#problem-${firstProblem.id}`);
+      isInitialScrollPendingRef.current = false;
     }
   }, [problemId, problems, rowVirtualizer, setActiveProblemId]);
 
@@ -151,8 +161,13 @@ export const StudyView: React.FC = () => {
 
     let debounceTimer: any = null;
     const handleScroll = () => {
+      // Ignore scroll events during initial page load jump
+      if (isInitialScrollPendingRef.current) return;
+
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
+        if (isInitialScrollPendingRef.current) return;
+
         const virtualItems = rowVirtualizer.getVirtualItems();
         if (virtualItems.length === 0) return;
 
@@ -168,7 +183,7 @@ export const StudyView: React.FC = () => {
           const currentProblem = problems[currentItem.index];
           setActiveProblemId(currentProblem.id);
 
-          // Update URL Hash
+          // Update URL Hash without adding duplicate history entries
           const newHash = `#problem-${currentProblem.id}`;
           if (window.location.hash !== newHash) {
             window.history.replaceState(
@@ -258,9 +273,13 @@ export const StudyView: React.FC = () => {
   const handleSelectProblemOutline = (targetProblemId: string) => {
     const index = problems.findIndex((p) => p.id === targetProblemId);
     if (index >= 0) {
+      isInitialScrollPendingRef.current = true;
       setActiveProblemId(targetProblemId);
       window.history.replaceState(null, '', `${window.location.pathname}#problem-${targetProblemId}`);
       rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'smooth' });
+      setTimeout(() => {
+        isInitialScrollPendingRef.current = false;
+      }, 500);
     }
   };
 

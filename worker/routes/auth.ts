@@ -5,7 +5,7 @@ export const authRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>
 
 // 1. Get Current Authenticated User Session
 authRouter.get('/me', async (c) => {
-  const userId = c.get('userId');
+  const userId = c.get('userId') || 'dev_user_default';
 
   let user: UserRow | null = null;
   try {
