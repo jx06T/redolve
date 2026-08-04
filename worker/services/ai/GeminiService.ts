@@ -1,5 +1,6 @@
 import { AIService, TagResult } from './AIService';
 import { TaxonomyNode } from '../../types';
+import { buildClassificationPrompt } from './prompts';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
@@ -11,32 +12,36 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   return btoa(binary);
 }
 
+function cleanJsonString(raw: string): string {
+  let cleaned = raw.trim();
+  // Remove markdown code fences if present
+  if (cleaned.startsWith('```json')) {
+    cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+  } else if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```\s*/, '').replace(/\s*```$/, '');
+  }
+  return cleaned.trim();
+}
+
 export class GeminiService implements AIService {
   private apiKey: string;
+  private modelName: string;
 
-  constructor(apiKey: string) {
+  constructor(apiKey: string, modelName = 'gemini-1.5-flash') {
     this.apiKey = apiKey;
+    this.modelName = modelName;
   }
 
   async tagProblem(imageBytes: ArrayBuffer, taxonomyTree: TaxonomyNode[]): Promise<TagResult | null> {
     if (!this.apiKey) {
-      console.warn('[GeminiService] Missing GEMINI_API_KEY, falling back.');
+      console.warn('[GeminiService] Missing GEMINI_API_KEY. Please configure it in .dev.vars (local) or via `wrangler secret put GEMINI_API_KEY` (production).');
       return null;
     }
 
     const base64Image = arrayBufferToBase64(imageBytes);
-    const systemPrompt = `你是一個專業的高中學測/分科測驗錯題AI分析助手。
-請閱讀圖片中的題目，並對照以下課綱分類樹（Taxonomy Tree）：
-${JSON.stringify(taxonomyTree, null, 2)}
+    const systemPrompt = buildClassificationPrompt(taxonomyTree);
 
-請分析此題目，輸出一個嚴格格式的 JSON 物件，包含以下欄位：
-- topic_id: 最匹配的課綱單元 ID（如 'math-probability' 或 'math-bayes'）
-- keywords: 3至5個相關學術關鍵字陣列（中文，如 ["條件機率", "貝氏定理"]）
-- keyword_tokens: 拆解為細粒度單詞與片語的檢索 token 陣列（如 ["機率", "條件", "貝氏", "定理", "條件機率"]）
-
-僅輸出 JSON，不要加入 Markdown 標記或額外解釋。`;
-
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${this.apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
 
     const payload = {
       contents: [
@@ -54,6 +59,7 @@ ${JSON.stringify(taxonomyTree, null, 2)}
       ],
       generationConfig: {
         response_mime_type: 'application/json',
+        temperature: 0.2,
       },
     };
 
@@ -72,16 +78,20 @@ ${JSON.stringify(taxonomyTree, null, 2)}
           const data: any = await response.json();
           const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
           if (rawText) {
-            const parsed = JSON.parse(rawText);
+            const cleaned = cleanJsonString(rawText);
+            const parsed = JSON.parse(cleaned);
             return {
               topic_id: parsed.topic_id ?? 'math-real-num',
               keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
               keyword_tokens: Array.isArray(parsed.keyword_tokens) ? parsed.keyword_tokens : [],
             };
           }
+        } else {
+          const errText = await response.text();
+          console.warn(`[GeminiService] HTTP ${response.status} Error on attempt ${attempt + 1}:`, errText);
         }
       } catch (err) {
-        console.warn(`[GeminiService] Attempt ${attempt + 1} failed:`, err);
+        console.warn(`[GeminiService] Network/parsing error on attempt ${attempt + 1}:`, err);
       }
 
       if (attempt < 3) {
@@ -89,7 +99,6 @@ ${JSON.stringify(taxonomyTree, null, 2)}
       }
     }
 
-    // 最終失敗時靜默降級
     return null;
   }
 }

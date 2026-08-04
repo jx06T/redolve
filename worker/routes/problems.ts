@@ -351,3 +351,100 @@ problemsRouter.patch('/:id/status', async (c) => {
 
   return c.json({ status: 'updated' });
 });
+
+// 9. Trigger AI Visual Analysis for an existing problem
+problemsRouter.post('/:id/analyze', async (c) => {
+  const userId = c.get('userId');
+  const problemId = c.req.param('id');
+
+  const item = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')
+    .bind(problemId, userId)
+    .first<ItemRow>();
+
+  if (!item) {
+    return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
+  }
+
+  // Retrieve image bytes from R2
+  const r2Object = await c.env.STORAGE.get(item.image_url);
+  if (!r2Object) {
+    return c.json({ error: { code: 'STORAGE_ERROR', message: '無法讀取題目圖片檔案' } }, 500);
+  }
+
+  const imageBytes = await r2Object.arrayBuffer();
+
+  // Load latest taxonomy tree
+  let tree: TaxonomyNode[] = TAXONOMY_SEED_DATA;
+  try {
+    const { results } = await c.env.DB.prepare(
+      'SELECT id, user_id, parent_id, label, level FROM taxonomies WHERE user_id IS NULL OR user_id = ?'
+    ).bind(userId).all<any>();
+
+    if (results && results.length > 0) {
+      const nodeMap = new Map<string, TaxonomyNode>();
+      const rootNodes: TaxonomyNode[] = [];
+      for (const r of results) {
+        nodeMap.set(r.id, { id: r.id, parent_id: r.parent_id, label: r.label, level: r.level, children: [] });
+      }
+      for (const r of results) {
+        const node = nodeMap.get(r.id)!;
+        if (r.parent_id && nodeMap.has(r.parent_id)) {
+          const parent = nodeMap.get(r.parent_id)!;
+          if (!parent.children) parent.children = [];
+          parent.children.push(node);
+        } else {
+          rootNodes.push(node);
+        }
+      }
+      tree = rootNodes;
+    }
+  } catch (err) {
+    console.error('Failed to load taxonomy tree for analysis:', err);
+  }
+
+  const aiService = createAIService(c.env);
+  const tagResult = await aiService.tagProblem(imageBytes, tree);
+
+  if (!tagResult) {
+    return c.json(
+      {
+        error: {
+          code: 'AI_ANALYSIS_FAILED',
+          message: c.env.GEMINI_API_KEY
+            ? 'AI 分析辨識失敗，請檢查圖片或稍後重試'
+            : '尚未設定 GEMINI_API_KEY，請於 .dev.vars 或 Cloudflare Secrets 中設定',
+        },
+      },
+      422
+    );
+  }
+
+  const keywordTokensStr = tagResult.keyword_tokens.join(' ');
+  const keywordsJson = JSON.stringify(tagResult.keywords);
+
+  await c.env.DB.prepare(
+    `UPDATE items
+     SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved', updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND user_id = ?`
+  )
+    .bind(tagResult.topic_id, keywordsJson, keywordTokensStr, problemId, userId)
+    .run();
+
+  // Sync FTS5
+  await c.env.DB.prepare(
+    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, 'AI 分析'), ?)`
+  )
+    .bind(problemId, userId, item.source || null, keywordTokensStr)
+    .run();
+
+  const updatedItem = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')
+    .bind(problemId, userId)
+    .first<ItemRow>();
+
+  return c.json({
+    status: 'ok',
+    tagResult,
+    item: updatedItem,
+  });
+});
+

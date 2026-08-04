@@ -161,6 +161,20 @@ export async function uploadProblem(file: File, source?: string, topicId?: strin
   return res.json();
 }
 
+export async function analyzeProblem(id: string): Promise<{ status: string; tagResult: any; item: Item }> {
+  const res = await fetch(`${API_BASE}/problems/${id}/analyze`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+
+  if (!res.ok) {
+    const errorData: any = await res.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `AI 分析失敗 (HTTP ${res.status})`);
+  }
+
+  return res.json();
+}
+
 export async function updateProblemDrawData(
   id: string,
   drawData: any,

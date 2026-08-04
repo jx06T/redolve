@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Sparkles } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { fetchProblems, updateProblemMetadata } from '../services/api';
+import { fetchProblems, updateProblemMetadata, analyzeProblem } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
@@ -30,6 +30,7 @@ export const StudyView: React.FC = () => {
     updateProblemInStore,
     setActiveProblemId,
     taxonomies,
+    showToast,
   } = useStore();
 
   const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
@@ -45,6 +46,7 @@ export const StudyView: React.FC = () => {
   const [editingProblem, setEditingProblem] = useState<Item | null>(null);
   const [editTopicId, setEditTopicId] = useState<string>('');
   const [editKeywordsStr, setEditKeywordsStr] = useState<string>('');
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
@@ -196,6 +198,30 @@ export const StudyView: React.FC = () => {
     }
   };
 
+  const handleRunAiAnalysis = async () => {
+    if (!editingProblem) return;
+    setIsAnalyzing(true);
+    try {
+      const res = await analyzeProblem(editingProblem.id);
+      if (res && res.tagResult) {
+        setEditTopicId(res.tagResult.topic_id);
+        const kwList = Array.isArray(res.tagResult.keywords) ? res.tagResult.keywords : [];
+        setEditKeywordsStr(kwList.join(', '));
+        updateProblemInStore(editingProblem.id, {
+          topic_id: res.tagResult.topic_id,
+          keywords: JSON.stringify(kwList),
+          keyword_tokens: res.tagResult.keyword_tokens ? res.tagResult.keyword_tokens.join(' ') : '',
+        });
+        showToast('AI 課綱辨識完成！已自動套用標籤');
+      }
+    } catch (err: any) {
+      console.error('AI Analysis failed:', err);
+      showToast(err.message || 'AI 辨識失敗，請確認 API 金鑰');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleStatusResolved = (problemId: string) => {
     const currentIndex = problems.findIndex((p) => p.id === problemId);
     if (currentIndex >= 0 && currentIndex < problems.length - 1) {
@@ -330,19 +356,42 @@ export const StudyView: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-2">
+            <div className="flex items-center justify-between pt-2">
               <button
-                onClick={() => setEditingProblem(null)}
-                className="px-4 py-2 rounded-xl text-xs bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]"
+                type="button"
+                onClick={handleRunAiAnalysis}
+                disabled={isAnalyzing}
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all disabled:opacity-50"
               >
-                取消
+                {isAnalyzing ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>AI 辨識中...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>AI 自動重新分析</span>
+                  </>
+                )}
               </button>
-              <button
-                onClick={handleSaveMetadata}
-                className="px-4 py-2 rounded-xl text-xs bg-[#6366F1] text-white font-medium hover:bg-[#4F46E5]"
-              >
-                儲存變更
-              </button>
+
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingProblem(null)}
+                  className="px-4 py-2 rounded-xl text-xs bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveMetadata}
+                  className="px-4 py-2 rounded-xl text-xs bg-[#6366F1] text-white font-medium hover:bg-[#4F46E5]"
+                >
+                  儲存變更
+                </button>
+              </div>
             </div>
           </div>
         </div>
