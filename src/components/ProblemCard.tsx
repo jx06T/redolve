@@ -52,6 +52,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const handleSaveDraw = async (drawData: DrawData) => {
     const nextSeq = seq + 1;
     setSeq(nextSeq);
+    
+    // Update local Zustand store immediately so ink persists during re-renders/view switching
+    updateProblemInStore(problem.id, {
+      draw_data: JSON.stringify(drawData),
+    });
+
     try {
       await updateProblemDrawData(problem.id, drawData, nextSeq);
     } catch (err) {

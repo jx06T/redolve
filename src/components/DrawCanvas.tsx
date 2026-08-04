@@ -97,16 +97,19 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Save Debounce Helper
-  const triggerSave = useCallback(() => {
-    if (onSaveDrawData) {
-      onSaveDrawData({
-        strokes,
-        eraserMasks,
-        expansions: [{ addedHeight: canvasHeight - 400, atY: canvasHeight }],
-      });
-    }
-  }, [strokes, eraserMasks, canvasHeight, onSaveDrawData]);
+  // Save Emitter Helper
+  const emitSave = useCallback(
+    (updatedStrokes: Stroke[], updatedErasers: EraserMask[] = eraserMasks, currentHeight: number = canvasHeight) => {
+      if (onSaveDrawData) {
+        onSaveDrawData({
+          strokes: updatedStrokes,
+          eraserMasks: updatedErasers,
+          expansions: [{ addedHeight: Math.max(0, currentHeight - 400), atY: currentHeight }],
+        });
+      }
+    },
+    [eraserMasks, canvasHeight, onSaveDrawData]
+  );
 
   // Two-Finger Undo Listener
   useEffect(() => {
@@ -116,14 +119,17 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const handleTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
-        setStrokes((prev) => prev.slice(0, prev.length - 1));
-        triggerSave();
+        setStrokes((prev) => {
+          const next = prev.slice(0, prev.length - 1);
+          emitSave(next, eraserMasks, canvasHeight);
+          return next;
+        });
       }
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
     return () => container.removeEventListener('touchstart', handleTouchStart);
-  }, [readOnly, triggerSave]);
+  }, [readOnly, emitSave, eraserMasks, canvasHeight]);
 
   // Pointer Event Handlers (PointerType Separation)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -151,15 +157,16 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     if (effectiveTool === 'eraser') {
       // Vector Segment Clipping (Geometric Erase against stored strokes)
       const eraserRadius = 16;
-      setStrokes((prevStrokes) =>
-        prevStrokes.filter((stroke) => {
+      setStrokes((prevStrokes) => {
+        const nextStrokes = prevStrokes.filter((stroke) => {
           return !stroke.points.some(([px, py]) => {
             const dist = Math.hypot(px - x, py - y);
             return dist < eraserRadius;
           });
-        })
-      );
-      triggerSave();
+        });
+        emitSave(nextStrokes, eraserMasks, canvasHeight);
+        return nextStrokes;
+      });
     } else {
       setIsDrawing(true);
       setCurrentPoints([[x, y, pressure]]);
@@ -206,9 +213,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         opacity: activeTool === 'highlighter' ? 0.35 : 1.0,
       };
 
-      setStrokes((prev) => [...prev, newStroke]);
+      const nextStrokes = [...strokes, newStroke];
+      setStrokes(nextStrokes);
       setCurrentPoints([]);
-      triggerSave();
+      emitSave(nextStrokes, eraserMasks, canvasHeight);
     }
   };
 
