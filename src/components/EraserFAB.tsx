@@ -47,7 +47,10 @@ export const EraserFAB: React.FC = () => {
         e.currentTarget.releasePointerCapture(e.pointerId);
       }
     } catch {}
-    setEraserActive(false);
+    const duration = Date.now() - pressStartTimeRef.current;
+    if (duration >= 250) {
+      setEraserActive(false);
+    }
   };
 
   return (
@@ -60,6 +63,15 @@ export const EraserFAB: React.FC = () => {
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        style={{
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+        }}
         className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl transition-all duration-150 active:scale-95 touch-none select-none ${
           eraserActive
             ? 'bg-[#E11D48] scale-110 ring-4 ring-[#E11D48]/40'
