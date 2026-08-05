@@ -15,6 +15,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Global Middlewares
 app.use('*', corsMiddleware);
+app.use('*', async (c, next) => {
+  await next();
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'SAMEORIGIN');
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+});
 app.onError(errorHandler);
 
 // Health Check

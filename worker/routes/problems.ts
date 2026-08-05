@@ -133,13 +133,26 @@ problemsRouter.post('/', async (c) => {
     return c.json({ error: { code: 'INVALID_REQUEST', message: '請上傳有效圖片檔案' } }, 400);
   }
 
+  // File size validation (Max 15MB)
+  const MAX_FILE_SIZE = 15 * 1024 * 1024;
+  if (file.size > MAX_FILE_SIZE) {
+    return c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '圖片檔案過大，單檔上限為 15MB' } }, 413);
+  }
+
+  // MIME type validation
+  const fileType = (file.type || '').toLowerCase();
+  const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+  if (fileType && !ALLOWED_TYPES.includes(fileType)) {
+    return c.json({ error: { code: 'INVALID_FILE_TYPE', message: '不支援的圖片格式，請上傳 JPEG、PNG 或 WebP 圖片' } }, 400);
+  }
+
   const problemId = crypto.randomUUID();
   const imageKey = `images/${userId}/${problemId}.jpg`;
   const imageArrayBuffer = await file.arrayBuffer();
 
   // Store in R2 Bucket
   await c.env.STORAGE.put(imageKey, imageArrayBuffer, {
-    httpMetadata: { contentType: file.type || 'image/jpeg' },
+    httpMetadata: { contentType: fileType || 'image/jpeg' },
   });
 
   const now = new Date().toISOString();
@@ -446,7 +459,7 @@ problemsRouter.delete('/:id', async (c) => {
   return c.json({ status: 'deleted' });
 });
 
-// 7. Save Canvas Draw Data (Vector Clock Conflict Check)
+// 7. Save Canvas Draw Data (Vector Clock Conflict Check & Ownership Protection)
 problemsRouter.patch('/:id/draw', async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
@@ -454,22 +467,31 @@ problemsRouter.patch('/:id/draw', async (c) => {
 
   const { draw_data, vector_clock } = body;
 
+  // 1. Verify Problem Ownership
   let current = await c.env.DB.prepare(
     'SELECT draw_data, vector_clock FROM items WHERE id = ? AND user_id = ?'
   )
     .bind(problemId, userId)
     .first<ItemRow>();
 
+  // 2. If not direct owner, check if user has active collaborative share with allow_ink = 1
   if (!current) {
-    current = await c.env.DB.prepare(
-      'SELECT draw_data, vector_clock FROM items WHERE id = ?'
-    )
-      .bind(problemId)
-      .first<ItemRow>();
+    const share = await c.env.DB.prepare(
+      `SELECT item_id FROM shares 
+       WHERE item_id = ? AND allow_ink = 1 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`
+    ).bind(problemId).first();
+
+    if (share) {
+      current = await c.env.DB.prepare(
+        'SELECT draw_data, vector_clock FROM items WHERE id = ?'
+      )
+        .bind(problemId)
+        .first<ItemRow>();
+    }
   }
 
   if (!current) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
+    return c.json({ error: { code: 'FORBIDDEN', message: '找不到題目或無權限修改此筆記' } }, 403);
   }
 
   let incomingSeq = 0;

@@ -34,29 +34,33 @@ keysRouter.post('/', async (c) => {
   });
 });
 
-// List API Keys (Masked)
+// List API Keys (Masked, key_hash hidden for security)
 keysRouter.get('/', async (c) => {
   const userId = c.get('userId');
 
   const { results } = await c.env.DB.prepare(
-    'SELECT key_hash, key_prefix, description, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC'
+    'SELECT key_prefix, description, created_at FROM api_keys WHERE user_id = ? ORDER BY created_at DESC'
   )
     .bind(userId)
-    .all<ApiKeyRow>();
+    .all<Omit<ApiKeyRow, 'key_hash' | 'user_id'>>();
 
   return c.json({
     keys: results || [],
   });
 });
 
-// Delete / Revoke API Key
-keysRouter.delete('/:hash', async (c) => {
+// Delete / Revoke API Key (by key_prefix)
+keysRouter.delete('/:prefix', async (c) => {
   const userId = c.get('userId');
-  const keyHash = c.req.param('hash');
+  const prefixOrHash = c.req.param('prefix');
 
-  await c.env.DB.prepare('DELETE FROM api_keys WHERE key_hash = ? AND user_id = ?')
-    .bind(keyHash, userId)
+  // Support deletion by prefix or fallback hash
+  await c.env.DB.prepare(
+    'DELETE FROM api_keys WHERE (key_prefix = ? OR key_hash = ?) AND user_id = ?'
+  )
+    .bind(prefixOrHash, prefixOrHash, userId)
     .run();
 
   return c.json({ status: 'revoked' });
 });
+

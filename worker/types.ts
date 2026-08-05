@@ -6,6 +6,7 @@ export interface Bindings {
   KV: KVNamespace;
   GEMINI_API_KEY?: string;
   BETTER_AUTH_SECRET?: string;
+  JWT_SECRET?: string;
   /** Comma-separated Google account emails with admin access. Replaces ADMIN_SECRET. */
   ADMIN_EMAILS?: string;
   /** Google OAuth 2.0 Client ID (better-auth Google provider) */

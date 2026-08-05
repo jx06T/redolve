@@ -1,8 +1,24 @@
 import { Hono } from 'hono';
 import { Bindings, Variables, UserRow } from '../types';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, createAuthJwt } from '../middleware/auth';
 
 export const authRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+/** Validate if the frontend URL belongs to trusted local, LAN, or production domains */
+function isValidFrontendOrigin(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    const host = parsed.hostname;
+    // 1. Localhost & Loopback
+    if (host === 'localhost' || host === '127.0.0.1') return true;
+    // 2. Private LAN IPs (192.168.x.x, 10.x.x.x, 172.16-31.x.x, *.local)
+    if (/^(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[\w-]+\.local)$/.test(host)) return true;
+    // 3. Trusted Production & Preview Domains
+    if (host === 'redolve.pages.dev' || host.endsWith('.redolve.pages.dev')) return true;
+    if (host === 'jx06t.com' || host.endsWith('.jx06t.com')) return true;
+  } catch {}
+  return false;
+}
 
 // 1. Get Current Authenticated User Session
 authRouter.get('/me', authMiddleware, async (c) => {
@@ -18,7 +34,7 @@ authRouter.get('/me', authMiddleware, async (c) => {
   }
 
   if (!user) {
-    // Default fallback
+    // Default fallback for dev mode
     user = {
       id: userId || 'dev_user_default',
       email: 'dev@redolve.local',
@@ -52,7 +68,10 @@ authRouter.get('/google/url', (c) => {
   let returnUrl = '';
   if (referer) {
     try {
-      returnUrl = new URL(referer).origin;
+      const parsed = new URL(referer);
+      if (isValidFrontendOrigin(parsed.origin)) {
+        returnUrl = parsed.origin;
+      }
     } catch {}
   }
 
@@ -79,24 +98,21 @@ authRouter.get('/callback/google', async (c) => {
   const error = c.req.query('error');
   const rawState = c.req.query('state');
 
-  // Decode state to find frontend origin
+  // Decode state to find frontend origin securely
   let stateFrontendUrl = '';
   if (rawState) {
     try {
       const decoded = JSON.parse(atob(rawState));
-      if (decoded.returnUrl && (
-        decoded.returnUrl.startsWith('http://localhost') ||
-        decoded.returnUrl.startsWith('http://127.0.0.1') ||
-        decoded.returnUrl.includes('pages.dev') ||
-        decoded.returnUrl.includes('jx06t.com')
-      )) {
+      if (decoded.returnUrl && isValidFrontendOrigin(decoded.returnUrl)) {
         stateFrontendUrl = decoded.returnUrl;
       }
     } catch {}
   }
 
-  const isLocal = c.req.url.includes('127.0.0.1') || c.req.url.includes('localhost');
-  const frontendUrl = stateFrontendUrl || (isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || 'https://redolve.pages.dev'));
+  const isLocal = c.req.url.includes('127.0.0.1') ||
+    c.req.url.includes('localhost') ||
+    /http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)/.test(c.req.url);
+  const frontendUrl = stateFrontendUrl || (isLocal ? (c.req.header('referer') && isValidFrontendOrigin(c.req.header('referer')!) ? new URL(c.req.header('referer')!).origin : 'http://localhost:3000') : (c.env.FRONTEND_URL || 'https://redolve.pages.dev'));
 
   if (error || !code) {
     return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(error || '授權已取消')}`);
@@ -161,8 +177,11 @@ authRouter.get('/callback/google', async (c) => {
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`
     ).bind(userId, email, name).run();
 
-    // 【修正】將使用者正確導向前端首頁，並附帶 Token 參數
-    return c.redirect(`${frontendUrl}/?auth_token=${encodeURIComponent(userId)}&auth_name=${encodeURIComponent(name)}&auth_email=${encodeURIComponent(email)}`);
+    // Generate cryptographic JWT token
+    const token = await createAuthJwt({ id: userId, email, name }, c.env);
+
+    // Redirect to frontend with secure JWT token
+    return c.redirect(`${frontendUrl}/?auth_token=${encodeURIComponent(token)}&auth_name=${encodeURIComponent(name)}&auth_email=${encodeURIComponent(email)}`);
   } catch (err: any) {
     console.error('Google OAuth callback error:', err);
     return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(err.message || 'Google 登入處理異常')}`);
@@ -201,9 +220,11 @@ authRouter.post('/google/credential', async (c) => {
       'SELECT id, email, name, created_at FROM users WHERE id = ?'
     ).bind(userId).first<UserRow>();
 
+    const token = await createAuthJwt({ id: userId, email, name }, c.env);
+
     return c.json({
       status: 'ok',
-      token: userId,
+      token,
       user,
     });
   } catch (err: any) {
@@ -211,7 +232,7 @@ authRouter.post('/google/credential', async (c) => {
   }
 });
 
-// 5. Standard Email / Account Switch
+// 5. Standard Email / Account Switch (Dev & Local testing)
 authRouter.post('/login', async (c) => {
   const body = await c.req.json();
   const email = (body.email || '').trim().toLowerCase();
@@ -236,15 +257,26 @@ authRouter.post('/login', async (c) => {
     'SELECT id, email, name, created_at FROM users WHERE id = ?'
   ).bind(userId).first<UserRow>();
 
+  const token = await createAuthJwt({ id: userId, email: userEmail, name }, c.env);
+
   return c.json({
     status: 'ok',
-    token: userId,
+    token,
     user,
   });
 });
 
-// 6. List Registered Users for Quick Account Switching (Dev & Testing)
-authRouter.get('/users', async (c) => {
+// 6. List Registered Users for Quick Account Switching (Dev & Testing only)
+authRouter.get('/users', authMiddleware, async (c) => {
+  const isDev = c.env.ENV === 'development' || !c.env.ENV;
+  const userEmail = c.get('userEmail') || '';
+  const adminEmails = (c.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase());
+  const isAdmin = userEmail && adminEmails.includes(userEmail.toLowerCase());
+
+  if (!isDev && !isAdmin) {
+    return c.json({ error: { code: 'FORBIDDEN', message: '僅開發環境或管理員可存取使用者清單' } }, 403);
+  }
+
   try {
     const { results } = await c.env.DB.prepare(
       'SELECT id, email, name, created_at FROM users ORDER BY created_at DESC LIMIT 20'
@@ -263,3 +295,4 @@ authRouter.get('/users', async (c) => {
 authRouter.post('/logout', async (c) => {
   return c.json({ status: 'ok', message: '已成功登出' });
 });
+

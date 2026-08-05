@@ -1115,7 +1115,7 @@ export const SettingsView: React.FC = () => {
               <div className="space-y-3">
                 {keys.map((k) => (
                   <div
-                    key={k.key_hash}
+                    key={k.key_prefix}
                     className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between"
                   >
                     <div>
@@ -1128,7 +1128,7 @@ export const SettingsView: React.FC = () => {
                     </div>
 
                     <button
-                      onClick={() => setRevokeKeyTarget(k.key_hash)}
+                      onClick={() => setRevokeKeyTarget(k.key_prefix)}
                       className="p-2 rounded-xl text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                       title="撤銷此 Key"
                     >

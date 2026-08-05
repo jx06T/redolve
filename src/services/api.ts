@@ -1,9 +1,18 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 
-const isProductionDomain = typeof window !== 'undefined' && (
+const isLocalDomain = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' ||
+  window.location.hostname === '127.0.0.1' ||
+  window.location.hostname.endsWith('.local') ||
+  /^127\./.test(window.location.hostname) ||
+  /^192\.168\./.test(window.location.hostname) ||
+  /^10\./.test(window.location.hostname) ||
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname)
+);
+
+const isProductionDomain = typeof window !== 'undefined' && !isLocalDomain && (
   window.location.hostname.includes('pages.dev') ||
-  window.location.hostname.includes('jx06t.com') ||
-  (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))
+  window.location.hostname.includes('jx06t.com')
 );
 
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || (
@@ -314,8 +323,8 @@ export async function createApiKey(description?: string): Promise<{ key: string;
   return res.json();
 }
 
-export async function deleteApiKey(keyHash: string) {
-  const res = await fetch(`${API_BASE}/keys/${encodeURIComponent(keyHash)}`, {
+export async function deleteApiKey(keyPrefix: string) {
+  const res = await fetch(`${API_BASE}/keys/${encodeURIComponent(keyPrefix)}`, {
     method: 'DELETE',
     headers: getAuthHeaders(false),
   });

@@ -48,7 +48,6 @@ export interface Item {
 }
 
 export interface ApiKeyItem {
-  key_hash: string;
   key_prefix: string;
   description: string | null;
   created_at: string;
