@@ -6,6 +6,9 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "vars": {
+    "GOOGLE_CLIENT_ID": "487878253671-eg14d8s8fd1th57f3ugd8kivrqmultbl.apps.googleusercontent.com"
+  },
   "d1_databases": [
     {
       "binding": "DB",
