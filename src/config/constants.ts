@@ -39,10 +39,10 @@ export interface PaletteColorItem {
 
 // Default Drawing Tool Color Palettes (Soft Pastel Morandi Palette)
 export const DEFAULT_PALETTE_COLORS: PaletteColorItem[] = [
-  { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
-  { name: 'Indigo (鋼筆經典)', hex: '#6366F1' },
-  { name: 'Rose (重點批註)', hex: '#E11D48' },
-  { name: 'Blue (觀念補強)', hex: '#3B82F6' },
+  { name: 'Dark Grey', hex: '#374151' },
+  { name: 'Indigo', hex: '#6366F1' },
+  { name: 'Rose', hex: '#E11D48' },
+  { name: 'Blue', hex: '#3B82F6' },
 ];
 
 export const COLOR_PALETTE = DEFAULT_PALETTE_COLORS;

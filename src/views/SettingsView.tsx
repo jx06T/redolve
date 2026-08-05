@@ -39,10 +39,10 @@ import { ApiKeyItem, TaxonomyNode } from '../types';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 const ALL_RECOMMENDED_COLORS = [
-  { name: 'Dark Grey (深灰石墨)', hex: '#374151' },
-  { name: 'Indigo (鋼筆經典)', hex: '#6366F1' },
-  { name: 'Rose (重點批註)', hex: '#E11D48' },
-  { name: 'Blue (觀念補強)', hex: '#3B82F6' },
+  { name: '深灰石墨', hex: '#374151' },
+  { name: '鋼筆經典', hex: '#6366F1' },
+  { name: '重點批註', hex: '#E11D48' },
+  { name: '觀念補強', hex: '#3B82F6' },
   { name: '薄荷翠綠', hex: '#10B981' },
   { name: '暖陽琥珀', hex: '#F59E0B' },
   { name: '薰衣草紫', hex: '#8B5CF6' },
