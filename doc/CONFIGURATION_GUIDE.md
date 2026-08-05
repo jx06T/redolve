@@ -123,26 +123,14 @@ wrangler secret put AI_PROVIDER
 
 ## 4. Google OAuth 2.0 憑證設定
 
-供網頁端登入體驗（better-auth Google provider 整合，尚在規劃中）：
+供更好的網頁端登入體驗（better-auth 整合）：
 
 1. 前往 [Google Cloud Console](https://console.cloud.google.com/)。
-2. 建立 OAuth 2.0 憑證（Web Application）。
+2. 建立 OAuth 2.0 轉發憑證（Web Application）。
 3. 設定授權轉向 URI：
    - 本地開發：`http://localhost:5173/api/auth/callback/google`
    - 生產環境：`https://<YOUR_WORKER_DOMAIN>/api/auth/callback/google`
-4. 填入憑證：
-
-**本地開發** → 填入 `.dev.vars`：
-```ini
-GOOGLE_CLIENT_ID="your_client_id_here"
-GOOGLE_CLIENT_SECRET="your_client_secret_here"
-```
-
-**生產部署** → 注入為 Worker Secret：
-```powershell
-npx wrangler secret put GOOGLE_CLIENT_ID
-npx wrangler secret put GOOGLE_CLIENT_SECRET
-```
+4. 將 Client ID 與 Client Secret 填入系統設定或 Secret。
 
 ---
 
@@ -168,3 +156,6 @@ Worker 部署完成後，以**管理者 Google 帳號登入** PWA ，們進「�
 在 `worker/middleware/cors.ts` 或環境變數中，確認允許存取的 PWA 前端網域：
 - 本地開發：`http://localhost:5173`
 - 生產環境：`https://<YOUR_PWA_DOMAIN>.pages.dev`
+
+
+wrangler secret put ADMIN_EMAILS

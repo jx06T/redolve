@@ -31,12 +31,13 @@ function cleanJsonString(raw: string): string {
 // 重要規範 (DO NOT REMOVE/MODIFY):
 // 舊版 1.5, 2.0, 2.5 等無 -latest 之固定版本模型標籤已被 Google 廢棄/無法使用。
 // 模型備援與預設配置必須嚴格從 3.1、3.5 以及帶有 -latest 之模型中選取：
-// 包括 gemini-3.5-flash, gemini-3.1-flash, gemini-1.5-flash-latest, gemini-flash-latest。
+// 包括 gemini-3.5-flash-lite, gemini-3.1-flash-lite, gemini-flash-lite-latest。
 // 請確保此註記與模型清單維護於此，嚴禁再改回已不可用之舊版 1.5 / 2.0 / 2.5 固定版本模型。
 const CANDIDATE_MODELS = [
+  'gemini-3.5-flash-lite',
+  'gemini-flash-lite-latest',
   'gemini-3.5-flash',
-  'gemini-3.1-flash',
-  'gemini-flash-latest',
+
 ];
 
 export class GeminiService implements AIService {
@@ -44,7 +45,7 @@ export class GeminiService implements AIService {
   private preferredModel: string;
   private aiClient: GoogleGenAI | null = null;
 
-  constructor(apiKey: string, modelName = 'gemini-3.1-flash') {
+  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite') {
     this.apiKey = apiKey;
     this.preferredModel = modelName;
     if (apiKey) {
