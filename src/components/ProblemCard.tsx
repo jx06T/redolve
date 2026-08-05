@@ -12,6 +12,8 @@ import {
   Minus,
   RotateCcw,
   PenLine,
+  ChevronUp,
+  ChevronDown,
   Copy,
   Check,
   Link2Off,
@@ -97,7 +99,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         if (parsed.expansions && parsed.expansions.length > 0) {
           const last = parsed.expansions[parsed.expansions.length - 1];
           if (typeof last.addedHeight === 'number') {
-            return Math.max(100, last.addedHeight);
+            return Math.max(0, last.addedHeight);
           }
         }
       } catch {}
@@ -105,7 +107,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     return 240;
   }, [problem.draw_data]);
 
-  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(getInitialCalcSpaceHeight);
+  const calcSpaceHeightRef = useRef<number>(getInitialCalcSpaceHeight());
+  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(() => calcSpaceHeightRef.current);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
 
@@ -115,18 +118,23 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   useEffect(() => {
     setIsResolved(problem.status === 'resolved');
     setTypedNotes(problem.typed_notes || '');
+  }, [problem.status, problem.typed_notes]);
+
+  // Sync external draw_data changes on problem switch
+  useEffect(() => {
     if (problem.draw_data) {
       try {
         const parsed: DrawData =
           typeof problem.draw_data === 'string'
             ? JSON.parse(problem.draw_data)
             : problem.draw_data;
-        if (typeof parsed.calcSpaceHeight === 'number') {
+        if (typeof parsed.calcSpaceHeight === 'number' && parsed.calcSpaceHeight !== calcSpaceHeightRef.current) {
+          calcSpaceHeightRef.current = parsed.calcSpaceHeight;
           setCalcSpaceHeight(parsed.calcSpaceHeight);
         }
       } catch {}
     }
-  }, [problem]);
+  }, [problem.id]);
 
   const handleToggleStatus = async () => {
     const nextStatus = isResolved ? 'unsolved' : 'resolved';
@@ -187,12 +195,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleSaveDraw = useCallback(
-    (drawData: DrawData) => {
+    (drawData: DrawData, explicitHeight?: number) => {
+      const activeHeight = typeof explicitHeight === 'number' ? explicitHeight : calcSpaceHeightRef.current;
       const nextSeq = vectorSeq + 1;
       setVectorSeq(nextSeq);
       const dataWithHeight: DrawData = {
         ...drawData,
-        calcSpaceHeight,
+        calcSpaceHeight: activeHeight,
       };
       updateProblemInStore(problem.id, {
         draw_data: JSON.stringify(dataWithHeight),
@@ -211,23 +220,25 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         }
       }, 400);
     },
-    [problem.id, vectorSeq, calcSpaceHeight, updateProblemInStore]
+    [problem.id, vectorSeq, updateProblemInStore]
   );
 
   const updateCalcHeight = (newHeight: number | ((prev: number) => number)) => {
-    setCalcSpaceHeight((prev) => {
-      const next = typeof newHeight === 'function' ? newHeight(prev) : newHeight;
-      const clamped = Math.max(100, Math.min(2000, next));
-      try {
-        const parsed: DrawData = problem.draw_data
-          ? (typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data)
-          : { strokes: [], eraserMasks: [] };
-        parsed.calcSpaceHeight = clamped;
-        parsed.expansions = [{ addedHeight: clamped, atY: clamped }];
-        handleSaveDraw(parsed);
-      } catch {}
-      return clamped;
-    });
+    const next = typeof newHeight === 'function' ? newHeight(calcSpaceHeightRef.current) : newHeight;
+    const clamped = Math.max(0, Math.min(3000, next));
+    calcSpaceHeightRef.current = clamped;
+    setCalcSpaceHeight(clamped);
+
+    try {
+      const parsed: DrawData = problem.draw_data
+        ? (typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data)
+        : { strokes: [], eraserMasks: [] };
+      parsed.calcSpaceHeight = clamped;
+      parsed.expansions = [{ addedHeight: clamped, atY: clamped }];
+      handleSaveDraw(parsed, clamped);
+    } catch (err) {
+      console.error('Failed to update calc height:', err);
+    }
   };
 
   const confirmDelete = async () => {
@@ -471,13 +482,19 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           {/* Extended Calculation Workspace Area */}
           <div
             style={{ height: `${calcSpaceHeight}px` }}
-            className="w-full relative border-t border-dashed border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none"
+            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${
+              calcSpaceHeight > 0 ? 'border-t border-dashed' : ''
+            }`}
           >
-            <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
-              <PenLine className="w-3 h-3 text-indigo-400" />
-              <span>延伸推導草稿區</span>
-            </div>
+            {calcSpaceHeight > 0 && (
+              <>
+                <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
+                <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
+                  <PenLine className="w-3 h-3 text-indigo-400" />
+                  <span>延伸推導草稿區</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Full Interactive Canvas Overlay */}
@@ -502,6 +519,27 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               推導區高度: <span className="font-mono text-[#374151] dark:text-[#D1D5DB]">{calcSpaceHeight}px</span>
             </span>
             <div className="flex items-center space-x-1.5">
+              {calcSpaceHeight > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => updateCalcHeight(0)}
+                  className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
+                  title="完全收合推導區 (0px)"
+                >
+                  <ChevronUp className="w-3 h-3" />
+                  <span>收合</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => updateCalcHeight(240)}
+                  className="px-2 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all flex items-center space-x-1 active:scale-95"
+                  title="展開推導區 (預設 240px)"
+                >
+                  <ChevronDown className="w-3 h-3 text-indigo-500" />
+                  <span>展開</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => updateCalcHeight(240)}
@@ -514,8 +552,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => updateCalcHeight((h) => Math.max(100, h - 200))}
-                disabled={calcSpaceHeight <= 100}
+                onClick={() => updateCalcHeight((h) => Math.max(0, h - 200))}
+                disabled={calcSpaceHeight <= 0}
                 className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
                 title="縮小草稿空間 (-200px)"
               >
@@ -524,7 +562,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => updateCalcHeight((h) => Math.min(2000, h + 200))}
+                onClick={() => updateCalcHeight((h) => Math.min(3000, (h === 0 ? 240 : h + 200)))}
                 className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
                 title="擴增草稿空間 (+200px)"
               >

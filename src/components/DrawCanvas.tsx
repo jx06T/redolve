@@ -128,6 +128,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const hasErasedChangeRef = useRef<boolean>(false);
   const isMultiTouchGestureRef = useRef<boolean>(false);
   const lastUndoTimestampRef = useRef<number>(0);
+  const touchScrollLastYRef = useRef<number>(0);
+  const isTouchScrollingRef = useRef<boolean>(false);
+  const calcSpaceHeightRef = useRef<number>(calcSpaceHeight);
+  calcSpaceHeightRef.current = calcSpaceHeight;
 
   const strokesRef = useRef<Stroke[]>(strokes);
   strokesRef.current = strokes;
@@ -213,15 +217,15 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         eraserMasks: updatedErasers,
         baseWidth: activeBaseW,
         baseHeight: activeBaseH,
-        calcSpaceHeight: typeof calcSpaceHeight === 'number' ? calcSpaceHeight : 240,
-        expansions: [{ addedHeight: typeof calcSpaceHeight === 'number' ? calcSpaceHeight : 240, atY: currentHeight }],
+        calcSpaceHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 240,
+        expansions: [{ addedHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 240, atY: currentHeight }],
       };
       lastSavedDataJsonRef.current = JSON.stringify(payload);
       if (onSaveDrawData) {
         onSaveDrawData(payload);
       }
     },
-    [onSaveDrawData, calcSpaceHeight]
+    [onSaveDrawData]
   );
 
   // Two-Finger Undo Listener (Stabilized Multi-Touch & Stray Dot Prevention)
@@ -339,19 +343,22 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
   }, [activeWidth]);
 
-  // Pointer Event Handlers (PointerType Separation)
+  // Pointer Event Handlers (PointerType Separation & Stylus Precision)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly || !inkVisible) return;
 
-    // Detect Apple Pencil / Stylus input
-    if (e.pointerType === 'pen') {
-      if (!pencilDetected) {
+    // Detect Apple Pencil / Stylus input / Mouse input
+    if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
+      if (!pencilDetected && e.pointerType === 'pen') {
         setPencilDetected(true);
       }
       isMultiTouchGestureRef.current = false;
+      isTouchScrollingRef.current = false;
     } else if (e.pointerType === 'touch') {
-      // If touch drawing is disabled (Pencil mode), prevent touch from initiating strokes
+      // If touch drawing is disabled (Pencil mode / Palm rejection active), forward touch to fluid scrolling
       if (!allowTouchDrawing) {
+        touchScrollLastYRef.current = e.clientY;
+        isTouchScrollingRef.current = true;
         return;
       }
       // Palm rejection & multi-touch guard: abort drawing immediately if non-primary or multi-touch active
@@ -403,6 +410,17 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // Fluid touch scrolling across canvas when Palm Rejection is active
+    if (isTouchScrollingRef.current) {
+      const deltaY = e.clientY - touchScrollLastYRef.current;
+      touchScrollLastYRef.current = e.clientY;
+      const scrollParent = canvas.closest('.overflow-y-auto') || document.scrollingElement || document.documentElement;
+      if (scrollParent) {
+        scrollParent.scrollTop -= deltaY;
+      }
+      return;
+    }
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -424,6 +442,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
     } catch {
       // Ignore
+    }
+
+    if (isTouchScrollingRef.current) {
+      isTouchScrollingRef.current = false;
+      return;
     }
 
     // Ignore commit if a multi-touch gesture was detected
@@ -480,6 +503,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setIsDrawing(false);
     setCurrentPoints([]);
     isErasingRef.current = false;
+    isTouchScrollingRef.current = false;
   };
 
   // Render Canvas Context
@@ -556,10 +580,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
-          style={{ touchAction: allowTouchDrawing ? 'none' : 'pan-y' }}
-          className={`w-full h-full select-none ${
-            allowTouchDrawing ? 'touch-none' : ''
-          } ${
+          style={{ touchAction: 'none' }}
+          className={`w-full h-full select-none touch-none ${
             readOnly || !inkVisible ? 'pointer-events-none' : 'cursor-crosshair'
           }`}
           onPointerDown={handlePointerDown}
