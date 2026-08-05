@@ -40,6 +40,8 @@ interface StoreState {
   customColors: string[];
   penWidth: number;
   eraserActive: boolean; // Left hand spring FAB hold
+  pencilDetected: boolean;
+  allowTouchDrawing: boolean;
 
   // Taxonomy Cache
   taxonomies: TaxonomyNode[];
@@ -75,6 +77,9 @@ interface StoreState {
   removeCustomColor: (hex: string) => void;
   setPenWidth: (width: number) => void;
   setEraserActive: (active: boolean) => void;
+  setPencilDetected: (detected: boolean) => void;
+  setAllowTouchDrawing: (allow: boolean) => void;
+  toggleAllowTouchDrawing: () => void;
   setTaxonomies: (tree: TaxonomyNode[]) => void;
   loadTaxonomies: () => Promise<void>;
 }
@@ -117,6 +122,23 @@ export const useStore = create<StoreState>((set) => ({
   },
   penWidth: 2,
   eraserActive: false,
+  pencilDetected: (() => {
+    try {
+      return localStorage.getItem('redolve_pencil_detected') === 'true';
+    } catch {
+      return false;
+    }
+  })(),
+  allowTouchDrawing: (() => {
+    try {
+      const saved = localStorage.getItem('redolve_allow_touch_drawing');
+      if (saved !== null) return saved === 'true';
+      const pencilEverDetected = localStorage.getItem('redolve_pencil_detected') === 'true';
+      return !pencilEverDetected;
+    } catch {
+      return true;
+    }
+  })(),
 
   taxonomies: TAXONOMY_SEED_DATA,
   taxonomyCounts: {},
@@ -256,6 +278,48 @@ export const useStore = create<StoreState>((set) => ({
   },
   setPenWidth: (penWidth) => set({ penWidth }),
   setEraserActive: (eraserActive) => set({ eraserActive }),
+  setPencilDetected: (detected) => {
+    try {
+      localStorage.setItem('redolve_pencil_detected', String(detected));
+    } catch (err) {
+      console.error('Failed to save pencil detected state:', err);
+    }
+    set((state) => {
+      const isFirstPencilDetection = !state.pencilDetected && detected;
+      if (isFirstPencilDetection && state.allowTouchDrawing) {
+        try {
+          localStorage.setItem('redolve_allow_touch_drawing', 'false');
+        } catch {}
+        state.showToast('偵測到 Apple Pencil，已自動開啟防誤觸（暫停手指繪圖）', 'info', 3000);
+        return { pencilDetected: detected, allowTouchDrawing: false };
+      }
+      return { pencilDetected: detected };
+    });
+  },
+  setAllowTouchDrawing: (allow) => {
+    try {
+      localStorage.setItem('redolve_allow_touch_drawing', String(allow));
+    } catch (err) {
+      console.error('Failed to save allow touch drawing state:', err);
+    }
+    set({ allowTouchDrawing: allow });
+  },
+  toggleAllowTouchDrawing: () => {
+    set((state) => {
+      const next = !state.allowTouchDrawing;
+      try {
+        localStorage.setItem('redolve_allow_touch_drawing', String(next));
+      } catch (err) {
+        console.error('Failed to save allow touch drawing state:', err);
+      }
+      state.showToast(
+        next ? '已開啟手指繪圖' : '已鎖定僅限 Pencil 繪圖（防手掌誤觸）',
+        next ? 'success' : 'info',
+        2500
+      );
+      return { allowTouchDrawing: next };
+    });
+  },
   setTaxonomies: (taxonomies) => set({ taxonomies }),
   loadTaxonomies: async () => {
     try {

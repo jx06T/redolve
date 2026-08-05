@@ -312,7 +312,7 @@ export const StudyView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 relative min-h-[calc(100vh-100px)]">
+    <div className="flex flex-col lg:flex-row gap-3.5 lg:gap-4 relative min-h-[calc(100vh-100px)]">
       {/* Sidebar Filter & Problem Outline Nav */}
       <Sidebar onSelectProblemOutline={handleSelectProblemOutline} />
 
@@ -328,7 +328,7 @@ export const StudyView: React.FC = () => {
             目前這個篩選條件下沒有錯題紀錄。請在右上角上傳新錯題！
           </div>
         ) : (
-          <div ref={parentRef} className="flex-1 overflow-y-auto max-h-[calc(100vh-110px)] pr-2">
+          <div ref={parentRef} className="flex-1 overflow-y-auto max-h-[calc(100vh-110px)] px-2 sm:px-4 lg:px-6 py-1">
             <div
               className="w-full relative"
               style={{ height: `${rowVirtualizer.getTotalSize()}px` }}

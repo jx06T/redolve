@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import getStroke from 'perfect-freehand';
 import { DrawData, Stroke, EraserMask } from '../types';
+import { useStore } from '../store/useStore';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -108,6 +109,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   activeWidth = 2,
   isEraserActive = false,
 }) => {
+  const { pencilDetected, setPencilDetected, allowTouchDrawing } = useStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -240,8 +242,19 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly || !inkVisible) return;
 
-    // Palm rejection guard for secondary touch points
-    if (e.pointerType === 'touch' && !e.isPrimary) return;
+    // Detect Apple Pencil / Stylus input
+    if (e.pointerType === 'pen') {
+      if (!pencilDetected) {
+        setPencilDetected(true);
+      }
+    } else if (e.pointerType === 'touch') {
+      // If touch drawing is disabled (Pencil mode), prevent touch from initiating strokes
+      if (!allowTouchDrawing) {
+        return;
+      }
+      // Palm rejection guard for secondary touch points
+      if (!e.isPrimary) return;
+    }
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -410,7 +423,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           ref={canvasRef}
           width={canvasWidth}
           height={canvasHeight}
-          className={`w-full h-full touch-none select-none ${
+          style={{ touchAction: allowTouchDrawing ? 'none' : 'pan-y' }}
+          className={`w-full h-full select-none ${
+            allowTouchDrawing ? 'touch-none' : ''
+          } ${
             readOnly || !inkVisible ? 'pointer-events-none' : 'cursor-crosshair'
           }`}
           onPointerDown={handlePointerDown}

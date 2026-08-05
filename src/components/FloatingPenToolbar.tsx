@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PenTool, Highlighter, Plus } from 'lucide-react';
+import { PenTool, Highlighter, Plus, Hand } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { STROKE_WIDTHS } from '../config/constants';
 
@@ -13,6 +13,8 @@ export const FloatingPenToolbar: React.FC = () => {
     addPaletteColor,
     penWidth,
     setPenWidth,
+    allowTouchDrawing,
+    toggleAllowTouchDrawing,
     showToast,
   } = useStore();
 
@@ -219,8 +221,8 @@ export const FloatingPenToolbar: React.FC = () => {
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-1 font-mono text-xs'
-            : 'flex flex-col items-center space-y-1 font-mono text-xs'
+            ? 'flex flex-row items-center space-x-1 font-mono text-xs border-r border-stone-200 dark:border-stone-800 pr-2'
+            : 'flex flex-col items-center space-y-1 font-mono text-xs border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
         {STROKE_WIDTHS.map((w) => (
@@ -237,6 +239,29 @@ export const FloatingPenToolbar: React.FC = () => {
             {w}p
           </button>
         ))}
+      </div>
+
+      {/* Touch / Pencil Mode Toggle Button */}
+      <div>
+        <button
+          onClick={toggleAllowTouchDrawing}
+          aria-label={allowTouchDrawing ? '切換為僅限 Pencil 繪圖（防手掌誤觸）' : '開啟手指繪圖'}
+          title={
+            allowTouchDrawing
+              ? '手指繪圖：已開啟 (點擊切換為僅限 Pencil 防誤觸)'
+              : '手指繪圖：已鎖定 (僅限 Pencil，點擊以允許手指繪圖)'
+          }
+          className={`p-2 rounded-2xl active:scale-95 transition-all flex items-center justify-center relative ${
+            allowTouchDrawing
+              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold ring-1 ring-emerald-500/30'
+              : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700'
+          }`}
+        >
+          <Hand className="w-4 h-4" />
+          {!allowTouchDrawing && (
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white dark:ring-stone-900" />
+          )}
+        </button>
       </div>
     </div>
   );
