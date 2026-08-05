@@ -121,10 +121,10 @@ export const ShareView: React.FC = () => {
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
-                Redolve 公開錯題分享
-              </h1>
-              <p className="text-xs text-[#9CA3AF]">唯讀檢視模式</p>
+              <a href="/" className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+                Redolve
+              </a>
+              <p className="text-xs text-[#9CA3AF]">公開錯題分享</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
