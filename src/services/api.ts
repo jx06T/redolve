@@ -119,6 +119,19 @@ export async function createCustomTaxonomy(data: { label: string; parent_id?: st
   return res.json();
 }
 
+export async function updateCustomTaxonomy(id: string, label: string): Promise<{ node: TaxonomyNode }> {
+  const res = await fetch(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ label }),
+  });
+  if (!res.ok) {
+    const data: any = await res.json().catch(() => ({}));
+    throw new Error(data?.error?.message || '更新自訂項目名稱失敗');
+  }
+  return res.json();
+}
+
 export async function deleteCustomTaxonomy(id: string): Promise<{ status: string; message: string }> {
   const res = await fetch(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
     method: 'DELETE',

@@ -3,6 +3,7 @@ import {
   Key,
   Plus,
   Trash2,
+  Edit2,
   Copy,
   Check,
   ShieldCheck,
@@ -27,6 +28,7 @@ import {
   deleteApiKey,
   fetchTaxonomyTree,
   createCustomTaxonomy,
+  updateCustomTaxonomy,
   deleteCustomTaxonomy,
   seedAdminTaxonomy,
 } from '../services/api';
@@ -81,6 +83,7 @@ export const SettingsView: React.FC = () => {
     currentUser,
     taxonomies,
     setTaxonomies,
+    loadTaxonomies,
     taxonomyCounts,
   } = useStore();
 
@@ -97,11 +100,14 @@ export const SettingsView: React.FC = () => {
   const [treeSearchQuery, setTreeSearchQuery] = useState<string>('');
   const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set());
 
-  // Inline creation states
+  // Inline creation & rename states
   const [showTopSubjectForm, setShowTopSubjectForm] = useState<boolean>(false);
   const [newTopSubjectLabel, setNewTopSubjectLabel] = useState<string>('');
   const [inlineAddParentId, setInlineAddParentId] = useState<string | null>(null);
   const [inlineAddLabel, setInlineAddLabel] = useState<string>('');
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
+  const [editingNodeLabel, setEditingNodeLabel] = useState<string>('');
+  const [isRenaming, setIsRenaming] = useState<boolean>(false);
 
   // Palette customization state
   const [customHexInput, setCustomHexInput] = useState<string>('#6366F1');
@@ -207,6 +213,7 @@ export const SettingsView: React.FC = () => {
       setNewTopSubjectLabel('');
       setShowTopSubjectForm(false);
       await loadTaxonomyData();
+      await loadTaxonomies();
       showToast(`已新增自訂科目：${res.node.label}`, 'success');
     } catch (err: any) {
       console.error('Failed to add custom subject:', err);
@@ -226,10 +233,34 @@ export const SettingsView: React.FC = () => {
       // Auto expand the parent so user sees the newly added child
       setExpandedNodeIds((prev) => new Set([...prev, parentId]));
       await loadTaxonomyData();
+      await loadTaxonomies();
       showToast(`已新增單元：${res.node.label}`, 'success');
     } catch (err: any) {
       console.error('Failed to add sub-node:', err);
       showToast(err.message || '新增單元失敗', 'error');
+    }
+  };
+
+  const handleStartRename = (node: TaxonomyNode) => {
+    setEditingNodeId(node.id);
+    setEditingNodeLabel(node.label);
+  };
+
+  const handleSaveRename = async (id: string) => {
+    if (!editingNodeLabel.trim() || isRenaming) return;
+    setIsRenaming(true);
+    try {
+      const res = await updateCustomTaxonomy(id, editingNodeLabel.trim());
+      setEditingNodeId(null);
+      setEditingNodeLabel('');
+      await loadTaxonomyData();
+      await loadTaxonomies();
+      showToast(`已將章節重新命名為：${res.node.label}`, 'success');
+    } catch (err: any) {
+      console.error('Failed to rename custom node:', err);
+      showToast(err.message || '重新命名失敗', 'error');
+    } finally {
+      setIsRenaming(false);
     }
   };
 
@@ -238,6 +269,7 @@ export const SettingsView: React.FC = () => {
     try {
       await deleteCustomTaxonomy(deleteNodeTarget);
       await loadTaxonomyData();
+      await loadTaxonomies();
       showToast('已刪除自訂項目', 'info');
     } catch (err: any) {
       console.error('Failed to delete custom node:', err);
@@ -411,11 +443,10 @@ export const SettingsView: React.FC = () => {
     return (
       <div key={node.id} className="flex flex-col">
         <div
-          className={`group flex items-center justify-between py-2 px-3 rounded-xl transition-all ${
-            depth === 0
-              ? 'bg-stone-50/80 dark:bg-stone-800/40 hover:bg-stone-100/80 dark:hover:bg-stone-800/70 border border-stone-200/50 dark:border-stone-800 my-1'
-              : 'hover:bg-stone-50 dark:hover:bg-stone-800/30'
-          }`}
+          className={`group flex items-center justify-between py-2 px-3 rounded-xl transition-all ${depth === 0
+            ? 'bg-stone-50/80 dark:bg-stone-800/40 hover:bg-stone-100/80 dark:hover:bg-stone-800/70 border border-stone-200/50 dark:border-stone-800 my-1'
+            : 'hover:bg-stone-50 dark:hover:bg-stone-800/30'
+            }`}
           style={{ paddingLeft: `${Math.max(12, depth * 22 + 12)}px` }}
         >
           {/* Left: Expander + Icon + Name + Badges */}
@@ -449,23 +480,59 @@ export const SettingsView: React.FC = () => {
               )}
             </div>
 
-            {/* Label and ID */}
-            <div className="flex items-center space-x-2 truncate">
-              <span
-                className={`text-xs truncate ${
-                  depth === 0
+            {/* Label and ID or Inline Rename Input */}
+            {editingNodeId === node.id ? (
+              <div
+                className="flex items-center space-x-1.5 flex-1 min-w-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={editingNodeLabel}
+                  onChange={(e) => setEditingNodeLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename(node.id);
+                    if (e.key === 'Escape') setEditingNodeId(null);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs bg-white dark:bg-stone-900 border border-indigo-500 dark:border-indigo-400 text-[#1F2937] dark:text-[#F3F4F6] focus:outline-none w-36 sm:w-52 shadow-xs"
+                  placeholder="請輸入新名稱..."
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveRename(node.id)}
+                  disabled={!editingNodeLabel.trim() || isRenaming}
+                  className="p-1 rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-xs"
+                  title="儲存名稱"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingNodeId(null)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-200/50 dark:hover:bg-stone-700/50 transition-colors"
+                  title="取消"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2 truncate">
+                <span
+                  className={`text-xs truncate ${depth === 0
                     ? 'font-bold text-[#1F2937] dark:text-[#F3F4F6]'
                     : depth === 1
-                    ? 'font-semibold text-[#374151] dark:text-[#D1D5DB]'
-                    : 'font-normal text-[#4B5563] dark:text-[#9CA3AF]'
-                }`}
-              >
-                {node.label}
-              </span>
-              <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 hidden sm:inline">
-                ({node.id})
-              </span>
-            </div>
+                      ? 'font-semibold text-[#374151] dark:text-[#D1D5DB]'
+                      : 'font-normal text-[#4B5563] dark:text-[#9CA3AF]'
+                    }`}
+                >
+                  {node.label}
+                </span>
+                <span className="text-[10px] font-mono text-stone-400 dark:text-stone-600 hidden sm:inline">
+                  ({node.id})
+                </span>
+              </div>
+            )}
 
             {/* Official vs Custom Tag */}
             {isCustom ? (
@@ -482,15 +549,14 @@ export const SettingsView: React.FC = () => {
           </div>
 
           {/* Right: Problem Count & Actions */}
-          <div className="flex items-center space-x-2 shrink-0">
+          <div className="flex items-center space-x-1.5 shrink-0">
             {/* Problem Count Badge & Direct Link */}
             <a
               href={`/study/${subjectId}?topic=${node.id}`}
-              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg text-xs font-mono font-medium transition-all ${
-                totalProblemCount > 0
-                  ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200/50 dark:border-indigo-800/50'
-                  : 'bg-stone-100 dark:bg-stone-800/60 text-[#9CA3AF] border border-transparent'
-              }`}
+              className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg text-xs font-mono font-medium transition-all ${totalProblemCount > 0
+                ? 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 border border-indigo-200/50 dark:border-indigo-800/50'
+                : 'bg-stone-100 dark:bg-stone-800/60 text-[#9CA3AF] border border-transparent'
+                }`}
               title={
                 totalProblemCount > 0
                   ? `點擊前往此分類刷題 (共 ${totalProblemCount} 題)`
@@ -513,6 +579,21 @@ export const SettingsView: React.FC = () => {
                 title={`在「${node.label}」下新增子單元`}
               >
                 <Plus className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Rename Custom Node Button */}
+            {isCustom && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStartRename(node);
+                }}
+                className="p-1 rounded-lg text-stone-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                title="重新命名此自訂章節"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -582,11 +663,10 @@ export const SettingsView: React.FC = () => {
       <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] p-1.5 rounded-2xl select-none">
         <button
           onClick={() => handleTabChange('pencil')}
-          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'pencil'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
-          }`}
+          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${activeTab === 'pencil'
+            ? 'bg-[#6366F1] text-white shadow-xs'
+            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+            }`}
         >
           <Sliders className="w-4 h-4" />
           <span>iPad 筆觸偏好設定</span>
@@ -594,11 +674,10 @@ export const SettingsView: React.FC = () => {
 
         <button
           onClick={() => handleTabChange('taxonomy')}
-          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'taxonomy'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
-          }`}
+          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${activeTab === 'taxonomy'
+            ? 'bg-[#6366F1] text-white shadow-xs'
+            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+            }`}
         >
           <Tag className="w-4 h-4" />
           <span>自訂科目與單元分類</span>
@@ -606,11 +685,10 @@ export const SettingsView: React.FC = () => {
 
         <button
           onClick={() => handleTabChange('apikeys')}
-          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTab === 'apikeys'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
-          }`}
+          className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition-all ${activeTab === 'apikeys'
+            ? 'bg-[#6366F1] text-white shadow-xs'
+            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+            }`}
         >
           <Key className="w-4 h-4" />
           <span>iOS 捷徑 API Key</span>
@@ -661,11 +739,10 @@ export const SettingsView: React.FC = () => {
                 {paletteColors.map((c) => (
                   <div
                     key={c.hex}
-                    className={`group relative flex items-center space-x-1.5 pl-2 pr-1.5 py-1.5 rounded-xl border transition-all ${
-                      penColor.toUpperCase() === c.hex.toUpperCase()
-                        ? 'border-indigo-500 bg-white dark:bg-[#202023] ring-2 ring-indigo-500/20 shadow-xs'
-                        : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-[#202023] hover:border-stone-300'
-                    }`}
+                    className={`group relative flex items-center space-x-1.5 pl-2 pr-1.5 py-1.5 rounded-xl border transition-all ${penColor.toUpperCase() === c.hex.toUpperCase()
+                      ? 'border-indigo-500 bg-white dark:bg-[#202023] ring-2 ring-indigo-500/20 shadow-xs'
+                      : 'border-stone-200 dark:border-stone-700 bg-white dark:bg-[#202023] hover:border-stone-300'
+                      }`}
                   >
                     <button
                       type="button"
@@ -700,11 +777,11 @@ export const SettingsView: React.FC = () => {
 
               {/* Add Custom Color Controls */}
               <form onSubmit={handleAddCustomColor} className="flex flex-wrap items-center gap-3 pt-2">
-                <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] p-1.5 rounded-2xl border border-stone-200 dark:border-stone-700">
+                <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] p-1.5 px-2  rounded-2xl border border-stone-200 dark:border-stone-700">
                   <button
                     type="button"
                     onClick={() => pickerInputRef.current?.click()}
-                    className="w-8 h-8 rounded-xl border border-black/10 shadow-xs transition-transform active:scale-95 flex items-center justify-center shrink-0"
+                    className="w-5 h-5 rounded-xl border border-black/10 shadow-xs transition-transform active:scale-95 flex items-center justify-center shrink-0"
                     style={{ backgroundColor: customHexInput }}
                     title="點擊開啟原生調色盤"
                   />
@@ -769,11 +846,10 @@ export const SettingsView: React.FC = () => {
                   <button
                     key={w}
                     onClick={() => setPenWidth(w)}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
-                      penWidth === w
-                        ? 'bg-[#6366F1] text-white border-[#6366F1] shadow-xs'
-                        : 'bg-stone-50 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border-stone-200 dark:border-stone-700 hover:bg-stone-100'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${penWidth === w
+                      ? 'bg-[#6366F1] text-white border-[#6366F1] shadow-xs'
+                      : 'bg-stone-50 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border-stone-200 dark:border-stone-700 hover:bg-stone-100'
+                      }`}
                   >
                     {w}px {w === 1 ? '(細)' : w === 2 ? '(標準)' : '(粗)'}
                   </button>

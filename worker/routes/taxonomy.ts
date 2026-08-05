@@ -155,7 +155,43 @@ taxonomyRouter.post('/', authMiddleware, async (c) => {
   });
 });
 
-// 3. Delete Custom Subject or Sub-unit
+// 3. Update (Rename) Custom Subject or Sub-unit
+taxonomyRouter.put('/:id', authMiddleware, async (c) => {
+  const userId = c.get('userId');
+  const id = c.req.param('id');
+  const body = await c.req.json();
+  const label = (body.label || '').trim();
+
+  if (!label) {
+    return c.json({ error: { code: 'INVALID_INPUT', message: '名稱不可為空' } }, 400);
+  }
+
+  // Verify node belongs to current user
+  const existing = await c.env.DB.prepare(
+    'SELECT id, user_id, parent_id, level FROM taxonomies WHERE id = ? AND user_id = ?'
+  ).bind(id, userId).first<{ id: string; user_id: string; parent_id: string | null; level: number }>();
+
+  if (!existing) {
+    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此自訂項目或無權限修改' } }, 404);
+  }
+
+  await c.env.DB.prepare(
+    'UPDATE taxonomies SET label = ? WHERE id = ? AND user_id = ?'
+  ).bind(label, id, userId).run();
+
+  return c.json({
+    status: 'ok',
+    node: {
+      id: existing.id,
+      user_id: existing.user_id,
+      parent_id: existing.parent_id,
+      label,
+      level: existing.level,
+    },
+  });
+});
+
+// 4. Delete Custom Subject or Sub-unit
 taxonomyRouter.delete('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const id = c.req.param('id');
