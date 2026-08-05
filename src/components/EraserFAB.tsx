@@ -3,10 +3,14 @@ import { Eraser } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
 export const EraserFAB: React.FC = () => {
-  const { eraserActive, setEraserActive } = useStore();
+  const { eraserActive, setEraserActive, sidebarCollapsed } = useStore();
 
   return (
-    <div className="fixed bottom-6 left-6 z-40">
+    <div
+      className={`fixed bottom-6 z-40 transition-all duration-300 ${
+        sidebarCollapsed ? 'left-6' : 'left-6 lg:left-[308px]'
+      }`}
+    >
       <button
         onPointerDown={(e) => {
           e.preventDefault();

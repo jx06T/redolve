@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import { Bindings, Variables, TaxonomyNode } from '../types';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
+import { ensureSeedTaxonomies } from './problems';
 
 export const taxonomyRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -20,6 +21,7 @@ function buildTree(rows: TaxonomyRow[]): TaxonomyNode[] {
   for (const r of rows) {
     nodeMap.set(r.id, {
       id: r.id,
+      user_id: r.user_id,
       parent_id: r.parent_id,
       label: r.label,
       level: r.level,
@@ -46,6 +48,8 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
   const userId = c.get('userId');
 
   try {
+    await ensureSeedTaxonomies(c.env.DB);
+
     const { results } = await c.env.DB.prepare(
       `SELECT id, user_id, parent_id, label, level
        FROM taxonomies
@@ -62,6 +66,7 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
         .filter((r) => r.user_id === userId)
         .map((r) => ({
           id: r.id,
+          user_id: r.user_id,
           parent_id: r.parent_id,
           label: r.label,
           level: r.level,
@@ -71,10 +76,31 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
       tree = TAXONOMY_SEED_DATA;
     }
 
+    const countsMap: Record<string, number> = {};
+    try {
+      const { results: countResults } = await c.env.DB.prepare(
+        `SELECT topic_id, COUNT(id) as count
+         FROM items
+         WHERE user_id = ? AND topic_id IS NOT NULL AND topic_id != ''
+         GROUP BY topic_id`
+      ).bind(userId).all<{ topic_id: string; count: number }>();
+
+      if (countResults) {
+        for (const row of countResults) {
+          if (row.topic_id) {
+            countsMap[row.topic_id] = row.count;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to query topic counts:', e);
+    }
+
     return c.json({
       status: 'ok',
       tree,
       customNodes,
+      counts: countsMap,
     });
   } catch (err) {
     console.error('Failed to query taxonomies:', err);
@@ -82,6 +108,7 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
       status: 'ok',
       tree: TAXONOMY_SEED_DATA,
       customNodes: [],
+      counts: {},
     });
   }
 });

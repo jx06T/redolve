@@ -11,6 +11,7 @@ import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 import { EraserFAB } from '../components/EraserFAB';
 import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
+import { isTopicUnderSubject } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 
 export const StudyView: React.FC = () => {
@@ -34,9 +35,16 @@ export const StudyView: React.FC = () => {
   } = useStore();
 
   const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
-  const currentSubObj = activeTaxonomies.find((s) => s.id === subject);
-  const currentSubjectLabel = currentSubObj ? currentSubObj.label : subject && subject !== 'all' ? subject : '全部科目';
+
+  // Priority: URL params > Zustand Store > Default 'math'
+  const effectiveSubject = (subject && subject !== 'all' ? subject : selectedSubjectId) || 'math';
+  const currentSubObj = activeTaxonomies.find((s) => s.id === effectiveSubject);
+  const currentSubjectLabel = currentSubObj ? currentSubObj.label : effectiveSubject && effectiveSubject !== 'all' ? effectiveSubject : '全部科目';
   const currentTopicLabel = topic ? ` - ${topic}` : '';
+
+  // Verify that selectedTopicId is valid under effectiveSubject
+  const isValidTopic = selectedTopicId ? isTopicUnderSubject(selectedTopicId, effectiveSubject, activeTaxonomies) : true;
+  const effectiveTopic = isValidTopic ? (selectedTopicId ?? (topic && topic !== 'all' ? topic : undefined)) : undefined;
 
   useSEO({
     title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,
@@ -56,18 +64,16 @@ export const StudyView: React.FC = () => {
       if (selectedSubjectId !== subject) {
         setSelectedSubjectId(subject);
       }
-    } else if (subject === 'all' && selectedSubjectId !== null) {
-      setSelectedSubjectId(null);
     }
 
     if (topic && topic !== 'all') {
       if (selectedTopicId !== topic) {
         setSelectedTopicId(topic);
       }
-    } else if (topic === 'all' && selectedTopicId !== null) {
+    } else if (!topic && selectedTopicId !== null && !isValidTopic) {
       setSelectedTopicId(null);
     }
-  }, [subject, topic, selectedSubjectId, selectedTopicId, setSelectedSubjectId, setSelectedTopicId]);
+  }, [subject, topic, selectedSubjectId, selectedTopicId, isValidTopic, setSelectedSubjectId, setSelectedTopicId]);
 
   const loadInitialProblems = useCallback(async () => {
     setIsLoading(true);
@@ -75,7 +81,8 @@ export const StudyView: React.FC = () => {
     isInitialScrollPendingRef.current = true;
     try {
       const res = await fetchProblems({
-        topic_id: selectedTopicId ?? undefined,
+        subject_id: effectiveSubject,
+        topic_id: effectiveTopic ?? undefined,
         status: selectedStatus === 'all' ? undefined : selectedStatus,
         limit: 15,
       });
@@ -85,7 +92,7 @@ export const StudyView: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedTopicId, selectedStatus, setProblems, setIsLoading]);
+  }, [effectiveSubject, effectiveTopic, selectedStatus, setProblems, setIsLoading]);
 
   useEffect(() => {
     loadInitialProblems();
@@ -96,7 +103,8 @@ export const StudyView: React.FC = () => {
     setIsLoading(true);
     try {
       const res = await fetchProblems({
-        topic_id: selectedTopicId ?? undefined,
+        subject_id: effectiveSubject,
+        topic_id: effectiveTopic ?? undefined,
         status: selectedStatus === 'all' ? undefined : selectedStatus,
         cursor: nextCursor,
         limit: 15,
@@ -226,7 +234,9 @@ export const StudyView: React.FC = () => {
 
     try {
       await updateProblemMetadata(editingProblem.id, {
-        topic_id: editTopicId || undefined,
+        // Send null explicitly when clearing so COALESCE on the backend
+        // receives a real NULL value and overwrites the existing topic_id.
+        topic_id: editTopicId || null,
         keywords: keywordsArray,
       });
 
@@ -247,7 +257,8 @@ export const StudyView: React.FC = () => {
     try {
       const res = await analyzeProblem(editingProblem.id);
       if (res && res.tagResult) {
-        setEditTopicId(res.tagResult.topic_id);
+        // Coerce null to empty string so the controlled input doesn't get null
+        setEditTopicId(res.tagResult.topic_id ?? '');
         const kwList = Array.isArray(res.tagResult.keywords) ? res.tagResult.keywords : [];
         setEditKeywordsStr(kwList.join(', '));
         updateProblemInStore(editingProblem.id, {
@@ -384,9 +395,16 @@ export const StudyView: React.FC = () => {
                   {activeTaxonomies.map((subject) => (
                     <optgroup key={subject.id} label={subject.label}>
                       {subject.children?.map((unit) => (
-                        <option key={unit.id} value={unit.id}>
-                          {unit.label}
-                        </option>
+                        <React.Fragment key={unit.id}>
+                          <option value={unit.id}>
+                            {unit.label}
+                          </option>
+                          {unit.children?.map((point) => (
+                            <option key={point.id} value={point.id}>
+                              {`\u00a0\u00a0${point.label}`}
+                            </option>
+                          ))}
+                        </React.Fragment>
                       ))}
                     </optgroup>
                   ))}

@@ -15,31 +15,36 @@ dashboardRouter.get('/', async (c) => {
        COUNT(id) AS total,
        SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved,
        SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) AS unsolved,
+       SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing
      FROM items WHERE user_id = ?`
   )
     .bind(userId)
-    .first<{ total: number; resolved: number; unsolved: number; processing: number }>();
+    .first<{ total: number; resolved: number; unsolved: number; archived: number; processing: number }>();
 
-  // 2. Subject Breakdown SQL (TDD04 Section 12.1)
+  // 2. Subject Breakdown using recursive CTE to find root subject for any depth
   let subjectStats: any[] = [];
   try {
     const { results } = await c.env.DB.prepare(
-      `SELECT
+      `WITH RECURSIVE ancestors(id, root_id) AS (
+         -- Start from each item's direct topic_id and walk up to find root
+         SELECT t.id, t.id
+         FROM taxonomies t
+         WHERE t.parent_id IS NULL
+         UNION ALL
+         SELECT t.id, a.root_id
+         FROM taxonomies t
+         JOIN ancestors a ON t.parent_id = a.id
+       )
+       SELECT
          t_root.id    AS subject_id,
          t_root.label AS subject_label,
          COUNT(i.id)  AS total,
          SUM(CASE WHEN i.status = 'resolved' THEN 1 ELSE 0 END) AS resolved
        FROM items i
-       JOIN taxonomies t_leaf ON i.topic_id = t_leaf.id
-       JOIN taxonomies t_root ON (
-           CASE t_leaf.level
-               WHEN 0 THEN t_leaf.id
-               WHEN 1 THEN t_leaf.parent_id
-               WHEN 2 THEN (SELECT parent_id FROM taxonomies WHERE id = t_leaf.parent_id)
-           END = t_root.id
-       )
-       WHERE i.user_id = ? AND t_root.level = 0
+       JOIN ancestors a ON i.topic_id = a.id
+       JOIN taxonomies t_root ON a.root_id = t_root.id AND t_root.parent_id IS NULL
+       WHERE i.user_id = ?
        GROUP BY t_root.id, t_root.label`
     )
       .bind(userId)

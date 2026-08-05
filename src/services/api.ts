@@ -87,7 +87,11 @@ export async function loginWithGoogleCredential(credential: string): Promise<{ t
 }
 
 // Taxonomy Sync Endpoints
-export async function fetchTaxonomyTree(): Promise<{ tree: TaxonomyNode[]; customNodes: TaxonomyNode[] }> {
+export async function fetchTaxonomyTree(): Promise<{
+  tree: TaxonomyNode[];
+  customNodes: TaxonomyNode[];
+  counts?: Record<string, number>;
+}> {
   const res = await fetch(`${API_BASE}/taxonomy`, {
     headers: getAuthHeaders(false),
   });
@@ -128,12 +132,14 @@ export async function fetchDashboard(): Promise<DashboardData> {
 }
 
 export async function fetchProblems(params?: {
+  subject_id?: string;
   topic_id?: string;
   status?: string;
   cursor?: string;
   limit?: number;
 }): Promise<{ items: Item[]; nextCursor: string | null }> {
   const query = new URLSearchParams();
+  if (params?.subject_id) query.append('subject_id', params.subject_id);
   if (params?.topic_id) query.append('topic_id', params.topic_id);
   if (params?.status) query.append('status', params.status);
   if (params?.cursor) query.append('cursor', params.cursor);
@@ -216,7 +222,7 @@ export async function updateProblemDrawData(
   return res.json();
 }
 
-export async function updateProblemStatus(id: string, status: 'unsolved' | 'resolved') {
+export async function updateProblemStatus(id: string, status: 'unsolved' | 'resolved' | 'archived') {
   const res = await fetch(`${API_BASE}/problems/${id}/status`, {
     method: 'PATCH',
     headers: getAuthHeaders(),
@@ -228,7 +234,7 @@ export async function updateProblemStatus(id: string, status: 'unsolved' | 'reso
 
 export async function updateProblemMetadata(
   id: string,
-  data: { topic_id?: string; keywords?: string[]; source?: string; typed_notes?: string }
+  data: { topic_id?: string | null; keywords?: string[]; source?: string; typed_notes?: string }
 ) {
   const res = await fetch(`${API_BASE}/problems/${id}`, {
     method: 'PUT',
@@ -293,6 +299,15 @@ export async function createShareLink(id: string, allowInk = true): Promise<{ to
   return res.json();
 }
 
+export async function revokeShareLink(problemId: string, token: string): Promise<{ status: string }> {
+  const res = await fetch(`${API_BASE}/problems/${problemId}/share/${token}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to revoke share link');
+  return res.json();
+}
+
 export async function fetchSharedProblem(token: string): Promise<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } }> {
   const res = await fetch(`/share/${token}`);
   if (!res.ok) throw new Error('Shared link expired or invalid');
@@ -302,3 +317,4 @@ export async function fetchSharedProblem(token: string): Promise<{ item: Partial
 export function getSharedImageUrl(token: string): string {
   return `/share/${token}/image`;
 }
+

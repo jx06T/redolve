@@ -78,7 +78,7 @@ export default function App() {
                   <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3">
                     <Routes>
                       <Route path="/" element={<DashboardView />} />
-                      <Route path="/study" element={<Navigate to="/study/all" replace />} />
+                      <Route path="/study" element={<Navigate to="/study/math" replace />} />
                       <Route path="/study/:subject" element={<StudyView />} />
                       <Route path="/study/:subject/:topic" element={<StudyView />} />
                       <Route path="/study/:subject/:topic/:problemId" element={<StudyView />} />

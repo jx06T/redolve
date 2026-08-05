@@ -3,7 +3,7 @@ import { LayoutDashboard, BookOpen, Settings } from 'lucide-react';
 // Navigation Links Configuration
 export const NAV_LINKS = [
   { path: '/', label: '總覽 Dashboard', icon: LayoutDashboard },
-  { path: '/study/all', label: '刷題本 Study', icon: BookOpen },
+  { path: '/study/math', label: '刷題本 Study', icon: BookOpen },
   { path: '/settings', label: '設定 Settings', icon: Settings },
 ];
 
@@ -57,5 +57,6 @@ export const STATUS_FILTER_ITEMS = [
   { key: 'all', label: '全部' },
   { key: 'unsolved', label: '未訂正' },
   { key: 'resolved', label: '已完成' },
+  { key: 'archived', label: '已封存' },
 ] as const;
 

@@ -57,7 +57,7 @@ sharesRouter.get('/share/:token', async (c) => {
     return c.json({ error: { code: 'SHARE_EXPIRED', message: '此分享連結已過期' } }, 410);
   }
 
-  const item = await c.env.DB.prepare('SELECT id, type, topic_id, keywords, source, draw_data, status, created_at FROM items WHERE id = ?')
+  const item = await c.env.DB.prepare('SELECT id, type, topic_id, keywords, source, draw_data, typed_notes, status, created_at FROM items WHERE id = ?')
     .bind(share.item_id)
     .first<Partial<ItemRow>>();
 
@@ -68,11 +68,11 @@ sharesRouter.get('/share/:token', async (c) => {
   return c.json({
     item: {
       ...item,
-      draw_data: share.allow_ink ? item.draw_data : null,
+      draw_data: Boolean(share.allow_ink) ? item.draw_data : null,
     },
     share: {
       token: share.token,
-      allow_ink: share.allow_ink === 1,
+      allow_ink: Boolean(share.allow_ink),
     },
   });
 });

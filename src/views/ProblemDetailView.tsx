@@ -40,7 +40,7 @@ export const ProblemDetailView: React.FC = () => {
     return (
       <div className="text-center py-16 space-y-4">
         <p className="text-xs text-[#9CA3AF]">找不到此題目或已經刪除。</p>
-        <Link to="/study/all" className="inline-flex items-center space-x-2 text-xs text-[#6366F1] font-medium">
+        <Link to="/study/math" className="inline-flex items-center space-x-2 text-xs text-[#6366F1] font-medium">
           <ArrowLeft className="w-4 h-4" />
           <span>返回刷題頁面</span>
         </Link>
@@ -48,15 +48,17 @@ export const ProblemDetailView: React.FC = () => {
     );
   }
 
+  const subjectCode = problem.topic_id ? problem.topic_id.split('-')[0] : 'math';
+
   return (
     <div className="max-w-4xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <Link
-          to="/study/all"
+          to={`/study/${subjectCode}#problem-${problem.id}`}
           className="inline-flex items-center space-x-2 text-xs text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>返回列表</span>
+          <span>返回錯題列表</span>
         </Link>
         <h1 className="text-xs font-semibold text-[#9CA3AF]">錯題詳情 #{problem.id.slice(0, 8)}</h1>
       </div>

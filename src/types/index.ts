@@ -14,11 +14,15 @@ export interface EraserMask {
 export interface DrawData {
   strokes: Stroke[];
   eraserMasks: EraserMask[];
+  baseWidth?: number;
+  baseHeight?: number;
+  calcSpaceHeight?: number;
   expansions?: { addedHeight: number; atY: number }[];
 }
 
 export interface TaxonomyNode {
   id: string;
+  user_id?: string | null;
   parent_id: string | null;
   label: string;
   level: number;
@@ -36,7 +40,7 @@ export interface Item {
   image_url: string;
   draw_data: string | null; // JSON string or DrawData
   typed_notes?: string | null;
-  status: 'processing' | 'unsolved' | 'resolved';
+  status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   review_count: number;
   vector_clock: string | null;
   updated_at: string;
@@ -55,6 +59,7 @@ export interface DashboardData {
     total: number;
     resolved: number;
     unsolved: number;
+    archived?: number;
     processing: number;
   };
   subjects: {
@@ -74,6 +79,8 @@ export interface User {
   id: string;
   email: string;
   name?: string | null;
+  image?: string | null;
+  role?: string | null;
   created_at?: string;
   isDevFallback?: boolean;
 }

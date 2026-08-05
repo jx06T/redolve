@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { Bindings, Variables, UserRow } from '../types';
+import { authMiddleware } from '../middleware/auth';
 
 export const authRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // 1. Get Current Authenticated User Session
-authRouter.get('/me', async (c) => {
+authRouter.get('/me', authMiddleware, async (c) => {
   const userId = c.get('userId') || 'dev_user_default';
 
   let user: UserRow | null = null;

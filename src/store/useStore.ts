@@ -21,7 +21,7 @@ interface StoreState {
   // Navigation & Filter State
   selectedSubjectId: string | null;
   selectedTopicId: string | null;
-  selectedStatus: 'all' | 'unsolved' | 'resolved';
+  selectedStatus: 'all' | 'unsolved' | 'resolved' | 'archived';
   searchQuery: string;
   darkMode: boolean;
   activeProblemId: string | null;
@@ -42,6 +42,7 @@ interface StoreState {
 
   // Taxonomy Cache
   taxonomies: TaxonomyNode[];
+  taxonomyCounts: Record<string, number>;
 
   // Actions
   showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
@@ -51,7 +52,7 @@ interface StoreState {
   logout: () => void;
   setSelectedSubjectId: (subjectId: string | null) => void;
   setSelectedTopicId: (topicId: string | null) => void;
-  setSelectedStatus: (status: 'all' | 'unsolved' | 'resolved') => void;
+  setSelectedStatus: (status: 'all' | 'unsolved' | 'resolved' | 'archived') => void;
   setSearchQuery: (query: string) => void;
   setDarkMode: (darkMode: boolean) => void;
   toggleDarkMode: () => void;
@@ -84,7 +85,7 @@ export const useStore = create<StoreState>((set) => ({
   authToken: typeof window !== 'undefined' ? localStorage.getItem('redolve_auth_token') : null,
   authModalOpen: false,
 
-  selectedSubjectId: null,
+  selectedSubjectId: 'math',
   selectedTopicId: null,
   selectedStatus: 'all',
   searchQuery: '',
@@ -117,6 +118,7 @@ export const useStore = create<StoreState>((set) => ({
   eraserActive: false,
 
   taxonomies: TAXONOMY_SEED_DATA,
+  taxonomyCounts: {},
 
   showToast: (message, type = 'info', durationMs = 4000) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -262,9 +264,12 @@ export const useStore = create<StoreState>((set) => ({
           : {},
       });
       if (res.ok) {
-        const data = (await res.json()) as { tree?: TaxonomyNode[] };
+        const data = (await res.json()) as { tree?: TaxonomyNode[]; counts?: Record<string, number> };
         if (data.tree && data.tree.length > 0) {
-          set({ taxonomies: data.tree });
+          set({
+            taxonomies: data.tree,
+            taxonomyCounts: data.counts || {},
+          });
         }
       }
     } catch (err) {

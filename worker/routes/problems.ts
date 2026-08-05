@@ -22,20 +22,18 @@ function decodeCursor(cursor: string): { created_at: string; id: string } | null
 }
 
 /**
- * Validates whether topicId exists in D1 taxonomies table.
- * If not present, automatically auto-seeds missing nodes from TAXONOMY_SEED_DATA
- * or falls back to null to strictly prevent SQLite FOREIGN KEY constraint errors.
+ * Ensures all official seed taxonomies exist in D1 database
  */
-async function validateAndEnsureTopicId(db: any, topicId: string | null | undefined): Promise<string | null> {
-  if (!topicId || typeof topicId !== 'string') return null;
-  const cleanId = topicId.trim();
-  if (!cleanId) return null;
-
+export async function ensureSeedTaxonomies(db: D1Database): Promise<void> {
   try {
-    const existing = await db.prepare('SELECT id FROM taxonomies WHERE id = ?').bind(cleanId).first();
-    if (existing) return cleanId;
+    const row = await db
+      .prepare('SELECT COUNT(*) as count FROM taxonomies WHERE user_id IS NULL')
+      .first<{ count: number }>();
+    // Seed data has 43 nodes; check for at least 40 to handle minor variations
+    if (row && row.count >= 40) {
+      return;
+    }
 
-    // Flatten seed nodes
     const flattenNodes = (nodes: TaxonomyNode[]): { id: string; parent_id: string | null; label: string; level: number }[] => {
       const list: any[] = [];
       const traverse = (items: TaxonomyNode[]) => {
@@ -49,26 +47,80 @@ async function validateAndEnsureTopicId(db: any, topicId: string | null | undefi
     };
 
     const flat = flattenNodes(TAXONOMY_SEED_DATA);
-    const targetNode = flat.find((n) => n.id === cleanId);
-    if (targetNode) {
-      // Build lineage from root to target node
-      const lineage: typeof flat = [];
-      let cur: typeof targetNode | undefined = targetNode;
-      while (cur) {
-        lineage.unshift(cur);
-        cur = flat.find((n) => n.id === cur?.parent_id);
-      }
-      for (const node of lineage) {
-        await db.prepare(
-          'INSERT OR IGNORE INTO taxonomies (id, user_id, parent_id, label, level) VALUES (?, NULL, ?, ?, ?)'
-        ).bind(node.id, node.parent_id, node.label, node.level).run();
-      }
-      return cleanId;
-    }
+    const stmts = flat.map((node) =>
+      db
+        .prepare('INSERT OR IGNORE INTO taxonomies (id, user_id, parent_id, label, level) VALUES (?, NULL, ?, ?, ?)')
+        .bind(node.id, node.parent_id, node.label, node.level)
+    );
+    await db.batch(stmts);
   } catch (err) {
-    console.warn('[validateAndEnsureTopicId] Failed to verify or auto-seed topic:', err);
+    console.warn('[ensureSeedTaxonomies] Failed to ensure seed taxonomies:', err);
+  }
+}
+
+/**
+ * Validates whether topicId exists in D1 taxonomies table.
+ * If not present, automatically auto-seeds missing nodes from TAXONOMY_SEED_DATA
+ * or falls back to null to strictly prevent SQLite FOREIGN KEY constraint errors.
+ */
+async function validateAndEnsureTopicId(db: any, topicId: string | null | undefined): Promise<string | null> {
+  if (!topicId || typeof topicId !== 'string') return null;
+  const cleanId = topicId.trim();
+  if (!cleanId) return null;
+
+  try {
+    await ensureSeedTaxonomies(db);
+    const existing = await db.prepare('SELECT id FROM taxonomies WHERE id = ?').bind(cleanId).first();
+    if (existing) return cleanId;
+  } catch (err) {
+    console.warn('[validateAndEnsureTopicId] Failed to verify topic:', err);
   }
   return null;
+}
+
+/**
+ * Loads the complete dynamic taxonomy tree from D1 database for the given user,
+ * merging official seed taxonomies and user custom taxonomies.
+ */
+async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNode[]> {
+  try {
+    const res = await db.prepare(
+      `SELECT id, user_id, parent_id, label, level
+       FROM taxonomies
+       WHERE user_id IS NULL OR user_id = ?
+       ORDER BY level ASC, id ASC`
+    ).bind(userId).all();
+    const results = (res?.results || []) as any[];
+
+    if (results && results.length > 0) {
+      const nodeMap = new Map<string, TaxonomyNode>();
+      const rootNodes: TaxonomyNode[] = [];
+      for (const r of results) {
+        nodeMap.set(r.id, {
+          id: r.id,
+          user_id: r.user_id,
+          parent_id: r.parent_id,
+          label: r.label,
+          level: r.level,
+          children: [],
+        });
+      }
+      for (const r of results) {
+        const node = nodeMap.get(r.id)!;
+        if (r.parent_id && nodeMap.has(r.parent_id)) {
+          const parent = nodeMap.get(r.parent_id)!;
+          if (!parent.children) parent.children = [];
+          parent.children.push(node);
+        } else {
+          rootNodes.push(node);
+        }
+      }
+      return rootNodes;
+    }
+  } catch (err) {
+    console.warn('[loadFullTaxonomyTree] Failed to load taxonomy tree from DB:', err);
+  }
+  return TAXONOMY_SEED_DATA;
 }
 
 // 1. Upload Problem (FormData) -> R2 + D1 + Background AI Tagging
@@ -113,14 +165,7 @@ problemsRouter.post('/', async (c) => {
   c.executionCtx.waitUntil(
     (async () => {
       try {
-        let tree: TaxonomyNode[] = TAXONOMY_SEED_DATA;
-        if (c.env.KV) {
-          const cachedTree = await c.env.KV.get('taxonomy:tree');
-          if (cachedTree) {
-            tree = JSON.parse(cachedTree);
-          }
-        }
-
+        const tree = await loadFullTaxonomyTree(c.env.DB, userId);
         const aiService = createAIService(c.env);
         const tagResult = await aiService.tagProblem(imageArrayBuffer, tree);
 
@@ -148,7 +193,7 @@ problemsRouter.post('/', async (c) => {
             console.warn('[FTS Sync Warning]', ftsErr);
           }
         } else {
-          // AI Failed -> Silent Fallback to status 'unsolved', topic_id null
+          // AI Failed -> Silent Fallback to status 'unsolved', topic_id null (unclassified)
           await c.env.DB.prepare(
             `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
           )
@@ -179,21 +224,60 @@ problemsRouter.get('/', async (c) => {
   const cursorParam = c.req.query('cursor');
   const limitParam = parseInt(c.req.query('limit') || '20', 10);
   const topicId = c.req.query('topic_id');
+  const subjectId = c.req.query('subject_id');
   const status = c.req.query('status');
 
   const decodedCursor = cursorParam ? decodeCursor(cursorParam) : null;
 
+  await ensureSeedTaxonomies(c.env.DB);
+
   let query = 'SELECT * FROM items WHERE user_id = ?';
   const bindings: any[] = [userId];
 
-  if (topicId) {
-    query += ' AND topic_id = ?';
-    bindings.push(topicId);
+  if (topicId && topicId !== 'all') {
+    if (topicId === 'unclassified') {
+      query += ' AND (topic_id IS NULL OR topic_id = \'\')';
+    } else {
+      query += ` AND (
+        topic_id IN (
+          WITH RECURSIVE sub_tax(id) AS (
+            SELECT id FROM taxonomies WHERE id = ?
+            UNION ALL
+            SELECT t.id FROM taxonomies t JOIN sub_tax st ON t.parent_id = st.id
+          )
+          SELECT id FROM sub_tax
+        )
+        OR topic_id = ?
+      )`;
+      bindings.push(topicId, topicId);
+    }
+  } else if (subjectId && subjectId !== 'all') {
+    // When browsing a subject without a specific topic filter, also include
+    // unclassified items (topic_id IS NULL) so that newly uploaded problems
+    // (status='processing') and AI-pending items remain visible instead of
+    // silently disappearing because they haven't been assigned a topic yet.
+    query += ` AND (
+      topic_id IS NULL
+      OR topic_id = ''
+      OR topic_id IN (
+        WITH RECURSIVE sub_tax(id) AS (
+          SELECT id FROM taxonomies WHERE id = ?
+          UNION ALL
+          SELECT t.id FROM taxonomies t JOIN sub_tax st ON t.parent_id = st.id
+        )
+        SELECT id FROM sub_tax
+      )
+      OR topic_id = ?
+    )`;
+    bindings.push(subjectId, subjectId);
   }
 
-  if (status) {
+  if (status && status !== 'all') {
     query += ' AND status = ?';
     bindings.push(status);
+  } else {
+    // Default 'all' active feed excludes archived items so they are hidden from normal review
+    query += " AND status != 'archived'";
   }
 
   if (decodedCursor) {
@@ -282,7 +366,12 @@ problemsRouter.put('/:id', async (c) => {
   const problemId = c.req.param('id');
   const body = await c.req.json();
 
-  const { topic_id, keywords, source, typed_notes } = body;
+  const { keywords, source, typed_notes } = body;
+  // topic_id is handled explicitly: if the key is present in the request body
+  // (even as null), we write it directly so the user can clear a classification.
+  // Other fields use COALESCE to avoid overwriting with undefined values.
+  const topicIdProvided = 'topic_id' in body;
+  const topicIdValue = topicIdProvided ? (body.topic_id ?? null) : undefined;
 
   const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
     .bind(problemId, userId)
@@ -295,18 +384,33 @@ problemsRouter.put('/:id', async (c) => {
   const keywordsStr = Array.isArray(keywords) ? JSON.stringify(keywords) : (keywords !== undefined ? keywords : null);
   const keywordTokensStr = Array.isArray(keywords) ? keywords.join(' ') : (keywords || '');
 
-  await c.env.DB.prepare(
-    `UPDATE items
-     SET topic_id = COALESCE(?, topic_id),
-         keywords = COALESCE(?, keywords),
-         keyword_tokens = COALESCE(?, keyword_tokens),
-         source = COALESCE(?, source),
-         typed_notes = COALESCE(?, typed_notes),
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = ? AND user_id = ?`
-  )
-    .bind(topic_id ?? null, keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
-    .run();
+  // Build the update query dynamically based on what fields are provided
+  if (topicIdProvided) {
+    await c.env.DB.prepare(
+      `UPDATE items
+       SET topic_id = ?,
+           keywords = COALESCE(?, keywords),
+           keyword_tokens = COALESCE(?, keyword_tokens),
+           source = COALESCE(?, source),
+           typed_notes = COALESCE(?, typed_notes),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`
+    )
+      .bind(topicIdValue, keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
+      .run();
+  } else {
+    await c.env.DB.prepare(
+      `UPDATE items
+       SET keywords = COALESCE(?, keywords),
+           keyword_tokens = COALESCE(?, keyword_tokens),
+           source = COALESCE(?, source),
+           typed_notes = COALESCE(?, typed_notes),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND user_id = ?`
+    )
+      .bind(keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
+      .run();
+  }
 
   // Sync FTS5 Index if keywords or source provided
   if (keywordsStr !== null || source !== null) {
@@ -407,9 +511,9 @@ problemsRouter.patch('/:id/status', async (c) => {
   const problemId = c.req.param('id');
   const body = await c.req.json();
 
-  const { status } = body; // 'unsolved' | 'resolved'
-  if (status !== 'unsolved' && status !== 'resolved') {
-    return c.json({ error: { code: 'INVALID_REQUEST', message: '狀態必須為 unsolved 或 resolved' } }, 400);
+  const { status } = body; // 'unsolved' | 'resolved' | 'archived'
+  if (status !== 'unsolved' && status !== 'resolved' && status !== 'archived') {
+    return c.json({ error: { code: 'INVALID_REQUEST', message: '狀態必須為 unsolved、resolved 或 archived' } }, 400);
   }
 
   const reviewInc = status === 'resolved' ? 1 : 0;
@@ -446,35 +550,8 @@ problemsRouter.post('/:id/analyze', async (c) => {
 
   const imageBytes = await r2Object.arrayBuffer();
 
-  // Load latest taxonomy tree
-  let tree: TaxonomyNode[] = TAXONOMY_SEED_DATA;
-  try {
-    const { results } = await c.env.DB.prepare(
-      'SELECT id, user_id, parent_id, label, level FROM taxonomies WHERE user_id IS NULL OR user_id = ?'
-    ).bind(userId).all<any>();
-
-    if (results && results.length > 0) {
-      const nodeMap = new Map<string, TaxonomyNode>();
-      const rootNodes: TaxonomyNode[] = [];
-      for (const r of results) {
-        nodeMap.set(r.id, { id: r.id, parent_id: r.parent_id, label: r.label, level: r.level, children: [] });
-      }
-      for (const r of results) {
-        const node = nodeMap.get(r.id)!;
-        if (r.parent_id && nodeMap.has(r.parent_id)) {
-          const parent = nodeMap.get(r.parent_id)!;
-          if (!parent.children) parent.children = [];
-          parent.children.push(node);
-        } else {
-          rootNodes.push(node);
-        }
-      }
-      tree = rootNodes;
-    }
-  } catch (err) {
-    console.error('Failed to load taxonomy tree for analysis:', err);
-  }
-
+  // Load latest dynamic taxonomy tree from D1
+  const tree = await loadFullTaxonomyTree(c.env.DB, userId);
   const aiService = createAIService(c.env);
   const tagResult = await aiService.tagProblem(imageBytes, tree);
 

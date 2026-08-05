@@ -2,9 +2,31 @@ import { TaxonomyNode } from '../../types';
 import { Type } from '@google/genai';
 
 /**
- * Extracts all leaf/unit topic IDs from the taxonomy tree.
+ * Extracts all valid topic IDs from the taxonomy tree.
  */
 export function extractAllTopicIds(tree: TaxonomyNode[]): string[] {
+  const ids: string[] = [];
+
+  function traverse(nodes: TaxonomyNode[]) {
+    for (const node of nodes) {
+      ids.push(node.id);
+      if (node.children && node.children.length > 0) {
+        traverse(node.children);
+      }
+    }
+  }
+
+  traverse(tree);
+  return ids;
+}
+
+/**
+ * Extracts only leaf-node topic IDs (nodes with no children).
+ * These are the most specific classification targets for the AI.
+ * Using only leaf IDs prevents the AI from assigning root/chapter-level
+ * nodes (e.g. "math", "math-trig") which cannot be filtered by chapter.
+ */
+export function extractLeafTopicIds(tree: TaxonomyNode[]): string[] {
   const ids: string[] = [];
 
   function traverse(nodes: TaxonomyNode[]) {
@@ -49,38 +71,40 @@ export function buildClassificationPrompt(taxonomyTree: TaxonomyNode[]): string 
   const treeOutline = formatTaxonomyTreeForPrompt(taxonomyTree);
 
   return `你是一個專業的台灣高中學測與分科測驗錯題 AI 分析助手。
-請閱讀圖片中的題目內容（包含文字、數學符號、幾何圖形、化學式或物理情境），並對照以下學測/分科測驗課綱單元清單（Taxonomy Tree）：
+請仔細閱讀圖片中的題目內容（包含文字、數學公式符號、幾何圖形、物理/化學/生物圖表或情境），並對照以下系統資料庫中的完整課綱科目與章節清單（Taxonomy Tree）：
 
 ${treeOutline}
 
-請精準分析此題目，輸出一個嚴格格式的 JSON 物件，不得包含 Markdown 標記（如 \`\`\`json）或額外文字說明。
-JSON 格式必須包含以下欄位：
-1. "topic_id": string (必須精確對應上述課綱中最適當的單元 ID，例如 "math-bayes", "math-matrix", "physics-kinematics" 等)
-2. "keywords": string[] (3至5個中文核心學術概念關鍵字，例如 ["貝氏定理", "條件機率", "樣本空間"])
-3. "keyword_tokens": string[] (拆解為細粒度單詞與片語的搜尋 token 陣列，例如 ["機率", "條件", "貝氏", "定理", "條件機率", "樣本空間"])`;
+請進行精準分析與分類，並遵守以下嚴格規則：
+1. 嚴格對照上述課綱清單中存在的單元 ID（topic_id）。
+2. 若題目明確屬於課綱中的某科目章節，請輸出該單元最精確的 ID（例如 "math-bayes", "physics-kinematics", "chem-acid-base", "bio-genetics" 等）。
+3. 若圖片內容並非學科錯題（例如生活照、風景、塗鴉、模糊無法辨識或非台灣高中學測/分科課綱範疇），"topic_id" 請務必輸出 null，絕對不要隨意指派不相干的課綱分類。
+4. 提取 3 至 5 個核心概念關鍵字 (keywords) 與繁簡中文切詞搜尋索引 (keyword_tokens)。
+
+請輸出嚴格 JSON 格式：
+{
+  "topic_id": string | null,
+  "keywords": string[],
+  "keyword_tokens": string[]
+}`;
 }
 
 /**
- * Dynamically builds the SDK responseSchema with strict enum validation against database topic IDs.
+ * Dynamically builds the SDK responseSchema with strict enum validation against database leaf topic IDs.
+ * Only leaf nodes (most specific units) are included in the enum to prevent the AI from
+ * assigning root/chapter-level IDs that break chapter-level filtering.
  */
 export function buildSdkResponseSchema(taxonomyTree: TaxonomyNode[]) {
-  const topicIds = extractAllTopicIds(taxonomyTree);
+  const leafTopicIds = extractLeafTopicIds(taxonomyTree);
 
   return {
     type: Type.OBJECT,
     properties: {
-      subject: {
-        type: Type.STRING,
-        description: '高中學科科目名稱 (例如: 數學, 物理, 化學, 生物, 地科)',
-      },
-      chapter: {
-        type: Type.STRING,
-        description: '所屬大章節名稱',
-      },
       topic_id: {
         type: Type.STRING,
-        description: '精確對應課綱單元清單中的單元 ID',
-        ...(topicIds.length > 0 ? { enum: topicIds } : {}),
+        description: '精確對應課綱單元清單中最末層單元 ID，若非學科題目或無法分類則輸出 null',
+        nullable: true,
+        ...(leafTopicIds.length > 0 ? { enum: leafTopicIds } : {}),
       },
       keywords: {
         type: Type.ARRAY,
@@ -92,29 +116,26 @@ export function buildSdkResponseSchema(taxonomyTree: TaxonomyNode[]) {
         items: { type: Type.STRING },
         description: '繁簡中文與符號切分搜尋 tokens (例如: ["機率", "條件", "貝氏", "定理"])',
       },
-      problem_text_summary: {
-        type: Type.STRING,
-        description: '題目題幹重點與考點簡要摘要',
-      },
     },
-    required: ['topic_id', 'keywords', 'keyword_tokens'],
+    required: ['keywords', 'keyword_tokens'],
   };
 }
 
 /**
- * Dynamically builds the REST response_schema with strict enum validation against database topic IDs.
+ * Dynamically builds the REST response_schema with strict enum validation against database leaf topic IDs.
+ * Only leaf nodes (most specific units) are included in the enum to prevent the AI from
+ * assigning root/chapter-level IDs that break chapter-level filtering.
  */
 export function buildRestResponseSchema(taxonomyTree: TaxonomyNode[]) {
-  const topicIds = extractAllTopicIds(taxonomyTree);
+  const leafTopicIds = extractLeafTopicIds(taxonomyTree);
 
   return {
     type: 'OBJECT',
     properties: {
-      subject: { type: 'STRING' },
-      chapter: { type: 'STRING' },
       topic_id: {
         type: 'STRING',
-        ...(topicIds.length > 0 ? { enum: topicIds } : {}),
+        nullable: true,
+        ...(leafTopicIds.length > 0 ? { enum: leafTopicIds } : {}),
       },
       keywords: {
         type: 'ARRAY',
@@ -124,8 +145,7 @@ export function buildRestResponseSchema(taxonomyTree: TaxonomyNode[]) {
         type: 'ARRAY',
         items: { type: 'STRING' },
       },
-      problem_text_summary: { type: 'STRING' },
     },
-    required: ['topic_id', 'keywords', 'keyword_tokens'],
+    required: ['keywords', 'keyword_tokens'],
   };
 }

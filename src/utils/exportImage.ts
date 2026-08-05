@@ -38,36 +38,70 @@ export async function exportProblemAsImage(
     img.src = imageUrl;
   });
 
-  const canvas = document.createElement('canvas');
   const width = img.naturalWidth || 1200;
-  const height = img.naturalHeight || 800;
+  const imgHeight = img.naturalHeight || 800;
+  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? 240;
 
+  // Determine base coordinate space width
+  const baseWidth = parsedDrawData?.baseWidth || 800;
+  const scale = width / baseWidth;
+
+  const totalHeight = Math.round(imgHeight + (calcSpaceHeight * scale));
+
+  const canvas = document.createElement('canvas');
   canvas.width = width;
-  canvas.height = height;
+  canvas.height = totalHeight;
 
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context not available');
 
-  // Draw background problem image
+  // 1. Draw problem image background
   ctx.fillStyle = '#FFFFFF';
-  ctx.fillRect(0, 0, width, height);
-  ctx.drawImage(img, 0, 0, width, height);
+  ctx.fillRect(0, 0, width, imgHeight);
+  ctx.drawImage(img, 0, 0, width, imgHeight);
 
-  // Draw vector handwriting strokes
+  // 2. Draw extended scratchpad workspace background
+  if (calcSpaceHeight > 0) {
+    ctx.fillStyle = '#FAFAF9';
+    ctx.fillRect(0, imgHeight, width, Math.round(calcSpaceHeight * scale));
+
+    // Separator line
+    ctx.save();
+    ctx.strokeStyle = '#E5E7EB';
+    ctx.lineWidth = Math.max(1, Math.round(2 * scale));
+    ctx.setLineDash([8 * scale, 6 * scale]);
+    ctx.beginPath();
+    ctx.moveTo(0, imgHeight);
+    ctx.lineTo(width, imgHeight);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 3. Draw vector handwriting strokes
   if (parsedDrawData && parsedDrawData.strokes) {
     parsedDrawData.strokes.forEach((stroke: Stroke) => {
-      const strokePoints = getStroke(stroke.points, {
-        size: stroke.width * 2,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
+      if (!stroke.points || stroke.points.length === 0) return;
+      const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
+      const baseSize = toolType === 'highlighter'
+        ? (stroke.width <= 1 ? 16 : stroke.width <= 2 ? 24 : 36)
+        : (stroke.width <= 1 ? 2.5 : stroke.width <= 2 ? 4.5 : 7.5);
+
+      const scaledPoints = scale === 1.0
+        ? stroke.points
+        : stroke.points.map(([px, py, pr]) => [px * scale, py * scale, pr] as [number, number, number]);
+
+      const strokePoints = getStroke(scaledPoints, {
+        size: baseSize * scale,
+        thinning: toolType === 'highlighter' ? 0.02 : 0.5,
+        smoothing: toolType === 'highlighter' ? 0.6 : 0.5,
+        streamline: toolType === 'highlighter' ? 0.6 : 0.5,
       });
 
       const pathData = getSvgPathFromStroke(strokePoints);
       if (pathData) {
         ctx.save();
         ctx.fillStyle = stroke.color;
-        ctx.globalAlpha = stroke.opacity ?? 1.0;
+        ctx.globalAlpha = stroke.opacity ?? (toolType === 'highlighter' ? 0.32 : 1.0);
         const path = new Path2D(pathData);
         ctx.fill(path);
         ctx.restore();
@@ -93,16 +127,23 @@ export function exportStrokesAsSvg(
 ): string {
   const pathElements = strokes
     .map((stroke) => {
+      if (!stroke.points || stroke.points.length === 0) return '';
+      const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
+      const baseSize = toolType === 'highlighter'
+        ? (stroke.width <= 1 ? 16 : stroke.width <= 2 ? 24 : 36)
+        : (stroke.width <= 1 ? 2.5 : stroke.width <= 2 ? 4.5 : 7.5);
+
       const strokePoints = getStroke(stroke.points, {
-        size: stroke.width * 2,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
+        size: baseSize,
+        thinning: toolType === 'highlighter' ? 0.02 : 0.5,
+        smoothing: toolType === 'highlighter' ? 0.6 : 0.5,
+        streamline: toolType === 'highlighter' ? 0.6 : 0.5,
       });
       const d = getSvgPathFromStroke(strokePoints);
-      const opacity = stroke.opacity ?? 1.0;
+      const opacity = stroke.opacity ?? (toolType === 'highlighter' ? 0.32 : 1.0);
       return `<path d="${d}" fill="${stroke.color}" opacity="${opacity}" />`;
     })
+    .filter(Boolean)
     .join('\n  ');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">\n  ${pathElements}\n</svg>`;

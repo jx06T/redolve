@@ -99,7 +99,7 @@ export const DashboardView: React.FC = () => {
               <span>各科目錯題訂正率</span>
             </h2>
             <Link
-              to="/study/all"
+              to="/study/math"
               className="text-xs text-[#6366F1] font-medium flex items-center space-x-1 hover:underline"
             >
               <span>進入刷題</span>
@@ -148,33 +148,36 @@ export const DashboardView: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {topUnsolved.map((topic, idx) => (
-                <div
-                  key={topic.topic_id}
-                  className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
-                      #{idx + 1}
-                    </span>
-                    <div>
-                      <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]">
-                        {topic.topic_label}
-                      </div>
-                      <div className="text-[10px] text-[#9CA3AF]">
-                        {topic.unsolved_count} 題未訂正
+              {topUnsolved.map((topic, idx) => {
+                const subjectCode = topic.topic_id ? topic.topic_id.split('-')[0] : 'math';
+                return (
+                  <div
+                    key={topic.topic_id}
+                    className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
+                        #{idx + 1}
+                      </span>
+                      <div>
+                        <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]">
+                          {topic.topic_label}
+                        </div>
+                        <div className="text-[10px] text-[#9CA3AF]">
+                          {topic.unsolved_count} 題未訂正
+                        </div>
                       </div>
                     </div>
+                    <Link
+                      to={`/study/${subjectCode}/${topic.topic_id}`}
+                      aria-label={`前往 ${topic.topic_label} 錯題列表`}
+                      className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 transition-all"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </Link>
                   </div>
-                  <Link
-                    to={`/study/all/${topic.topic_id}`}
-                    aria-label={`前往 ${topic.topic_label} 錯題列表`}
-                    className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 transition-all"
-                  >
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

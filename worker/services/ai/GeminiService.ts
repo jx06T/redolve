@@ -27,11 +27,16 @@ function cleanJsonString(raw: string): string {
   return cleaned.trim();
 }
 
-// 根據 Google AI Studio / Gemini API 官方支援之模型清單配置
+// 根據 Google AI Studio / Gemini API 官方支援之正式生產環境模型清單配置
+// 重要規範 (DO NOT REMOVE/MODIFY):
+// 更舊的模型（如無 -latest 之舊版 gemini-1.5-flash 等）已無法使用。
+// 備援清單必須包含 Gemini 2.5 / 2.0 以及 -latest 標籤模型（如 gemini-2.5-flash, gemini-2.0-flash, gemini-1.5-flash-latest, gemini-2.5-flash-latest）。
+// 請確保此註記與模型配置維護於此，避免日後誤改回過期或不可用的舊版模型。
 const CANDIDATE_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-flash-lite-latest',
   'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash-latest',
+  'gemini-2.5-flash-latest',
 ];
 
 export class GeminiService implements AIService {
@@ -39,7 +44,7 @@ export class GeminiService implements AIService {
   private preferredModel: string;
   private aiClient: GoogleGenAI | null = null;
 
-  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite') {
+  constructor(apiKey: string, modelName = 'gemini-2.5-flash') {
     this.apiKey = apiKey;
     this.preferredModel = modelName;
     if (apiKey) {
@@ -63,6 +68,33 @@ export class GeminiService implements AIService {
     const systemPrompt = buildClassificationPrompt(taxonomyTree);
     const sdkSchema = buildSdkResponseSchema(taxonomyTree);
     const restSchema = buildRestResponseSchema(taxonomyTree);
+
+    // Collect all valid IDs from taxonomyTree for strict matching
+    const validTopicIds = new Set<string>();
+    const collectIds = (nodes: TaxonomyNode[]) => {
+      for (const node of nodes) {
+        validTopicIds.add(node.id);
+        if (node.children) collectIds(node.children);
+      }
+    };
+    collectIds(taxonomyTree);
+
+    const sanitizeResult = (parsed: any): TagResult => {
+      const rawTopic = parsed?.topic_id;
+      let matchedTopicId: string | null = null;
+      if (typeof rawTopic === 'string' && rawTopic.trim() && rawTopic !== 'null') {
+        const clean = rawTopic.trim();
+        if (validTopicIds.has(clean)) {
+          matchedTopicId = clean;
+        }
+      }
+
+      return {
+        topic_id: matchedTopicId,
+        keywords: Array.isArray(parsed?.keywords) ? parsed.keywords.map(String).filter(Boolean) : [],
+        keyword_tokens: Array.isArray(parsed?.keyword_tokens) ? parsed.keyword_tokens.map(String).filter(Boolean) : [],
+      };
+    };
 
     // 將首選模型放在陣列第一位，並過濾掉重複項
     const modelsToTry = [
@@ -101,11 +133,7 @@ export class GeminiService implements AIService {
           if (responseText) {
             const cleaned = cleanJsonString(responseText);
             const parsed = JSON.parse(cleaned);
-            return {
-              topic_id: parsed.topic_id ?? 'math-real-num',
-              keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-              keyword_tokens: Array.isArray(parsed.keyword_tokens) ? parsed.keyword_tokens : [],
-            };
+            return sanitizeResult(parsed);
           }
         } catch (err: any) {
           console.warn(`[GeminiService] SDK call with model "${model}" failed:`, err?.message || err);
@@ -151,11 +179,7 @@ export class GeminiService implements AIService {
           if (rawText) {
             const cleaned = cleanJsonString(rawText);
             const parsed = JSON.parse(cleaned);
-            return {
-              topic_id: parsed.topic_id ?? 'math-real-num',
-              keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [],
-              keyword_tokens: Array.isArray(parsed.keyword_tokens) ? parsed.keyword_tokens : [],
-            };
+            return sanitizeResult(parsed);
           }
         } else {
           const errText = await response.text();

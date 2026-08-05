@@ -97,11 +97,11 @@ export const AuthModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-lg bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl shadow-xl flex flex-col max-h-[85vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-[#E5E7EB] dark:border-[#2C2C30] shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-400">
               <User className="w-5 h-5" />
@@ -120,6 +120,9 @@ export const AuthModal: React.FC = () => {
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Scrollable Inner Body */}
+        <div className="p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
 
         {/* Current Active Session Info */}
         <div className="p-4 rounded-2xl bg-stone-50 dark:bg-[#18181B] border border-stone-200/70 dark:border-stone-800 space-y-2.5">
@@ -296,6 +299,7 @@ export const AuthModal: React.FC = () => {
             <span>確認登入 / 同步身分</span>
           </button>
         </form>
+        </div>
       </div>
     </div>
   );

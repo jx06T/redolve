@@ -40,15 +40,12 @@ export function useKeyboardShortcuts(options?: KeyboardShortcutsOptions) {
       if (key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setTool('pen');
-        showToast('快捷鍵：切換至鋼筆 (Pen)', 'info', 1500);
       } else if (key === 'h' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setTool('highlighter');
-        showToast('快捷鍵：切換至螢光筆 (Highlighter)', 'info', 1500);
       } else if (key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         setTool('eraser');
-        showToast('快捷鍵：切換至橡皮擦 (Eraser)', 'info', 1500);
       }
       // Color Presets (1-4)
       else if (['1', '2', '3', '4'].includes(e.key) && !e.metaKey && !e.ctrlKey) {
@@ -56,7 +53,6 @@ export function useKeyboardShortcuts(options?: KeyboardShortcutsOptions) {
         const colorIndex = parseInt(e.key, 10) - 1;
         if (PEN_COLORS[colorIndex]) {
           setPenColor(PEN_COLORS[colorIndex]);
-          showToast(`快捷鍵：更換筆觸顏色 [${e.key}]`, 'info', 1500);
         }
       }
       // Stroke Width Presets ([ or ])
@@ -65,13 +61,11 @@ export function useKeyboardShortcuts(options?: KeyboardShortcutsOptions) {
         const currentIdx = PEN_WIDTHS.indexOf(penWidth);
         const nextIdx = Math.max(0, currentIdx - 1);
         setPenWidth(PEN_WIDTHS[nextIdx]);
-        showToast(`筆觸粗細：${PEN_WIDTHS[nextIdx]}px`, 'info', 1500);
       } else if (e.key === ']') {
         e.preventDefault();
         const currentIdx = PEN_WIDTHS.indexOf(penWidth);
         const nextIdx = Math.min(PEN_WIDTHS.length - 1, currentIdx + 1);
         setPenWidth(PEN_WIDTHS[nextIdx]);
-        showToast(`筆觸粗細：${PEN_WIDTHS[nextIdx]}px`, 'info', 1500);
       }
       // Dark Mode (Cmd+D or Alt+D)
       else if ((e.metaKey || e.ctrlKey) && key === 'd') {

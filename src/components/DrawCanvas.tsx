@@ -6,6 +6,7 @@ interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
   readOnly?: boolean;
   inkVisible?: boolean;
+  calcSpaceHeight?: number;
   onSaveDrawData?: (drawData: DrawData) => void;
   onExpandSpace?: (addedHeight: number) => void;
   activeTool?: 'pen' | 'highlighter' | 'eraser';
@@ -29,23 +30,78 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
   return d;
 }
 
-function parseDrawData(raw: DrawData | string | null | undefined): { strokes: Stroke[]; eraserMasks: EraserMask[] } {
+function parseDrawData(raw: DrawData | string | null | undefined): {
+  strokes: Stroke[];
+  eraserMasks: EraserMask[];
+  calcSpaceHeight?: number;
+  baseWidth?: number;
+  baseHeight?: number;
+} {
   if (!raw) return { strokes: [], eraserMasks: [] };
   try {
     const parsed: DrawData = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return {
       strokes: Array.isArray(parsed?.strokes) ? parsed.strokes : [],
       eraserMasks: Array.isArray(parsed?.eraserMasks) ? parsed.eraserMasks : [],
+      calcSpaceHeight: typeof parsed?.calcSpaceHeight === 'number' ? parsed.calcSpaceHeight : undefined,
+      baseWidth: typeof parsed?.baseWidth === 'number' ? parsed.baseWidth : undefined,
+      baseHeight: typeof parsed?.baseHeight === 'number' ? parsed.baseHeight : undefined,
     };
   } catch {
     return { strokes: [], eraserMasks: [] };
   }
 }
 
+function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number) {
+  if (tool === 'highlighter') {
+    // Highlighter: broad, translucent, consistent band
+    const size = width <= 1 ? 16 : width <= 2 ? 24 : 36;
+    return {
+      size,
+      thinning: 0.02,
+      smoothing: 0.6,
+      streamline: 0.6,
+      opacity: 0.32,
+    };
+  }
+  // Pen: natural pressure-sensitive ink
+  const size = width <= 1 ? 2.5 : width <= 2 ? 4.5 : 7.5;
+  return {
+    size,
+    thinning: 0.5,
+    smoothing: 0.5,
+    streamline: 0.5,
+    opacity: 1.0,
+  };
+}
+
+function computeScale(strokesList: Stroke[], currentWidth: number, storedBaseWidth?: number): number {
+  if (storedBaseWidth && storedBaseWidth > 0 && currentWidth > 0) {
+    return currentWidth / storedBaseWidth;
+  }
+  // Check if legacy strokes exceed current canvas width (e.g. drawn on iPad 1024 / desktop)
+  if (currentWidth > 0 && strokesList.length > 0) {
+    let maxX = 0;
+    for (const s of strokesList) {
+      if (s.points) {
+        for (const pt of s.points) {
+          if (pt && pt[0] > maxX) maxX = pt[0];
+        }
+      }
+    }
+    if (maxX > currentWidth) {
+      const inferred = maxX > 900 ? 1024 : maxX > 700 ? 800 : maxX + 20;
+      return currentWidth / inferred;
+    }
+  }
+  return 1.0;
+}
+
 export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   initialDrawData,
   readOnly = false,
   inkVisible = true,
+  calcSpaceHeight = 240,
   onSaveDrawData,
   activeTool = 'pen',
   activeColor = '#6366F1',
@@ -62,6 +118,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const initialParsed = parseDrawData(initialDrawData);
   const [strokes, setStrokes] = useState<Stroke[]>(() => initialParsed.strokes);
   const [eraserMasks, setEraserMasks] = useState<EraserMask[]>(() => initialParsed.eraserMasks);
+  const [baseWidth, setBaseWidth] = useState<number | undefined>(initialParsed.baseWidth);
+  const [baseHeight, setBaseHeight] = useState<number | undefined>(initialParsed.baseHeight);
   const [currentPoints, setCurrentPoints] = useState<[number, number, number][]>([]);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
 
@@ -71,6 +129,12 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   eraserMasksRef.current = eraserMasks;
   const canvasHeightRef = useRef<number>(canvasHeight);
   canvasHeightRef.current = canvasHeight;
+  const canvasWidthRef = useRef<number>(canvasWidth);
+  canvasWidthRef.current = canvasWidth;
+  const baseWidthRef = useRef<number | undefined>(baseWidth);
+  baseWidthRef.current = baseWidth;
+  const baseHeightRef = useRef<number | undefined>(baseHeight);
+  baseHeightRef.current = baseHeight;
 
   const lastSavedDataJsonRef = useRef<string>(
     typeof initialDrawData === 'string' ? initialDrawData : JSON.stringify(initialDrawData || {})
@@ -84,6 +148,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       const parsed = parseDrawData(initialDrawData);
       setStrokes(parsed.strokes);
       setEraserMasks(parsed.eraserMasks);
+      if (parsed.baseWidth) setBaseWidth(parsed.baseWidth);
+      if (parsed.baseHeight) setBaseHeight(parsed.baseHeight);
     }
   }, [initialDrawData]);
 
@@ -123,20 +189,33 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     return () => observer.disconnect();
   }, []);
 
+  // Compute current responsive scale factor
+  const scale = computeScale(strokes, canvasWidth, baseWidth);
+
   // Save Emitter Helper
   const emitSave = useCallback(
-    (updatedStrokes: Stroke[], updatedErasers: EraserMask[] = eraserMasksRef.current, currentHeight: number = canvasHeightRef.current) => {
+    (
+      updatedStrokes: Stroke[],
+      updatedErasers: EraserMask[] = eraserMasksRef.current,
+      currentHeight: number = canvasHeightRef.current,
+      currentWidth: number = canvasWidthRef.current
+    ) => {
+      const activeBaseW = baseWidthRef.current || currentWidth || 800;
+      const activeBaseH = baseHeightRef.current || currentHeight || 600;
       const payload: DrawData = {
         strokes: updatedStrokes,
         eraserMasks: updatedErasers,
-        expansions: [{ addedHeight: Math.max(0, currentHeight - 400), atY: currentHeight }],
+        baseWidth: activeBaseW,
+        baseHeight: activeBaseH,
+        calcSpaceHeight: typeof calcSpaceHeight === 'number' ? calcSpaceHeight : 240,
+        expansions: [{ addedHeight: typeof calcSpaceHeight === 'number' ? calcSpaceHeight : 240, atY: currentHeight }],
       };
       lastSavedDataJsonRef.current = JSON.stringify(payload);
       if (onSaveDrawData) {
         onSaveDrawData(payload);
       }
     },
-    [onSaveDrawData]
+    [onSaveDrawData, calcSpaceHeight]
   );
 
   // Two-Finger Undo Listener
@@ -149,7 +228,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         e.preventDefault();
         const next = strokesRef.current.slice(0, strokesRef.current.length - 1);
         setStrokes(next);
-        emitSave(next, eraserMasksRef.current, canvasHeightRef.current);
+        emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
       }
     };
 
@@ -178,19 +257,29 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const y = e.clientY - rect.top;
     const pressure = e.pressure || 0.5;
 
+    // Initialize baseWidth if first time drawing
+    if (!baseWidthRef.current) {
+      setBaseWidth(canvasWidth);
+      setBaseHeight(canvasHeight);
+    }
+
+    const currentScale = computeScale(strokesRef.current, canvasWidth, baseWidthRef.current);
     const effectiveTool = isEraserActive ? 'eraser' : activeTool;
 
     if (effectiveTool === 'eraser') {
-      // Vector Segment Clipping (Geometric Erase against stored strokes)
-      const eraserRadius = 18;
+      // Vector Segment Clipping in base coordinate space
+      const eraserRadius = (activeWidth <= 1 ? 16 : activeWidth <= 2 ? 26 : 40) / currentScale;
+      const baseX = x / currentScale;
+      const baseY = y / currentScale;
+
       const nextStrokes = strokesRef.current.filter((stroke) => {
         return !stroke.points.some(([px, py]) => {
-          const dist = Math.hypot(px - x, py - y);
+          const dist = Math.hypot(px - baseX, py - baseY);
           return dist < eraserRadius;
         });
       });
       setStrokes(nextStrokes);
-      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current);
+      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
     } else {
       setIsDrawing(true);
       setCurrentPoints([[x, y, pressure]]);
@@ -224,18 +313,26 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setIsDrawing(false);
 
     if (currentPoints.length > 0) {
+      const currentScale = computeScale(strokesRef.current, canvasWidth, baseWidthRef.current);
+      const opts = getStrokeOptions(activeTool, activeWidth);
+
+      // Convert captured screen points to base coordinate space
+      const basePoints: [number, number, number][] = currentScale === 1.0
+        ? currentPoints
+        : currentPoints.map(([px, py, pr]) => [px / currentScale, py / currentScale, pr]);
+
       const newStroke: Stroke = {
         color: activeColor,
         width: activeWidth,
-        points: currentPoints,
+        points: basePoints,
         tool: activeTool === 'highlighter' ? 'highlighter' : 'pen',
-        opacity: activeTool === 'highlighter' ? 0.35 : 1.0,
+        opacity: opts.opacity,
       };
 
       const nextStrokes = [...strokesRef.current, newStroke];
       setStrokes(nextStrokes);
       setCurrentPoints([]);
-      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current);
+      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
     }
   };
 
@@ -249,22 +346,32 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    if (!inkVisible) return; // Hide Ink Toggle for US 3.1
+    if (!inkVisible) return; // Hide Ink Toggle
 
-    // Render Completed Strokes
+    const currentScale = computeScale(strokes, canvasWidth, baseWidth);
+
+    // Render Completed Strokes with dynamic scale factor
     strokes.forEach((stroke) => {
-      const strokePoints = getStroke(stroke.points, {
-        size: stroke.width * 2,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
+      if (!stroke.points || stroke.points.length === 0) return;
+      const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
+      const opts = getStrokeOptions(toolType, stroke.width);
+
+      const scaledPoints = currentScale === 1.0
+        ? stroke.points
+        : stroke.points.map(([px, py, pr]) => [px * currentScale, py * currentScale, pr] as [number, number, number]);
+
+      const strokePoints = getStroke(scaledPoints, {
+        size: opts.size * currentScale,
+        thinning: opts.thinning,
+        smoothing: opts.smoothing,
+        streamline: opts.streamline,
       });
 
       const pathData = getSvgPathFromStroke(strokePoints);
       if (pathData) {
         ctx.save();
         ctx.fillStyle = stroke.color;
-        ctx.globalAlpha = stroke.opacity ?? 1.0;
+        ctx.globalAlpha = stroke.opacity ?? opts.opacity;
         const path = new Path2D(pathData);
         ctx.fill(path);
         ctx.restore();
@@ -273,23 +380,25 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     // Render Live In-progress Stroke
     if (currentPoints.length > 0) {
+      const effectiveTool = isEraserActive ? 'eraser' : activeTool;
+      const opts = getStrokeOptions(effectiveTool, activeWidth);
       const liveStrokePoints = getStroke(currentPoints, {
-        size: activeWidth * 2,
-        thinning: 0.5,
-        smoothing: 0.5,
-        streamline: 0.5,
+        size: opts.size,
+        thinning: opts.thinning,
+        smoothing: opts.smoothing,
+        streamline: opts.streamline,
       });
       const pathData = getSvgPathFromStroke(liveStrokePoints);
       if (pathData) {
         ctx.save();
         ctx.fillStyle = activeColor;
-        ctx.globalAlpha = activeTool === 'highlighter' ? 0.35 : 1.0;
+        ctx.globalAlpha = opts.opacity;
         const path = new Path2D(pathData);
         ctx.fill(path);
         ctx.restore();
       }
     }
-  }, [isVisible, inkVisible, strokes, currentPoints, activeColor, activeWidth, activeTool, canvasHeight, canvasWidth]);
+  }, [isVisible, inkVisible, strokes, currentPoints, activeColor, activeWidth, activeTool, isEraserActive, canvasHeight, canvasWidth, baseWidth]);
 
   return (
     <div
@@ -314,14 +423,21 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         <svg className="w-full h-full pointer-events-none">
           {inkVisible &&
             strokes.map((stroke, i) => {
-              const strokePoints = getStroke(stroke.points, {
-                size: stroke.width * 2,
-                thinning: 0.5,
-                smoothing: 0.5,
-                streamline: 0.5,
+              if (!stroke.points || stroke.points.length === 0) return null;
+              const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
+              const opts = getStrokeOptions(toolType, stroke.width);
+              const scaledPoints = scale === 1.0
+                ? stroke.points
+                : stroke.points.map(([px, py, pr]) => [px * scale, py * scale, pr] as [number, number, number]);
+
+              const strokePoints = getStroke(scaledPoints, {
+                size: opts.size * scale,
+                thinning: opts.thinning,
+                smoothing: opts.smoothing,
+                streamline: opts.streamline,
               });
               const d = getSvgPathFromStroke(strokePoints);
-              return <path key={i} d={d} fill={stroke.color} opacity={stroke.opacity ?? 1.0} />;
+              return <path key={i} d={d} fill={stroke.color} opacity={stroke.opacity ?? opts.opacity} />;
             })}
         </svg>
       )}

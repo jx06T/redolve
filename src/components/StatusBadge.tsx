@@ -4,30 +4,129 @@ import { useStore } from '../store/useStore';
 import { TaxonomyNode } from '../types';
 
 interface StatusBadgeProps {
-  status: 'processing' | 'unsolved' | 'resolved';
+  status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   topicId: string | null;
   topicLabel?: string;
   onClickEdit?: () => void;
 }
 
-function resolveTopicLabel(topicId: string | null, customLabel?: string, tree: TaxonomyNode[] = TAXONOMY_SEED_DATA): string {
-  if (customLabel) return customLabel;
-  if (!topicId) return '未指定單元';
+export interface TaxonomyPathInfo {
+  subject: string;
+  unit?: string;
+  point?: string;
+  fullPath: string;
+  codePrefix: string;
+  isUnclassified?: boolean;
+}
 
-  for (const subject of tree) {
-    if (subject.id === topicId) return subject.label;
-    if (subject.children) {
-      for (const unit of subject.children) {
-        if (unit.id === topicId) return unit.label;
-        if (unit.children) {
-          for (const point of unit.children) {
-            if (point.id === topicId) return point.label;
-          }
-        }
-      }
+export function findNodeAndLineage(
+  nodes: TaxonomyNode[],
+  targetId: string,
+  currentLineage: TaxonomyNode[] = []
+): TaxonomyNode[] | null {
+  for (const node of nodes) {
+    const lineage = [...currentLineage, node];
+    if (node.id === targetId) {
+      return lineage;
+    }
+    if (node.children && node.children.length > 0) {
+      const found = findNodeAndLineage(node.children, targetId, lineage);
+      if (found) return found;
     }
   }
-  return topicId;
+  return null;
+}
+
+export function getRootSubjectId(
+  topicId: string | null,
+  tree: TaxonomyNode[] = TAXONOMY_SEED_DATA
+): string {
+  if (!topicId) return 'math';
+  const lineage = findNodeAndLineage(tree, topicId) || findNodeAndLineage(TAXONOMY_SEED_DATA, topicId);
+  if (lineage && lineage.length > 0) {
+    return lineage[0].id;
+  }
+  return 'math';
+}
+
+export function isTopicUnderSubject(
+  topicId: string | null | undefined,
+  subjectId: string,
+  tree: TaxonomyNode[] = TAXONOMY_SEED_DATA
+): boolean {
+  if (!topicId || topicId === 'unclassified') return true;
+  if (topicId === subjectId) return true;
+  const lineage = findNodeAndLineage(tree, topicId) || findNodeAndLineage(TAXONOMY_SEED_DATA, topicId);
+  if (lineage && lineage.length > 0) {
+    return lineage[0].id === subjectId;
+  }
+  return false;
+}
+
+export function getTaxonomyPath(
+  topicId: string | null,
+  customLabel?: string,
+  tree: TaxonomyNode[] = TAXONOMY_SEED_DATA
+): TaxonomyPathInfo {
+  if (customLabel && customLabel !== topicId) {
+    return { subject: customLabel, fullPath: customLabel, codePrefix: 'NOTE' };
+  }
+  if (!topicId) {
+    return { subject: '未分類', fullPath: '未分類章節', codePrefix: 'GEN', isUnclassified: true };
+  }
+
+  // 1. Search in active tree (including custom nodes from D1)
+  let lineage = findNodeAndLineage(tree, topicId);
+
+  // 2. Fallback to TAXONOMY_SEED_DATA if not in custom tree
+  if (!lineage && tree !== TAXONOMY_SEED_DATA) {
+    lineage = findNodeAndLineage(TAXONOMY_SEED_DATA, topicId);
+  }
+
+  if (lineage && lineage.length > 0) {
+    const root = lineage[0];
+    const codePrefix =
+      root.id === 'math'
+        ? 'MATH'
+        : root.id === 'physics'
+        ? 'PHYS'
+        : root.id === 'chem'
+        ? 'CHEM'
+        : root.id === 'bio'
+        ? 'BIO'
+        : root.id.substring(0, 4).toUpperCase();
+
+    const pathLabels = lineage.map((n) => n.label);
+    const fullPath = pathLabels.join(' › ');
+    const unit = lineage.length > 1 ? lineage[1].label : undefined;
+    const point = lineage.length > 2 ? lineage[2].label : undefined;
+
+    return {
+      subject: root.label,
+      unit,
+      point,
+      fullPath,
+      codePrefix,
+      isUnclassified: false,
+    };
+  }
+
+  // If topic ID does not match any valid node in the taxonomy tree, it is unclassified
+  return { subject: '未分類', fullPath: '未分類章節', codePrefix: 'GEN', isUnclassified: true };
+}
+
+/**
+ * Formats a stable, unique problem identifier derived directly from Subject code + ID suffix (e.g. MATH-482DA4)
+ * ensuring that problem deletion, pagination, or reordering never disrupts problem numbering.
+ */
+export function formatProblemCode(
+  problem: { id?: string | null; topic_id?: string | null },
+  taxonomies?: TaxonomyNode[]
+): string {
+  const taxonomyInfo = getTaxonomyPath(problem.topic_id ?? null, undefined, taxonomies);
+  const rawId = problem.id || '';
+  const shortId = rawId ? rawId.replace(/-/g, '').slice(0, 6).toUpperCase() : '------';
+  return `${taxonomyInfo.codePrefix}-${shortId}`;
 }
 
 export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: StatusBadgeProps) {
@@ -42,7 +141,9 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
     );
   }
 
-  if (!topicId) {
+  const pathInfo = getTaxonomyPath(topicId, topicLabel, taxonomies);
+
+  if (pathInfo.isUnclassified || !topicId) {
     return (
       <button
         onClick={onClickEdit}
@@ -50,17 +151,19 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
         className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 active:scale-95 transition-all"
       >
         <AlertCircle className="w-3.5 h-3.5" />
-        <span>尚未分類 — 點此編輯</span>
+        <span>尚未分類 — 點此指派</span>
       </button>
     );
   }
 
-  const displayLabel = resolveTopicLabel(topicId, topicLabel, taxonomies);
-
   return (
-    <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-300 border border-[#6366F1]/20">
-      <Tag className="w-3.5 h-3.5 text-[#6366F1] dark:text-indigo-400" />
-      <span>{displayLabel}</span>
-    </span>
+    <button
+      onClick={onClickEdit}
+      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-300 border border-[#6366F1]/20 hover:bg-[#6366F1]/15 transition-all text-left"
+      title="點擊以變更題目分類"
+    >
+      <Tag className="w-3.5 h-3.5 text-[#6366F1] dark:text-indigo-400 shrink-0" />
+      <span className="truncate max-w-[280px]">{pathInfo.fullPath}</span>
+    </button>
   );
 }

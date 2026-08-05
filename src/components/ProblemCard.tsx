@@ -1,8 +1,27 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CheckCircle, Share2, Trash2, Edit3, Eye, EyeOff, Download, FileText, Plus, Minus, RotateCcw, PenLine } from 'lucide-react';
+import {
+  CheckCircle,
+  Share2,
+  Trash2,
+  Edit3,
+  Eye,
+  EyeOff,
+  Download,
+  FileText,
+  Plus,
+  Minus,
+  RotateCcw,
+  PenLine,
+  Copy,
+  Check,
+  Link2Off,
+  Archive,
+  ArchiveRestore,
+} from 'lucide-react';
 import { Item, DrawData } from '../types';
-import { StatusBadge } from './StatusBadge';
+import { StatusBadge, formatProblemCode } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
+import { ConfirmModal } from './ConfirmModal';
 import {
   getProblemImageUrl,
   updateProblemStatus,
@@ -10,6 +29,7 @@ import {
   updateProblemMetadata,
   deleteProblem,
   createShareLink,
+  revokeShareLink,
 } from '../services/api';
 import { useStore } from '../store/useStore';
 import { exportProblemAsImage } from '../utils/exportImage';
@@ -38,6 +58,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     removeProblemFromStore,
     showToast,
     activeProblemId,
+    taxonomies,
   } = useStore();
 
   const isActive = activeProblemId === problem.id;
@@ -54,88 +75,127 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     return 0;
   }, [problem.vector_clock]);
 
-  const seqRef = useRef<number>(getInitialSeq());
-
-  useEffect(() => {
-    const currentSeq = getInitialSeq();
-    if (currentSeq > seqRef.current) {
-      seqRef.current = currentSeq;
-    }
-  }, [getInitialSeq]);
-
+  const [vectorSeq, setVectorSeq] = useState<number>(getInitialSeq);
+  const [isResolved, setIsResolved] = useState<boolean>(problem.status === 'resolved');
+  const [inkVisible, setInkVisible] = useState<boolean>(true);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
-  const [inkVisible, setInkVisible] = useState<boolean>(true); // US 3.1 Ink Toggle
   const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const getInitialCalcSpaceHeight = useCallback(() => {
+    if (problem.draw_data) {
+      try {
+        const parsed: DrawData =
+          typeof problem.draw_data === 'string'
+            ? JSON.parse(problem.draw_data)
+            : problem.draw_data;
+        if (typeof parsed.calcSpaceHeight === 'number') {
+          return parsed.calcSpaceHeight;
+        }
+        if (parsed.expansions && parsed.expansions.length > 0) {
+          const last = parsed.expansions[parsed.expansions.length - 1];
+          if (typeof last.addedHeight === 'number') {
+            return Math.max(100, last.addedHeight);
+          }
+        }
+      } catch {}
+    }
+    return 240;
+  }, [problem.draw_data]);
 
-  // Extended Calculation Workspace Height (default 240px, min 100px)
-  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(240);
-
-  // Typed Notes Workspace
+  const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(getInitialCalcSpaceHeight);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
-  const notesTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const saveDrawTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const saveDrawTimerRef = useRef<any>(null);
+  const saveNotesTimerRef = useRef<any>(null);
 
   useEffect(() => {
-    return () => {
-      if (notesTimerRef.current) clearTimeout(notesTimerRef.current);
-      if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
+    setIsResolved(problem.status === 'resolved');
     setTypedNotes(problem.typed_notes || '');
-  }, [problem.typed_notes]);
+    if (problem.draw_data) {
+      try {
+        const parsed: DrawData =
+          typeof problem.draw_data === 'string'
+            ? JSON.parse(problem.draw_data)
+            : problem.draw_data;
+        if (typeof parsed.calcSpaceHeight === 'number') {
+          setCalcSpaceHeight(parsed.calcSpaceHeight);
+        }
+      } catch {}
+    }
+  }, [problem]);
 
-  const handleTypedNotesChange = (val: string) => {
-    setTypedNotes(val);
-    updateProblemInStore(problem.id, { typed_notes: val });
+  const handleToggleStatus = async () => {
+    const nextStatus = isResolved ? 'unsolved' : 'resolved';
+    const optimisticResolved = !isResolved;
+    setIsResolved(optimisticResolved);
+    updateProblemInStore(problem.id, {
+      status: nextStatus,
+      review_count: optimisticResolved ? problem.review_count + 1 : problem.review_count,
+    });
 
-    if (notesTimerRef.current) {
-      clearTimeout(notesTimerRef.current);
+    if (optimisticResolved && onStatusResolved) {
+      onStatusResolved(problem.id);
     }
 
+    try {
+      await updateProblemStatus(problem.id, nextStatus);
+    } catch (err) {
+      console.error('Failed to update status:', err);
+      setIsResolved(!optimisticResolved);
+      updateProblemInStore(problem.id, { status: problem.status, review_count: problem.review_count });
+    }
+  };
+
+  const handleToggleArchive = async () => {
+    const isArchived = problem.status === 'archived';
+    const nextStatus = isArchived ? (isResolved ? 'resolved' : 'unsolved') : 'archived';
+    updateProblemInStore(problem.id, { status: nextStatus });
+    if (nextStatus === 'archived') {
+      setIsResolved(false);
+    }
+
+    try {
+      await updateProblemStatus(problem.id, nextStatus);
+    } catch (err) {
+      console.error('Failed to update archive status:', err);
+      updateProblemInStore(problem.id, { status: problem.status });
+    }
+  };
+
+  const handleTypedNotesChange = (text: string) => {
+    setTypedNotes(text);
     setIsSavingNotes(true);
-    notesTimerRef.current = setTimeout(async () => {
+    updateProblemInStore(problem.id, { typed_notes: text });
+
+    if (saveNotesTimerRef.current) {
+      clearTimeout(saveNotesTimerRef.current);
+    }
+
+    saveNotesTimerRef.current = setTimeout(async () => {
       try {
-        await updateProblemMetadata(problem.id, { typed_notes: val });
+        await updateProblemMetadata(problem.id, { typed_notes: text });
       } catch (err) {
         console.error('Failed to save typed notes:', err);
       } finally {
         setIsSavingNotes(false);
       }
-    }, 800);
-  };
-
-  const isResolved = problem.status === 'resolved';
-
-  const handleToggleStatus = async () => {
-    const nextStatus = isResolved ? 'unsolved' : 'resolved';
-    try {
-      await updateProblemStatus(problem.id, nextStatus);
-      updateProblemInStore(problem.id, {
-        status: nextStatus,
-        review_count: isResolved ? problem.review_count : problem.review_count + 1,
-      });
-
-      // US 4.2: Trigger auto-scroll to next problem when marked as resolved
-      if (nextStatus === 'resolved' && onStatusResolved) {
-        onStatusResolved(problem.id);
-      }
-    } catch (err) {
-      console.error('Failed to toggle status:', err);
-    }
+    }, 600);
   };
 
   const handleSaveDraw = useCallback(
     (drawData: DrawData) => {
-      const nextSeq = seqRef.current + 1;
-      seqRef.current = nextSeq;
-
-      // Update local Zustand store immediately so ink persists during re-renders/view switching
+      const nextSeq = vectorSeq + 1;
+      setVectorSeq(nextSeq);
+      const dataWithHeight: DrawData = {
+        ...drawData,
+        calcSpaceHeight,
+      };
       updateProblemInStore(problem.id, {
-        draw_data: JSON.stringify(drawData),
+        draw_data: JSON.stringify(dataWithHeight),
         vector_clock: JSON.stringify({ node: 'client', seq: nextSeq }),
       });
 
@@ -145,23 +205,43 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
       saveDrawTimerRef.current = setTimeout(async () => {
         try {
-          await updateProblemDrawData(problem.id, drawData, nextSeq);
+          await updateProblemDrawData(problem.id, dataWithHeight, nextSeq);
         } catch (err) {
           console.error('Failed to save draw:', err);
         }
       }, 400);
     },
-    [problem.id, updateProblemInStore]
+    [problem.id, vectorSeq, calcSpaceHeight, updateProblemInStore]
   );
 
-  const handleDelete = async () => {
-    if (confirm('確定要刪除這張錯題嗎？')) {
+  const updateCalcHeight = (newHeight: number | ((prev: number) => number)) => {
+    setCalcSpaceHeight((prev) => {
+      const next = typeof newHeight === 'function' ? newHeight(prev) : newHeight;
+      const clamped = Math.max(100, Math.min(2000, next));
       try {
-        await deleteProblem(problem.id);
-        removeProblemFromStore(problem.id);
-      } catch (err) {
-        console.error('Failed to delete:', err);
-      }
+        const parsed: DrawData = problem.draw_data
+          ? (typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data)
+          : { strokes: [], eraserMasks: [] };
+        parsed.calcSpaceHeight = clamped;
+        parsed.expansions = [{ addedHeight: clamped, atY: clamped }];
+        handleSaveDraw(parsed);
+      } catch {}
+      return clamped;
+    });
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setIsDeleting(true);
+      await deleteProblem(problem.id);
+      removeProblemFromStore(problem.id);
+      showToast('已刪除錯題', 'success', 2000);
+    } catch (err) {
+      console.error('Failed to delete:', err);
+      showToast('刪除失敗，請稍後重試', 'error', 3000);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -169,12 +249,38 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     try {
       const res = await createShareLink(problem.id, inkVisible);
       const url = `${window.location.origin}/share/${res.token}`;
+      setShareToken(res.token);
       setShareUrl(url);
       await navigator.clipboard.writeText(url);
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 3000);
     } catch (err) {
       console.error('Failed to create share link:', err);
+      showToast('產生分享連結失敗', 'error', 3000);
+    }
+  };
+
+  const handleCopyShareUrl = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 3000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRevokeShare = async () => {
+    if (!shareToken) return;
+    try {
+      await revokeShareLink(problem.id, shareToken);
+      setShareUrl(null);
+      setShareToken(null);
+      showToast('已撤銷此公開分享連結', 'info', 2000);
+    } catch (err) {
+      console.error('Failed to revoke share link:', err);
+      showToast('撤銷分享連結失敗', 'error', 3000);
     }
   };
 
@@ -203,15 +309,16 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   })();
 
   const imageUrl = getProblemImageUrl(problem.id);
+  const problemCode = formatProblemCode(problem, taxonomies);
 
   return (
     <div className="space-y-4 mb-6">
-      {/* Visual Divider */}
+      {/* Visual Divider & Problem Code Header */}
       {problemIndex !== undefined && (
         <div className="flex items-center space-x-3 text-[#9CA3AF] my-2 select-none">
           <div className="flex-1 h-px bg-stone-200 dark:bg-stone-800" />
           <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-[#9CA3AF]">
-            Problem {problemIndex + 1}
+            {problemCode}
           </span>
           <div className="flex-1 h-px bg-stone-200 dark:bg-stone-800" />
         </div>
@@ -230,12 +337,20 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {/* Header Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
           <div className="flex items-center space-x-2">
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
+              {problemCode}
+            </span>
             <StatusBadge
               status={problem.status}
               topicId={problem.topic_id}
-              topicLabel={problem.topic_id ?? undefined}
               onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
             />
+            {problem.status === 'archived' && (
+              <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700 flex items-center space-x-1">
+                <Archive className="w-3 h-3 text-stone-500" />
+                <span>已封存</span>
+              </span>
+            )}
             {problem.source && (
               <span className="text-xs text-[#9CA3AF] px-2.5 py-1 rounded-xl bg-stone-100 dark:bg-stone-800/60 font-medium">
                 {problem.source}
@@ -289,7 +404,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
             {!readOnly && (
               <button
-                onClick={handleDelete}
+                onClick={() => setIsDeleteModalOpen(true)}
                 aria-label="刪除此錯題"
                 className="p-2 rounded-xl text-[#9CA3AF] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
                 title="刪除"
@@ -301,9 +416,30 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         </div>
 
         {shareUrl && (
-          <div className="mt-2 p-2.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-900/50 text-xs flex items-center justify-between text-indigo-700 dark:text-indigo-300">
-            <span className="truncate mr-2">{shareUrl}</span>
-            <span className="font-semibold shrink-0">{isCopied ? '已複製連結' : '點擊複製'}</span>
+          <div className="mt-2.5 p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-xs flex flex-wrap items-center justify-between gap-2 text-indigo-900 dark:text-indigo-200">
+            <div className="flex items-center space-x-2 min-w-0 flex-1">
+              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">公開連結:</span>
+              <span className="truncate font-mono text-[11px] select-all">{shareUrl}</span>
+            </div>
+            <div className="flex items-center space-x-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleCopyShareUrl}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-white dark:bg-stone-800 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-stone-700 active:scale-95 transition-all"
+              >
+                {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{isCopied ? '已複製' : '點擊複製'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleRevokeShare}
+                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 active:scale-95 transition-all"
+                title="撤銷公開分享連結"
+              >
+                <Link2Off className="w-3.5 h-3.5" />
+                <span>撤銷連結</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -322,76 +458,73 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {/* Unified Image & Calculation Scratchpad Workspace */}
-        <div className="relative mt-3 rounded-t-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
-          {/* Top Exam Question Image */}
+        <div className="mt-3 relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
+          {/* Main Question Image */}
           <div className="w-full relative select-none">
             <img
               src={imageUrl}
-              alt="錯題題目圖片"
+              alt="題目"
               className="exam-paper-image w-full h-auto object-contain block select-none pointer-events-none"
-              loading="lazy"
             />
           </div>
 
-          {/* Extended Calculation Workspace Below Image */}
+          {/* Extended Calculation Workspace Area */}
           <div
             style={{ height: `${calcSpaceHeight}px` }}
-            className="w-full relative border-t border-dashed border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-all duration-150 select-none"
+            className="w-full relative border-t border-dashed border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none"
           >
-            {/* Subtle Dot Grid Background Pattern */}
             <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
+            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
+              <PenLine className="w-3 h-3 text-indigo-400" />
+              <span>延伸推導草稿區</span>
+            </div>
           </div>
 
-          {/* Overlay DrawCanvas Spanning Image + Calculation Area */}
+          {/* Full Interactive Canvas Overlay */}
           <div className="absolute inset-0 pointer-events-auto">
             <DrawCanvas
               initialDrawData={problem.draw_data}
-              readOnly={readOnly}
-              inkVisible={inkVisible}
               onSaveDrawData={handleSaveDraw}
-              onExpandSpace={(added) => setCalcSpaceHeight((h) => Math.min(2000, h + added))}
+              calcSpaceHeight={calcSpaceHeight}
               activeTool={tool}
               activeColor={penColor}
               activeWidth={penWidth}
               isEraserActive={eraserActive}
+              readOnly={readOnly || !inkVisible}
             />
           </div>
         </div>
 
-        {/* Scratchpad Height Control Bar (Unblocked Dedicated Toolbar) */}
+        {/* Scratchpad Height Controls */}
         {!readOnly && (
-          <div className="rounded-b-2xl border border-t-0 border-stone-200/60 dark:border-stone-800/80 bg-stone-50/90 dark:bg-[#18181B] px-3.5 py-2 flex items-center justify-between shadow-xs">
-            <div className="flex items-center space-x-1.5 text-[11px] text-[#6B7280] dark:text-[#9CA3AF] font-medium select-none">
-              <PenLine className="w-3.5 h-3.5 text-indigo-500/80" />
-              <span>手寫計算與推導草稿區</span>
-              <span className="text-[10px] text-stone-400 dark:text-stone-500 font-mono">({calcSpaceHeight}px)</span>
-            </div>
-
+          <div className="mt-2 flex items-center justify-between px-1">
+            <span className="text-[11px] text-[#9CA3AF]">
+              推導區高度: <span className="font-mono text-[#374151] dark:text-[#D1D5DB]">{calcSpaceHeight}px</span>
+            </span>
             <div className="flex items-center space-x-1.5">
-              {calcSpaceHeight > 120 && (
-                <button
-                  type="button"
-                  onClick={() => setCalcSpaceHeight((h) => Math.max(100, h - 200))}
-                  className="px-2 py-1 text-xs rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/80 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
-                  title="收回空間 (-200px)"
-                >
-                  <Minus className="w-3 h-3 text-stone-500" />
-                  <span>收回 (-200px)</span>
-                </button>
-              )}
-              {calcSpaceHeight !== 240 && (
-                <button
-                  type="button"
-                  onClick={() => setCalcSpaceHeight(240)}
-                  className="p-1 text-xs rounded-lg bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700/80 hover:bg-stone-100 dark:hover:bg-stone-700 text-[#6B7280] dark:text-[#9CA3AF] transition-all active:scale-95 shadow-2xs"
-                  title="重設為預設高度 (240px)"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                </button>
-              )}
               <button
                 type="button"
-                onClick={() => setCalcSpaceHeight((h) => Math.min(2000, h + 200))}
+                onClick={() => updateCalcHeight(240)}
+                disabled={calcSpaceHeight === 240}
+                className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
+                title="重設草稿高度至預設值 (240px)"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>重設</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateCalcHeight((h) => Math.max(100, h - 200))}
+                disabled={calcSpaceHeight <= 100}
+                className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
+                title="縮小草稿空間 (-200px)"
+              >
+                <Minus className="w-3 h-3" />
+                <span>縮減</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateCalcHeight((h) => Math.min(2000, h + 200))}
                 className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
                 title="擴增草稿空間 (+200px)"
               >
@@ -424,24 +557,70 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         </div>
 
         {/* Bottom Footer Actions */}
-        <div className="mt-4 pt-3 flex items-center justify-between text-xs text-[#9CA3AF]">
-          <div>
+        <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9CA3AF]">
+          <div className="flex items-center space-x-3">
             <span>複習次數: {problem.review_count} 次</span>
+            {problem.status === 'archived' && (
+              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-medium text-[11px] border border-stone-200 dark:border-stone-700">
+                <Archive className="w-3 h-3 text-stone-500" />
+                <span>已封存 (已完全掌握)</span>
+              </span>
+            )}
           </div>
-          <button
-            onClick={handleToggleStatus}
-            aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
-            className={`inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl font-medium active:scale-95 transition-all ${
-              isResolved
-                ? 'bg-[#10B981] text-white hover:bg-[#059669]'
-                : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
-            }`}
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>{isResolved ? '已標記訂正完畢' : '標記完成訂正'}</span>
-          </button>
+
+          <div className="flex items-center space-x-2">
+            {!readOnly && (
+              <button
+                onClick={handleToggleArchive}
+                aria-label={problem.status === 'archived' ? '解除封存' : '封存此題目（確定不會再錯）'}
+                className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${
+                  problem.status === 'archived'
+                    ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                    : 'bg-stone-100 dark:bg-stone-800 text-[#6B7280] dark:text-[#9CA3AF] border-stone-200 dark:border-stone-700 hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
+                }`}
+                title={problem.status === 'archived' ? '解除封存：移回常規複習流' : '封存題目：確定熟練不再錯，自常規複習流隱藏'}
+              >
+                {problem.status === 'archived' ? (
+                  <>
+                    <ArchiveRestore className="w-3.5 h-3.5" />
+                    <span>解除封存</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-3.5 h-3.5" />
+                    <span>封存題目</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={handleToggleStatus}
+              aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
+              className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
+                isResolved
+                  ? 'bg-[#10B981] text-white hover:bg-[#059669]'
+                  : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span>{isResolved ? '已標記訂正完畢' : '標記完成訂正'}</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Non-blocking Confirm Delete Modal */}
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        title="刪除錯題"
+        message="確定要刪除這張錯題與所有手寫筆跡嗎？刪除後無法復原。"
+        confirmText={isDeleting ? '正在刪除...' : '確定刪除'}
+        cancelText="取消"
+        isDestructive={true}
+        onConfirm={confirmDelete}
+        onCancel={() => setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 };

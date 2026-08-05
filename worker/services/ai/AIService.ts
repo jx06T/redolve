@@ -1,7 +1,7 @@
 import { TaxonomyNode } from '../../types';
 
 export interface TagResult {
-  topic_id: string;
+  topic_id: string | null;
   keywords: string[];
   keyword_tokens: string[];
 }

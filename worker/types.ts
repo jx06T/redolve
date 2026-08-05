@@ -49,6 +49,9 @@ export interface EraserMask {
 export interface DrawData {
   strokes: Stroke[];
   eraserMasks: EraserMask[];
+  baseWidth?: number;
+  baseHeight?: number;
+  calcSpaceHeight?: number;
   expansions?: { addedHeight: number; atY: number }[];
 }
 
@@ -60,6 +63,7 @@ export interface VectorClock {
 // Taxonomy Node Types
 export interface TaxonomyNode {
   id: string;
+  user_id?: string | null;
   parent_id: string | null;
   label: string;
   level: number;
@@ -92,7 +96,7 @@ export interface ItemRow {
   source: string | null;
   image_url: string;
   draw_data: string | null;
-  status: 'processing' | 'unsolved' | 'resolved';
+  status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   review_count: number;
   vector_clock: string | null;
   updated_at: string;

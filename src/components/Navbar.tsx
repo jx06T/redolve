@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, Menu, X, ChevronDown, Command } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
 import { ShortcutsModal } from './ShortcutsModal';
 import { AuthModal } from './AuthModal';
+import { CustomSelect } from './CustomSelect';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
 import { fetchCurrentUser, fetchProblems } from '../services/api';
@@ -58,12 +59,6 @@ export const Navbar: React.FC = () => {
     }
   };
 
-  const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    const newSubjectId = val === 'all' ? null : val;
-    setSelectedSubjectId(newSubjectId);
-    navigate(`/study/${val}`);
-  };
 
   const navLinks = NAV_LINKS;
 
@@ -92,24 +87,22 @@ export const Navbar: React.FC = () => {
             </Link>
 
             {/* Subject Selector Dropdown */}
-            <div className="relative hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
-              <select
-                value={selectedSubjectId || 'all'}
-                onChange={handleSubjectChange}
-                className="appearance-none bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] text-xs font-bold px-3 py-1.5 pr-7 rounded-xl border border-stone-200 dark:border-stone-700 cursor-pointer focus:outline-none focus:border-[#6366F1]"
-              >
-                <option value="all">全部科目 ▾</option>
-                {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="w-3.5 h-3.5 absolute right-2 text-[#9CA3AF] pointer-events-none" />
+            <div className="hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
+              <CustomSelect
+                value={selectedSubjectId || 'math'}
+                onChange={(val) => {
+                  setSelectedSubjectId(val);
+                  navigate(`/study/${val}`);
+                }}
+                options={(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => ({
+                  value: sub.id,
+                  label: sub.label,
+                }))}
+              />
             </div>
           </div>
 
-          {/* Desktop Navigation Tabs */}
+          {/* Desktop/Tablet Navigation Tabs */}
           <nav className="hidden md:flex items-center space-x-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -118,14 +111,16 @@ export const Navbar: React.FC = () => {
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`flex items-center space-x-2 px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${
+                  title={link.label}
+                  aria-label={link.label}
+                  className={`flex items-center space-x-1.5 px-3 lg:px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${
                     isActive
                       ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-semibold'
                       : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
-                  <span>{link.label}</span>
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="hidden lg:inline">{link.label}</span>
                 </Link>
               );
             })}
@@ -188,11 +183,15 @@ export const Navbar: React.FC = () => {
               className="flex items-center space-x-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
               title="使用者帳號與身分管理"
             >
-              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold">
-                {(currentUser?.name || currentUser?.email || 'D').charAt(0).toUpperCase()}
+              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">
+                {currentUser?.image ? (
+                  <img src={currentUser.image} alt={currentUser.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  (currentUser?.name || currentUser?.email || '訪').charAt(0).toUpperCase()
+                )}
               </div>
               <span className="hidden sm:inline text-xs font-semibold max-w-[90px] truncate">
-                {currentUser?.name || '帳號設定'}
+                {currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
               </span>
             </button>
           </div>
@@ -222,11 +221,14 @@ export const Navbar: React.FC = () => {
             <div className="px-2 pb-2">
               <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">科目選擇</label>
               <select
-                value={selectedSubjectId || 'all'}
-                onChange={handleSubjectChange}
+                value={selectedSubjectId || 'math'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedSubjectId(val);
+                  navigate(`/study/${val}`);
+                }}
                 className="w-full p-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]"
               >
-                <option value="all">全部科目</option>
                 {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                   <option key={sub.id} value={sub.id}>
                     {sub.label}
@@ -284,7 +286,7 @@ export const Navbar: React.FC = () => {
           } catch (err) {
             console.error('Failed to reload problems after upload:', err);
           }
-          navigate('/study/all');
+          navigate(`/study/${selectedSubjectId || 'math'}`);
         }}
       />
 
