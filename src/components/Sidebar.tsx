@@ -3,7 +3,7 @@ import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, Compass, X 
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { STATUS_FILTER_ITEMS } from '../config/constants';
-import { formatProblemCode } from './StatusBadge';
+import { formatProblemCode, getTaxonomyPath } from './StatusBadge';
 
 interface SidebarProps {
   onSelectProblemOutline?: (problemId: string) => void;
@@ -41,6 +41,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   const currentSubjectId = selectedSubjectId || 'math';
   const isUnclassifiedSubject = currentSubjectId === 'unclassified';
   const activeSubject = isUnclassifiedSubject ? null : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
+  const { taxonomyCounts } = useStore();
+
+  // Helper to calculate problem count for any taxonomy node
+  const computeCountForNode = (node: { id: string; children?: any[] }): number => {
+    let count = taxonomyCounts[node.id] || 0;
+    if (node.children && node.children.length > 0) {
+      for (const child of node.children) {
+        count += computeCountForNode(child);
+      }
+    }
+    if (Object.keys(taxonomyCounts).length === 0) {
+      let localCount = problems.filter((p) => p.topic_id === node.id).length;
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          localCount += problems.filter((p) => p.topic_id === child.id).length;
+        }
+      }
+      return localCount;
+    }
+    return count;
+  };
+
+  const subjectTotalCount = activeSubject
+    ? (activeSubject.children?.reduce((acc, unit) => acc + computeCountForNode(unit), 0) ?? 0)
+    : problems.length;
 
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
@@ -87,13 +112,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setSelectedTopicId(null);
                 setMobileDrawerOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${
                 selectedTopicId === null
                   ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
                   : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
               }`}
             >
-              全部未分類題目
+              <span>全部未分類題目</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+                {problems.length}
+              </span>
             </button>
             <p className="px-3 pt-2 text-[10px] text-[#9CA3AF] leading-relaxed">
               AI 辨識中或尚未指派科目的題目會集中於此。
@@ -107,18 +135,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setSelectedTopicId(null);
                 setMobileDrawerOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${
                 selectedTopicId === null
                   ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
                   : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
               }`}
             >
-              全部 {activeSubject?.label || '科目'} 錯題
+              <span>全部 {activeSubject?.label || '科目'} 錯題</span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${
+                selectedTopicId === null
+                  ? 'bg-[#6366F1]/20 text-[#6366F1]'
+                  : 'bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+              }`}>
+                {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
+              </span>
             </button>
 
             {/* Chapters & Units */}
             {activeSubject?.children?.map((unit) => {
               const isUnitSelected = selectedTopicId === unit.id;
+              const unitCount = computeCountForNode(unit);
               return (
                 <div key={unit.id} className="pt-1">
                   <button
@@ -126,13 +162,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       setSelectedTopicId(unit.id);
                       setMobileDrawerOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${
                       isUnitSelected
                         ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
                         : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                     }`}
                   >
-                    {unit.label}
+                    <span className="truncate">{unit.label}</span>
+                    {unitCount > 0 && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${
+                        isUnitSelected
+                          ? 'bg-[#6366F1]/20 text-[#6366F1] font-semibold'
+                          : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+                      }`}>
+                        {unitCount}
+                      </span>
+                    )}
                   </button>
 
                   {/* Sub-points / detailed topics */}
@@ -140,6 +185,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
+                        const pointCount = taxonomyCounts[point.id] || problems.filter((p) => p.topic_id === point.id).length;
                         return (
                           <button
                             key={point.id}
@@ -147,13 +193,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                               setSelectedTopicId(point.id);
                               setMobileDrawerOpen(false);
                             }}
-                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${
+                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
                               isPointSelected
                                 ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
                                 : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
                             }`}
                           >
-                            • {point.label}
+                            <span className="truncate">• {point.label}</span>
+                            {pointCount > 0 && (
+                              <span className={`text-[9px] px-1 py-0.2 rounded-md font-mono shrink-0 ml-1 ${
+                                isPointSelected
+                                  ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
+                                  : 'text-stone-400 dark:text-stone-500'
+                              }`}>
+                                {pointCount}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
@@ -171,12 +226,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
           <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
             <ListOrdered className="w-3.5 h-3.5" />
-            <span>錯題大綱清單 ({problems.length} 題)</span>
+            <span>
+              {selectedTopicId
+                ? `${baseTaxonomy.find((s) => s.id === selectedTopicId)?.label || '當前章節'}錯題 (${problems.length} 題)`
+                : `錯題大綱清單 (${problems.length} 題)`}
+            </span>
           </div>
 
           <div className="space-y-1">
             {problems.map((item) => {
               const isActive = activeProblemId === item.id;
+              const pathInfo = getTaxonomyPath(item.topic_id ?? null, undefined, taxonomies);
+              const topicBadgeLabel = pathInfo.unit || pathInfo.point || (pathInfo.isUnclassified ? '未分類' : pathInfo.subject);
+
               return (
                 <button
                   key={item.id}
@@ -192,12 +254,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                   }`}
                 >
-                  <span className="font-mono font-medium truncate">
-                    {formatProblemCode(item, taxonomies)}
-                  </span>
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <span className="font-mono font-medium truncate">
+                      {formatProblemCode(item, taxonomies)}
+                    </span>
+                    <span className={`text-[10px] truncate max-w-[150px] ${
+                      isActive ? 'text-white/80 font-normal' : 'text-[#6B7280] dark:text-[#9CA3AF]'
+                    }`}>
+                      {topicBadgeLabel}
+                    </span>
+                  </div>
                   <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-md ${
-                      item.status === 'resolved'
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : item.status === 'resolved'
                         ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
                         : item.status === 'archived'
                         ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
