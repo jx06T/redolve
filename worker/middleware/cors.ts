@@ -4,6 +4,7 @@ import { Bindings } from '../types';
 // Production origins that are always permitted without a secret injection.
 const STATIC_ALLOWED_ORIGINS = [
   'https://redolve.pages.dev',
+  'https://redolve.jx06t.com',
   'https://redolve-api.50313tjx06.workers.dev',
 ];
 
@@ -22,8 +23,8 @@ export const corsMiddleware = cors({
     const dynamicOrigins = envOrigins?.split(',').map((s: string) => s.trim()) ?? [];
     const allowed = [...STATIC_ALLOWED_ORIGINS, ...dynamicOrigins];
 
-    // Allow Cloudflare Pages preview deployments (*.redolve.pages.dev)
-    if (origin.endsWith('.redolve.pages.dev')) {
+    // Allow Cloudflare Pages preview deployments (*.redolve.pages.dev) and custom domain subdomains (*.jx06t.com)
+    if (origin.endsWith('.redolve.pages.dev') || origin.endsWith('.jx06t.com') || origin === 'https://jx06t.com') {
       return origin;
     }
 

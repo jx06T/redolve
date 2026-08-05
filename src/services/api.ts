@@ -1,13 +1,19 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 
+const isProductionDomain = typeof window !== 'undefined' && (
+  window.location.hostname.includes('pages.dev') ||
+  window.location.hostname.includes('jx06t.com') ||
+  (!window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1'))
+);
+
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || (
-  typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')
+  isProductionDomain
     ? 'https://redolve-api.50313tjx06.workers.dev/api'
     : '/api'
 );
 
 export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || (
-  typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')
+  isProductionDomain
     ? 'https://redolve-api.50313tjx06.workers.dev'
     : ''
 );

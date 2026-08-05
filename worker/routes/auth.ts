@@ -46,13 +46,25 @@ authRouter.get('/google/url', (c) => {
 
   const origin = new URL(c.req.url).origin;
   const redirectUri = `${origin}/api/auth/callback/google`;
-  const state = crypto.randomUUID();
+  
+  // Extract caller's frontend origin from query or referer header
+  const referer = c.req.query('redirect_origin') || c.req.header('referer');
+  let returnUrl = '';
+  if (referer) {
+    try {
+      returnUrl = new URL(referer).origin;
+    } catch {}
+  }
+
+  // Encode state as JSON payload
+  const stateObj = { csrf: crypto.randomUUID(), returnUrl };
+  const state = btoa(JSON.stringify(stateObj));
 
   const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
     clientId
   )}&redirect_uri=${encodeURIComponent(
     redirectUri
-  )}&response_type=code&scope=openid%20email%20profile&state=${state}&prompt=select_account`;
+  )}&response_type=code&scope=openid%20email%20profile&state=${encodeURIComponent(state)}&prompt=select_account`;
 
   return c.json({
     configured: true,
@@ -65,12 +77,26 @@ authRouter.get('/google/url', (c) => {
 authRouter.get('/callback/google', async (c) => {
   const code = c.req.query('code');
   const error = c.req.query('error');
+  const rawState = c.req.query('state');
 
-  // 【新增】判斷前端 URL
-  // 如果在本地端開發 (127.0.0.1 或 localhost)，就導向 Vite 的 3000 埠
-  // 如果是正式上線，建議在 .dev.vars 加上 FRONTEND_URL 變數，或者預設導向 Worker 的首頁
+  // Decode state to find frontend origin
+  let stateFrontendUrl = '';
+  if (rawState) {
+    try {
+      const decoded = JSON.parse(atob(rawState));
+      if (decoded.returnUrl && (
+        decoded.returnUrl.startsWith('http://localhost') ||
+        decoded.returnUrl.startsWith('http://127.0.0.1') ||
+        decoded.returnUrl.includes('pages.dev') ||
+        decoded.returnUrl.includes('jx06t.com')
+      )) {
+        stateFrontendUrl = decoded.returnUrl;
+      }
+    } catch {}
+  }
+
   const isLocal = c.req.url.includes('127.0.0.1') || c.req.url.includes('localhost');
-  const frontendUrl = isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || 'https://redolve.pages.dev');
+  const frontendUrl = stateFrontendUrl || (isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || 'https://redolve.pages.dev'));
 
   if (error || !code) {
     return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(error || '授權已取消')}`);
