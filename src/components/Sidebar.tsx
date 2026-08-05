@@ -39,7 +39,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   // Filter taxonomy tree strictly by active subject
   const baseTaxonomy = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
   const currentSubjectId = selectedSubjectId || 'math';
-  const activeSubject = baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0];
+  const isUnclassifiedSubject = currentSubjectId === 'unclassified';
+  const activeSubject = isUnclassifiedSubject ? null : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
 
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
@@ -74,88 +75,95 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         <div className="flex items-center justify-between text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
           <div className="flex items-center space-x-1.5">
             <Layers className="w-3.5 h-3.5 text-[#6366F1]" />
-            <span>{activeSubject?.label || '章節'} 篩選</span>
+            <span>{isUnclassifiedSubject ? '其他科目' : (activeSubject?.label || '章節')} 篩選</span>
           </div>
         </div>
 
-        <div className="space-y-1">
-          {/* All Chapters in this Subject */}
-          <button
-            onClick={() => {
-              setSelectedTopicId(null);
-              setMobileDrawerOpen(false);
-            }}
-            className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
-              selectedTopicId === null
-                ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-            }`}
-          >
-            全部 {activeSubject?.label || '科目'} 錯題
-          </button>
+        {isUnclassifiedSubject ? (
+          /* Unclassified virtual subject: no chapter tree, just a single "all" entry */
+          <div className="space-y-1">
+            <button
+              onClick={() => {
+                setSelectedTopicId(null);
+                setMobileDrawerOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
+                selectedTopicId === null
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
+                  : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+              }`}
+            >
+              全部未分類題目
+            </button>
+            <p className="px-3 pt-2 text-[10px] text-[#9CA3AF] leading-relaxed">
+              AI 辨識中或尚未指派科目的題目會集中於此。
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {/* All Chapters in this Subject */}
+            <button
+              onClick={() => {
+                setSelectedTopicId(null);
+                setMobileDrawerOpen(false);
+              }}
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
+                selectedTopicId === null
+                  ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                  : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+              }`}
+            >
+              全部 {activeSubject?.label || '科目'} 錯題
+            </button>
 
-          {/* Unclassified Problems */}
-          <button
-            onClick={() => {
-              setSelectedTopicId('unclassified');
-              setMobileDrawerOpen(false);
-            }}
-            className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors ${
-              selectedTopicId === 'unclassified'
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
-                : 'text-[#9CA3AF] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-            }`}
-          >
-            尚未分類題目
-          </button>
+            {/* Chapters & Units */}
+            {activeSubject?.children?.map((unit) => {
+              const isUnitSelected = selectedTopicId === unit.id;
+              return (
+                <div key={unit.id} className="pt-1">
+                  <button
+                    onClick={() => {
+                      setSelectedTopicId(unit.id);
+                      setMobileDrawerOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      isUnitSelected
+                        ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                        : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                    }`}
+                  >
+                    {unit.label}
+                  </button>
 
-          {/* Chapters & Units */}
-          {activeSubject?.children?.map((unit) => {
-            const isUnitSelected = selectedTopicId === unit.id;
-            return (
-              <div key={unit.id} className="pt-1">
-                <button
-                  onClick={() => {
-                    setSelectedTopicId(unit.id);
-                    setMobileDrawerOpen(false);
-                  }}
-                  className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors ${
-                    isUnitSelected
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-                  }`}
-                >
-                  {unit.label}
-                </button>
-
-                {/* Sub-points / detailed topics */}
-                {unit.children && unit.children.length > 0 && (
-                  <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
-                    {unit.children.map((point) => {
-                      const isPointSelected = selectedTopicId === point.id;
-                      return (
-                        <button
-                          key={point.id}
-                          onClick={() => {
-                            setSelectedTopicId(point.id);
-                            setMobileDrawerOpen(false);
-                          }}
-                          className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${
-                            isPointSelected
-                              ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
-                              : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
-                          }`}
-                        >
-                          • {point.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {/* Sub-points / detailed topics */}
+                  {unit.children && unit.children.length > 0 && (
+                    <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
+                      {unit.children.map((point) => {
+                        const isPointSelected = selectedTopicId === point.id;
+                        return (
+                          <button
+                            key={point.id}
+                            onClick={() => {
+                              setSelectedTopicId(point.id);
+                              setMobileDrawerOpen(false);
+                            }}
+                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors ${
+                              isPointSelected
+                                ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
+                                : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
+                            }`}
+                          >
+                            • {point.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Problem Outline List / Minimap Navigation (UI_DESIGN01_0804 Section 2) */}

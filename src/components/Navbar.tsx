@@ -9,7 +9,7 @@ import { AuthModal } from './AuthModal';
 import { CustomSelect } from './CustomSelect';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
-import { fetchCurrentUser, fetchProblems } from '../services/api';
+import { fetchCurrentUser } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -94,10 +94,13 @@ export const Navbar: React.FC = () => {
                   setSelectedSubjectId(val);
                   navigate(`/study/${val}`);
                 }}
-                options={(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => ({
-                  value: sub.id,
-                  label: sub.label,
-                }))}
+                options={[
+                  ...(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => ({
+                    value: sub.id,
+                    label: sub.label,
+                  })),
+                  { value: 'unclassified', label: '\u2014 其他科目' },
+                ]}
               />
             </div>
           </div>
@@ -234,6 +237,7 @@ export const Navbar: React.FC = () => {
                     {sub.label}
                   </option>
                 ))}
+                <option value="unclassified">— 其他科目</option>
               </select>
             </div>
 
@@ -279,13 +283,11 @@ export const Navbar: React.FC = () => {
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
-        onUploadSuccess={async () => {
-          try {
-            const res = await fetchProblems({ limit: 50 });
-            setProblems(res.items, res.nextCursor);
-          } catch (err) {
-            console.error('Failed to reload problems after upload:', err);
-          }
+        onUploadSuccess={() => {
+          // Clear the current problem list so StudyView shows a loading state
+          // rather than the stale filtered list. StudyView's useEffect will
+          // re-fetch with the correct subject_id immediately after navigation.
+          setProblems([], null);
           navigate(`/study/${selectedSubjectId || 'math'}`);
         }}
       />

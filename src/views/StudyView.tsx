@@ -38,13 +38,28 @@ export const StudyView: React.FC = () => {
 
   // Priority: URL params > Zustand Store > Default 'math'
   const effectiveSubject = (subject && subject !== 'all' ? subject : selectedSubjectId) || 'math';
-  const currentSubObj = activeTaxonomies.find((s) => s.id === effectiveSubject);
-  const currentSubjectLabel = currentSubObj ? currentSubObj.label : effectiveSubject && effectiveSubject !== 'all' ? effectiveSubject : '全部科目';
+  const isUnclassifiedSubject = effectiveSubject === 'unclassified';
+  const currentSubObj = isUnclassifiedSubject ? null : activeTaxonomies.find((s) => s.id === effectiveSubject);
+  const currentSubjectLabel = isUnclassifiedSubject
+    ? '其他科目'
+    : currentSubObj
+    ? currentSubObj.label
+    : effectiveSubject && effectiveSubject !== 'all'
+    ? effectiveSubject
+    : '全部科目';
   const currentTopicLabel = topic ? ` - ${topic}` : '';
 
-  // Verify that selectedTopicId is valid under effectiveSubject
-  const isValidTopic = selectedTopicId ? isTopicUnderSubject(selectedTopicId, effectiveSubject, activeTaxonomies) : true;
-  const effectiveTopic = isValidTopic ? (selectedTopicId ?? (topic && topic !== 'all' ? topic : undefined)) : undefined;
+  // For the unclassified virtual subject, topic filters don't apply
+  const isValidTopic = isUnclassifiedSubject
+    ? false
+    : selectedTopicId
+    ? isTopicUnderSubject(selectedTopicId, effectiveSubject, activeTaxonomies)
+    : true;
+  const effectiveTopic = isUnclassifiedSubject
+    ? undefined
+    : isValidTopic
+    ? (selectedTopicId ?? (topic && topic !== 'all' ? topic : undefined))
+    : undefined;
 
   useSEO({
     title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,

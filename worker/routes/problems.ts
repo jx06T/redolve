@@ -252,24 +252,23 @@ problemsRouter.get('/', async (c) => {
       bindings.push(topicId, topicId);
     }
   } else if (subjectId && subjectId !== 'all') {
-    // When browsing a subject without a specific topic filter, also include
-    // unclassified items (topic_id IS NULL) so that newly uploaded problems
-    // (status='processing') and AI-pending items remain visible instead of
-    // silently disappearing because they haven't been assigned a topic yet.
-    query += ` AND (
-      topic_id IS NULL
-      OR topic_id = ''
-      OR topic_id IN (
-        WITH RECURSIVE sub_tax(id) AS (
-          SELECT id FROM taxonomies WHERE id = ?
-          UNION ALL
-          SELECT t.id FROM taxonomies t JOIN sub_tax st ON t.parent_id = st.id
+    if (subjectId === 'unclassified') {
+      // Virtual subject: shows only items that have no taxonomy assignment yet
+      query += ' AND (topic_id IS NULL OR topic_id = \'\')';
+    } else {
+      query += ` AND (
+        topic_id IN (
+          WITH RECURSIVE sub_tax(id) AS (
+            SELECT id FROM taxonomies WHERE id = ?
+            UNION ALL
+            SELECT t.id FROM taxonomies t JOIN sub_tax st ON t.parent_id = st.id
+          )
+          SELECT id FROM sub_tax
         )
-        SELECT id FROM sub_tax
-      )
-      OR topic_id = ?
-    )`;
-    bindings.push(subjectId, subjectId);
+        OR topic_id = ?
+      )`;
+      bindings.push(subjectId, subjectId);
+    }
   }
 
   if (status && status !== 'all') {
