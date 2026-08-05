@@ -131,10 +131,16 @@ export const AuthModal: React.FC = () => {
               目前使用身分 (Active Session)
             </span>
             {currentUser?.id === 'dev_user_default' ? (
-              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/50">
-                <Shield className="w-3 h-3" />
-                <span>預設開發模式</span>
-              </span>
+              import.meta.env.DEV ? (
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/50">
+                  <Shield className="w-3 h-3" />
+                  <span>預設開發模式</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
+                  <span>訪客模式 (未登入)</span>
+                </span>
+              )
             ) : (
               <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/50">
                 <CheckCircle2 className="w-3 h-3" />
@@ -145,14 +151,20 @@ export const AuthModal: React.FC = () => {
 
           <div className="flex items-center space-x-3 pt-1">
             <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
-              {(currentUser?.name || currentUser?.email || 'D').charAt(0).toUpperCase()}
+              {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                ? '訪'
+                : (currentUser?.name || currentUser?.email || 'D').charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm text-[#1F2937] dark:text-[#F3F4F6] truncate">
-                {currentUser?.name || 'Default Developer'}
+                {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                  ? '未登入訪客'
+                  : currentUser?.name || 'Default Developer'}
               </div>
               <div className="text-xs text-[#6B7280] dark:text-[#9CA3AF] font-mono truncate">
-                {currentUser?.email || 'dev@redolve.local'}
+                {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                  ? '請使用下方 Google 帳號綁定登入'
+                  : currentUser?.email || 'dev@redolve.local'}
               </div>
             </div>
             {currentUser && currentUser.id !== 'dev_user_default' && (

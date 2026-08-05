@@ -190,11 +190,16 @@ export const Navbar: React.FC = () => {
                 {currentUser?.image ? (
                   <img src={currentUser.image} alt={currentUser.name || 'User'} className="w-full h-full object-cover" />
                 ) : (
-                  (currentUser?.name || currentUser?.email || '訪').charAt(0).toUpperCase()
+                  (currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                    ? '訪'
+                    : (currentUser?.name || currentUser?.email || '訪')
+                  ).charAt(0).toUpperCase()
                 )}
               </div>
               <span className="hidden sm:inline text-xs font-semibold max-w-[90px] truncate">
-                {currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
+                {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                  ? '登入帳號'
+                  : currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
               </span>
             </button>
           </div>
