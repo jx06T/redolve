@@ -124,6 +124,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const [baseHeight, setBaseHeight] = useState<number | undefined>(initialParsed.baseHeight);
   const [currentPoints, setCurrentPoints] = useState<[number, number, number][]>([]);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
+  const isErasingRef = useRef<boolean>(false);
+  const hasErasedChangeRef = useRef<boolean>(false);
 
   const strokesRef = useRef<Stroke[]>(strokes);
   strokesRef.current = strokes;
@@ -238,6 +240,73 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     return () => container.removeEventListener('touchstart', handleTouchStart);
   }, [readOnly, emitSave]);
 
+  // Continuous Vector Eraser in base coordinate space with segment intersection
+  const eraseAt = useCallback((screenX: number, screenY: number) => {
+    const currentScale = computeScale(strokesRef.current, canvasWidthRef.current, baseWidthRef.current);
+    const baseX = screenX / currentScale;
+    const baseY = screenY / currentScale;
+    const eraserRadius = (activeWidth <= 1 ? 24 : activeWidth <= 2 ? 36 : 52) / currentScale;
+    const eraserRadiusSq = eraserRadius * eraserRadius;
+
+    const prevList = strokesRef.current;
+    if (prevList.length === 0) return;
+
+    const nextStrokes = prevList.filter((stroke) => {
+      if (!stroke.points || stroke.points.length === 0) return false;
+
+      // 1. Quick bounding box rejection
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (let i = 0; i < stroke.points.length; i++) {
+        const pt = stroke.points[i];
+        if (pt[0] < minX) minX = pt[0];
+        if (pt[0] > maxX) maxX = pt[0];
+        if (pt[1] < minY) minY = pt[1];
+        if (pt[1] > maxY) maxY = pt[1];
+      }
+      if (
+        baseX < minX - eraserRadius ||
+        baseX > maxX + eraserRadius ||
+        baseY < minY - eraserRadius ||
+        baseY > maxY + eraserRadius
+      ) {
+        return true;
+      }
+
+      // 2. Point proximity check
+      for (let i = 0; i < stroke.points.length; i++) {
+        const [px, py] = stroke.points[i];
+        const dx = px - baseX;
+        const dy = py - baseY;
+        if (dx * dx + dy * dy <= eraserRadiusSq) {
+          return false;
+        }
+      }
+
+      // 3. Segment projection check for continuous lines
+      for (let i = 0; i < stroke.points.length - 1; i++) {
+        const [x1, y1] = stroke.points[i];
+        const [x2, y2] = stroke.points[i + 1];
+        const lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+        if (lineLenSq === 0) continue;
+        const t = Math.max(0, Math.min(1, ((baseX - x1) * (x2 - x1) + (baseY - y1) * (y2 - y1)) / lineLenSq));
+        const projX = x1 + t * (x2 - x1);
+        const projY = y1 + t * (y2 - y1);
+        const distSq = (baseX - projX) * (baseX - projX) + (baseY - projY) * (baseY - projY);
+        if (distSq <= eraserRadiusSq) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    if (nextStrokes.length !== prevList.length) {
+      strokesRef.current = nextStrokes;
+      setStrokes(nextStrokes);
+      hasErasedChangeRef.current = true;
+    }
+  }, [activeWidth]);
+
   // Pointer Event Handlers (PointerType Separation)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly || !inkVisible) return;
@@ -276,23 +345,14 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       setBaseHeight(canvasHeight);
     }
 
-    const currentScale = computeScale(strokesRef.current, canvasWidth, baseWidthRef.current);
-    const effectiveTool = isEraserActive ? 'eraser' : activeTool;
+    // Hardware stylus eraser tip / side button detection (e.buttons === 32 or pointerType === 'eraser')
+    const isHardwareEraser = e.buttons === 32 || (e as any).pointerType === 'eraser' || e.button === 5;
+    const isEffectiveEraser = isEraserActive || activeTool === 'eraser' || isHardwareEraser;
 
-    if (effectiveTool === 'eraser') {
-      // Vector Segment Clipping in base coordinate space
-      const eraserRadius = (activeWidth <= 1 ? 16 : activeWidth <= 2 ? 26 : 40) / currentScale;
-      const baseX = x / currentScale;
-      const baseY = y / currentScale;
-
-      const nextStrokes = strokesRef.current.filter((stroke) => {
-        return !stroke.points.some(([px, py]) => {
-          const dist = Math.hypot(px - baseX, py - baseY);
-          return dist < eraserRadius;
-        });
-      });
-      setStrokes(nextStrokes);
-      emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+    if (isEffectiveEraser) {
+      isErasingRef.current = true;
+      hasErasedChangeRef.current = false;
+      eraseAt(x, y);
     } else {
       setIsDrawing(true);
       setCurrentPoints([[x, y, pressure]]);
@@ -300,7 +360,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || readOnly || !inkVisible) return;
+    if (readOnly || !inkVisible) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -308,8 +368,14 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const pressure = e.pressure || 0.5;
 
+    if (isErasingRef.current) {
+      eraseAt(x, y);
+      return;
+    }
+
+    if (!isDrawing) return;
+    const pressure = e.pressure || 0.5;
     setCurrentPoints((prev) => [...prev, [x, y, pressure]]);
   };
 
@@ -320,6 +386,15 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
     } catch {
       // Ignore
+    }
+
+    if (isErasingRef.current) {
+      isErasingRef.current = false;
+      if (hasErasedChangeRef.current) {
+        emitSave(strokesRef.current, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+        hasErasedChangeRef.current = false;
+      }
+      return;
     }
 
     if (!isDrawing) return;
