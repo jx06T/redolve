@@ -198,107 +198,112 @@ export const AuthModal: React.FC = () => {
           </button>
         </div>
 
-        {/* Divider */}
-        <div className="relative flex items-center justify-center">
-          <div className="border-t border-stone-200 dark:border-stone-800 w-full" />
-          <span className="bg-white dark:bg-[#202023] px-3 text-[11px] text-[#9CA3AF] uppercase tracking-wider font-medium shrink-0">
-            或使用開發與測試身分
-          </span>
-        </div>
+        {/* Development & Test Accounts (Only visible in Local Development) */}
+        {import.meta.env.DEV && (
+          <>
+            {/* Divider */}
+            <div className="relative flex items-center justify-center">
+              <div className="border-t border-stone-200 dark:border-stone-800 w-full" />
+              <span className="bg-white dark:bg-[#202023] px-3 text-[11px] text-[#9CA3AF] uppercase tracking-wider font-medium shrink-0">
+                或使用開發與測試身分 (本機模式)
+              </span>
+            </div>
 
-        {/* Quick Switch Test Accounts */}
-        <div className="space-y-2">
-          <label className="text-xs font-bold text-[#4B5563] dark:text-[#D1D5DB] flex items-center space-x-1.5">
-            <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-            <span>快速切換身分 (測試與多裝置模擬)</span>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleLogin({ userId: 'dev_user_default', email: 'dev@redolve.local', name: '預設開發者' })}
-              className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
+            {/* Quick Switch Test Accounts */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-[#4B5563] dark:text-[#D1D5DB] flex items-center space-x-1.5">
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
+                <span>快速切換身分 (測試與多裝置模擬)</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleLogin({ userId: 'dev_user_default', email: 'dev@redolve.local', name: '預設開發者' })}
+                  className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
+                >
+                  <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">預設開發者</div>
+                  <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">dev_user_default</div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleLogin({ userId: 'student_alex', email: 'alex@student.edu', name: '高三學生 Alex' })}
+                  className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
+                >
+                  <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">學生帳號 Alex</div>
+                  <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">alex@student.edu</div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleLogin({ userId: 'student_emma', email: 'emma@student.edu', name: '考生 Emma' })}
+                  className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
+                >
+                  <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">考生 Emma</div>
+                  <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">emma@student.edu</div>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleLogin({ userId: 'teacher_chen', email: 'chen@school.edu', name: '陳老師 (導師)' })}
+                  className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
+                >
+                  <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">陳老師 (導師)</div>
+                  <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">chen@school.edu</div>
+                </button>
+              </div>
+            </div>
+
+            {/* Custom Email / User Login Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (emailInput.trim()) {
+                  handleLogin({
+                    email: emailInput.trim(),
+                    name: nameInput.trim() || undefined,
+                  });
+                }
+              }}
+              className="p-4 rounded-2xl bg-stone-50/60 dark:bg-[#161619] border border-stone-200/70 dark:border-stone-800 space-y-3"
             >
-              <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">預設開發者</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">dev_user_default</div>
-            </button>
+              <div className="text-xs font-bold text-[#4B5563] dark:text-[#D1D5DB] flex items-center space-x-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
+                <span>自訂帳號登入 / 註冊</span>
+              </div>
 
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleLogin({ userId: 'student_alex', email: 'alex@student.edu', name: '高三學生 Alex' })}
-              className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
-            >
-              <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">學生帳號 Alex</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">alex@student.edu</div>
-            </button>
+              <div className="space-y-2">
+                <input
+                  type="email"
+                  placeholder="電子郵件 (Email, 例: student@example.com)"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  className="w-full p-2.5 text-xs rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500"
+                />
+                <input
+                  type="text"
+                  placeholder="顯示姓名 / 暱稱 (可選)"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  className="w-full p-2.5 text-xs rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500"
+                />
+              </div>
 
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleLogin({ userId: 'student_emma', email: 'emma@student.edu', name: '考生 Emma' })}
-              className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
-            >
-              <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">考生 Emma</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">emma@student.edu</div>
-            </button>
-
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => handleLogin({ userId: 'teacher_chen', email: 'chen@school.edu', name: '陳老師 (導師)' })}
-              className="p-3 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50/50 dark:bg-stone-900/50 hover:bg-stone-100 dark:hover:bg-stone-800 text-left transition-all active:scale-[0.98]"
-            >
-              <div className="font-semibold text-xs text-[#1F2937] dark:text-[#F3F4F6]">陳老師 (導師)</div>
-              <div className="text-[10px] text-[#9CA3AF] mt-0.5 truncate">chen@school.edu</div>
-            </button>
-          </div>
-        </div>
-
-        {/* Custom Email / User Login Form */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (emailInput.trim()) {
-              handleLogin({
-                email: emailInput.trim(),
-                name: nameInput.trim() || undefined,
-              });
-            }
-          }}
-          className="p-4 rounded-2xl bg-stone-50/60 dark:bg-[#161619] border border-stone-200/70 dark:border-stone-800 space-y-3"
-        >
-          <div className="text-xs font-bold text-[#4B5563] dark:text-[#D1D5DB] flex items-center space-x-1.5">
-            <KeyRound className="w-3.5 h-3.5 text-indigo-500" />
-            <span>自訂帳號登入 / 註冊</span>
-          </div>
-
-          <div className="space-y-2">
-            <input
-              type="email"
-              placeholder="電子郵件 (Email, 例: student@example.com)"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              className="w-full p-2.5 text-xs rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500"
-            />
-            <input
-              type="text"
-              placeholder="顯示姓名 / 暱稱 (可選)"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              className="w-full p-2.5 text-xs rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading || !emailInput.trim()}
-            className="w-full py-2.5 rounded-xl bg-[#6366F1] text-white hover:bg-[#4F46E5] text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-1.5 shadow-xs"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>確認登入 / 同步身分</span>
-          </button>
-        </form>
+              <button
+                type="submit"
+                disabled={isLoading || !emailInput.trim()}
+                className="w-full py-2.5 rounded-xl bg-[#6366F1] text-white hover:bg-[#4F46E5] text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center space-x-1.5 shadow-xs"
+              >
+                <LogIn className="w-4 h-4" />
+                <span>確認登入 / 同步身分</span>
+              </button>
+            </form>
+          </>
+        )}
         </div>
       </div>
     </div>
