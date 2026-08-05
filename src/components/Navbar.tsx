@@ -82,7 +82,7 @@ export const Navbar: React.FC = () => {
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-bold leading-none">Redolve</span>
-                <span className="text-[10px] text-[#9CA3AF] mt-0.5">iPad AI Flashcards</span>
+                <span className="text-[10px] text-[#9CA3AF] mt-0.5">Redo & Solve</span>
               </div>
             </Link>
 
@@ -116,14 +116,13 @@ export const Navbar: React.FC = () => {
                   to={link.path}
                   title={link.label}
                   aria-label={link.label}
-                  className={`flex items-center space-x-1.5 px-3 lg:px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-                  }`}
+                  className={`flex items-center space-x-1.5 px-5 lg:px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${isActive
+                    ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-semibold'
+                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                    }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="hidden lg:inline">{link.label}</span>
+                  <span className="hidden lg:inline leading-[0.875rem]">{link.label}</span>
                 </Link>
               );
             })}
@@ -139,7 +138,7 @@ export const Navbar: React.FC = () => {
                 placeholder="搜尋錯題、關鍵字..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1] transition-all w-44 lg:w-64"
+                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1] transition-all w-32 md:w-48 xl:w-64"
               />
             </form>
 
@@ -159,7 +158,7 @@ export const Navbar: React.FC = () => {
               title="鍵盤快捷鍵指南 (?)"
             >
               <Command className="w-3.5 h-3.5 text-[#9CA3AF]" />
-              <span>快捷鍵</span>
+              <span className="hidden xl:inline">快捷鍵</span>
             </button>
 
             {/* Upload Modal Trigger Button */}
@@ -167,8 +166,8 @@ export const Navbar: React.FC = () => {
               onClick={() => setUploadModalOpen(true)}
               className="flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
             >
-              <Upload className="w-4 h-4" />
-              <span className="hidden sm:inline">上傳錯題</span>
+              <Upload className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">上傳錯題</span>
             </button>
 
             {/* Dark Mode Toggle */}
@@ -196,7 +195,7 @@ export const Navbar: React.FC = () => {
                   ).charAt(0).toUpperCase()
                 )}
               </div>
-              <span className="hidden sm:inline text-xs font-semibold max-w-[90px] truncate">
+              <span className="hidden xl:inline text-xs font-semibold max-w-[90px] truncate">
                 {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
                   ? '登入帳號'
                   : currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
@@ -254,11 +253,10 @@ export const Navbar: React.FC = () => {
                   key={link.path}
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl text-xs font-medium transition-colors ${
-                    isActive
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
-                  }`}
+                  className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
+                    ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{link.label}</span>

@@ -39,16 +39,15 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
     <div className="fixed bottom-8 right-6 z-40 flex items-center space-x-2">
       <button
         onClick={handleSmartResolve}
-        className={`flex items-center space-x-2 px-5 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 ${
-          isResolved
-            ? 'bg-emerald-600 hover:bg-emerald-700 ring-4 ring-emerald-500/20'
-            : 'bg-[#6366F1] hover:bg-[#4F46E5] ring-4 ring-[#6366F1]/30 animate-pulse'
-        }`}
+        className={`flex items-center space-x-1.5 px-4 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 ${isResolved
+          ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/20'
+          : 'bg-[#6366F1] hover:bg-[#4F46E5] ring-2 ring-[#6366F1]/30 /animate-pulse'
+          }`}
         title="智慧工作流推進器：標記當前題目並推進至下一題"
       >
-        <CheckCircle2 className="w-4.5 h-4.5" />
+        <CheckCircle2 className="w-4 h-4 mr-0.5" />
         <span>{isResolved ? '已標記完成' : '標記完成訂正'}</span>
-        <ArrowDown className="w-3.5 h-3.5 opacity-80" />
+        <ArrowDown className="w-3.5 h-3.5 " />
       </button>
     </div>
   );

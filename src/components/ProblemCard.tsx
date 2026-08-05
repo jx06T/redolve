@@ -346,8 +346,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       >
         {/* Header Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
+          <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
+            <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
               {problemCode}
             </span>
             <StatusBadge
@@ -355,17 +355,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               topicId={problem.topic_id}
               onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
             />
-            {problem.status === 'archived' && (
-              <span className="text-[11px] font-medium px-2.5 py-0.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700 flex items-center space-x-1">
-                <Archive className="w-3 h-3 text-stone-500" />
-                <span>已封存</span>
-              </span>
-            )}
             {problem.source && (
-              <span className="text-xs text-[#9CA3AF] px-2.5 py-1 rounded-xl bg-stone-100 dark:bg-stone-800/60 font-medium">
+              <span className="inline-block text-xs text-[#9CA3AF] px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800/60 font-medium">
                 {problem.source}
               </span>
             )}
+
           </div>
 
           <div className="flex items-center space-x-1">
@@ -425,9 +420,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         </div>
 
         {shareUrl && (
-          <div className="mt-2.5 p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-xs flex flex-wrap items-center justify-between gap-2 text-indigo-900 dark:text-indigo-200">
+          <div className="mt-2.5 p-3 py-2  rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-xs flex flex-wrap items-center justify-between gap-2 text-indigo-900 dark:text-indigo-200">
             <div className="flex items-center space-x-2 min-w-0 flex-1">
-              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">公開連結:</span>
+              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">分享連結</span>
               <span className="truncate font-mono text-[11px] select-all">{shareUrl}</span>
             </div>
             <div className="flex items-center space-x-2 shrink-0">
@@ -512,9 +507,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {/* Scratchpad Height Controls */}
         {!readOnly && (
           <div className="mt-2 flex items-center justify-between px-1">
-            <span className="text-[11px] text-[#9CA3AF]">
-              推導區高度: <span className="font-mono text-[#374151] dark:text-[#D1D5DB]">{calcSpaceHeight}px</span>
-            </span>
+            <div className="flex items-center space-x-1 pt-3">
+              <FileText className="w-3.5 h-3.5 text-indigo-500" />
+              <span className="text-[11px] text-[#9CA3AF]">
+                {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
+              </span>
+            </div>
             <div className="flex items-center space-x-1.5">
               {calcSpaceHeight > 0 ? (
                 <button
@@ -564,41 +562,30 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
                 title="擴增草稿空間 (+200px)"
               >
                 <Plus className="w-3 h-3 text-indigo-500" />
-                <span>延伸 (+200px)</span>
+                <span>延伸</span>
               </button>
             </div>
           </div>
         )}
 
         {/* Typed Notes & Calculation Summary Section */}
-        <div className="mt-3.5 rounded-2xl bg-stone-50/70 dark:bg-[#18181B] border border-stone-200/60 dark:border-stone-800/80 p-3.5 transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2 text-xs font-semibold text-[#4B5563] dark:text-[#D1D5DB]">
-              <FileText className="w-3.5 h-3.5 text-indigo-500" />
-              <span>文字筆記 / 解題思路與觀念總結</span>
-            </div>
-            <span className="text-[10px] text-[#9CA3AF] font-mono">
-              {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
-            </span>
-          </div>
-          <textarea
-            value={typedNotes}
-            onChange={(e) => handleTypedNotesChange(e.target.value)}
-            disabled={readOnly}
-            placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
-            rows={2}
-            className="w-full p-2.5 rounded-xl bg-white dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-y leading-relaxed"
-          />
-        </div>
+        <textarea
+          value={typedNotes}
+          onChange={(e) => handleTypedNotesChange(e.target.value)}
+          disabled={readOnly}
+          placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
+          rows={2}
+          className="w-full mt-3 p-2.5 rounded-xl bg-stone-50/70 dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-y leading-relaxed"
+        />
 
         {/* Bottom Footer Actions */}
-        <div className="mt-4 pt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9CA3AF]">
+        <div className="mt-3 pt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9CA3AF]">
           <div className="flex items-center space-x-3">
             <span>複習次數: {problem.review_count} 次</span>
             {problem.status === 'archived' && (
               <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-medium text-[11px] border border-stone-200 dark:border-stone-700">
                 <Archive className="w-3 h-3 text-stone-500" />
-                <span>已封存 (已完全掌握)</span>
+                <span>已封存</span>
               </span>
             )}
           </div>
@@ -632,7 +619,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               onClick={handleToggleStatus}
               aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
               className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${isResolved
-                ? 'bg-[#10B981] text-white hover:bg-[#059669]'
+                ? 'bg-[#39a07d] text-white hover:bg-[#0c8b63]'
                 : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
                 }`}
             >

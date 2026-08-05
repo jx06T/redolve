@@ -75,18 +75,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
           <span>訂正狀態過濾</span>
         </div>
-        <div className="grid grid-cols-3 gap-1 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl">
+        <div className="grid grid-cols-4 gap-1 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl">
           {STATUS_FILTER_ITEMS.map((item) => {
             const isSelected = selectedStatus === item.key;
             return (
               <button
                 key={item.key}
                 onClick={() => setSelectedStatus(item.key as any)}
-                className={`py-1.5 text-xs font-medium rounded-xl transition-all ${
-                  isSelected
+                className={`py-1.5 text-xs font-medium rounded-xl transition-all ${isSelected
                     ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-semibold shadow-xs'
                     : 'text-[#374151] dark:text-[#D1D5DB] hover:text-[#6366F1]'
-                }`}
+                  }`}
               >
                 {item.label}
               </button>
@@ -112,11 +111,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setSelectedTopicId(null);
                 setMobileDrawerOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${
-                selectedTopicId === null
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                   ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
                   : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-              }`}
+                }`}
             >
               <span>全部未分類題目</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
@@ -135,18 +133,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setSelectedTopicId(null);
                 setMobileDrawerOpen(false);
               }}
-              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${
-                selectedTopicId === null
+              className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                   ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
                   : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-              }`}
+                }`}
             >
               <span>全部 {activeSubject?.label || '科目'} 錯題</span>
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${
-                selectedTopicId === null
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${selectedTopicId === null
                   ? 'bg-[#6366F1]/20 text-[#6366F1]'
                   : 'bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
-              }`}>
+                }`}>
                 {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
               </span>
             </button>
@@ -162,19 +158,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       setSelectedTopicId(unit.id);
                       setMobileDrawerOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${
-                      isUnitSelected
+                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
                         ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
                         : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-                    }`}
+                      }`}
                   >
                     <span className="truncate">{unit.label}</span>
                     {unitCount > 0 && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${
-                        isUnitSelected
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
                           ? 'bg-[#6366F1]/20 text-[#6366F1] font-semibold'
                           : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
-                      }`}>
+                        }`}>
                         {unitCount}
                       </span>
                     )}
@@ -193,19 +187,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                               setSelectedTopicId(point.id);
                               setMobileDrawerOpen(false);
                             }}
-                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${
-                              isPointSelected
+                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${isPointSelected
                                 ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
                                 : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
-                            }`}
+                              }`}
                           >
                             <span className="truncate">• {point.label}</span>
                             {pointCount > 0 && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded-md font-mono shrink-0 ml-1 ${
-                                isPointSelected
+                              <span className={`text-[9px] px-1 py-0.2 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
                                   ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
                                   : 'text-stone-400 dark:text-stone-500'
-                              }`}>
+                                }`}>
                                 {pointCount}
                               </span>
                             )}
@@ -248,32 +240,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     }
                     setMobileDrawerOpen(false);
                   }}
-                  className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${
-                    isActive
+                  className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${isActive
                       ? 'bg-[#6366F1] text-white font-bold shadow-xs'
                       : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
-                  }`}
+                    }`}
                 >
                   <div className="flex flex-col min-w-0 pr-2">
                     <span className="font-mono font-medium truncate">
                       {formatProblemCode(item, taxonomies)}
                     </span>
-                    <span className={`text-[10px] truncate max-w-[150px] ${
-                      isActive ? 'text-white/80 font-normal' : 'text-[#6B7280] dark:text-[#9CA3AF]'
-                    }`}>
+                    <span className={`text-[10px] truncate max-w-[150px] ${isActive ? 'text-white/80 font-normal' : 'text-[#6B7280] dark:text-[#9CA3AF]'
+                      }`}>
                       {topicBadgeLabel}
                     </span>
                   </div>
                   <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${
-                      isActive
+                    className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${isActive
                         ? 'bg-white/20 text-white'
                         : item.status === 'resolved'
-                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
-                        : item.status === 'archived'
-                        ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
-                        : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
-                    }`}
+                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
+                          : item.status === 'archived'
+                            ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
+                            : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
+                      }`}
                   >
                     {item.status === 'resolved' ? '已完成' : item.status === 'archived' ? '已封存' : '未訂正'}
                   </span>
@@ -302,15 +291,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       {/* 2. Mobile Floating Slide-over Drawer with Blur & Backdrop Click Dismissal */}
       <div
         onClick={() => setMobileDrawerOpen(false)}
-        className={`lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start transition-opacity duration-300 ease-out ${
-          mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
+        className={`lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className={`w-80 max-w-[85vw] bg-white dark:bg-[#202023] border-r border-[#E5E7EB] dark:border-[#2C2C30] h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${
-            mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
+          className={`w-80 max-w-[85vw] bg-white dark:bg-[#202023] border-r border-[#E5E7EB] dark:border-[#2C2C30] h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+            }`}
         >
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
             <div className="flex items-center space-x-2">
