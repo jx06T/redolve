@@ -11,6 +11,7 @@ import {
   Plus,
   Minus,
   RotateCcw,
+  RotateCw,
   PenLine,
   ChevronUp,
   ChevronDown,
@@ -26,6 +27,7 @@ import { DrawCanvas } from './DrawCanvas';
 import { ConfirmModal } from './ConfirmModal';
 import {
   getProblemImageUrl,
+  fetchProblemById,
   updateProblemStatus,
   updateProblemDrawData,
   updateProblemMetadata,
@@ -86,6 +88,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isReloading, setIsReloading] = useState<boolean>(false);
+  const [reloadVersion, setReloadVersion] = useState<number>(0);
   const getInitialCalcSpaceHeight = useCallback(() => {
     if (problem.draw_data) {
       try {
@@ -310,6 +314,37 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   };
 
+  const handleReloadProblem = async () => {
+    if (isReloading) return;
+    setIsReloading(true);
+    try {
+      const freshProblem = await fetchProblemById(problem.id);
+      updateProblemInStore(problem.id, freshProblem);
+      setIsResolved(freshProblem.status === 'resolved');
+      setTypedNotes(freshProblem.typed_notes || '');
+      setReloadVersion((v) => v + 1);
+
+      if (freshProblem.draw_data) {
+        try {
+          const parsed: DrawData =
+            typeof freshProblem.draw_data === 'string'
+              ? JSON.parse(freshProblem.draw_data)
+              : freshProblem.draw_data;
+          if (typeof parsed.calcSpaceHeight === 'number') {
+            calcSpaceHeightRef.current = parsed.calcSpaceHeight;
+            setCalcSpaceHeight(parsed.calcSpaceHeight);
+          }
+        } catch { }
+      }
+      showToast('已重新載入本題最新狀態', 'success', 2000);
+    } catch (err: any) {
+      console.error('Failed to reload problem:', err);
+      showToast(err?.message || '重新載入失敗，請稍後重試', 'error', 3000);
+    } finally {
+      setIsReloading(false);
+    }
+  };
+
   const keywordsArray: string[] = (() => {
     if (!problem.keywords) return [];
     try {
@@ -319,7 +354,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   })();
 
-  const imageUrl = getProblemImageUrl(problem.id);
+  const baseImageUrl = getProblemImageUrl(problem.id);
+  const imageUrl = reloadVersion > 0
+    ? `${baseImageUrl}${baseImageUrl.includes('?') ? '&' : '?'}v=${reloadVersion}`
+    : baseImageUrl;
   const problemCode = formatProblemCode(problem, taxonomies);
 
   return (
@@ -364,6 +402,18 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
 
           <div className="flex items-center space-x-1">
+            {/* Manual Reload Problem Button */}
+            <button
+              onClick={handleReloadProblem}
+              disabled={isReloading}
+              aria-label="手動重新載入本題資料"
+              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${isReloading ? 'text-indigo-500 cursor-not-allowed' : ''
+                }`}
+              title="手動重新載入本題最新狀態"
+            >
+              <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin text-indigo-500' : ''}`} />
+            </button>
+
             {/* US 3.1 Ink Hide/Show Toggle Button */}
             <button
               onClick={() => setInkVisible((prev) => !prev)}
