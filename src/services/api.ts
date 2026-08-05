@@ -19,7 +19,12 @@ export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || (
 );
 
 export function getAuthToken(): string | null {
-  return localStorage.getItem('redolve_auth_token');
+  let token = localStorage.getItem('redolve_auth_token');
+  if (!token && typeof window !== 'undefined') {
+    token = 'dev_user_default';
+    localStorage.setItem('redolve_auth_token', token);
+  }
+  return token;
 }
 
 export function setAuthToken(token: string | null) {

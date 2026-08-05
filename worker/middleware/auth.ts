@@ -29,6 +29,13 @@ export async function authMiddleware(
         }
       }
     }
+    if (!userId) {
+      return c.json({
+        status: 'error',
+        error: 'Unauthorized',
+        message: '無效或已過期的 API Key (rdv_...)，請檢查授權標頭',
+      }, 401);
+    }
   } else if (authHeader && authHeader.startsWith('Bearer ')) {
     // Custom Session / Token Header
     const token = authHeader.replace('Bearer ', '').trim();
@@ -49,18 +56,13 @@ export async function authMiddleware(
     }
   }
 
-  // Development Fallback User ID
+  // Reject unauthenticated requests with HTTP 401 Unauthorized
   if (!userId) {
-    const defaultDevUser = 'dev_user_default';
-    // Ensure default dev user exists in database
-    try {
-      await c.env.DB.prepare(
-        'INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)'
-      ).bind(defaultDevUser, 'dev@redolve.local', 'Default Developer').run();
-    } catch {
-      // ignore table errors
-    }
-    userId = defaultDevUser;
+    return c.json({
+      status: 'error',
+      error: 'Unauthorized',
+      message: '未提供授權憑證！請在 Header 加上 "Authorization: Bearer <your_token>" 或 "Authorization: Bearer <your_api_key>"',
+    }, 401);
   }
 
   c.set('userId', userId);
