@@ -132,6 +132,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const [isHoveringEraser, setIsHoveringEraser] = useState<boolean>(false);
   const [isErasingLive, setIsErasingLive] = useState<boolean>(false);
 
+  const redoStackRef = useRef<Stroke[]>([]);
+  const gestureTimerRef = useRef<number | null>(null);
+  const pendingTouchCountRef = useRef<number>(0);
+
   const isErasingRef = useRef<boolean>(false);
   const hasErasedChangeRef = useRef<boolean>(false);
   const isMultiTouchGestureRef = useRef<boolean>(false);
@@ -244,16 +248,16 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const handleTouchStart = (e: TouchEvent) => {
       const touchList = Array.from(e.touches);
       const targetTouchList = Array.from(e.targetTouches);
-      // Apple Pencil stylus or Spring-Loaded Eraser held by left hand is not two-finger undo
       const hasStylus = touchList.some((t: any) => t.touchType === 'stylus');
       if (hasStylus || isEraserActive) {
+        if (hasStylus) e.preventDefault();
         return;
       }
 
-      // Two-Finger Undo requires exactly 2 finger touches strictly on the canvas container
-      if (targetTouchList.length === 2 && touchList.length === 2) {
+      const count = Math.max(targetTouchList.length, touchList.length);
+
+      if (count >= 2 && count <= 3) {
         e.preventDefault();
-        // 1. Immediately abort any live in-progress drawing to prevent stray dots
         isMultiTouchGestureRef.current = true;
         setIsDrawing(false);
         setCurrentPoints([]);
@@ -261,22 +265,49 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         setIsErasingLive(false);
         hasErasedChangeRef.current = false;
 
-        // 2. Debounce multi-touch tap to prevent repeated pops from one gesture
-        const now = Date.now();
-        if (now - lastUndoTimestampRef.current > 350) {
-          lastUndoTimestampRef.current = now;
-          if (strokesRef.current.length > 0) {
-            const next = strokesRef.current.slice(0, strokesRef.current.length - 1);
-            setStrokes(next);
-            strokesRef.current = next;
-            emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
-          }
+        pendingTouchCountRef.current = count;
+
+        // 每次有新手指落下就重新計時,等手指數穩定下來才動作
+        if (gestureTimerRef.current) {
+          window.clearTimeout(gestureTimerRef.current);
         }
-      } else if (targetTouchList.length > 2 || touchList.length > 2) {
-        // 3+ fingers or palm: suppress drawing
+        gestureTimerRef.current = window.setTimeout(() => {
+          gestureTimerRef.current = null;
+          const finalCount = pendingTouchCountRef.current;
+          const now = Date.now();
+          if (now - lastUndoTimestampRef.current <= 350) return;
+          lastUndoTimestampRef.current = now;
+
+          if (finalCount === 2) {
+            // 復原
+            if (strokesRef.current.length > 0) {
+              const popped = strokesRef.current[strokesRef.current.length - 1];
+              const next = strokesRef.current.slice(0, -1);
+              redoStackRef.current = [...redoStackRef.current, popped];
+              setStrokes(next);
+              strokesRef.current = next;
+              emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+            }
+          } else if (finalCount === 3) {
+            // 重做
+            if (redoStackRef.current.length > 0) {
+              const restored = redoStackRef.current[redoStackRef.current.length - 1];
+              redoStackRef.current = redoStackRef.current.slice(0, -1);
+              const next = [...strokesRef.current, restored];
+              setStrokes(next);
+              strokesRef.current = next;
+              emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+            }
+          }
+        }, 50);
+      } else if (count > 3) {
         isMultiTouchGestureRef.current = true;
         setIsDrawing(false);
         setCurrentPoints([]);
+        if (gestureTimerRef.current) {
+          window.clearTimeout(gestureTimerRef.current);
+          gestureTimerRef.current = null;
+        }
       }
     };
 
@@ -296,6 +327,9 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchend', handleTouchEnd);
       container.removeEventListener('touchcancel', handleTouchEnd);
+      if (gestureTimerRef.current) {
+        window.clearTimeout(gestureTimerRef.current);
+      }
     };
   }, [readOnly, isEraserActive, emitSave]);
 
@@ -483,7 +517,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         setPencilDetected(true);
       }
       isMultiTouchGestureRef.current = false;
-      isTouchScrollingRef.current = false;
+      //isTouchScrollingRef.current = false;
     } else if (e.pointerType === 'touch') {
       // If palm rejection is active and NOT currently erasing, forward touch to fluid scrolling
       if (!allowTouchDrawing && !isEffectiveEraser) {
@@ -591,6 +625,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       isErasingRef.current = false;
       if (hasErasedChangeRef.current) {
         emitSave(strokesRef.current, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+        redoStackRef.current = [];
         hasErasedChangeRef.current = false;
       }
       return;
@@ -626,6 +661,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       const nextStrokes = [...strokesRef.current, newStroke];
       setStrokes(nextStrokes);
       setCurrentPoints([]);
+      redoStackRef.current = [];
       emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
     }
   };
@@ -718,6 +754,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     <div
       ref={containerRef}
       className="relative w-full h-full overflow-hidden"
+      style={{
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none',
+      }}
     >
       {isVisible ? (
         <>
@@ -725,7 +766,12 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
             ref={canvasRef}
             width={canvasWidth}
             height={canvasHeight}
-            style={{ touchAction: 'none' }}
+            style={{
+              touchAction: 'none',
+              WebkitTouchCallout: 'none',
+              WebkitUserSelect: 'none',
+              userSelect: 'none',
+            }}
             className={`w-full h-full select-none touch-none ${readOnly || !inkVisible
               ? 'pointer-events-none'
               : isEraserActive || activeTool === 'eraser'
