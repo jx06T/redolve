@@ -6,9 +6,6 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "vars": {
-    "FRONTEND_URL": "https://redolve.pages.dev"
-  },
   "d1_databases": [
     {
       "binding": "DB",
