@@ -1,6 +1,16 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 
-const API_BASE = '/api';
+export const API_BASE = (import.meta as any).env?.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')
+    ? 'https://redolve-api.50313tjx06.workers.dev/api'
+    : '/api'
+);
+
+export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || (
+  typeof window !== 'undefined' && window.location.hostname.includes('pages.dev')
+    ? 'https://redolve-api.50313tjx06.workers.dev'
+    : ''
+);
 
 export function getAuthToken(): string | null {
   return localStorage.getItem('redolve_auth_token');
@@ -309,12 +319,24 @@ export async function revokeShareLink(problemId: string, token: string): Promise
 }
 
 export async function fetchSharedProblem(token: string): Promise<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } }> {
-  const res = await fetch(`/share/${token}`);
+  const base = WORKER_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
+  const res = await fetch(`${base}/share/${token}`);
   if (!res.ok) throw new Error('Shared link expired or invalid');
   return res.json();
 }
 
 export function getSharedImageUrl(token: string): string {
-  return `/share/${token}/image`;
+  const base = WORKER_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${base}/share/${token}/image`;
+}
+
+export async function seedAdminTaxonomy(): Promise<{ status: string; count: number }> {
+  const res = await fetch(`${API_BASE}/admin/taxonomy/seed`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 

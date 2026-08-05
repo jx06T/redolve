@@ -28,6 +28,7 @@ import {
   fetchTaxonomyTree,
   createCustomTaxonomy,
   deleteCustomTaxonomy,
+  seedAdminTaxonomy,
 } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { useStore } from '../store/useStore';
@@ -249,12 +250,7 @@ export const SettingsView: React.FC = () => {
   const confirmSeedTaxonomy = async () => {
     setIsSeedingTaxonomy(true);
     try {
-      const res = await fetch('/api/admin/taxonomy/seed', {
-        method: 'POST',
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { status: string; count: number };
+      const data = await seedAdminTaxonomy();
       setLastSeedResult({ count: data.count });
       await loadTaxonomyData();
       showToast(`課綱初始化完成，共植入 ${data.count} 個節點`, 'success');

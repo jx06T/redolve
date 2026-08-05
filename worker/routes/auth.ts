@@ -70,7 +70,7 @@ authRouter.get('/callback/google', async (c) => {
   // 如果在本地端開發 (127.0.0.1 或 localhost)，就導向 Vite 的 3000 埠
   // 如果是正式上線，建議在 .dev.vars 加上 FRONTEND_URL 變數，或者預設導向 Worker 的首頁
   const isLocal = c.req.url.includes('127.0.0.1') || c.req.url.includes('localhost');
-  const frontendUrl = isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || '');
+  const frontendUrl = isLocal ? 'http://localhost:3000' : (c.env.FRONTEND_URL || 'https://redolve.pages.dev');
 
   if (error || !code) {
     return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(error || '授權已取消')}`);

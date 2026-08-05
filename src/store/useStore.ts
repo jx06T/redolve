@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Item, TaxonomyNode, User } from '../types';
 import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { fetchTaxonomyTree } from '../services/api';
 
 export interface ToastNotice {
   id: string;
@@ -258,19 +259,12 @@ export const useStore = create<StoreState>((set) => ({
   setTaxonomies: (taxonomies) => set({ taxonomies }),
   loadTaxonomies: async () => {
     try {
-      const res = await fetch('/api/taxonomy', {
-        headers: localStorage.getItem('redolve_auth_token')
-          ? { Authorization: `Bearer ${localStorage.getItem('redolve_auth_token')}` }
-          : {},
-      });
-      if (res.ok) {
-        const data = (await res.json()) as { tree?: TaxonomyNode[]; counts?: Record<string, number> };
-        if (data.tree && data.tree.length > 0) {
-          set({
-            taxonomies: data.tree,
-            taxonomyCounts: data.counts || {},
-          });
-        }
+      const data = await fetchTaxonomyTree();
+      if (data.tree && data.tree.length > 0) {
+        set({
+          taxonomies: data.tree,
+          taxonomyCounts: data.counts || {},
+        });
       }
     } catch (err) {
       console.error('Failed to sync taxonomies from server:', err);

@@ -1,0 +1,4 @@
+# Cloudflare Pages Routing & Reverse Proxy Configuration
+/api/*    https://redolve-api.50313tjx06.workers.dev/api/:splat    200
+/share/*  https://redolve-api.50313tjx06.workers.dev/share/:splat  200
+/*        /index.html                                              200
