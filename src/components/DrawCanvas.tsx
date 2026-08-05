@@ -54,7 +54,7 @@ function parseDrawData(raw: DrawData | string | null | undefined): {
 }
 
 function getEraserRadius(width: number): number {
-  return width <= 1 ? 8 : width <= 2 ? 14 : 22;
+  return width <= 1 ? 5 : width <= 2 ? 7 : 16;
 }
 
 function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number) {
@@ -726,13 +726,12 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
             width={canvasWidth}
             height={canvasHeight}
             style={{ touchAction: 'none' }}
-            className={`w-full h-full select-none touch-none ${
-              readOnly || !inkVisible
-                ? 'pointer-events-none'
-                : isEraserActive || activeTool === 'eraser'
+            className={`w-full h-full select-none touch-none ${readOnly || !inkVisible
+              ? 'pointer-events-none'
+              : isEraserActive || activeTool === 'eraser'
                 ? 'cursor-none'
                 : 'cursor-crosshair'
-            }`}
+              }`}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

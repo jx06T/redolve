@@ -23,6 +23,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     sidebarCollapsed,
     toggleSidebarCollapsed,
     taxonomies,
+    taxonomyCounts,
   } = useStore();
 
   // Close mobile drawer on Escape key press
@@ -40,8 +41,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   const baseTaxonomy = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
   const currentSubjectId = selectedSubjectId || 'math';
   const isUnclassifiedSubject = currentSubjectId === 'unclassified';
-  const activeSubject = isUnclassifiedSubject ? null : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
-  const { taxonomyCounts } = useStore();
+  const activeSubject = isUnclassifiedSubject
+    ? null
+    : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
 
   // Helper to calculate problem count for any taxonomy node
   const computeCountForNode = (node: { id: string; children?: any[] }): number => {
@@ -51,6 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         count += computeCountForNode(child);
       }
     }
+    // Fallback if taxonomyCounts is empty (e.g. initial load without worker completion)
     if (Object.keys(taxonomyCounts).length === 0) {
       let localCount = problems.filter((p) => p.topic_id === node.id).length;
       if (node.children && node.children.length > 0) {
@@ -194,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                           >
                             <span className="truncate">• {point.label}</span>
                             {pointCount > 0 && (
-                              <span className={`text-[9px] px-1 py-0.2 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
+                              <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
                                   ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
                                   : 'text-stone-400 dark:text-stone-500'
                                 }`}>
@@ -213,7 +216,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         )}
       </div>
 
-      {/* Problem Outline List / Minimap Navigation (UI_DESIGN01_0804 Section 2) */}
+      {/* Problem Outline List / Minimap Navigation */}
       {problems.length > 0 && (
         <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
           <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
@@ -288,7 +291,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         </button>
       </div>
 
-      {/* 2. Mobile Floating Slide-over Drawer with Blur & Backdrop Click Dismissal */}
+      {/* 2. Mobile Floating Slide-over Drawer */}
       <div
         onClick={() => setMobileDrawerOpen(false)}
         className={`lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -317,17 +320,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
       {/* 3. Desktop Permanent Sticky Sidebar (< 1024px hidden, >= 1024px visible) */}
       {sidebarCollapsed ? (
-        <div className="hidden lg:block">
+        // 加入 self-start，避免 Flex stretch 強迫與主要內容等高而失去 sticky 效果
+        <div className="hidden lg:block self-start sticky top-[4.75rem]">
           <button
             onClick={toggleSidebarCollapsed}
-            className="p-3 rounded-2xl bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] text-[#6366F1] shadow-xs hover:bg-stone-100 dark:hover:bg-stone-800 transition-all sticky top-20"
+            className="p-3 rounded-2xl bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] text-[#6366F1] shadow-xs hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
             title="展開側邊欄 (退出專注模式)"
           >
             <PanelLeftOpen className="w-5 h-5" />
           </button>
         </div>
       ) : (
-        <aside className="hidden lg:flex flex-col w-72 h-[calc(100vh-5.5rem)] sticky top-16 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
+        // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
+        <aside className="hidden lg:flex flex-col w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-[#6366F1]" />
