@@ -105,8 +105,12 @@ authRouter.get('/callback/google', async (c) => {
   const clientId = c.env.GOOGLE_CLIENT_ID;
   const clientSecret = c.env.GOOGLE_CLIENT_SECRET;
 
-  if (!clientId || !clientSecret) {
-    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('後端缺少 GOOGLE_CLIENT_ID 或 GOOGLE_CLIENT_SECRET 設定')}`);
+  if (!clientId) {
+    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('後端 Worker 缺少 GOOGLE_CLIENT_ID 變數')}`);
+  }
+
+  if (!clientSecret) {
+    return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent('後端 Worker 缺少 GOOGLE_CLIENT_SECRET 機密設定')}`);
   }
 
   const origin = new URL(c.req.url).origin;
