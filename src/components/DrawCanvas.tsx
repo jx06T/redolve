@@ -126,6 +126,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const isErasingRef = useRef<boolean>(false);
   const hasErasedChangeRef = useRef<boolean>(false);
+  const isMultiTouchGestureRef = useRef<boolean>(false);
+  const lastUndoTimestampRef = useRef<number>(0);
 
   const strokesRef = useRef<Stroke[]>(strokes);
   strokesRef.current = strokes;
@@ -222,22 +224,52 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     [onSaveDrawData, calcSpaceHeight]
   );
 
-  // Two-Finger Undo Listener
+  // Two-Finger Undo Listener (Stabilized Multi-Touch & Stray Dot Prevention)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || readOnly) return;
 
     const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
+      if (e.touches.length >= 2) {
         e.preventDefault();
-        const next = strokesRef.current.slice(0, strokesRef.current.length - 1);
-        setStrokes(next);
-        emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+        // 1. Immediately abort any live in-progress drawing to prevent stray dots
+        isMultiTouchGestureRef.current = true;
+        setIsDrawing(false);
+        setCurrentPoints([]);
+        isErasingRef.current = false;
+        hasErasedChangeRef.current = false;
+
+        // 2. Debounce multi-touch tap to prevent repeated pops from one gesture
+        const now = Date.now();
+        if (now - lastUndoTimestampRef.current > 350) {
+          lastUndoTimestampRef.current = now;
+          if (strokesRef.current.length > 0) {
+            const next = strokesRef.current.slice(0, strokesRef.current.length - 1);
+            setStrokes(next);
+            strokesRef.current = next;
+            emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
+          }
+        }
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) {
+        // Reset multi-touch gesture lock once all fingers leave
+        setTimeout(() => {
+          isMultiTouchGestureRef.current = false;
+        }, 80);
       }
     };
 
     container.addEventListener('touchstart', handleTouchStart, { passive: false });
-    return () => container.removeEventListener('touchstart', handleTouchStart);
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', handleTouchEnd, { passive: true });
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchend', handleTouchEnd);
+      container.removeEventListener('touchcancel', handleTouchEnd);
+    };
   }, [readOnly, emitSave]);
 
   // Continuous Vector Eraser in base coordinate space with segment intersection
@@ -316,13 +348,19 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       if (!pencilDetected) {
         setPencilDetected(true);
       }
+      isMultiTouchGestureRef.current = false;
     } else if (e.pointerType === 'touch') {
       // If touch drawing is disabled (Pencil mode), prevent touch from initiating strokes
       if (!allowTouchDrawing) {
         return;
       }
-      // Palm rejection guard for secondary touch points
-      if (!e.isPrimary) return;
+      // Palm rejection & multi-touch guard: abort drawing immediately if non-primary or multi-touch active
+      if (!e.isPrimary || isMultiTouchGestureRef.current) {
+        isMultiTouchGestureRef.current = true;
+        setIsDrawing(false);
+        setCurrentPoints([]);
+        return;
+      }
     }
 
     const canvas = canvasRef.current;
@@ -388,6 +426,13 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       // Ignore
     }
 
+    // Ignore commit if a multi-touch gesture was detected
+    if (isMultiTouchGestureRef.current) {
+      setIsDrawing(false);
+      setCurrentPoints([]);
+      return;
+    }
+
     if (isErasingRef.current) {
       isErasingRef.current = false;
       if (hasErasedChangeRef.current) {
@@ -422,6 +467,19 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       setCurrentPoints([]);
       emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
     }
+  };
+
+  const handlePointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    try {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+    setIsDrawing(false);
+    setCurrentPoints([]);
+    isErasingRef.current = false;
   };
 
   // Render Canvas Context
@@ -507,7 +565,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
         />
       ) : (
         /* Static SVG Snapshot fallback for unmounted canvas */
