@@ -6,7 +6,7 @@ import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 export const adminRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // Helper: check if the currently authenticated user is an admin
-function isAdminUser(c: { get: (key: string) => unknown; env: Bindings }): boolean {
+export function isAdminUser(c: { get: (key: string) => unknown; env: Bindings }): boolean {
   const email = c.get('userEmail') as string | null;
   if (!email) return false;
   const adminEmails = (c.env.ADMIN_EMAILS ?? '')

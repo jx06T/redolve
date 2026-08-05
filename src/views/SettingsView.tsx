@@ -31,6 +31,7 @@ import {
   updateCustomTaxonomy,
   deleteCustomTaxonomy,
   seedAdminTaxonomy,
+  fetchAdminMe,
 } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { useStore } from '../store/useStore';
@@ -113,6 +114,9 @@ export const SettingsView: React.FC = () => {
   const [customHexInput, setCustomHexInput] = useState<string>('#6366F1');
   const pickerInputRef = useRef<HTMLInputElement>(null);
 
+  // Admin state
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
   // Taxonomy Seed / Refresh state
   const [isSeedingTaxonomy, setIsSeedingTaxonomy] = useState<boolean>(false);
   const [lastSeedResult, setLastSeedResult] = useState<{ count: number } | null>(null);
@@ -159,7 +163,10 @@ export const SettingsView: React.FC = () => {
   useEffect(() => {
     loadKeys();
     loadTaxonomyData();
-  }, []);
+    fetchAdminMe().then((res) => {
+      if (res?.isAdmin) setIsAdmin(true);
+    });
+  }, [currentUser]);
 
   // Sync countsMap with store taxonomyCounts if available
   useEffect(() => {
@@ -224,9 +231,11 @@ export const SettingsView: React.FC = () => {
   const handleAddSubNode = async (parentId: string) => {
     if (!inlineAddLabel.trim()) return;
     try {
+      const isParentCustom = customTaxonomies.some((c) => c.id === parentId);
       const res = await createCustomTaxonomy({
         label: inlineAddLabel.trim(),
         parent_id: parentId,
+        is_official: isAdmin && !isParentCustom,
       });
       setInlineAddLabel('');
       setInlineAddParentId(null);
@@ -582,8 +591,8 @@ export const SettingsView: React.FC = () => {
               </button>
             )}
 
-            {/* Rename Custom Node Button */}
-            {isCustom && (
+            {/* Rename Node Button (Custom or Admin) */}
+            {(isCustom || isAdmin) && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -591,19 +600,19 @@ export const SettingsView: React.FC = () => {
                   handleStartRename(node);
                 }}
                 className="p-1 rounded-lg text-stone-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
-                title="重新命名此自訂章節"
+                title={isCustom ? "重新命名此自訂章節" : "重新命名此官方課綱章節 (管理者)"}
               >
                 <Edit2 className="w-3.5 h-3.5" />
               </button>
             )}
 
-            {/* Delete Custom Node Button */}
-            {isCustom && (
+            {/* Delete Node Button (Custom or Admin) */}
+            {(isCustom || isAdmin) && (
               <button
                 type="button"
                 onClick={() => setDeleteNodeTarget(node.id)}
                 className="p-1 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                title="刪除此自訂分類"
+                title={isCustom ? "刪除此自訂分類" : "刪除此官方課綱分類 (管理者)"}
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
@@ -991,8 +1000,8 @@ export const SettingsView: React.FC = () => {
             )}
           </div>
 
-          {/* Admin Section — only visible to admin accounts */}
-          {currentUser?.role === 'admin' && (
+          {/* Admin Section — visible to admin accounts */}
+          {(isAdmin || currentUser?.role === 'admin') && (
             <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
               <div className="flex items-center space-x-3">
                 <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 rounded-2xl">

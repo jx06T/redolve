@@ -109,7 +109,7 @@ export async function fetchTaxonomyTree(): Promise<{
   return res.json();
 }
 
-export async function createCustomTaxonomy(data: { label: string; parent_id?: string | null }): Promise<{ node: TaxonomyNode }> {
+export async function createCustomTaxonomy(data: { label: string; parent_id?: string | null; is_official?: boolean }): Promise<{ node: TaxonomyNode }> {
   const res = await fetch(`${API_BASE}/taxonomy`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -351,5 +351,18 @@ export async function seedAdminTaxonomy(): Promise<{ status: string; count: numb
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+export async function fetchAdminMe(): Promise<{ isAdmin: boolean }> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/me`, {
+      headers: getAuthHeaders(false),
+      credentials: 'include',
+    });
+    if (!res.ok) return { isAdmin: false };
+    return res.json();
+  } catch {
+    return { isAdmin: false };
+  }
 }
 

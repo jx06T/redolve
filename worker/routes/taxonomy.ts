@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth';
 import { Bindings, Variables, TaxonomyNode } from '../types';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 import { ensureSeedTaxonomies } from './problems';
+import { isAdminUser } from './admin';
 
 export const taxonomyRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -113,12 +114,15 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
   }
 });
 
-// 2. Create Custom Subject or Sub-unit
+// 2. Create Subject or Sub-unit (Custom or Official if Admin)
 taxonomyRouter.post('/', authMiddleware, async (c) => {
   const userId = c.get('userId');
+  const isAdmin = isAdminUser(c as Parameters<typeof isAdminUser>[0]);
   const body = await c.req.json();
   const label = (body.label || '').trim();
   const parentId = body.parent_id ? String(body.parent_id).trim() : null;
+  const isOfficial = isAdmin && body.is_official === true;
+  const targetUserId = isOfficial ? null : userId;
 
   if (!label) {
     return c.json({ error: { code: 'INVALID_INPUT', message: '名稱不可為空' } }, 400);
@@ -132,17 +136,19 @@ taxonomyRouter.post('/', authMiddleware, async (c) => {
     level = parent ? parent.level + 1 : 1;
   }
 
+  const prefix = isOfficial ? 'official' : 'custom';
   const newId = parentId
-    ? `custom-unit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
-    : `custom-sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+    ? `${prefix}-unit-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+    : `${prefix}-sub-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
   await c.env.DB.prepare(
     `INSERT INTO taxonomies (id, user_id, parent_id, label, level)
      VALUES (?, ?, ?, ?, ?)`
-  ).bind(newId, userId, parentId, label, level).run();
+  ).bind(newId, targetUserId, parentId, label, level).run();
 
   const newNode: TaxonomyNode = {
     id: newId,
+    user_id: targetUserId,
     parent_id: parentId,
     label,
     level,
@@ -155,9 +161,10 @@ taxonomyRouter.post('/', authMiddleware, async (c) => {
   });
 });
 
-// 3. Update (Rename) Custom Subject or Sub-unit
+// 3. Update (Rename) Subject or Sub-unit
 taxonomyRouter.put('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
+  const isAdmin = isAdminUser(c as Parameters<typeof isAdminUser>[0]);
   const id = c.req.param('id');
   const body = await c.req.json();
   const label = (body.label || '').trim();
@@ -166,18 +173,24 @@ taxonomyRouter.put('/:id', authMiddleware, async (c) => {
     return c.json({ error: { code: 'INVALID_INPUT', message: '名稱不可為空' } }, 400);
   }
 
-  // Verify node belongs to current user
-  const existing = await c.env.DB.prepare(
-    'SELECT id, user_id, parent_id, level FROM taxonomies WHERE id = ? AND user_id = ?'
-  ).bind(id, userId).first<{ id: string; user_id: string; parent_id: string | null; level: number }>();
+  // Verify node belongs to current user, or allow if user is admin (for official nodes)
+  const query = isAdmin
+    ? 'SELECT id, user_id, parent_id, level FROM taxonomies WHERE id = ? AND (user_id = ? OR user_id IS NULL)'
+    : 'SELECT id, user_id, parent_id, level FROM taxonomies WHERE id = ? AND user_id = ?';
+
+  const bindParams = isAdmin ? [id, userId] : [id, userId];
+
+  const existing = await c.env.DB.prepare(query)
+    .bind(...bindParams)
+    .first<{ id: string; user_id: string | null; parent_id: string | null; level: number }>();
 
   if (!existing) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此自訂項目或無權限修改' } }, 404);
+    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此項目或無權限修改' } }, 404);
   }
 
   await c.env.DB.prepare(
-    'UPDATE taxonomies SET label = ? WHERE id = ? AND user_id = ?'
-  ).bind(label, id, userId).run();
+    'UPDATE taxonomies SET label = ? WHERE id = ?'
+  ).bind(label, id).run();
 
   return c.json({
     status: 'ok',
@@ -191,27 +204,38 @@ taxonomyRouter.put('/:id', authMiddleware, async (c) => {
   });
 });
 
-// 4. Delete Custom Subject or Sub-unit
+// 4. Delete Subject or Sub-unit
 taxonomyRouter.delete('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
+  const isAdmin = isAdminUser(c as Parameters<typeof isAdminUser>[0]);
   const id = c.req.param('id');
 
-  // Verify node belongs to current user
-  const existing = await c.env.DB.prepare(
-    'SELECT id, user_id FROM taxonomies WHERE id = ? AND user_id = ?'
-  ).bind(id, userId).first();
+  // Verify node belongs to current user or if admin allow deleting official node
+  const query = isAdmin
+    ? 'SELECT id, user_id FROM taxonomies WHERE id = ? AND (user_id = ? OR user_id IS NULL)'
+    : 'SELECT id, user_id FROM taxonomies WHERE id = ? AND user_id = ?';
+
+  const existing = await c.env.DB.prepare(query)
+    .bind(id, userId)
+    .first();
 
   if (!existing) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此自訂項目或無權限刪除' } }, 404);
+    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此項目或無權限刪除' } }, 404);
   }
 
-  // Delete node and its children owned by this user
-  await c.env.DB.prepare(
-    'DELETE FROM taxonomies WHERE (id = ? OR parent_id = ?) AND user_id = ?'
-  ).bind(id, id, userId).run();
+  // Delete node and its children
+  if (isAdmin && existing.user_id === null) {
+    await c.env.DB.prepare(
+      'DELETE FROM taxonomies WHERE (id = ? OR parent_id = ?)'
+    ).bind(id, id).run();
+  } else {
+    await c.env.DB.prepare(
+      'DELETE FROM taxonomies WHERE (id = ? OR parent_id = ?) AND user_id = ?'
+    ).bind(id, id, userId).run();
+  }
 
   return c.json({
     status: 'ok',
-    message: '已刪除自訂項目',
+    message: '已刪除項目',
   });
 });
