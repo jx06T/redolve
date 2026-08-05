@@ -276,19 +276,29 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     };
   }, [readOnly, emitSave]);
 
-  // Continuous Vector Eraser in base coordinate space with segment intersection
+  // Partial Vector Stroke Eraser: splits stroke into sub-strokes around the eraser circle
+  const lastErasePosRef = useRef<{ x: number; y: number } | null>(null);
+
   const eraseAt = useCallback((screenX: number, screenY: number) => {
     const currentScale = computeScale(strokesRef.current, canvasWidthRef.current, baseWidthRef.current);
     const baseX = screenX / currentScale;
     const baseY = screenY / currentScale;
-    const eraserRadius = (activeWidth <= 1 ? 24 : activeWidth <= 2 ? 36 : 52) / currentScale;
+    const baseEraserRadius = activeWidth <= 1 ? 16 : activeWidth <= 2 ? 26 : 38;
+    const eraserRadius = baseEraserRadius / currentScale;
     const eraserRadiusSq = eraserRadius * eraserRadius;
 
     const prevList = strokesRef.current;
     if (prevList.length === 0) return;
 
-    const nextStrokes = prevList.filter((stroke) => {
-      if (!stroke.points || stroke.points.length === 0) return false;
+    let hasAnyChange = false;
+    const nextStrokes: Stroke[] = [];
+
+    for (let sIdx = 0; sIdx < prevList.length; sIdx++) {
+      const stroke = prevList[sIdx];
+      if (!stroke.points || stroke.points.length === 0) {
+        hasAnyChange = true;
+        continue;
+      }
 
       // 1. Quick bounding box rejection
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -299,53 +309,149 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         if (pt[1] < minY) minY = pt[1];
         if (pt[1] > maxY) maxY = pt[1];
       }
+
       if (
         baseX < minX - eraserRadius ||
         baseX > maxX + eraserRadius ||
         baseY < minY - eraserRadius ||
         baseY > maxY + eraserRadius
       ) {
-        return true;
+        nextStrokes.push(stroke);
+        continue;
       }
 
-      // 2. Point proximity check
+      // 2. Check if any point or segment is touched by eraser
+      let isTouched = false;
       for (let i = 0; i < stroke.points.length; i++) {
         const [px, py] = stroke.points[i];
         const dx = px - baseX;
         const dy = py - baseY;
         if (dx * dx + dy * dy <= eraserRadiusSq) {
-          return false;
+          isTouched = true;
+          break;
         }
       }
 
-      // 3. Segment projection check for continuous lines
-      for (let i = 0; i < stroke.points.length - 1; i++) {
-        const [x1, y1] = stroke.points[i];
-        const [x2, y2] = stroke.points[i + 1];
-        const lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
-        if (lineLenSq === 0) continue;
-        const t = Math.max(0, Math.min(1, ((baseX - x1) * (x2 - x1) + (baseY - y1) * (y2 - y1)) / lineLenSq));
-        const projX = x1 + t * (x2 - x1);
-        const projY = y1 + t * (y2 - y1);
-        const distSq = (baseX - projX) * (baseX - projX) + (baseY - projY) * (baseY - projY);
-        if (distSq <= eraserRadiusSq) {
-          return false;
+      if (!isTouched) {
+        for (let i = 0; i < stroke.points.length - 1; i++) {
+          const [x1, y1] = stroke.points[i];
+          const [x2, y2] = stroke.points[i + 1];
+          const lineLenSq = (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
+          if (lineLenSq === 0) continue;
+          const t = Math.max(0, Math.min(1, ((baseX - x1) * (x2 - x1) + (baseY - y1) * (y2 - y1)) / lineLenSq));
+          const projX = x1 + t * (x2 - x1);
+          const projY = y1 + t * (y2 - y1);
+          const distSq = (baseX - projX) * (baseX - projX) + (baseY - projY) * (baseY - projY);
+          if (distSq <= eraserRadiusSq) {
+            isTouched = true;
+            break;
+          }
         }
       }
 
-      return true;
-    });
+      if (!isTouched) {
+        nextStrokes.push(stroke);
+        continue;
+      }
 
-    if (nextStrokes.length !== prevList.length) {
+      // 3. Stroke was touched: densify points along line segments for crisp vector cutting
+      hasAnyChange = true;
+      const stepSize = Math.max(2, eraserRadius * 0.35);
+      const densifiedPoints: [number, number, number][] = [];
+      for (let i = 0; i < stroke.points.length; i++) {
+        densifiedPoints.push(stroke.points[i]);
+        if (i < stroke.points.length - 1) {
+          const [x1, y1, p1] = stroke.points[i];
+          const [x2, y2, p2] = stroke.points[i + 1];
+          const dist = Math.hypot(x2 - x1, y2 - y1);
+          if (dist > stepSize) {
+            const steps = Math.min(12, Math.ceil(dist / stepSize));
+            for (let s = 1; s < steps; s++) {
+              const t = s / steps;
+              densifiedPoints.push([
+                x1 + (x2 - x1) * t,
+                y1 + (y2 - y1) * t,
+                p1 + (p2 - p1) * t,
+              ]);
+            }
+          }
+        }
+      }
+
+      // 4. Split into sub-stroke chunks of points outside the eraser circle
+      let currentChunk: [number, number, number][] = [];
+      for (let i = 0; i < densifiedPoints.length; i++) {
+        const pt = densifiedPoints[i];
+        const dx = pt[0] - baseX;
+        const dy = pt[1] - baseY;
+        const isInside = dx * dx + dy * dy <= eraserRadiusSq;
+
+        if (!isInside) {
+          currentChunk.push(pt);
+        } else {
+          if (currentChunk.length > 0) {
+            const finalChunk: [number, number, number][] = currentChunk.length === 1
+              ? [currentChunk[0], [currentChunk[0][0] + 0.1, currentChunk[0][1] + 0.1, currentChunk[0][2]]]
+              : currentChunk;
+            nextStrokes.push({
+              ...stroke,
+              points: finalChunk,
+            });
+            currentChunk = [];
+          }
+        }
+      }
+
+      if (currentChunk.length > 0) {
+        const finalChunk: [number, number, number][] = currentChunk.length === 1
+          ? [currentChunk[0], [currentChunk[0][0] + 0.1, currentChunk[0][1] + 0.1, currentChunk[0][2]]]
+          : currentChunk;
+        nextStrokes.push({
+          ...stroke,
+          points: finalChunk,
+        });
+      }
+    }
+
+    if (hasAnyChange) {
       strokesRef.current = nextStrokes;
       setStrokes(nextStrokes);
       hasErasedChangeRef.current = true;
     }
   }, [activeWidth]);
 
+  // Continuous drag eraser with linear interpolation to prevent gaps on fast swipes
+  const performErase = useCallback((screenX: number, screenY: number) => {
+    if (lastErasePosRef.current) {
+      const dx = screenX - lastErasePosRef.current.x;
+      const dy = screenY - lastErasePosRef.current.y;
+      const dist = Math.hypot(dx, dy);
+      const stepSize = Math.max(6, (activeWidth <= 1 ? 16 : activeWidth <= 2 ? 26 : 38) * 0.35);
+      if (dist > stepSize) {
+        const steps = Math.min(20, Math.ceil(dist / stepSize));
+        for (let i = 1; i <= steps; i++) {
+          const t = i / steps;
+          eraseAt(
+            lastErasePosRef.current.x + dx * t,
+            lastErasePosRef.current.y + dy * t
+          );
+        }
+      } else {
+        eraseAt(screenX, screenY);
+      }
+    } else {
+      eraseAt(screenX, screenY);
+    }
+    lastErasePosRef.current = { x: screenX, y: screenY };
+  }, [eraseAt, activeWidth]);
+
   // Pointer Event Handlers (PointerType Separation & Stylus Precision)
   const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (readOnly || !inkVisible) return;
+
+    // Hardware stylus eraser tip / side button detection (e.buttons === 32 or pointerType === 'eraser')
+    const isHardwareEraser = e.buttons === 32 || (e as any).pointerType === 'eraser' || e.button === 5;
+    const isEffectiveEraser = isEraserActive || activeTool === 'eraser' || isHardwareEraser;
 
     // Detect Apple Pencil / Stylus input / Mouse input
     if (e.pointerType === 'pen' || e.pointerType === 'mouse') {
@@ -355,8 +461,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       isMultiTouchGestureRef.current = false;
       isTouchScrollingRef.current = false;
     } else if (e.pointerType === 'touch') {
-      // If touch drawing is disabled (Pencil mode / Palm rejection active), forward touch to fluid scrolling
-      if (!allowTouchDrawing) {
+      // If palm rejection is active and NOT currently erasing, forward touch to fluid scrolling
+      if (!allowTouchDrawing && !isEffectiveEraser) {
         touchScrollLastYRef.current = e.clientY;
         isTouchScrollingRef.current = true;
         return;
@@ -390,13 +496,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       setBaseHeight(canvasHeight);
     }
 
-    // Hardware stylus eraser tip / side button detection (e.buttons === 32 or pointerType === 'eraser')
-    const isHardwareEraser = e.buttons === 32 || (e as any).pointerType === 'eraser' || e.button === 5;
-    const isEffectiveEraser = isEraserActive || activeTool === 'eraser' || isHardwareEraser;
-
     if (isEffectiveEraser) {
       isErasingRef.current = true;
       hasErasedChangeRef.current = false;
+      lastErasePosRef.current = { x, y };
       eraseAt(x, y);
     } else {
       setIsDrawing(true);
@@ -426,7 +529,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const y = e.clientY - rect.top;
 
     if (isErasingRef.current) {
-      eraseAt(x, y);
+      performErase(x, y);
       return;
     }
 
@@ -443,6 +546,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     } catch {
       // Ignore
     }
+
+    lastErasePosRef.current = null;
 
     if (isTouchScrollingRef.current) {
       isTouchScrollingRef.current = false;
@@ -500,6 +605,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     } catch {
       // Ignore
     }
+    lastErasePosRef.current = null;
     setIsDrawing(false);
     setCurrentPoints([]);
     isErasingRef.current = false;
@@ -582,7 +688,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           height={canvasHeight}
           style={{ touchAction: 'none' }}
           className={`w-full h-full select-none touch-none ${
-            readOnly || !inkVisible ? 'pointer-events-none' : 'cursor-crosshair'
+            readOnly || !inkVisible
+              ? 'pointer-events-none'
+              : isEraserActive || activeTool === 'eraser'
+              ? 'cursor-cell'
+              : 'cursor-crosshair'
           }`}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}

@@ -102,7 +102,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             return Math.max(0, last.addedHeight);
           }
         }
-      } catch {}
+      } catch { }
     }
     return 240;
   }, [problem.draw_data]);
@@ -132,7 +132,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           calcSpaceHeightRef.current = parsed.calcSpaceHeight;
           setCalcSpaceHeight(parsed.calcSpaceHeight);
         }
-      } catch {}
+      } catch { }
     }
   }, [problem.id]);
 
@@ -339,11 +339,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       <div
         id={`problem-${problem.id}`}
         data-problem-id={problem.id}
-        className={`bg-white dark:bg-[#202023] border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${
-          isActive
-            ? 'border-[#6366F1] shadow-md ring-2 ring-[#6366F1]/20 dark:ring-[#6366F1]/30'
-            : 'border-[#E5E7EB] dark:border-[#2C2C30] shadow-xs'
-        }`}
+        className={`bg-white dark:bg-[#202023] border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${isActive
+          ? 'border-[#6366F1] shadow-md ring-1 ring-[#6366F1]/20 dark:ring-[#6366F1]/30'
+          : 'border-[#E5E7EB] dark:border-[#2C2C30] shadow-xs'
+          }`}
       >
         {/* Header Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
@@ -374,9 +373,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             <button
               onClick={() => setInkVisible((prev) => !prev)}
               aria-label={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
-              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${
-                !inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
-              }`}
+              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${!inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
+                }`}
               title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
             >
               {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-amber-500" />}
@@ -482,9 +480,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           {/* Extended Calculation Workspace Area */}
           <div
             style={{ height: `${calcSpaceHeight}px` }}
-            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${
-              calcSpaceHeight > 0 ? 'border-t border-dashed' : ''
-            }`}
+            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${calcSpaceHeight > 0 ? 'border-t border-dashed' : ''
+              }`}
           >
             {calcSpaceHeight > 0 && (
               <>
@@ -611,11 +608,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               <button
                 onClick={handleToggleArchive}
                 aria-label={problem.status === 'archived' ? '解除封存' : '封存此題目（確定不會再錯）'}
-                className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${
-                  problem.status === 'archived'
-                    ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
-                    : 'bg-stone-100 dark:bg-stone-800 text-[#6B7280] dark:text-[#9CA3AF] border-stone-200 dark:border-stone-700 hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
-                }`}
+                className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${problem.status === 'archived'
+                  ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
+                  : 'bg-stone-100 dark:bg-stone-800 text-[#6B7280] dark:text-[#9CA3AF] border-stone-200 dark:border-stone-700 hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
+                  }`}
                 title={problem.status === 'archived' ? '解除封存：移回常規複習流' : '封存題目：確定熟練不再錯，自常規複習流隱藏'}
               >
                 {problem.status === 'archived' ? (
@@ -635,11 +631,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             <button
               onClick={handleToggleStatus}
               aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
-              className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
-                isResolved
-                  ? 'bg-[#10B981] text-white hover:bg-[#059669]'
-                  : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
-              }`}
+              className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${isResolved
+                ? 'bg-[#10B981] text-white hover:bg-[#059669]'
+                : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
+                }`}
             >
               <CheckCircle className="w-4 h-4" />
               <span>{isResolved ? '已標記訂正完畢' : '標記完成訂正'}</span>

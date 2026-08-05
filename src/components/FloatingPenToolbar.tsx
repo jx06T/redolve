@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PenTool, Highlighter, Plus, Hand } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Plus, Hand } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { STROKE_WIDTHS } from '../config/constants';
 
@@ -165,6 +165,19 @@ export const FloatingPenToolbar: React.FC = () => {
           title="螢光筆"
         >
           <Highlighter className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => setTool('eraser')}
+          aria-label="橡皮擦工具"
+          className={`p-2.5 rounded-2xl active:scale-95 transition-all ${
+            tool === 'eraser'
+              ? 'bg-[#E11D48]/10 text-[#E11D48] dark:text-rose-400 font-bold ring-1 ring-[#E11D48]/30'
+              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+          }`}
+          title="橡皮擦 (局部向量擦除)"
+        >
+          <Eraser className="w-4 h-4" />
         </button>
       </div>
 
