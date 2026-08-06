@@ -45,43 +45,45 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     ? null
     : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
 
-  // Helper to calculate problem count for any taxonomy node
-  const computeCountForNode = (node: { id: string; children?: any[] }): number => {
-    let count = 0;
-    if (taxonomyCounts[node.id]) {
-      const counts = taxonomyCounts[node.id] as any;
-      if (typeof counts === 'number') {
-        // Fallback for old cached data
-        count = selectedStatus === 'all' ? counts : 0;
-      } else {
-        count = selectedStatus === 'all' ? (counts.total || 0) : (counts[selectedStatus] || 0);
-      }
-    }
-
+  // 1. 輔助函數：取得節點及其所有子孫的 ID 集合
+  const getAllDescendantIds = (node: { id: string; children?: any[] }): string[] => {
+    let ids = [node.id];
     if (node.children && node.children.length > 0) {
       for (const child of node.children) {
-        count += computeCountForNode(child);
+        ids = [...ids, ...getAllDescendantIds(child)];
       }
     }
-
-    // Fallback if taxonomyCounts is empty (e.g. initial load without worker completion)
-    if (Object.keys(taxonomyCounts).length === 0) {
-      const filterFn = (p: any) => p.topic_id === node.id && (selectedStatus === 'all' || p.status === selectedStatus);
-      let localCount = problems.filter(filterFn).length;
-      if (node.children && node.children.length > 0) {
-        for (const child of node.children) {
-          const childFilterFn = (p: any) => p.topic_id === child.id && (selectedStatus === 'all' || p.status === selectedStatus);
-          localCount += problems.filter(childFilterFn).length;
-        }
-      }
-      return localCount;
-    }
-    return count;
+    return ids;
   };
 
+  // 2. 核心計算函數：防呆！絕對不互相累加！
+  const computeCountForNode = (node: { id: string; children?: any[] }): number => {
+    // 優先看 Server 傳來的 taxonomyCounts 有沒有直接給這個節點的「已經算好的總數」
+    const rawCount = taxonomyCounts[node.id] as any;
+
+    if (rawCount) {
+      // 如果 Server 有給這個節點的數字，直接拿來用！絕對不要去遞迴加上 children 的數字！
+      if (typeof rawCount === 'number') {
+        return selectedStatus === 'all' ? rawCount : 0;
+      } else {
+        return selectedStatus === 'all' ? (rawCount.total || 0) : (rawCount[selectedStatus] || 0);
+      }
+    }
+
+    // 如果 Server 沒給這個節點的數字（或是還沒載入），前端自己用 problems 陣列算
+    // 這裡我們用 includes 一次性算出家族總數，一樣不需要遞迴累加！
+    const validIds = getAllDescendantIds(node);
+    return problems.filter((p) => {
+      const isStatusMatch = selectedStatus === 'all' || p.status === selectedStatus;
+      const isTopicMatch = validIds.includes(p.topic_id || '');
+      return isStatusMatch && isTopicMatch;
+    }).length;
+  };
+
+  // 3. 科目總數
   const subjectTotalCount = activeSubject
-    ? (activeSubject.children?.reduce((acc, unit) => acc + computeCountForNode(unit), 0) ?? 0)
-    : problems.length;
+    ? computeCountForNode(activeSubject)
+    : problems.filter(p => selectedStatus === 'all' || p.status === selectedStatus).length;
 
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
@@ -195,17 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
-                        const pointCountRaw = taxonomyCounts[point.id] as any;
-                        let pointCount = 0;
-                        if (pointCountRaw) {
-                          if (typeof pointCountRaw === 'number') {
-                            pointCount = selectedStatus === 'all' ? pointCountRaw : 0;
-                          } else {
-                            pointCount = selectedStatus === 'all' ? (pointCountRaw.total || 0) : (pointCountRaw[selectedStatus] || 0);
-                          }
-                        } else {
-                          pointCount = problems.filter((p) => p.topic_id === point.id && (selectedStatus === 'all' || p.status === selectedStatus)).length;
-                        }
+                        const pointCount = computeCountForNode(point);
 
                         return (
                           <button

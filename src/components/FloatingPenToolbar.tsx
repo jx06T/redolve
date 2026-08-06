@@ -33,7 +33,7 @@ export const FloatingPenToolbar: React.FC = () => {
   useEffect(() => {
     const initPos = () => {
       if (toolbarPosition && typeof toolbarPosition.x === 'number' && typeof toolbarPosition.y === 'number') {
-        const clampedX = Math.max(24, Math.min(window.innerWidth - 64, toolbarPosition.x));
+        const clampedX = Math.max(12, Math.min(window.innerWidth - 62, toolbarPosition.x));
         const clampedY = Math.max(64, Math.min(window.innerHeight - 64, toolbarPosition.y));
         setPosition({ x: clampedX, y: clampedY });
         if (toolbarOrientation) {
@@ -100,7 +100,7 @@ export const FloatingPenToolbar: React.FC = () => {
       // Snap to Top Edge -> Horizontal Layout
       finalOrientation = 'horizontal';
       const clampedX = Math.max(24, Math.min(window.innerWidth - 320, position.x));
-      finalPos = { x: clampedX, y: 80 };
+      finalPos = { x: clampedX, y: 70 };
     } else if (minDist === distBottom) {
       // Snap to Bottom Edge -> Horizontal Layout
       finalOrientation = 'horizontal';
@@ -110,12 +110,12 @@ export const FloatingPenToolbar: React.FC = () => {
       // Snap to Left Edge -> Vertical Layout
       finalOrientation = 'vertical';
       const clampedY = Math.max(80, Math.min(window.innerHeight - 260, position.y));
-      finalPos = { x: 24, y: clampedY };
+      finalPos = { x: 12, y: clampedY };
     } else {
       // Snap to Right Edge -> Vertical Layout
       finalOrientation = 'vertical';
       const clampedY = Math.max(80, Math.min(window.innerHeight - 260, position.y));
-      finalPos = { x: window.innerWidth - 64, y: clampedY };
+      finalPos = { x: window.innerWidth - 62, y: clampedY };
     }
 
     setPosition(finalPos);
@@ -154,10 +154,10 @@ export const FloatingPenToolbar: React.FC = () => {
       >
         <button
           onClick={() => setIsCollapsed(false)}
-          className="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+          className="p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
           title="展開工具列"
         >
-          <Maximize2 className="w-5 h-5" />
+          <Maximize2 className="w-4 h-4" />
         </button>
       </div>
     );
