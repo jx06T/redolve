@@ -54,13 +54,13 @@ function parseDrawData(raw: DrawData | string | null | undefined): {
 }
 
 function getEraserRadius(width: number): number {
-  return width <= 1 ? 7 : width <= 2 ? 14 : 24;
+  return width <= 1 ? 6 : width <= 2 ? 11 : 25;
 }
 
 function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number) {
   if (tool === 'highlighter') {
     // Highlighter: broad, translucent, consistent band
-    const size = width <= 1 ? 16 : width <= 2 ? 24 : 36;
+    const size = width <= 1 ? 14 : width <= 2 ? 18 : 30;
     return {
       size,
       thinning: 0.02,
@@ -70,7 +70,7 @@ function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number)
     };
   }
   // Pen: natural pressure-sensitive ink
-  const size = width <= 1 ? 2.5 : width <= 2 ? 4.5 : 7.5;
+  const size = width <= 1 ? 1.5 : width <= 2 ? 2.5 : 6;
   return {
     size,
     thinning: 0.5,
@@ -516,7 +516,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
       isMultiTouchGestureRef.current = false;
       if (e.pointerType === 'pen') {
-        //canvasRef.current!.style.touchAction = 'none';
+        canvasRef.current!.style.touchAction = 'none';
       }
     } else if (e.pointerType === 'touch') {
       if (!allowTouchDrawing) {
@@ -613,6 +613,9 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     lastErasePosRef.current = null;
     setIsErasingLive(false);
+    if (e.pointerType === 'pen') {
+      e.currentTarget.style.touchAction = readOnly ? 'pan-y' : (allowTouchDrawing ? 'none' : 'pan-y');
+    }
 
     if (isErasingRef.current) {
       isErasingRef.current = false;
@@ -672,7 +675,9 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setCurrentPoints([]);
     isErasingRef.current = false;
     setIsErasingLive(false);
-
+    if (e.pointerType === 'pen') {
+      e.currentTarget.style.touchAction = readOnly ? 'pan-y' : (allowTouchDrawing ? 'none' : 'pan-y');
+    }
   };
 
   const handlePointerLeave = () => {
@@ -726,7 +731,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       const effectiveTool = isEraserActive ? 'eraser' : activeTool;
       const opts = getStrokeOptions(effectiveTool, activeWidth);
       const liveStrokePoints = getStroke(currentPoints, {
-        size: opts.size,
+        size: opts.size * currentScale,
         thinning: opts.thinning,
         smoothing: opts.smoothing,
         streamline: opts.streamline,
