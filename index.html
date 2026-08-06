@@ -84,26 +84,27 @@
   <!-- 手動註冊 Service Worker -->
   <script>
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').then((registration) => {
-          console.log('SW 註冊成功，範圍:', registration.scope);
-
-          // 監聽是否有新版本安裝完畢 (背景偷偷更新)
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // 自動重新整理以套用新快取
-                  console.log('新版本已就緒，即將重新整理...');
-                  window.location.reload();
-                }
-              });
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        // 偵測到新版本已下載完成、進入 waiting 狀態
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // 這裡可以跳一個 toast:「有新版本，點擊更新」
+              // 使用者確認後執行：
+              // newWorker.postMessage('SKIP_WAITING');
+              newWorker.postMessage('SKIP_WAITING'); // 若你想直接自動更新可先這樣
             }
           });
-        }).catch((error) => {
-          console.error('SW 註冊失敗:', error);
         });
+      });
+
+      // 新 SW 接管後，重新整理頁面確保 JS/CSS 版本一致
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (refreshing) return;
+        refreshing = true;
+        window.location.reload();
       });
     }
   </script>

@@ -1,8 +1,13 @@
-// Redolve PWA Service Worker (v1.3.4)
-const VERSION = 'v1.3.4';
+// Redolve PWA Service Worker
+const VERSION = 'v1.4.0';
 const SHELL_CACHE = `rdv-shell-${VERSION}`;
 const API_CACHE = `rdv-api-${VERSION}`;
 const IMAGE_CACHE = `rdv-images-${VERSION}`;
+const CURRENT_CACHES = [SHELL_CACHE, API_CACHE, IMAGE_CACHE];
+
+// 統一只用這一個 key 存放「最新的」HTML shell，
+// 避免同時存在 '/' 與 '/index.html' 兩份、導致 fallback 讀到舊版本
+const SHELL_KEY = '/index.html';
 
 const SHELL_ASSETS = [
   '/',
@@ -11,7 +16,9 @@ const SHELL_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  // 不再無條件 skipWaiting()。
+  // 新 SW 先安裝好、進入 waiting 狀態，等前端主動確認後才接管，
+  // 避免「舊頁面 + 新 SW」造成 JS/CSS hash 對不上的白屏問題。
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) => {
       return Promise.allSettled(
@@ -22,19 +29,28 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  self.clients.claim();
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
         keys.map((key) => {
-          if (key.startsWith('rdv-') && ![SHELL_CACHE, API_CACHE, IMAGE_CACHE].includes(key)) {
+          if (key.startsWith('rdv-') && !CURRENT_CACHES.includes(key)) {
             console.log('[SW] 清除過期快取:', key);
             return caches.delete(key);
           }
         })
       );
-    })
+      await self.clients.claim();
+    })()
   );
+});
+
+// 讓前端可以主動要求這個 waiting 中的 SW 立刻接管
+// （通常在使用者按下「有新版本，點此更新」之後呼叫）
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
@@ -76,48 +92,57 @@ self.addEventListener('fetch', (event) => {
             }
             return networkResponse;
           })
-          .catch(() => { });
+          .catch(() => cachedResponse); // network 失敗時仍回舊快取，避免 unhandled rejection
         return cachedResponse || fetchPromise;
       })
     );
     return;
   }
 
-  // 3. SPA 網頁頁面跳轉 (HTML Navigation) -> 💡 關鍵修復！
+  // 3. SPA 網頁頁面跳轉 (HTML Navigation) -> Network-First，並統一寫入單一 SHELL_KEY
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
           if (response && response.status === 200) {
             const resClone = response.clone();
-            caches.open(SHELL_CACHE).then(cache => cache.put('/', resClone));
+            caches.open(SHELL_CACHE).then(cache => cache.put(SHELL_KEY, resClone));
           }
           return response;
         })
         .catch(async () => {
-          // 💡 核心修復：不管使用者在什麼子網址 (/study/math, /search, /share/st_123)，
-          // 找不到或斷線時，退回的快取永遠是 '/index.html' 或 '/'！
-          const cachedIndex = (await caches.match('/index.html')) || (await caches.match('/'));
+          // 不管使用者在什麼子網址 (/study/math, /search, /share/st_123)，
+          // 找不到或斷線時，一律退回同一份、且會持續被更新的 SHELL_KEY
+          const cachedIndex = await caches.match(SHELL_KEY);
           if (cachedIndex) return cachedIndex;
-          throw new Error('No offline index.html available');
+          return new Response('離線狀態，且尚無可用的快取頁面', {
+            status: 503,
+            headers: { 'Content-Type': 'text/plain; charset=utf-8' }
+          });
         })
     );
     return;
   }
 
-  // 4. Vite 打包出的 JS / CSS 靜態資源 -> Cache-First
+  // 4. Vite 打包出的 JS / CSS 靜態資源 -> Cache-First，並加上失敗保護
   if (event.request.method === 'GET') {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse) return cachedResponse;
 
-        return fetch(event.request).then((response) => {
-          if (response && response.status === 200) {
-            const resClone = response.clone();
-            caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resClone));
-          }
-          return response;
-        });
+        return fetch(event.request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const resClone = response.clone();
+              caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resClone));
+            }
+            return response;
+          })
+          .catch(() => {
+            // 避免 unhandled rejection；沒有快取也沒有網路時，
+            // 讓瀏覽器自然顯示該資源載入失敗，而不是整個 SW 拋錯
+            return new Response('', { status: 504, statusText: 'Offline and not cached' });
+          });
       })
     );
   }
