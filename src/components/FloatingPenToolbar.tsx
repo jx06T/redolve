@@ -15,35 +15,49 @@ export const FloatingPenToolbar: React.FC = () => {
     setPenWidth,
     allowTouchDrawing,
     toggleAllowTouchDrawing,
+    toolbarPosition,
+    toolbarOrientation,
+    setToolbarPosition,
+    setToolbarOrientation,
     showToast,
   } = useStore();
 
   const colorInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
+  const [lastCustomColor, setLastCustomColor] = useState<string | null>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-  const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
+  const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>(toolbarOrientation || 'vertical');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Initialize position to top-right on mount / window resize
+  // Initialize position from store or default to top-right
   useEffect(() => {
     const initPos = () => {
-      if (!position) {
-        setPosition({
-          x: window.innerWidth - 64,
-          y: 96,
-        });
-        if (window.innerWidth < 768) {
-          setIsCollapsed(true);
+      if (toolbarPosition && typeof toolbarPosition.x === 'number' && typeof toolbarPosition.y === 'number') {
+        const clampedX = Math.max(24, Math.min(window.innerWidth - 64, toolbarPosition.x));
+        const clampedY = Math.max(64, Math.min(window.innerHeight - 64, toolbarPosition.y));
+        setPosition({ x: clampedX, y: clampedY });
+        if (toolbarOrientation) {
+          setOrientation(toolbarOrientation);
         }
+      } else {
+        const defaultX = window.innerWidth - 64;
+        const defaultY = 96;
+        setPosition({ x: defaultX, y: defaultY });
+        setToolbarPosition({ x: defaultX, y: defaultY });
+      }
+
+      if (window.innerWidth < 768) {
+        setIsCollapsed(true);
       }
     };
+
     initPos();
     window.addEventListener('resize', initPos);
     return () => window.removeEventListener('resize', initPos);
-  }, [position]);
+  }, []);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
@@ -82,35 +96,43 @@ export const FloatingPenToolbar: React.FC = () => {
 
     const minDist = Math.min(distLeft, distRight, distTop, distBottom);
 
+    let finalPos = { x: position.x, y: position.y };
+    let finalOrientation: 'vertical' | 'horizontal' = 'vertical';
+
     if (minDist === distTop) {
       // Snap to Top Edge -> Horizontal Layout
-      setOrientation('horizontal');
+      finalOrientation = 'horizontal';
       const clampedX = Math.max(24, Math.min(window.innerWidth - 320, position.x));
-      setPosition({ x: clampedX, y: 80 });
+      finalPos = { x: clampedX, y: 80 };
     } else if (minDist === distBottom) {
       // Snap to Bottom Edge -> Horizontal Layout
-      setOrientation('horizontal');
+      finalOrientation = 'horizontal';
       const clampedX = Math.max(24, Math.min(window.innerWidth - 320, position.x));
-      setPosition({ x: clampedX, y: window.innerHeight - 80 });
+      finalPos = { x: clampedX, y: window.innerHeight - 80 };
     } else if (minDist === distLeft) {
       // Snap to Left Edge -> Vertical Layout
-      setOrientation('vertical');
+      finalOrientation = 'vertical';
       const clampedY = Math.max(80, Math.min(window.innerHeight - 260, position.y));
-      setPosition({ x: 24, y: clampedY });
+      finalPos = { x: 24, y: clampedY };
     } else {
       // Snap to Right Edge -> Vertical Layout
-      setOrientation('vertical');
+      finalOrientation = 'vertical';
       const clampedY = Math.max(80, Math.min(window.innerHeight - 260, position.y));
-      setPosition({ x: window.innerWidth - 64, y: clampedY });
+      finalPos = { x: window.innerWidth - 64, y: clampedY };
     }
+
+    setPosition(finalPos);
+    setOrientation(finalOrientation);
+    setToolbarPosition(finalPos);
+    setToolbarOrientation(finalOrientation);
   };
 
   const handleCustomColorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newHex = e.target.value;
     if (newHex) {
-      addPaletteColor({ hex: newHex });
+      setPenColor(newHex); // 更新畫筆為新顏色
+      setLastCustomColor(newHex); // 記憶這個顏色
       if (tool === 'eraser') setTool('pen');
-      showToast(`已套用自訂筆觸顏色：${newHex.toUpperCase()}`, 'success', 1500);
     }
   };
 
@@ -231,7 +253,8 @@ export const FloatingPenToolbar: React.FC = () => {
             : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-800 pb-2'
         }
       >
-        {paletteColors.slice(0, 6).map((c) => (
+        {/* 前 5 個固定顏色 */}
+        {paletteColors.slice(0, 5).map((c) => (
           <button
             key={c.hex}
             onClick={() => {
@@ -248,23 +271,46 @@ export const FloatingPenToolbar: React.FC = () => {
           />
         ))}
 
-        {/* Color Picker Trigger Button */}
+        {/* 第 6 個按鈕：自訂色歷史插槽 */}
         <div className="relative">
           <button
             type="button"
-            onClick={() => colorInputRef.current?.click()}
-            aria-label="自訂調色盤選色"
-            title="開啟調色盤新增色彩"
-            className="w-6 h-6 rounded-full bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#374151] dark:text-[#D1D5DB] flex items-center justify-center border border-stone-300 dark:border-stone-600 transition-all hover:scale-110 active:scale-95"
+            onClick={() => {
+              // 如果已經有記憶顏色，且當前畫筆還不是這個顏色，點擊就是「選取它」
+              if (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase()) {
+                setPenColor(lastCustomColor);
+                if (tool === 'eraser') setTool('pen');
+              } else {
+                // 如果沒有記憶顏色，或者當前畫筆已經是這個顏色了，點擊就是「打開調色盤換新色」
+                colorInputRef.current?.click();
+              }
+            }}
+            // 提供雙擊直接打開調色盤的捷徑
+            onDoubleClick={() => colorInputRef.current?.click()}
+            aria-label="自訂色插槽"
+            title={lastCustomColor ? "點擊選取自訂色 / 雙擊開啟調色盤" : "新增自訂色"}
+            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all border active:scale-95 ${lastCustomColor && penColor.toUpperCase() === lastCustomColor.toUpperCase()
+              ? 'scale-105 ring-1 ring-[#6366F1] shadow-xs border-black/10 dark:border-white/10' // 自訂色被選取中
+              : lastCustomColor
+                ? 'border-black/10 dark:border-white/10 hover:scale-110' // 只有記憶，沒被選取
+                : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-600 hover:scale-110' // 空白 + 號狀態
+              }`}
+            style={{
+              backgroundColor: lastCustomColor || undefined,
+            }}
           >
-            <Plus className="w-3.5 h-3.5" />
+            {/* 只有在沒有記憶顏色的時候，才顯示 + 號 */}
+            {!lastCustomColor && (
+              <Plus className="w-3.5 h-3.5 text-[#374151] dark:text-[#D1D5DB]" />
+            )}
           </button>
+
           <input
             ref={colorInputRef}
             type="color"
-            value={penColor}
+            value={lastCustomColor || penColor}
             onChange={handleCustomColorChange}
-            className="sr-only"
+            className="sr-only absolute top-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
             tabIndex={-1}
             aria-hidden="true"
           />

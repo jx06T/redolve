@@ -76,7 +76,11 @@ export const Navbar: React.FC = () => {
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            <Link to="/" className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight">
+            <span
+              onDoubleClick={() => navigate('/')}
+              onClick={() => setTimeout(() => window.location.reload(), 10)}
+              className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight select-none cursor-pointer"
+            >
               <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 rounded-2xl">
                 <PenTool className="w-5 h-5" />
               </div>
@@ -84,7 +88,7 @@ export const Navbar: React.FC = () => {
                 <span className="text-lg font-bold leading-none">Redolve</span>
                 <span className="text-[10px] text-[#9CA3AF] mt-0.5">Redo & Solve</span>
               </div>
-            </Link>
+            </span>
 
             {/* Subject Selector Dropdown */}
             <div className="hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
