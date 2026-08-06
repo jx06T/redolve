@@ -516,7 +516,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
       isMultiTouchGestureRef.current = false;
       if (e.pointerType === 'pen') {
-        canvasRef.current!.style.touchAction = 'none';
+        //canvasRef.current!.style.touchAction = 'none';
       }
     } else if (e.pointerType === 'touch') {
       if (!allowTouchDrawing) {
@@ -525,7 +525,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
       // 如果允許手指繪圖，手指按下的瞬間必須鎖定滾動，否則會邊畫邊滑動
       if (allowTouchDrawing) {
-        canvasRef.current!.style.touchAction = 'none';
+        //canvasRef.current!.style.touchAction = 'none';
       }
 
       // 攔截多指操作

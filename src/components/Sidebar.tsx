@@ -57,13 +57,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         count = selectedStatus === 'all' ? (counts.total || 0) : (counts[selectedStatus] || 0);
       }
     }
-    
+
     if (node.children && node.children.length > 0) {
       for (const child of node.children) {
         count += computeCountForNode(child);
       }
     }
-    
+
     // Fallback if taxonomyCounts is empty (e.g. initial load without worker completion)
     if (Object.keys(taxonomyCounts).length === 0) {
       const filterFn = (p: any) => p.topic_id === node.id && (selectedStatus === 'all' || p.status === selectedStatus);
@@ -99,8 +99,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 key={item.key}
                 onClick={() => setSelectedStatus(item.key as any)}
                 className={`py-1.5 text-xs font-medium rounded-xl transition-all ${isSelected
-                    ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-semibold shadow-xs'
-                    : 'text-[#374151] dark:text-[#D1D5DB] hover:text-[#6366F1]'
+                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-semibold shadow-xs'
+                  : 'text-[#374151] dark:text-[#D1D5DB] hover:text-[#6366F1]'
                   }`}
               >
                 {item.label}
@@ -128,8 +128,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setMobileDrawerOpen(false);
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
-                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
-                  : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
+                : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                 }`}
             >
               <span>全部未分類題目</span>
@@ -150,14 +150,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setMobileDrawerOpen(false);
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
-                  ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                  : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                 }`}
             >
               <span>全部 {activeSubject?.label || '科目'} 錯題</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${selectedTopicId === null
-                  ? 'bg-[#6366F1]/20 text-[#6366F1]'
-                  : 'bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+                ? 'bg-[#6366F1]/20 text-[#6366F1]'
+                : 'bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
                 }`}>
                 {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
               </span>
@@ -175,15 +175,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       setMobileDrawerOpen(false);
                     }}
                     className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
-                        ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                        : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                       }`}
                   >
                     <span className="truncate">{unit.label}</span>
                     {unitCount > 0 && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
-                          ? 'bg-[#6366F1]/20 text-[#6366F1] font-semibold'
-                          : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+                        ? 'bg-[#6366F1]/20 text-[#6366F1] font-semibold'
+                        : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
                         }`}>
                         {unitCount}
                       </span>
@@ -215,15 +215,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                               setMobileDrawerOpen(false);
                             }}
                             className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${isPointSelected
-                                ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
-                                : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
+                              ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
+                              : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
                               }`}
                           >
                             <span className="truncate">• {point.label}</span>
                             {pointCount > 0 && (
                               <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
-                                  ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
-                                  : 'text-stone-400 dark:text-stone-500'
+                                ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
+                                : 'text-stone-400 dark:text-stone-500'
                                 }`}>
                                 {pointCount}
                               </span>
@@ -268,8 +268,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     setMobileDrawerOpen(false);
                   }}
                   className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${isActive
-                      ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                    ? 'bg-[#6366F1] text-white font-bold shadow-xs'
+                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
                     }`}
                 >
                   <div className="flex flex-col min-w-0 pr-2">
@@ -283,12 +283,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                   </div>
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${isActive
-                        ? 'bg-white/20 text-white'
-                        : item.status === 'resolved'
-                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
-                          : item.status === 'archived'
-                            ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
-                            : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
+                      ? 'bg-white/20 text-white'
+                      : item.status === 'resolved'
+                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
+                        : item.status === 'archived'
+                          ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
+                          : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
                       }`}
                   >
                     {item.status === 'resolved' ? '已完成' : item.status === 'archived' ? '已封存' : '未訂正'}
@@ -345,14 +345,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       {/* 3. Desktop Permanent Sticky Sidebar (< 1024px hidden, >= 1024px visible) */}
       {sidebarCollapsed ? (
         // 加入 self-start，避免 Flex stretch 強迫與主要內容等高而失去 sticky 效果
-        <div className="hidden lg:block self-start sticky top-[4.75rem]">
-          <button
-            onClick={toggleSidebarCollapsed}
-            className="p-3 rounded-2xl bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] text-[#6366F1] shadow-xs hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
-            title="展開側邊欄 (退出專注模式)"
-          >
-            <PanelLeftOpen className="w-5 h-5" />
-          </button>
+        <div className=' hidden lg:block w-2 h-1 relative'>
+          <div className=" absolute self-start top-0 -left-2">
+            <button
+              onClick={toggleSidebarCollapsed}
+              className="p-3 rounded-2xl bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] text-[#6366F1] shadow-xs hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
+              title="展開側邊欄 (退出專注模式)"
+            >
+              <PanelLeftOpen className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       ) : (
         // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
