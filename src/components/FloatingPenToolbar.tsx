@@ -20,7 +20,6 @@ export const FloatingPenToolbar: React.FC = () => {
     setToolbarOrientation,
   } = useStore();
 
-  const colorInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
 
   const [lastCustomColor, setLastCustomColor] = useState<string | null>(null);
@@ -270,7 +269,7 @@ export const FloatingPenToolbar: React.FC = () => {
         ))}
 
         {/* 第 6 個按鈕：自訂色歷史插槽 */}
-        <div className="relative">
+        <div className="relative w-6 h-6">
           <button
             type="button"
             onClick={() => {
@@ -278,39 +277,40 @@ export const FloatingPenToolbar: React.FC = () => {
               if (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase()) {
                 setPenColor(lastCustomColor);
                 if (tool === 'eraser') setTool('pen');
-              } else {
-                // 如果沒有記憶顏色，或者當前畫筆已經是這個顏色了，點擊就是「打開調色盤換新色」
-                colorInputRef.current?.click();
               }
+              // 注意：這裡移除了 colorInputRef.current?.click()，因為我們改用透明 input 覆蓋
             }}
-            // 提供雙擊直接打開調色盤的捷徑
-            onDoubleClick={() => colorInputRef.current?.click()}
             aria-label="自訂色插槽"
-            title={lastCustomColor ? "點擊選取自訂色 / 雙擊開啟調色盤" : "新增自訂色"}
-            className={`w-6 h-6 rounded-full flex items-center justify-center transition-all border active:scale-95 ${lastCustomColor && penColor.toUpperCase() === lastCustomColor.toUpperCase()
-              ? 'scale-105 ring-1 ring-[#6366F1] shadow-xs border-black/10 dark:border-white/10' // 自訂色被選取中
+            title={lastCustomColor ? "點擊選取自訂色 / 再次點擊開啟調色盤" : "新增自訂色"}
+            className={`absolute inset-0 w-full h-full rounded-full flex items-center justify-center transition-all border ${lastCustomColor && penColor.toUpperCase() === lastCustomColor.toUpperCase()
+              ? 'scale-105 ring-1 ring-[#6366F1] shadow-xs border-black/10 dark:border-white/10'
               : lastCustomColor
-                ? 'border-black/10 dark:border-white/10 hover:scale-110' // 只有記憶，沒被選取
-                : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-600 hover:scale-110' // 空白 + 號狀態
+                ? 'border-black/10 dark:border-white/10 hover:scale-110'
+                : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-600 hover:scale-110'
               }`}
             style={{
               backgroundColor: lastCustomColor || undefined,
             }}
           >
-            {/* 只有在沒有記憶顏色的時候，才顯示 + 號 */}
             {!lastCustomColor && (
               <Plus className="w-3.5 h-3.5 text-[#374151] dark:text-[#D1D5DB]" />
             )}
           </button>
 
+          {/* ✅ 關鍵修正：將 input 撐滿整個容器並設為透明，讓行動裝置直接點擊它 */}
           <input
-            ref={colorInputRef}
             type="color"
             value={lastCustomColor || penColor}
             onChange={handleCustomColorChange}
-            className="sr-only absolute top-0 left-0 w-0 h-0 opacity-0 pointer-events-none"
-            tabIndex={-1}
-            aria-hidden="true"
+            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${
+              // 如果已經記憶了顏色，且還沒被選取時，我們把 input 的點擊事件關閉，
+              // 讓點擊事件穿透到下方的 button 去執行「選取」動作。
+              // 當已經選取時，才打開點擊事件，讓使用者可以點擊叫出調色盤。
+              (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase())
+                ? 'pointer-events-none'
+                : 'pointer-events-auto'
+              }`}
+            title="選擇自訂顏色"
           />
         </div>
       </div>
