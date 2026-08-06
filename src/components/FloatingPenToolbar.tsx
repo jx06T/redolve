@@ -10,7 +10,6 @@ export const FloatingPenToolbar: React.FC = () => {
     penColor,
     setPenColor,
     paletteColors,
-    addPaletteColor,
     penWidth,
     setPenWidth,
     allowTouchDrawing,
@@ -19,7 +18,6 @@ export const FloatingPenToolbar: React.FC = () => {
     toolbarOrientation,
     setToolbarPosition,
     setToolbarOrientation,
-    showToast,
   } = useStore();
 
   const colorInputRef = useRef<HTMLInputElement>(null);
