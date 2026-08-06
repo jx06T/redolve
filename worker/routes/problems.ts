@@ -197,10 +197,19 @@ problemsRouter.post('/', async (c) => {
 
           // Sync FTS5 Index
           try {
+            const ocrText = tagResult.ocr_text || '';
+
             await c.env.DB.prepare(
-              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, ?, ?, ?)`
+              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
             )
-              .bind(problemId, userId, (body['source'] as string) || 'iOS Shortcut', keywordTokensStr, '')
+              .bind(
+                problemId,
+                userId,
+                (body['source'] as string) || 'iOS Shortcut',
+                keywordTokensStr,
+                '',
+                ocrText
+              )
               .run();
           } catch (ftsErr) {
             console.warn('[FTS Sync Warning]', ftsErr);
@@ -426,14 +435,21 @@ problemsRouter.put('/:id', async (c) => {
 
   // Sync FTS5 Index if keywords, source, or typed_notes updated
   if (keywordsStr !== null || source !== null || typed_notes !== undefined) {
-    const currentItem = await c.env.DB.prepare('SELECT source, keyword_tokens, typed_notes FROM items WHERE id = ? AND user_id = ?')
-      .bind(problemId, userId)
-      .first<{ source: string; keyword_tokens: string; typed_notes: string }>();
+    const currentFts = await c.env.DB.prepare('SELECT source, keyword_tokens, typed_notes, problem_text FROM items_fts WHERE id = ?')
+      .bind(problemId)
+      .first<{ source: string; keyword_tokens: string; typed_notes: string; problem_text: string }>();
 
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, ?, ?, ?)`
+      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
     )
-      .bind(problemId, userId, currentItem?.source || source || '網頁編輯', currentItem?.keyword_tokens || keywordTokensStr || '', currentItem?.typed_notes || typed_notes || '')
+      .bind(
+        problemId,
+        userId,
+        currentFts?.source || source || '網頁編輯',
+        currentFts?.keyword_tokens || keywordTokensStr || '',
+        typed_notes !== undefined ? typed_notes : (currentFts?.typed_notes || ''),
+        currentFts?.problem_text || '' // ? 6 保留舊的 OCR 文字
+      )
       .run();
   }
 
@@ -597,6 +613,7 @@ problemsRouter.post('/:id/analyze', async (c) => {
   const keywordTokensStr = tagResult.keyword_tokens.join(' ');
   const keywordsJson = JSON.stringify(tagResult.keywords);
   const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
+  const ocrText = tagResult.ocr_text || '';
 
   await c.env.DB.prepare(
     `UPDATE items
@@ -608,9 +625,18 @@ problemsRouter.post('/:id/analyze', async (c) => {
 
   // Sync FTS5
   await c.env.DB.prepare(
-    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, COALESCE(?, 'AI 分析'), ?, ?)`
+    // 💡 修正 1：SQL 語句必須包含 problem_text 欄位，且 VALUES 裡面必須有 6 個問號 (?)
+    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) 
+     VALUES (?, ?, COALESCE(?, 'AI 分析'), ?, ?, ?)`
   )
-    .bind(problemId, userId, item.source || null, keywordTokensStr, item.typed_notes || '')
+    .bind(
+      problemId,
+      userId,
+      item.source || null,
+      keywordTokensStr,
+      item.typed_notes || '',
+      ocrText
+    )
     .run();
 
   const updatedItem = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')

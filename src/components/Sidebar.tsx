@@ -45,7 +45,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     ? null
     : (baseTaxonomy.find((s) => s.id === currentSubjectId) || baseTaxonomy[0]);
 
-  // 1. 輔助函數：取得節點及其所有子孫的 ID 集合
   const getAllDescendantIds = (node: { id: string; children?: any[] }): string[] => {
     let ids = [node.id];
     if (node.children && node.children.length > 0) {
@@ -56,35 +55,36 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     return ids;
   };
 
-  // 2. 核心計算函數：防呆！絕對不互相累加！
+  // --- 2. 獲取任何節點的計數 (超級精簡版)
   const computeCountForNode = (node: { id: string; children?: any[] }): number => {
-    // 優先看 Server 傳來的 taxonomyCounts 有沒有直接給這個節點的「已經算好的總數」
-    const rawCount = taxonomyCounts[node.id] as any;
+    const hasServerData = taxonomyCounts && Object.keys(taxonomyCounts).length > 0;
 
-    if (rawCount) {
-      // 如果 Server 有給這個節點的數字，直接拿來用！絕對不要去遞迴加上 children 的數字！
+    if (hasServerData) {
+      // 💯 Server 已經幫我們做完完美的 Bottom-Up Rollup 了！
+      // 這裡絕對不可以再跑 for-loop 或遞迴去加 children，否則就會發生您剛才遇到的「越加越多」Double Counting 災難。
+      const rawCount = taxonomyCounts[node.id] as any;
+      if (!rawCount) return 0;
+
       if (typeof rawCount === 'number') {
         return selectedStatus === 'all' ? rawCount : 0;
       } else {
         return selectedStatus === 'all' ? (rawCount.total || 0) : (rawCount[selectedStatus] || 0);
       }
+    } else {
+      // 🛟 如果 Server 還沒回傳資料，前端乖乖自己算 (一樣不遞迴，攤平比對最安全)
+      const validIds = getAllDescendantIds(node);
+      return problems.filter((p) => {
+        const isStatusMatch = selectedStatus === 'all' || p.status === selectedStatus;
+        const isTopicMatch = validIds.includes(p.topic_id || '');
+        return isStatusMatch && isTopicMatch;
+      }).length;
     }
-
-    // 如果 Server 沒給這個節點的數字（或是還沒載入），前端自己用 problems 陣列算
-    // 這裡我們用 includes 一次性算出家族總數，一樣不需要遞迴累加！
-    const validIds = getAllDescendantIds(node);
-    return problems.filter((p) => {
-      const isStatusMatch = selectedStatus === 'all' || p.status === selectedStatus;
-      const isTopicMatch = validIds.includes(p.topic_id || '');
-      return isStatusMatch && isTopicMatch;
-    }).length;
   };
 
-  // 3. 科目總數
+  // --- 3. 科目總數
   const subjectTotalCount = activeSubject
     ? computeCountForNode(activeSubject)
     : problems.filter(p => selectedStatus === 'all' || p.status === selectedStatus).length;
-
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
     <div className="space-y-4">

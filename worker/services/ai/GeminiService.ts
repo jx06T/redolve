@@ -94,6 +94,7 @@ export class GeminiService implements AIService {
         topic_id: matchedTopicId,
         keywords: Array.isArray(parsed?.keywords) ? parsed.keywords.map(String).filter(Boolean) : [],
         keyword_tokens: Array.isArray(parsed?.keyword_tokens) ? parsed.keyword_tokens.map(String).filter(Boolean) : [],
+        ocr_text: typeof parsed?.ocr_text === 'string' ? parsed.ocr_text.trim() : '',
       };
     };
 

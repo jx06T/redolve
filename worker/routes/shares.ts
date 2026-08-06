@@ -18,11 +18,34 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
+  const allowInk = body.allow_ink === false ? 0 : 1;
+  const expiresAt = body.expires_at || null;
+
+  const existingShare = await c.env.DB.prepare(`
+    SELECT token, expires_at 
+    FROM shares 
+    WHERE item_id = ? 
+      AND user_id = ? 
+      AND allow_ink = ?
+      AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+      -- 如果前端有傳 expiresAt，也要確認過期時間是否一致 (這裡簡化為如果兩者都是 null 就當作一致)
+      AND (expires_at IS ? OR expires_at = ?) 
+    LIMIT 1
+  `).bind(problemId, userId, allowInk, expiresAt, expiresAt).first<ShareRow>();
+
+  if (existingShare) {
+    // 如果已經有完全一模一樣的分享設定，直接回傳舊的 Token！
+    return c.json({
+      token: existingShare.token,
+      allow_ink: allowInk,
+      expires_at: existingShare.expires_at
+    });
+  }
+
   const tokenBytes = crypto.getRandomValues(new Uint8Array(12));
   const tokenStr = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
   const token = `st_${tokenStr}`;
-  const allowInk = body.allow_ink === false ? 0 : 1;
-  const expiresAt = body.expires_at || null;
+
 
   await c.env.DB.prepare(
     'INSERT INTO shares (token, item_id, user_id, allow_ink, expires_at) VALUES (?, ?, ?, ?, ?)'

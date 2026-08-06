@@ -80,12 +80,14 @@ ${treeOutline}
 2. 若題目明確屬於課綱中的某科目章節，請輸出該單元最精確的 ID（例如 "math-bayes", "physics-kinematics", "chem-acid-base", "bio-genetics" 等）。
 3. 若圖片內容並非學科錯題（例如生活照、風景、塗鴉、模糊無法辨識或非台灣高中學測/分科課綱範疇），"topic_id" 請務必輸出 null，絕對不要隨意指派不相干的課綱分類。
 4. 提取 3 至 5 個核心概念關鍵字 (keywords) 與繁簡中文切詞搜尋索引 (keyword_tokens)。
+5. 盡可能完整地辨識出圖片中的「題目原文 (包含數字與中英文字)」，並將這段純文字輸出到 ocr_text 欄位中，以供未來的全文搜尋使用。若圖片過於模糊，可輸出空字串 ""。
 
 請輸出嚴格 JSON 格式：
 {
   "topic_id": string | null,
   "keywords": string[],
-  "keyword_tokens": string[]
+  "keyword_tokens": string[],
+  "ocr_text": string
 }`;
 }
 
@@ -116,8 +118,12 @@ export function buildSdkResponseSchema(taxonomyTree: TaxonomyNode[]) {
         items: { type: Type.STRING },
         description: '繁簡中文與符號切分搜尋 tokens (例如: ["機率", "條件", "貝氏", "定理"])',
       },
+      ocr_text: {
+        type: Type.STRING,
+        description: '圖片中的題目完整文字內容 (OCR)',
+      },
     },
-    required: ['keywords', 'keyword_tokens'],
+    required: ['keywords', 'keyword_tokens', 'ocr_text'],
   };
 }
 
@@ -145,7 +151,10 @@ export function buildRestResponseSchema(taxonomyTree: TaxonomyNode[]) {
         type: 'ARRAY',
         items: { type: 'STRING' },
       },
+      ocr_text: {
+        type: 'STRING',
+      },
     },
-    required: ['keywords', 'keyword_tokens'],
+    required: ['keywords', 'keyword_tokens', 'ocr_text'],
   };
 }

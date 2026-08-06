@@ -72,5 +72,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
     user_id UNINDEXED,
     source,
     keyword_tokens,
-    typed_notes
+    typed_notes,
+    problem_text
 );

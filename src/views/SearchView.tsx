@@ -62,11 +62,10 @@ export const SearchView: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewMode('compact')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              viewMode === 'compact'
-                ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
-                : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-            }`}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'compact'
+              ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
+              : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
             <span>精簡預覽</span>
@@ -74,11 +73,10 @@ export const SearchView: React.FC = () => {
           <button
             type="button"
             onClick={() => setViewMode('full')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              viewMode === 'full'
-                ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
-                : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-            }`}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'full'
+              ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
+              : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              }`}
           >
             <List className="w-3.5 h-3.5" />
             <span>完整題目</span>
@@ -101,7 +99,7 @@ export const SearchView: React.FC = () => {
             const problemCode = formatProblemCode(item, taxonomies);
             const keywordsArray = item.keywords
               ? typeof item.keywords === 'string'
-                ? item.keywords.split(',').map((s) => s.trim()).filter(Boolean)
+                ? item.keywords.slice(1, -1).split(',').map((s) => s.trim().slice(1, -1)).filter(Boolean)
                 : item.keywords
               : [];
 
