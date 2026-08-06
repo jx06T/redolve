@@ -92,23 +92,29 @@ self.addEventListener('fetch', (event) => {
 
   // 3. App Shell Strategy: Network-First (針對 HTML) + Cache-First (針對 Hash 靜態檔)
   if (event.request.method === 'GET') {
-    // 【關鍵修正】: 對於導航請求 (index.html)，必須走 Network-First，否則 PWA 永遠無法更新！
+
+    // 【HTML 導航請求】：永遠先去網路抓最新版，失敗才退回快取
     if (event.request.mode === 'navigate' || url.pathname === '/') {
       event.respondWith(
         fetch(event.request)
           .then((response) => {
-            if (response.status === 200) {
+            if (response && response.status === 200) {
               const resClone = response.clone();
               caches.open(SHELL_CACHE).then(cache => cache.put(event.request, resClone));
             }
             return response;
           })
-          .catch(() => caches.match(event.request)) // 斷線時才退回快取的 HTML
+          .catch(async (error) => {
+            const cached = await caches.match(event.request);
+            if (cached) return cached;
+            // 如果沒網路、快取也被清空了，就正常拋出錯誤，不要回傳 undefined 導致白屏
+            throw error;
+          })
       );
       return;
     }
 
-    // 對於 Vite 打包出來的 JS/CSS/圖片 (通常帶有 Hash 或放在 /assets/)，走 Cache-First
+    // 【JS / CSS / 靜態資源】：快取優先 (Cache-First)
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         // 1. 如果快取裡有，直接秒回傳
@@ -117,26 +123,15 @@ self.addEventListener('fetch', (event) => {
         }
 
         // 2. 如果快取沒有，去網路抓
-        return fetch(event.request).then((networkResponse) => {
-          // 確保回應是成功的才寫入快取，避免把 404 或錯誤畫面快取起來
-          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-            const resClone = networkResponse.clone();
+        return fetch(event.request).then((response) => {
+          // 確保回應是成功的才寫入快取
+          if (response && response.status === 200 && response.type === 'basic') {
+            const resClone = response.clone();
             caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resClone));
           }
-          return networkResponse;
-        }).catch((error) => {
-          // 3. 💥 極端情況防禦：如果網路抓取失敗（例如剛好斷線）
-          console.error('[SW] 靜態資源下載失敗:', event.request.url, error);
-
-          // 如果是 CSS 或 JS 失敗了，回傳一個空的成功回應，防止瀏覽器因為 TypeError 導致白畫面
-          if (event.request.destination === 'style') {
-            return new Response('', { headers: { 'Content-Type': 'text/css' } });
-          }
-          if (event.request.destination === 'script') {
-            return new Response('', { headers: { 'Content-Type': 'text/javascript' } });
-          }
-          throw error;
+          return response;
         });
+        // ❌ 這裡移除了剛剛導致白屏的 .catch() 回傳空字串邏輯
       })
     );
   }
