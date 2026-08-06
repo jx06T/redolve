@@ -3,7 +3,6 @@ import {
   CheckCircle,
   Share2,
   Trash2,
-  Edit3,
   Eye,
   EyeOff,
   Download,
@@ -118,6 +117,35 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const calcSpaceHeightRef = useRef<number>(getInitialCalcSpaceHeight());
   const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(() => calcSpaceHeightRef.current);
+
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState<number>(0);
+
+  useEffect(() => {
+    if (!workspaceRef.current) return;
+    const updateWidth = () => {
+      if (workspaceRef.current) {
+        setContainerWidth(workspaceRef.current.clientWidth);
+      }
+    };
+    updateWidth();
+    const ro = new ResizeObserver(() => updateWidth());
+    ro.observe(workspaceRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  const baseWidth = (() => {
+    if (!problem.draw_data) return undefined;
+    try {
+      const parsed = typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data;
+      return typeof parsed.baseWidth === 'number' && parsed.baseWidth > 0 ? parsed.baseWidth : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const responsiveScale = baseWidth && containerWidth > 0 ? containerWidth / baseWidth : 1.0;
+  const renderedCalcSpaceHeight = Math.round(calcSpaceHeight * responsiveScale);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
 
@@ -397,7 +425,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
           </div>
 
-          <div className="flex items-center space-x-1">
+          <div className="flex items-center space-x-1 flex-wrap">
             {/* Manual Reload Problem Button */}
             <button
               onClick={handleReloadProblem}
@@ -432,16 +460,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               <Download className="w-4 h-4" />
             </button>
 
-            {onEditMetadata && (
-              <button
-                onClick={() => onEditMetadata(problem)}
-                aria-label="編輯標籤與分類"
-                className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
-                title="編輯標籤"
-              >
-                <Edit3 className="w-4 h-4" />
-              </button>
-            )}
 
             <button
               onClick={() => setIsShareModalOpen(true)}
@@ -508,7 +526,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {/* Unified Image & Calculation Scratchpad Workspace */}
-        <div className="mt-3 relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
+        <div ref={workspaceRef} className="mt-3 relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
           {/* Main Question Image */}
           <div className="w-full relative select-none">
             <img
@@ -527,11 +545,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
           {/* Extended Calculation Workspace Area */}
           <div
-            style={{ height: `${calcSpaceHeight}px` }}
-            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${calcSpaceHeight > 0 ? 'border-t border-dashed' : ''
+            style={{ height: `${renderedCalcSpaceHeight}px` }}
+            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
               }`}
           >
-            {calcSpaceHeight > 0 && (
+            {renderedCalcSpaceHeight > 0 && (
               <>
                 <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
                 <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">

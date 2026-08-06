@@ -173,21 +173,13 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
   }, [initialDrawData]);
 
-  // Sync canvas pixel dimensions to container dimensions dynamically with aspect-ratio height scaling
+  // Sync canvas pixel dimensions to container dimensions dynamically
   useEffect(() => {
     if (!containerRef.current) return;
     const updateSize = () => {
       if (containerRef.current) {
         const w = containerRef.current.clientWidth || 800;
-        let h = containerRef.current.clientHeight || 400;
-
-        const currentBaseW = baseWidthRef.current;
-        const currentBaseH = baseHeightRef.current;
-        if (currentBaseW && currentBaseW > 0 && currentBaseH && currentBaseH > 0) {
-          const responsiveScale = w / currentBaseW;
-          h = Math.round(currentBaseH * responsiveScale);
-        }
-
+        const h = containerRef.current.clientHeight || 400;
         setCanvasWidth(w);
         setCanvasHeight(h);
       }
