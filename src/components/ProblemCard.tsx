@@ -14,9 +14,6 @@ import {
   PenLine,
   ChevronUp,
   ChevronDown,
-  Copy,
-  Check,
-  Link2Off,
   Archive,
   ArchiveRestore,
   ZoomIn,
@@ -35,7 +32,6 @@ import {
   updateProblemDrawData,
   updateProblemMetadata,
   deleteProblem,
-  revokeShareLink,
 } from '../services/api';
 import { useStore } from '../store/useStore';
 import { exportProblemAsImage } from '../utils/exportImage';
@@ -84,9 +80,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [vectorSeq, setVectorSeq] = useState<number>(getInitialSeq);
   const [isResolved, setIsResolved] = useState<boolean>(problem.status === 'resolved');
   const [inkVisible, setInkVisible] = useState<boolean>(true);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareToken, setShareToken] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
@@ -293,30 +286,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   };
 
-  const handleCopyShareUrl = async () => {
-    if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 3000);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleRevokeShare = async () => {
-    if (!shareToken) return;
-    try {
-      await revokeShareLink(problem.id, shareToken);
-      setShareUrl(null);
-      setShareToken(null);
-      showToast('已撤銷此公開分享連結', 'info', 2000);
-    } catch (err) {
-      console.error('Failed to revoke share link:', err);
-      showToast('撤銷分享連結失敗', 'error', 3000);
-    }
-  };
-
   const handleExport = async () => {
     try {
       setIsExporting(true);
@@ -483,33 +452,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         </div>
 
-        {shareUrl && (
-          <div className="mt-2.5 p-3 py-2  rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 text-xs flex flex-wrap items-center justify-between gap-2 text-indigo-900 dark:text-indigo-200">
-            <div className="flex items-center space-x-2 min-w-0 flex-1">
-              <span className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 shrink-0">分享連結</span>
-              <span className="truncate font-mono text-[11px] select-all">{shareUrl}</span>
-            </div>
-            <div className="flex items-center space-x-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleCopyShareUrl}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-white dark:bg-stone-800 border border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-stone-700 active:scale-95 transition-all"
-              >
-                {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{isCopied ? '已複製' : '點擊複製'}</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleRevokeShare}
-                className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/60 active:scale-95 transition-all"
-                title="撤銷公開分享連結"
-              >
-                <Link2Off className="w-3.5 h-3.5" />
-                <span>撤銷連結</span>
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* Keywords Chips */}
         {keywordsArray.length > 0 && (

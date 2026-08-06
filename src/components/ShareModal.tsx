@@ -158,28 +158,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
                 value={shareUrl}
                 className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-indigo-200 dark:border-indigo-800 font-mono text-xs text-[#374151] dark:text-[#D1D5DB] select-all focus:outline-none"
               />
+            </div>
 
-              {/* 按鈕功能組 */}
-              <div className="flex  items-center gap-2 pt-1">
-                {/* 如果手機支援原生分享面板 (Web Share API) */}
-                {typeof navigator !== 'undefined' && 'share' in navigator && (
-                  <button
-                    onClick={handleNativeShare}
-                    className="flex-1 py-2 rounded-xl bg-[#6366F1] text-white text-xs font-semibold hover:bg-[#4F46E5] active:scale-95 transition-all flex items-center justify-center space-x-1.5 shadow-xs"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                    <span>分享至 App</span>
-                  </button>
-                )}
-
+            {/* 按鈕功能組 */}
+            <div className="flex  items-center gap-2 pt-1">
+              {/* 如果手機支援原生分享面板 (Web Share API) */}
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
                 <button
-                  onClick={handleCopyShareUrl}
-                  className="flex-1 px-1 py-2 rounded-xl bg-white dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 text-xs font-semibold hover:bg-stone-100 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
+                  onClick={handleNativeShare}
+                  className="flex-1 py-2 rounded-xl bg-[#6366F1] text-white text-xs font-semibold hover:bg-[#4F46E5] active:scale-95 transition-all flex items-center justify-center space-x-1.5 shadow-xs"
                 >
-                  {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{isCopied ? '已複製' : '複製網址'}</span>
+                  <Send className="w-3.5 h-3.5" />
+                  {/* <span>分享至 App</span> */}
                 </button>
-              </div>
+              )}
+
+              <button
+                onClick={handleCopyShareUrl}
+                className="flex-1 px-1 py-2 rounded-xl bg-white dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 text-xs font-semibold hover:bg-stone-100 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
+              >
+                {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{isCopied ? '已複製' : '複製網址'}</span>
+              </button>
             </div>
 
             <div className="flex justify-end pt-1">
