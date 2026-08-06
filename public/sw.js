@@ -1,9 +1,9 @@
-const VERSION = 'v1.3.3';
+// Redolve PWA Service Worker (v1.3.4)
+const VERSION = 'v1.3.4';
 const SHELL_CACHE = `rdv-shell-${VERSION}`;
 const API_CACHE = `rdv-api-${VERSION}`;
 const IMAGE_CACHE = `rdv-images-${VERSION}`;
 
-// 部署後 Vite 產生的入口是 index.html，不需要手寫 src 路徑
 const SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -11,10 +11,9 @@ const SHELL_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting(); // 強制新的 SW 立即安裝
+  self.skipWaiting();
   event.waitUntil(
     caches.open(SHELL_CACHE).then((cache) => {
-      // 忽略單一檔案找不到的錯誤，盡力快取
       return Promise.allSettled(
         SHELL_ASSETS.map(url => cache.add(url).catch(err => console.warn('Cache add failed:', url, err)))
       );
@@ -23,12 +22,11 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  self.clients.claim(); // 強制新的 SW 立即控制所有開啟的分頁
+  self.clients.claim();
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          // 清除不屬於當前 VERSION 的舊快取
           if (key.startsWith('rdv-') && ![SHELL_CACHE, API_CACHE, IMAGE_CACHE].includes(key)) {
             console.log('[SW] 清除過期快取:', key);
             return caches.delete(key);
@@ -39,33 +37,11 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 攔截網路請求
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // 1. Image Proxy Strategy: Stale-While-Revalidate (SWR)
-  if (url.pathname.includes('/image')) {
-    event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        const fetchPromise = fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(IMAGE_CACHE).then(cache => cache.put(event.request, networkResponse.clone()));
-            }
-            return networkResponse;
-          })
-          .catch(() => {
-            // 圖片網路失敗不報錯，交給 cachedResponse 處理
-          });
-        // 優先回傳快取，背景靜默拉取新圖片
-        return cachedResponse || fetchPromise;
-      })
-    );
-    return;
-  }
-
-  // 2. API Strategy: Network-first + Offline Cache Fallback
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/share/')) {
+  // 1. API 請求 (嚴格限定以 /api/ 開頭) -> Network-First
+  if (url.pathname.startsWith('/api/')) {
     if (event.request.method === 'GET') {
       event.respondWith(
         fetch(event.request)
@@ -79,8 +55,7 @@ self.addEventListener('fetch', (event) => {
           .catch(async () => {
             const cached = await caches.match(event.request);
             if (cached) return cached;
-            // 如果斷線且沒快取，回傳標準 JSON 錯誤避免前端崩潰
-            return new Response(JSON.stringify({ error: { code: 'OFFLINE', message: '目前處於離線狀態，且無可用快取' } }), {
+            return new Response(JSON.stringify({ error: { code: 'OFFLINE', message: '離線狀態且無可用快取' } }), {
               status: 503,
               headers: { 'Content-Type': 'application/json' }
             });
@@ -90,48 +65,59 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3. App Shell Strategy: Network-First (針對 HTML) + Cache-First (針對 Hash 靜態檔)
-  if (event.request.method === 'GET') {
-
-    // 【HTML 導航請求】：永遠先去網路抓最新版，失敗才退回快取
-    if (event.request.mode === 'navigate' || url.pathname === '/') {
-      event.respondWith(
-        fetch(event.request)
-          .then((response) => {
-            if (response && response.status === 200) {
-              const resClone = response.clone();
-              caches.open(SHELL_CACHE).then(cache => cache.put(event.request, resClone));
-            }
-            return response;
-          })
-          .catch(async (error) => {
-            const cached = await caches.match(event.request);
-            if (cached) return cached;
-            // 如果沒網路、快取也被清空了，就正常拋出錯誤，不要回傳 undefined 導致白屏
-            throw error;
-          })
-      );
-      return;
-    }
-
-    // 【JS / CSS / 靜態資源】：快取優先 (Cache-First)
+  // 2. 題目圖片代理請求 (排除前端 /assets/ 裡面的靜態圖片) -> SWR
+  if (url.pathname.includes('/image') && !url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
-        // 1. 如果快取裡有，直接秒回傳
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+        const fetchPromise = fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              caches.open(IMAGE_CACHE).then(cache => cache.put(event.request, networkResponse.clone()));
+            }
+            return networkResponse;
+          })
+          .catch(() => { });
+        return cachedResponse || fetchPromise;
+      })
+    );
+    return;
+  }
 
-        // 2. 如果快取沒有，去網路抓
+  // 3. SPA 網頁頁面跳轉 (HTML Navigation) -> 💡 關鍵修復！
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const resClone = response.clone();
+            caches.open(SHELL_CACHE).then(cache => cache.put('/', resClone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          // 💡 核心修復：不管使用者在什麼子網址 (/study/math, /search, /share/st_123)，
+          // 找不到或斷線時，退回的快取永遠是 '/index.html' 或 '/'！
+          const cachedIndex = (await caches.match('/index.html')) || (await caches.match('/'));
+          if (cachedIndex) return cachedIndex;
+          throw new Error('No offline index.html available');
+        })
+    );
+    return;
+  }
+
+  // 4. Vite 打包出的 JS / CSS 靜態資源 -> Cache-First
+  if (event.request.method === 'GET') {
+    event.respondWith(
+      caches.match(event.request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+
         return fetch(event.request).then((response) => {
-          // 確保回應是成功的才寫入快取
-          if (response && response.status === 200 && response.type === 'basic') {
+          if (response && response.status === 200) {
             const resClone = response.clone();
             caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resClone));
           }
           return response;
         });
-        // ❌ 這裡移除了剛剛導致白屏的 .catch() 回傳空字串邏輯
       })
     );
   }
