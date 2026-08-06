@@ -1,0 +1,21 @@
+# 禁止瀏覽器與 CDN 快取 Service Worker 腳本
+/sw.js
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# 禁止快取入口 HTML，確保每次都能讀到最新版 JS 檔名的參照
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# PWA 應用程式清單也不建議長期快取，以便隨時更新圖示或名稱
+/manifest.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+# 其他所有打包後的靜態資源 (Vite 產生的帶有 Hash 的檔案)，可以盡情進行長期快取 (1年)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
