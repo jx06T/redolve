@@ -9,13 +9,27 @@
   "orientation": "any",
   "background_color": "#F4F4F2",
   "theme_color": "#6366F1",
-  "categories": ["education", "productivity"],
+  "categories": [
+    "education",
+    "productivity"
+  ],
   "icons": [
     {
       "src": "/favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
@@ -24,14 +38,24 @@
       "short_name": "刷題",
       "description": "進入錯題本進行心流手寫訂正",
       "url": "/study/all",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "any"
+        }
+      ]
     },
     {
       "name": "全域搜尋",
       "short_name": "搜尋",
       "description": "快速搜尋考題與知識點",
       "url": "/search",
-      "icons": [{ "src": "/favicon.svg", "sizes": "any" }]
+      "icons": [
+        {
+          "src": "/favicon.svg",
+          "sizes": "any"
+        }
+      ]
     }
   ]
 }
