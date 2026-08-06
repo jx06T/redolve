@@ -140,8 +140,6 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const hasErasedChangeRef = useRef<boolean>(false);
   const isMultiTouchGestureRef = useRef<boolean>(false);
   const lastUndoTimestampRef = useRef<number>(0);
-  const touchScrollLastYRef = useRef<number>(0);
-  const isTouchScrollingRef = useRef<boolean>(false);
   const calcSpaceHeightRef = useRef<number>(calcSpaceHeight);
   calcSpaceHeightRef.current = calcSpaceHeight;
 
@@ -175,7 +173,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
   }, [initialDrawData]);
 
-  // Sync canvas pixel dimensions to container dimensions dynamically
+  // Sync canvas pixel dimensions to container dimensions dynamically with aspect-ratio height scaling
   useEffect(() => {
     if (!containerRef.current) return;
     const updateSize = () => {
@@ -186,8 +184,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         const currentBaseW = baseWidthRef.current;
         const currentBaseH = baseHeightRef.current;
         if (currentBaseW && currentBaseW > 0 && currentBaseH && currentBaseH > 0) {
-          const scale = w / currentBaseW;
-          h = currentBaseH * scale;
+          const responsiveScale = w / currentBaseW;
+          h = Math.round(currentBaseH * responsiveScale);
         }
 
         setCanvasWidth(w);
@@ -526,7 +524,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       }
       isMultiTouchGestureRef.current = false;
       if (e.pointerType === 'pen') {
-        canvas.style.touchAction = 'none';
+        canvasRef.current!.style.touchAction = 'none';
       }
     } else if (e.pointerType === 'touch') {
       if (!isEffectiveEraser) {
@@ -591,6 +589,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
 
     const isEffectiveEraser = isEraserActive || activeTool === 'eraser';
+    if (e.pointerType === 'touch' && !isEraserActive) {
+      return;
+    }
+
     if (isEffectiveEraser) {
       setEraserCursorPos({ x, y });
       setIsHoveringEraser(true);
@@ -694,7 +696,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     if (!isVisible || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
