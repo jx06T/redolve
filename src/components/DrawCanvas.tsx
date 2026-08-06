@@ -54,7 +54,7 @@ function parseDrawData(raw: DrawData | string | null | undefined): {
 }
 
 function getEraserRadius(width: number): number {
-  return width <= 1 ? 5 : width <= 2 ? 7 : 16;
+  return width <= 1 ? 7 : width <= 2 ? 14 : 24;
 }
 
 function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number) {
@@ -181,7 +181,15 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const updateSize = () => {
       if (containerRef.current) {
         const w = containerRef.current.clientWidth || 800;
-        const h = containerRef.current.clientHeight || 400;
+        let h = containerRef.current.clientHeight || 400;
+
+        const currentBaseW = baseWidthRef.current;
+        const currentBaseH = baseHeightRef.current;
+        if (currentBaseW && currentBaseW > 0 && currentBaseH && currentBaseH > 0) {
+          const scale = w / currentBaseW;
+          h = currentBaseH * scale;
+        }
+
         setCanvasWidth(w);
         setCanvasHeight(h);
       }
@@ -517,16 +525,17 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         setPencilDetected(true);
       }
       isMultiTouchGestureRef.current = false;
-      //isTouchScrollingRef.current = false;
-    } else if (e.pointerType === 'touch') {
-      // If palm rejection is active and NOT currently erasing, forward touch to fluid scrolling
-      if (!allowTouchDrawing && !isEffectiveEraser) {
-        touchScrollLastYRef.current = e.clientY;
-        isTouchScrollingRef.current = true;
-        return;
+      if (e.pointerType === 'pen') {
+        canvas.style.touchAction = 'none';
       }
-      // If NOT erasing and (non-primary touch or multi-touch active), abort drawing
-      if (!isEffectiveEraser && (!e.isPrimary || isMultiTouchGestureRef.current)) {
+    } else if (e.pointerType === 'touch') {
+      if (!isEffectiveEraser) {
+        return; // Let CSS pan-y handle the scroll
+      }
+      if (!isEraserActive) {
+        return; // Prevent touch from erasing if eraser is not explicitly active
+      }
+      if (!e.isPrimary || isMultiTouchGestureRef.current) {
         isMultiTouchGestureRef.current = true;
         setIsDrawing(false);
         setCurrentPoints([]);
@@ -573,20 +582,13 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Fluid touch scrolling across canvas when Palm Rejection is active
-    if (isTouchScrollingRef.current) {
-      const deltaY = e.clientY - touchScrollLastYRef.current;
-      touchScrollLastYRef.current = e.clientY;
-      const scrollParent = canvas.closest('.overflow-y-auto') || document.scrollingElement || document.documentElement;
-      if (scrollParent) {
-        scrollParent.scrollTop -= deltaY;
-      }
-      return;
-    }
-
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
+    if (e.pointerType === 'touch' && !isEraserActive && !allowTouchDrawing) {
+      return;
+    }
 
     const isEffectiveEraser = isEraserActive || activeTool === 'eraser';
     if (isEffectiveEraser) {
@@ -615,10 +617,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     lastErasePosRef.current = null;
     setIsErasingLive(false);
-
-    if (isTouchScrollingRef.current) {
-      isTouchScrollingRef.current = false;
-      return;
+    if (e.pointerType === 'pen') {
+      e.currentTarget.style.touchAction = 'pan-y';
     }
 
     if (isErasingRef.current) {
@@ -679,7 +679,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setCurrentPoints([]);
     isErasingRef.current = false;
     setIsErasingLive(false);
-    isTouchScrollingRef.current = false;
+    
+    if (e.pointerType === 'pen') {
+      e.currentTarget.style.touchAction = 'pan-y';
+    }
   };
 
   const handlePointerLeave = () => {
@@ -767,12 +770,12 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
             width={canvasWidth}
             height={canvasHeight}
             style={{
-              touchAction: 'none',
+              touchAction: 'pan-y',
               WebkitTouchCallout: 'none',
               WebkitUserSelect: 'none',
               userSelect: 'none',
             }}
-            className={`w-full h-full select-none touch-none ${readOnly || !inkVisible
+            className={`w-full h-full select-none ${readOnly || !inkVisible
               ? 'pointer-events-none'
               : isEraserActive || activeTool === 'eraser'
                 ? 'cursor-none'
