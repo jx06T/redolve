@@ -113,6 +113,42 @@ export const StudyView: React.FC = () => {
     loadInitialProblems();
   }, [loadInitialProblems]);
 
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && !isLoading) {
+        try {
+          const res = await fetchProblems({
+            subject_id: effectiveSubject,
+            topic_id: effectiveTopic ?? undefined,
+            status: selectedStatus === 'all' ? undefined : selectedStatus,
+            limit: 15,
+          });
+          if (res.items.length > 0 && problems.length > 0) {
+            const latestNew = res.items[0];
+            const latestOld = problems[0];
+            if (latestNew.id !== latestOld.id) {
+              showToast(
+                '✅ 偵測到新題目已分類，[點此重新整理]',
+                'success',
+                10000,
+                () => {
+                  setProblems(res.items, res.nextCursor);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  if (parentRef.current) parentRef.current.scrollTop = 0;
+                }
+              );
+            }
+          }
+        } catch (err) {
+          console.error('Silent refetch failed:', err);
+        }
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [effectiveSubject, effectiveTopic, selectedStatus, problems, isLoading, setProblems, showToast]);
+
   const loadMore = async () => {
     if (!nextCursor || isLoading) return;
     setIsLoading(true);

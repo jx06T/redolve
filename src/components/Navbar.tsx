@@ -129,7 +129,7 @@ export const Navbar: React.FC = () => {
           </nav>
 
           {/* Right Search & Controls */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
+          <div className="flex items-center space-x-1.5 sm:space-x-3">
             {/* Desktop Search */}
             <form onSubmit={handleSearchSubmit} className="relative hidden sm:block">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
@@ -145,7 +145,7 @@ export const Navbar: React.FC = () => {
             {/* Mobile Search Toggle Button */}
             <button
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-              className="sm:hidden p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="sm:hidden p-1.5 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
               title="開啟搜尋"
             >
               <Search className="w-4 h-4" />
@@ -164,16 +164,17 @@ export const Navbar: React.FC = () => {
             {/* Upload Modal Trigger Button */}
             <button
               onClick={() => setUploadModalOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-2xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+              className="flex items-center justify-center p-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+              title="上傳錯題"
             >
-              <Upload className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">上傳錯題</span>
+              <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
+              <span className="hidden xl:inline ml-1.5">上傳錯題</span>
             </button>
 
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+              className="p-1.5 sm:p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
               title="切換深淺色模式 (Cmd+D)"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -182,7 +183,7 @@ export const Navbar: React.FC = () => {
             {/* User Session & Auth Profile Button */}
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="flex items-center space-x-1.5 p-1.5 sm:px-3 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+              className="flex items-center space-x-1.5 p-1 sm:px-3 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
               title="使用者帳號與身分管理"
             >
               <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">

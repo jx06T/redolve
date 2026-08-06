@@ -3,6 +3,36 @@ import { X, Upload, Camera, Trash2, CheckCircle2, RefreshCw, Layers } from 'luci
 import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
+import { Item } from '../types';
+
+const compressImage = (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      if (img.width <= 1920) {
+        return resolve(file);
+      }
+      const canvas = document.createElement('canvas');
+      const scale = 1920 / img.width;
+      canvas.width = 1920;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return resolve(file);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+          else resolve(file);
+        },
+        'image/jpeg',
+        0.8
+      );
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = URL.createObjectURL(file);
+  });
+};
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -11,7 +41,7 @@ interface UploadModalProps {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { setIsLoading, showToast } = useStore();
+  const { setIsLoading, showToast, addOptimisticProblem, removeProblemFromStore, selectedSubjectId } = useStore();
 
   const [mode, setMode] = useState<'files' | 'camera'>('files');
   const [selectedYear, setSelectedYear] = useState<string>('113年');
@@ -162,7 +192,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     try {
       const results = await Promise.allSettled(
-        selectedFiles.map((item) => uploadProblem(item.file, sourceInput))
+        selectedFiles.map(async (item) => {
+          const compressedFile = await compressImage(item.file);
+          const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+          
+          const tempItem: Item = {
+            id: tempId,
+            type: 'image',
+            original_url: item.previewUrl,
+            thumbnail_url: item.previewUrl,
+            created_at: new Date().toISOString(),
+            source: sourceInput,
+            status: 'unsolved',
+            level_0_id: selectedSubjectId || 'math',
+            creator_id: 'temp',
+          };
+          
+          addOptimisticProblem(tempItem);
+          
+          try {
+            return await uploadProblem(compressedFile, sourceInput);
+          } catch (err) {
+            removeProblemFromStore(tempId);
+            throw err;
+          }
+        })
       );
 
       const fulfilledCount = results.filter((r) => r.status === 'fulfilled').length;

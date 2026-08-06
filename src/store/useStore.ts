@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { Item, TaxonomyNode, User } from '../types';
 import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
@@ -8,6 +9,7 @@ export interface ToastNotice {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
+  action?: () => void;
 }
 
 interface StoreState {
@@ -48,7 +50,7 @@ interface StoreState {
   taxonomyCounts: Record<string, number>;
 
   // Actions
-  showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number) => void;
+  showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number, action?: () => void) => void;
   hideToast: () => void;
   setAuthModalOpen: (open: boolean) => void;
   setCurrentUser: (user: User | null, token?: string | null) => void;
@@ -65,6 +67,7 @@ interface StoreState {
   setProblems: (problems: Item[], nextCursor: string | null) => void;
   appendProblems: (problems: Item[], nextCursor: string | null) => void;
   addProblemToStore: (problem: Item) => void;
+  addOptimisticProblem: (problem: Item) => void;
   updateProblemInStore: (id: string, updates: Partial<Item>) => void;
   removeProblemFromStore: (id: string) => void;
   setIsLoading: (loading: boolean) => void;
@@ -84,7 +87,9 @@ interface StoreState {
   loadTaxonomies: () => Promise<void>;
 }
 
-export const useStore = create<StoreState>((set) => ({
+export const useStore = create<StoreState>()(
+  persist(
+    (set) => ({
   toast: null,
 
   currentUser: null,
@@ -143,9 +148,9 @@ export const useStore = create<StoreState>((set) => ({
   taxonomies: TAXONOMY_SEED_DATA,
   taxonomyCounts: {},
 
-  showToast: (message, type = 'info', durationMs = 4000) => {
+  showToast: (message, type = 'info', durationMs = 4000, action) => {
     const id = Math.random().toString(36).substring(2, 9);
-    set({ toast: { id, message, type } });
+    set({ toast: { id, message, type, action } });
     setTimeout(() => {
       set((state) => (state.toast?.id === id ? { toast: null } : {}));
     }, durationMs);
@@ -207,6 +212,10 @@ export const useStore = create<StoreState>((set) => ({
   addProblemToStore: (problem) =>
     set((state) => ({
       problems: [...state.problems, problem],
+    })),
+  addOptimisticProblem: (problem) =>
+    set((state) => ({
+      problems: [problem, ...state.problems],
     })),
 
   updateProblemInStore: (id, updates) =>
@@ -334,5 +343,14 @@ export const useStore = create<StoreState>((set) => ({
       console.error('Failed to sync taxonomies from server:', err);
     }
   },
-}));
-
+}),
+{
+  name: 'redolve-preferences',
+  partialize: (state) => ({
+    selectedSubjectId: state.selectedSubjectId,
+    selectedStatus: state.selectedStatus,
+    sidebarCollapsed: state.sidebarCollapsed,
+    darkMode: state.darkMode,
+  }),
+}
+));

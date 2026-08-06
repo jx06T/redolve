@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { PenTool, Highlighter, Eraser, Plus, Hand } from 'lucide-react';
+import { PenTool, Highlighter, Eraser, Plus, Hand, Maximize2, Minimize2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { STROKE_WIDTHS } from '../config/constants';
 
@@ -24,6 +24,7 @@ export const FloatingPenToolbar: React.FC = () => {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [orientation, setOrientation] = useState<'vertical' | 'horizontal'>('vertical');
   const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Initialize position to top-right on mount / window resize
@@ -34,6 +35,9 @@ export const FloatingPenToolbar: React.FC = () => {
           x: window.innerWidth - 64,
           y: 96,
         });
+        if (window.innerWidth < 768) {
+          setIsCollapsed(true);
+        }
       }
     };
     initPos();
@@ -114,6 +118,33 @@ export const FloatingPenToolbar: React.FC = () => {
 
   const isHorizontal = orientation === 'horizontal';
 
+  if (isCollapsed) {
+    return (
+      <div
+        ref={toolbarRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{
+          transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+          touchAction: 'none',
+        }}
+        className={`fixed top-0 left-0 z-50 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-lg rounded-full p-2 flex select-none transition-shadow ${
+          isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-[#6366F1]/50' : 'cursor-grab'
+        }`}
+      >
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="p-2 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+          title="展開工具列"
+        >
+          <Maximize2 className="w-5 h-5" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={toolbarRef}
@@ -133,6 +164,23 @@ export const FloatingPenToolbar: React.FC = () => {
           : 'flex-col items-center space-y-2'
       }`}
     >
+      {/* Collapse Button */}
+      <div
+        className={
+          isHorizontal
+            ? 'flex flex-row items-center border-r border-stone-200 dark:border-stone-800 pr-2'
+            : 'flex flex-col items-center border-b border-stone-200 dark:border-stone-800 pb-2'
+        }
+      >
+        <button
+          onClick={() => setIsCollapsed(true)}
+          className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-all"
+          title="收合工具列"
+        >
+          <Minimize2 className="w-4 h-4" />
+        </button>
+      </div>
+
       {/* Tool Selector */}
       <div
         className={

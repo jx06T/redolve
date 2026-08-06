@@ -20,6 +20,7 @@ import {
   Link2Off,
   Archive,
   ArchiveRestore,
+  ZoomIn,
 } from 'lucide-react';
 import { Item, DrawData } from '../types';
 import { StatusBadge, formatProblemCode } from './StatusBadge';
@@ -89,6 +90,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isReloading, setIsReloading] = useState<boolean>(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [reloadVersion, setReloadVersion] = useState<number>(0);
   const getInitialCalcSpaceHeight = useCallback(() => {
     if (problem.draw_data) {
@@ -520,6 +522,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               alt="題目"
               className="exam-paper-image w-full h-auto object-contain block select-none pointer-events-none"
             />
+            <button
+              onClick={() => setIsLightboxOpen(true)}
+              className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-white/70 dark:bg-black/50 backdrop-blur-sm shadow-sm border border-black/5 dark:border-white/10 text-stone-600 dark:text-stone-300 hover:scale-110 active:scale-95 transition-all"
+              title="放大檢視原題"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Extended Calculation Workspace Area */}
@@ -691,6 +700,29 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         onConfirm={confirmDelete}
         onCancel={() => setIsDeleteModalOpen(false)}
       />
+
+      {/* Lightbox Modal */}
+      {isLightboxOpen && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <div className="relative w-full h-full flex items-center justify-center">
+            <button
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-4 right-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all z-[110]"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img
+              src={imageUrl}
+              alt="題目放大檢視"
+              className="exam-paper-image max-w-full max-h-full object-contain select-none shadow-2xl cursor-default"
+              onClick={(e) => e.stopPropagation()} // Prevent click from closing when clicking image
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

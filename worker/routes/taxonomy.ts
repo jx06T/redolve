@@ -77,19 +77,28 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
       tree = TAXONOMY_SEED_DATA;
     }
 
-    const countsMap: Record<string, number> = {};
+    const countsMap: Record<string, any> = {};
     try {
       const { results: countResults } = await c.env.DB.prepare(
-        `SELECT topic_id, COUNT(id) as count
+        `SELECT topic_id, 
+                COUNT(id) as total,
+                SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) as unsolved,
+                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived
          FROM items
          WHERE user_id = ? AND topic_id IS NOT NULL AND topic_id != ''
          GROUP BY topic_id`
-      ).bind(userId).all<{ topic_id: string; count: number }>();
+      ).bind(userId).all<{ topic_id: string; total: number; unsolved: number; resolved: number; archived: number }>();
 
       if (countResults) {
         for (const row of countResults) {
           if (row.topic_id) {
-            countsMap[row.topic_id] = row.count;
+            countsMap[row.topic_id] = {
+              total: row.total,
+              unsolved: row.unsolved || 0,
+              resolved: row.resolved || 0,
+              archived: row.archived || 0
+            };
           }
         }
       }

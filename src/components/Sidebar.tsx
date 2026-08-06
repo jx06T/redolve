@@ -47,18 +47,31 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
   // Helper to calculate problem count for any taxonomy node
   const computeCountForNode = (node: { id: string; children?: any[] }): number => {
-    let count = taxonomyCounts[node.id] || 0;
+    let count = 0;
+    if (taxonomyCounts[node.id]) {
+      const counts = taxonomyCounts[node.id];
+      if (typeof counts === 'number') {
+        // Fallback for old cached data
+        count = selectedStatus === 'all' ? counts : 0;
+      } else {
+        count = selectedStatus === 'all' ? (counts.total || 0) : (counts[selectedStatus] || 0);
+      }
+    }
+    
     if (node.children && node.children.length > 0) {
       for (const child of node.children) {
         count += computeCountForNode(child);
       }
     }
+    
     // Fallback if taxonomyCounts is empty (e.g. initial load without worker completion)
     if (Object.keys(taxonomyCounts).length === 0) {
-      let localCount = problems.filter((p) => p.topic_id === node.id).length;
+      const filterFn = (p: any) => p.topic_id === node.id && (selectedStatus === 'all' || p.status === selectedStatus);
+      let localCount = problems.filter(filterFn).length;
       if (node.children && node.children.length > 0) {
         for (const child of node.children) {
-          localCount += problems.filter((p) => p.topic_id === child.id).length;
+          const childFilterFn = (p: any) => p.topic_id === child.id && (selectedStatus === 'all' || p.status === selectedStatus);
+          localCount += problems.filter(childFilterFn).length;
         }
       }
       return localCount;
@@ -182,7 +195,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
-                        const pointCount = taxonomyCounts[point.id] || problems.filter((p) => p.topic_id === point.id).length;
+                        const pointCountRaw = taxonomyCounts[point.id];
+                        let pointCount = 0;
+                        if (pointCountRaw) {
+                          if (typeof pointCountRaw === 'number') {
+                            pointCount = selectedStatus === 'all' ? pointCountRaw : 0;
+                          } else {
+                            pointCount = selectedStatus === 'all' ? (pointCountRaw.total || 0) : (pointCountRaw[selectedStatus] || 0);
+                          }
+                        } else {
+                          pointCount = problems.filter((p) => p.topic_id === point.id && (selectedStatus === 'all' || p.status === selectedStatus)).length;
+                        }
+
                         return (
                           <button
                             key={point.id}
