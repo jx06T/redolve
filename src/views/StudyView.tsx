@@ -8,7 +8,7 @@ import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
 import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
-import { EraserFAB } from '../components/EraserFAB';
+// import { EraserFAB } from '../components/EraserFAB';
 import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
 import { isTopicUnderSubject } from '../components/StatusBadge';
@@ -43,23 +43,23 @@ export const StudyView: React.FC = () => {
   const currentSubjectLabel = isUnclassifiedSubject
     ? '其他科目'
     : currentSubObj
-    ? currentSubObj.label
-    : effectiveSubject && effectiveSubject !== 'all'
-    ? effectiveSubject
-    : '全部科目';
+      ? currentSubObj.label
+      : effectiveSubject && effectiveSubject !== 'all'
+        ? effectiveSubject
+        : '全部科目';
   const currentTopicLabel = topic ? ` - ${topic}` : '';
 
   // For the unclassified virtual subject, topic filters don't apply
   const isValidTopic = isUnclassifiedSubject
     ? false
     : selectedTopicId
-    ? isTopicUnderSubject(selectedTopicId, effectiveSubject, activeTaxonomies)
-    : true;
+      ? isTopicUnderSubject(selectedTopicId, effectiveSubject, activeTaxonomies)
+      : true;
   const effectiveTopic = isUnclassifiedSubject
     ? undefined
     : isValidTopic
-    ? (selectedTopicId ?? (topic && topic !== 'all' ? topic : undefined))
-    : undefined;
+      ? (selectedTopicId ?? (topic && topic !== 'all' ? topic : undefined))
+      : undefined;
 
   useSEO({
     title: `${currentSubjectLabel}${currentTopicLabel} 錯題刷題複習`,
@@ -144,7 +144,7 @@ export const StudyView: React.FC = () => {
         }
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [effectiveSubject, effectiveTopic, selectedStatus, problems, isLoading, setProblems, showToast]);
@@ -195,7 +195,7 @@ export const StudyView: React.FC = () => {
         if (index >= 0) {
           setActiveProblemId(targetId);
           window.history.replaceState(null, '', `${window.location.pathname}#problem-${targetId}`);
-          
+
           // Instant jump to target index
           requestAnimationFrame(() => {
             rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'auto' });
@@ -413,7 +413,7 @@ export const StudyView: React.FC = () => {
       <FloatingPenToolbar />
 
       {/* 2. Left-Bottom Spring Eraser FAB */}
-      <EraserFAB />
+      {/* <EraserFAB /> */}
 
       {/* 3. Right-Bottom Floating Smart CTA */}
       <SmartCTA onStatusResolved={handleStatusResolved} />

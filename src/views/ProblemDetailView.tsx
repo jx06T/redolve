@@ -4,7 +4,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { fetchProblemById } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
-import { EraserFAB } from '../components/EraserFAB';
+// import { EraserFAB } from '../components/EraserFAB';
 import { Item } from '../types';
 
 export const ProblemDetailView: React.FC = () => {
@@ -64,7 +64,7 @@ export const ProblemDetailView: React.FC = () => {
       </div>
 
       <ProblemCard problem={problem} />
-      <EraserFAB />
+      {/* <EraserFAB /> */}
     </div>
   );
 };
