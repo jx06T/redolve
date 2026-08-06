@@ -344,8 +344,21 @@ export const SettingsView: React.FC = () => {
   }, [customTaxonomies]);
 
   const getNodeTotalCount = (node: TaxonomyNode): number => {
-    let sum = countsMap[node.id] || 0;
-    if (node.children) {
+    const raw = countsMap[node.id] as any;
+
+    // 1. 如果 countsMap 裡有這個節點的資料，解析出正確的數字
+    if (raw !== undefined && raw !== null) {
+      if (typeof raw === 'number') {
+        return raw;
+      }
+      if (typeof raw === 'object' && typeof raw.total === 'number') {
+        return raw.total;
+      }
+    }
+
+    // 2. 如果沒有資料，才往下遞迴加總子節點
+    let sum = 0;
+    if (node.children && node.children.length > 0) {
       for (const child of node.children) {
         sum += getNodeTotalCount(child);
       }
