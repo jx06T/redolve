@@ -112,7 +112,6 @@ export const SettingsView: React.FC = () => {
 
   // Palette customization state
   const [customHexInput, setCustomHexInput] = useState<string>('#6366F1');
-  const pickerInputRef = useRef<HTMLInputElement>(null);
 
   // Admin state
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
@@ -786,32 +785,25 @@ export const SettingsView: React.FC = () => {
 
               {/* Add Custom Color Controls */}
               <form onSubmit={handleAddCustomColor} className="flex flex-wrap items-center gap-3 pt-2">
-                <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] p-1.5 px-2  rounded-2xl border border-stone-200 dark:border-stone-700">
-                  <button
-                    type="button"
-                    onClick={() => pickerInputRef.current?.click()}
-                    className="w-5 h-5 rounded-xl border border-black/10 shadow-xs transition-transform active:scale-95 flex items-center justify-center shrink-0"
-                    style={{ backgroundColor: customHexInput }}
-                    title="點擊開啟原生調色盤"
-                  />
-                  <input
-                    ref={pickerInputRef}
-                    type="color"
-                    value={customHexInput}
-                    onChange={(e) => setCustomHexInput(e.target.value.toUpperCase())}
-                    className="sr-only"
-                    tabIndex={-1}
-                  />
-                  <input
-                    type="text"
-                    value={customHexInput}
-                    onChange={(e) => setCustomHexInput(e.target.value.toUpperCase())}
-                    placeholder="#10B981"
-                    maxLength={7}
-                    className="w-24 px-2 py-1 text-xs font-mono uppercase bg-transparent text-[#374151] dark:text-[#D1D5DB] focus:outline-none"
-                  />
-                </div>
+                <div className=' relative shrink-0 w-8 border rounded-full border-stone-200 dark:border-stone-700 bg-white dark:bg-[#202023] h-8'>
+                  <div className="relative w-5 h-5 mx-auto mt-[0.35rem] ">
+                    <button
+                      type="button"
+                      className="absolute inset-0 w-full h-full rounded-xl border border-black/10 shadow-xs transition-transform flex items-center justify-center"
+                      style={{ backgroundColor: customHexInput }}
+                      title="點擊開啟原生調色盤"
+                    />
+                    {/* 透明的 native color picker 墊在上方直接承受點擊 */}
+                    <input
+                      type="color"
+                      value={customHexInput}
+                      onChange={(e) => setCustomHexInput(e.target.value.toUpperCase())}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer pointer-events-auto"
+                      title="選擇自訂顏色"
+                    />
+                  </div>
 
+                </div>
                 <button
                   type="submit"
                   className="flex items-center space-x-1.5 px-4 py-2 rounded-2xl text-xs font-semibold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-95 transition-all shadow-xs"
