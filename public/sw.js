@@ -1,4 +1,4 @@
-const VERSION = 'v1.3.2';
+const VERSION = 'v1.3.3';
 const SHELL_CACHE = `rdv-shell-${VERSION}`;
 const API_CACHE = `rdv-api-${VERSION}`;
 const IMAGE_CACHE = `rdv-images-${VERSION}`;
@@ -111,14 +111,31 @@ self.addEventListener('fetch', (event) => {
     // 對於 Vite 打包出來的 JS/CSS/圖片 (通常帶有 Hash 或放在 /assets/)，走 Cache-First
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) return cachedResponse;
+        // 1. 如果快取裡有，直接秒回傳
+        if (cachedResponse) {
+          return cachedResponse;
+        }
 
-        return fetch(event.request).then((response) => {
-          if (response && response.status === 200) {
-            const resClone = response.clone();
+        // 2. 如果快取沒有，去網路抓
+        return fetch(event.request).then((networkResponse) => {
+          // 確保回應是成功的才寫入快取，避免把 404 或錯誤畫面快取起來
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            const resClone = networkResponse.clone();
             caches.open(SHELL_CACHE).then((cache) => cache.put(event.request, resClone));
           }
-          return response;
+          return networkResponse;
+        }).catch((error) => {
+          // 3. 💥 極端情況防禦：如果網路抓取失敗（例如剛好斷線）
+          console.error('[SW] 靜態資源下載失敗:', event.request.url, error);
+
+          // 如果是 CSS 或 JS 失敗了，回傳一個空的成功回應，防止瀏覽器因為 TypeError 導致白畫面
+          if (event.request.destination === 'style') {
+            return new Response('', { headers: { 'Content-Type': 'text/css' } });
+          }
+          if (event.request.destination === 'script') {
+            return new Response('', { headers: { 'Content-Type': 'text/javascript' } });
+          }
+          throw error;
         });
       })
     );
