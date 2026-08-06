@@ -19,15 +19,21 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
   const isResolved = targetProblem.status === 'resolved';
 
   const handleSmartResolve = async () => {
-    const nextStatus = isResolved ? 'unsolved' : 'resolved';
+    if (isResolved) {
+      if (onStatusResolved) {
+        onStatusResolved(targetProblem.id);
+      }
+      return;
+    }
+    const nextStatus = 'resolved';
     try {
       await updateProblemStatus(targetProblem.id, nextStatus);
       updateProblemInStore(targetProblem.id, {
         status: nextStatus,
-        review_count: isResolved ? targetProblem.review_count : targetProblem.review_count + 1,
+        review_count: targetProblem.review_count + 1,
       });
 
-      if (nextStatus === 'resolved' && onStatusResolved) {
+      if (onStatusResolved) {
         onStatusResolved(targetProblem.id);
       }
     } catch (err) {

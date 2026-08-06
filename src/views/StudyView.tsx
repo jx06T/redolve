@@ -128,7 +128,7 @@ export const StudyView: React.FC = () => {
             const latestOld = problems[0];
             if (latestNew.id !== latestOld.id) {
               showToast(
-                '✅ 偵測到新題目已分類，[點此重新整理]',
+                '[新題目] 偵測到新題目已分類，點此重新整理',
                 'success',
                 10000,
                 () => {
