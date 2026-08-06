@@ -77,7 +77,7 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
       tree = TAXONOMY_SEED_DATA;
     }
 
-    const countsMap: Record<string, any> = {};
+    const countsMap: Record<string, { total: number; unsolved: number; resolved: number; archived: number }> = {};
     try {
       const { results: countResults } = await c.env.DB.prepare(
         `SELECT topic_id, 
@@ -106,11 +106,40 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
       console.warn('Failed to query topic counts:', e);
     }
 
+    // Bottom-Up Rollup: aggregate child node counts into parent nodes recursively
+    const rolledUpCountsMap: Record<string, { total: number; unsolved: number; resolved: number; archived: number }> = {};
+
+    const rollupNode = (node: TaxonomyNode): { total: number; unsolved: number; resolved: number; archived: number } => {
+      const direct = countsMap[node.id] || { total: 0, unsolved: 0, resolved: 0, archived: 0 };
+      let total = direct.total;
+      let unsolved = direct.unsolved;
+      let resolved = direct.resolved;
+      let archived = direct.archived;
+
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          const childSum = rollupNode(child);
+          total += childSum.total;
+          unsolved += childSum.unsolved;
+          resolved += childSum.resolved;
+          archived += childSum.archived;
+        }
+      }
+
+      const rolledUp = { total, unsolved, resolved, archived };
+      rolledUpCountsMap[node.id] = rolledUp;
+      return rolledUp;
+    };
+
+    for (const rootNode of tree) {
+      rollupNode(rootNode);
+    }
+
     return c.json({
       status: 'ok',
       tree,
       customNodes,
-      counts: countsMap,
+      counts: rolledUpCountsMap,
     });
   } catch (err) {
     console.error('Failed to query taxonomies:', err);

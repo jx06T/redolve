@@ -21,11 +21,14 @@ import {
   Archive,
   ArchiveRestore,
   ZoomIn,
+  X,
 } from 'lucide-react';
+import TextareaAutosize from 'react-textarea-autosize';
 import { Item, DrawData } from '../types';
 import { StatusBadge, formatProblemCode } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
 import { ConfirmModal } from './ConfirmModal';
+import { ShareModal } from './ShareModal';
 import {
   getProblemImageUrl,
   fetchProblemById,
@@ -33,7 +36,6 @@ import {
   updateProblemDrawData,
   updateProblemMetadata,
   deleteProblem,
-  createShareLink,
   revokeShareLink,
 } from '../services/api';
 import { useStore } from '../store/useStore';
@@ -89,6 +91,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [isReloading, setIsReloading] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [reloadVersion, setReloadVersion] = useState<number>(0);
@@ -262,21 +265,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   };
 
-  const handleShare = async () => {
-    try {
-      const res = await createShareLink(problem.id, inkVisible);
-      const url = `${window.location.origin}/share/${res.token}`;
-      setShareToken(res.token);
-      setShareUrl(url);
-      await navigator.clipboard.writeText(url);
-      setIsCopied(true);
-      setTimeout(() => setIsCopied(false), 3000);
-    } catch (err) {
-      console.error('Failed to create share link:', err);
-      showToast('產生分享連結失敗', 'error', 3000);
-    }
-  };
-
   const handleCopyShareUrl = async () => {
     if (!shareUrl) return;
     try {
@@ -350,9 +338,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const keywordsArray: string[] = (() => {
     if (!problem.keywords) return [];
     try {
-      return typeof problem.keywords === 'string' ? JSON.parse(problem.keywords) : problem.keywords;
-    } catch {
+      const parsed = typeof problem.keywords === 'string' ? JSON.parse(problem.keywords) : problem.keywords;
+      if (Array.isArray(parsed)) {
+        return parsed.map((k) => String(k).replace(/^"|"$/g, '').trim()).filter(Boolean);
+      }
       return [];
+    } catch {
+      return typeof problem.keywords === 'string'
+        ? problem.keywords.split(',').map((k) => k.replace(/^"|"$/g, '').trim()).filter(Boolean)
+        : [];
     }
   })();
 
@@ -450,8 +444,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             )}
 
             <button
-              onClick={handleShare}
-              aria-label="複製公開分享連結"
+              onClick={() => setIsShareModalOpen(true)}
+              aria-label="開啟公開分享設定"
               className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
               title="分享題目"
             >
@@ -627,14 +621,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         )}
 
-        {/* Typed Notes & Calculation Summary Section */}
-        <textarea
+        {/* Typed Notes & Calculation Summary Section (Auto-resizing) */}
+        <TextareaAutosize
           value={typedNotes}
           onChange={(e) => handleTypedNotesChange(e.target.value)}
           disabled={readOnly}
           placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
-          rows={2}
-          className="w-full mt-3 p-2.5 rounded-xl bg-stone-50/70 dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-y leading-relaxed"
+          minRows={2}
+          maxRows={12}
+          className="w-full mt-3 p-2.5 rounded-xl bg-stone-50/70 dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none leading-relaxed"
         />
 
         {/* Bottom Footer Actions */}
@@ -723,6 +718,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         </div>
       )}
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        problemId={problem.id}
+        onClose={() => setIsShareModalOpen(false)}
+      />
     </div>
   );
 };

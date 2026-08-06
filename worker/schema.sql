@@ -66,10 +66,11 @@ CREATE INDEX IF NOT EXISTS idx_user_status ON items(user_id, status);
 CREATE INDEX IF NOT EXISTS idx_user_topic_id ON items(user_id, topic_id);
 CREATE INDEX IF NOT EXISTS idx_user_created ON items(user_id, created_at DESC, id DESC);
 
--- FTS5 全文檢索虛擬表 (包含細粒度中文 token)
+-- FTS5 全文檢索虛擬表 (包含細粒度中文 token 與打字筆記)
 CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
     id UNINDEXED,
     user_id UNINDEXED,
     source,
-    keyword_tokens
+    keyword_tokens,
+    typed_notes
 );

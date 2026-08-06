@@ -198,9 +198,9 @@ problemsRouter.post('/', async (c) => {
           // Sync FTS5 Index
           try {
             await c.env.DB.prepare(
-              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, ?, ?)`
+              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, ?, ?, ?)`
             )
-              .bind(problemId, userId, (body['source'] as string) || 'iOS Shortcut', keywordTokensStr)
+              .bind(problemId, userId, (body['source'] as string) || 'iOS Shortcut', keywordTokensStr, '')
               .run();
           } catch (ftsErr) {
             console.warn('[FTS Sync Warning]', ftsErr);
@@ -424,12 +424,16 @@ problemsRouter.put('/:id', async (c) => {
       .run();
   }
 
-  // Sync FTS5 Index if keywords or source provided
-  if (keywordsStr !== null || source !== null) {
+  // Sync FTS5 Index if keywords, source, or typed_notes updated
+  if (keywordsStr !== null || source !== null || typed_notes !== undefined) {
+    const currentItem = await c.env.DB.prepare('SELECT source, keyword_tokens, typed_notes FROM items WHERE id = ? AND user_id = ?')
+      .bind(problemId, userId)
+      .first<{ source: string; keyword_tokens: string; typed_notes: string }>();
+
     await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, '網頁編輯'), ?)`
+      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, ?, ?, ?)`
     )
-      .bind(problemId, userId, source || null, keywordTokensStr || '')
+      .bind(problemId, userId, currentItem?.source || source || '網頁編輯', currentItem?.keyword_tokens || keywordTokensStr || '', currentItem?.typed_notes || typed_notes || '')
       .run();
   }
 
@@ -604,9 +608,9 @@ problemsRouter.post('/:id/analyze', async (c) => {
 
   // Sync FTS5
   await c.env.DB.prepare(
-    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens) VALUES (?, ?, COALESCE(?, 'AI 分析'), ?)`
+    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes) VALUES (?, ?, COALESCE(?, 'AI 分析'), ?, ?)`
   )
-    .bind(problemId, userId, item.source || null, keywordTokensStr)
+    .bind(problemId, userId, item.source || null, keywordTokensStr, item.typed_notes || '')
     .run();
 
   const updatedItem = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')

@@ -20,23 +20,23 @@ searchRouter.get('/', async (c) => {
     const { results } = await c.env.DB.prepare(
       `SELECT i.* FROM items i
        JOIN items_fts fts ON i.id = fts.id
-       WHERE fts.keyword_tokens MATCH ? AND i.user_id = ?
+       WHERE (fts.keyword_tokens MATCH ? OR fts.typed_notes MATCH ? OR fts.source MATCH ?) AND i.user_id = ?
        UNION
-       SELECT i.* FROM items i, JSON_EACH(i.keywords) kw
-       WHERE kw.value LIKE ? AND i.user_id = ?
+       SELECT i.* FROM items i
+       WHERE i.user_id = ? AND (i.typed_notes LIKE ? OR i.source LIKE ? OR i.keywords LIKE ?)
        ORDER BY created_at DESC
        LIMIT 50`
     )
-      .bind(query, userId, likePattern, userId)
+      .bind(query, query, query, userId, userId, likePattern, likePattern, likePattern)
       .all<ItemRow>();
 
     return c.json({ items: results || [] });
   } catch (err) {
     // Fallback if FTS table has syntax error or missing match
     const { results } = await c.env.DB.prepare(
-      `SELECT * FROM items WHERE user_id = ? AND (source LIKE ? OR keywords LIKE ?) ORDER BY created_at DESC LIMIT 50`
+      `SELECT * FROM items WHERE user_id = ? AND (source LIKE ? OR keywords LIKE ? OR typed_notes LIKE ?) ORDER BY created_at DESC LIMIT 50`
     )
-      .bind(userId, likePattern, likePattern)
+      .bind(userId, likePattern, likePattern, likePattern)
       .all<ItemRow>();
 
     return c.json({ items: results || [] });

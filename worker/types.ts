@@ -97,6 +97,7 @@ export interface ItemRow {
   source: string | null;
   image_url: string;
   draw_data: string | null;
+  typed_notes: string | null;
   status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   review_count: number;
   vector_clock: string | null;
