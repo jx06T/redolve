@@ -110,6 +110,7 @@ export interface ShareRow {
   item_id: string;
   user_id: string;
   allow_ink: number;
+  allow_notes: number;
   expires_at: string | null;
   created_at: string;
 }

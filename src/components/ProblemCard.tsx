@@ -716,25 +716,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
       {/* Lightbox Modal */}
       {isLightboxOpen && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
-          onClick={() => setIsLightboxOpen(false)}
-        >
-          <div className="relative w-full h-full flex items-center justify-center">
-            <button
-              onClick={() => setIsLightboxOpen(false)}
-              className="absolute top-4 right-4 p-3 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all z-[110]"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <img
-              src={imageUrl}
-              alt="題目放大檢視"
-              className="exam-paper-image max-w-full max-h-full object-contain select-none shadow-2xl cursor-default"
-              onClick={(e) => e.stopPropagation()} // Prevent click from closing when clicking image
-            />
-          </div>
-        </div>
+        <ImageLightbox
+          imageUrl={imageUrl}
+          onClose={() => setIsLightboxOpen(false)}
+        />
       )}
       {/* Share Modal */}
       <ShareModal
@@ -742,6 +727,172 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         problemId={problem.id}
         onClose={() => setIsShareModalOpen(false)}
       />
+    </div>
+  );
+};
+
+
+import { ZoomOut } from 'lucide-react';
+
+interface ImageLightboxProps {
+  imageUrl: string;
+  onClose: () => void;
+}
+
+export const ImageLightbox: React.FC<ImageLightboxProps> = ({ imageUrl, onClose }) => {
+  const [scale, setScale] = useState<number>(1);
+  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastTouchDistRef = useRef<number | null>(null);
+
+  // 雙擊 / 雙點擊：在 1x 與 2.5x 之間切換
+  const handleDoubleTap = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (scale > 1) {
+      setScale(1);
+      setPosition({ x: 0, y: 0 });
+    } else {
+      setScale(2.5);
+    }
+  };
+
+  // 電腦端滾輪縮放
+  const handleWheel = (e: React.WheelEvent) => {
+    e.stopPropagation();
+    const delta = e.deltaY < 0 ? 0.25 : -0.25;
+    const newScale = Math.min(Math.max(1, scale + delta), 5);
+    setScale(newScale);
+    if (newScale === 1) {
+      setPosition({ x: 0, y: 0 });
+    }
+  };
+
+  // 拖銜平移 (Pointer Events，同時支援滑動與單指拖銜)
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (scale <= 1) return;
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    dragStartRef.current = {
+      x: e.clientX - position.x,
+      y: e.clientY - position.y,
+    };
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || scale <= 1) return;
+    e.stopPropagation();
+    setPosition({
+      x: e.clientX - dragStartRef.current.x,
+      y: e.clientY - dragStartRef.current.y,
+    });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    e.stopPropagation();
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch { }
+    setIsDragging(false);
+  };
+
+  // 移動端雙指手勢縮放 (Touch Pinch)
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      e.stopPropagation();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+
+      if (lastTouchDistRef.current !== null) {
+        const delta = (dist - lastTouchDistRef.current) * 0.01;
+        const newScale = Math.min(Math.max(1, scale + delta), 5);
+        setScale(newScale);
+        if (newScale === 1) setPosition({ x: 0, y: 0 });
+      }
+      lastTouchDistRef.current = dist;
+    }
+  };
+
+  const handleTouchEnd = () => {
+    lastTouchDistRef.current = null;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
+      onClick={onClose}
+      onWheel={handleWheel}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* 頂部浮動工具列 (按鈕) */}
+      <div
+        className="absolute top-4 right-4 z-[110] flex items-center space-x-2 bg-black/60 backdrop-blur-md p-1.5 rounded-full border border-white/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => setScale((s) => Math.min(s + 0.5, 5))}
+          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+          title="放大"
+        >
+          <ZoomIn className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => {
+            const next = Math.max(1, scale - 0.5);
+            setScale(next);
+            if (next === 1) setPosition({ x: 0, y: 0 });
+          }}
+          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+          title="縮小"
+        >
+          <ZoomOut className="w-5 h-5" />
+        </button>
+        <button
+          onClick={() => {
+            setScale(1);
+            setPosition({ x: 0, y: 0 });
+          }}
+          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+          title="重置"
+        >
+          <RotateCcw className="w-4 h-4" />
+        </button>
+        <div className="w-px h-4 bg-white/20 my-auto" />
+        <button
+          onClick={onClose}
+          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/20 active:scale-95 transition-all"
+          title="關閉 (Esc)"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* 圖片容器 */}
+      <div
+        className={`relative max-w-full max-h-full flex items-center justify-center p-4 ${scale > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
+          }`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClick={handleDoubleTap}
+      >
+        <img
+          src={imageUrl}
+          alt="題目放大檢視"
+          draggable={false}
+          className="exam-paper-image max-w-full max-h-[88vh] object-contain select-none shadow-2xl transition-transform duration-75 ease-out"
+          style={{
+            transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
+            touchAction: 'none',
+          }}
+        />
+      </div>
     </div>
   );
 };

@@ -332,13 +332,20 @@ export async function deleteApiKey(keyPrefix: string) {
   return res.json();
 }
 
-export async function createShareLink(id: string, allowInk = true): Promise<{ token: string }> {
+export async function createShareLink(
+  id: string,
+  allowInk = true,
+  allowNotes = true
+): Promise<{ token: string }> {
   const res = await fetch(`${API_BASE}/problems/${id}/share`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ allow_ink: allowInk }),
+    body: JSON.stringify({
+      allow_ink: allowInk,
+      allow_notes: allowNotes,
+    }),
   });
-  if (!res.ok) throw new Error('Failed to create share link');
+  if (!res.ok) throw new Error('產生分享連結失敗');
   return res.json();
 }
 

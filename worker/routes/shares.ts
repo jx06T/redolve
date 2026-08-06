@@ -4,7 +4,16 @@ import { authMiddleware } from '../middleware/auth';
 
 export const sharesRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// 1. Create Share Token (Protected)
+// 自動為舊資料庫補上 allow_notes 欄位 (自動 Migration)
+async function ensureAllowNotesColumn(db: D1Database) {
+  try {
+    await db.prepare('ALTER TABLE shares ADD COLUMN allow_notes INTEGER DEFAULT 1').run();
+  } catch {
+    // 欄位若已存在會拋出錯誤，直接忽略即可
+  }
+}
+
+// 1. Create Share Token (Protected & Idempotent)
 sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
@@ -18,26 +27,43 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
+  await ensureAllowNotesColumn(c.env.DB);
+
   const allowInk = body.allow_ink === false ? 0 : 1;
+  const allowNotes = body.allow_notes === false ? 0 : 1;
   const expiresAt = body.expires_at || null;
 
-  const existingShare = await c.env.DB.prepare(`
-    SELECT token, expires_at 
-    FROM shares 
-    WHERE item_id = ? 
-      AND user_id = ? 
-      AND allow_ink = ?
-      AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-      -- 如果前端有傳 expiresAt，也要確認過期時間是否一致 (這裡簡化為如果兩者都是 null 就當作一致)
-      AND (expires_at IS ? OR expires_at = ?) 
-    LIMIT 1
-  `).bind(problemId, userId, allowInk, expiresAt, expiresAt).first<ShareRow>();
+  // 💡 安全的重複網址檢查邏輯
+  let existingShare: ShareRow | null = null;
+  if (expiresAt) {
+    existingShare = await c.env.DB.prepare(`
+      SELECT token, expires_at, allow_ink, allow_notes
+      FROM shares 
+      WHERE item_id = ? 
+        AND user_id = ? 
+        AND allow_ink = ?
+        AND (allow_notes IS NULL OR allow_notes = ?)
+        AND expires_at = ?
+      LIMIT 1
+    `).bind(problemId, userId, allowInk, allowNotes, expiresAt).first<ShareRow>();
+  } else {
+    existingShare = await c.env.DB.prepare(`
+      SELECT token, expires_at, allow_ink, allow_notes
+      FROM shares 
+      WHERE item_id = ? 
+        AND user_id = ? 
+        AND allow_ink = ?
+        AND (allow_notes IS NULL OR allow_notes = ?)
+        AND expires_at IS NULL
+      LIMIT 1
+    `).bind(problemId, userId, allowInk, allowNotes).first<ShareRow>();
+  }
 
   if (existingShare) {
-    // 如果已經有完全一模一樣的分享設定，直接回傳舊的 Token！
     return c.json({
       token: existingShare.token,
-      allow_ink: allowInk,
+      allow_ink: Boolean(existingShare.allow_ink),
+      allow_notes: Boolean(existingShare.allow_notes),
       expires_at: existingShare.expires_at
     });
   }
@@ -46,14 +72,18 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
   const tokenStr = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
   const token = `st_${tokenStr}`;
 
-
   await c.env.DB.prepare(
-    'INSERT INTO shares (token, item_id, user_id, allow_ink, expires_at) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO shares (token, item_id, user_id, allow_ink, allow_notes, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
   )
-    .bind(token, problemId, userId, allowInk, expiresAt)
+    .bind(token, problemId, userId, allowInk, allowNotes, expiresAt)
     .run();
 
-  return c.json({ token, allow_ink: allowInk, expires_at: expiresAt });
+  return c.json({
+    token,
+    allow_ink: Boolean(allowInk),
+    allow_notes: Boolean(allowNotes),
+    expires_at: expiresAt
+  });
 });
 
 // 2. Revoke Share Token (Protected)
@@ -70,7 +100,7 @@ sharesRouter.delete('/api/problems/:id/share/:token', authMiddleware, async (c) 
 sharesRouter.get('/share/:token', async (c) => {
   const token = c.req.param('token');
 
-  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE token = ?').bind(token).first<ShareRow>();
+  const share = await c.env.DB.prepare('SELECT * FROM shares WHERE token = ?').bind(token).first<ShareRow & { allow_notes?: number }>();
 
   if (!share) {
     return c.json({ error: { code: 'NOT_FOUND', message: '分享連結不存在或已被撤銷' } }, 404);
@@ -88,14 +118,20 @@ sharesRouter.get('/share/:token', async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '分享的題目已遭刪除' } }, 404);
   }
 
+  // 💡 權限控管：如果不允許筆跡或筆記，回傳 null 隱藏欄位！
+  const shouldShowInk = Boolean(share.allow_ink);
+  const shouldShowNotes = share.allow_notes !== undefined ? Boolean(share.allow_notes) : true;
+
   return c.json({
     item: {
       ...item,
-      draw_data: Boolean(share.allow_ink) ? item.draw_data : null,
+      draw_data: shouldShowInk ? item.draw_data : null,
+      typed_notes: shouldShowNotes ? item.typed_notes : null,
     },
     share: {
       token: share.token,
-      allow_ink: Boolean(share.allow_ink),
+      allow_ink: shouldShowInk,
+      allow_notes: shouldShowNotes,
     },
   });
 });
