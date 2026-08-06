@@ -49,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   const computeCountForNode = (node: { id: string; children?: any[] }): number => {
     let count = 0;
     if (taxonomyCounts[node.id]) {
-      const counts = taxonomyCounts[node.id];
+      const counts = taxonomyCounts[node.id] as any;
       if (typeof counts === 'number') {
         // Fallback for old cached data
         count = selectedStatus === 'all' ? counts : 0;
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
-                        const pointCountRaw = taxonomyCounts[point.id];
+                        const pointCountRaw = taxonomyCounts[point.id] as any;
                         let pointCount = 0;
                         if (pointCountRaw) {
                           if (typeof pointCountRaw === 'number') {

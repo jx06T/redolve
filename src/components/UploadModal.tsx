@@ -198,14 +198,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           
           const tempItem: Item = {
             id: tempId,
+            user_id: 'temp',
             type: 'image',
-            original_url: item.previewUrl,
-            thumbnail_url: item.previewUrl,
+            topic_id: selectedSubjectId || 'math',
+            keywords: null,
+            keyword_tokens: null,
+            source: sourceInput || null,
+            image_url: item.previewUrl,
+            draw_data: null,
+            status: 'processing',
+            review_count: 0,
+            vector_clock: null,
+            updated_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
-            source: sourceInput,
-            status: 'unsolved',
-            level_0_id: selectedSubjectId || 'math',
-            creator_id: 'temp',
           };
           
           addOptimisticProblem(tempItem);
