@@ -519,12 +519,16 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         canvasRef.current!.style.touchAction = 'none';
       }
     } else if (e.pointerType === 'touch') {
-      if (!isEffectiveEraser) {
-        return; // Let CSS pan-y handle the scroll
+      if (!allowTouchDrawing) {
+        return;
       }
-      if (!isEraserActive) {
-        return; // Prevent touch from erasing if eraser is not explicitly active
+
+      // 如果允許手指繪圖，手指按下的瞬間必須鎖定滾動，否則會邊畫邊滑動
+      if (allowTouchDrawing) {
+        canvasRef.current!.style.touchAction = 'none';
       }
+
+      // 攔截多指操作
       if (!e.isPrimary || isMultiTouchGestureRef.current) {
         isMultiTouchGestureRef.current = true;
         setIsDrawing(false);
@@ -576,12 +580,10 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    if (e.pointerType === 'touch' && !isEraserActive && !allowTouchDrawing) {
-      return;
-    }
-
     const isEffectiveEraser = isEraserActive || activeTool === 'eraser';
-    if (e.pointerType === 'touch' && !isEraserActive) {
+
+    // 關鍵修正：如果是手指，且不是橡皮擦，也沒有允許手指繪圖，才忽略 move 事件
+    if (e.pointerType === 'touch' && !allowTouchDrawing) {
       return;
     }
 
@@ -611,9 +613,6 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     lastErasePosRef.current = null;
     setIsErasingLive(false);
-    if (e.pointerType === 'pen') {
-      e.currentTarget.style.touchAction = 'pan-y';
-    }
 
     if (isErasingRef.current) {
       isErasingRef.current = false;
@@ -673,10 +672,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     setCurrentPoints([]);
     isErasingRef.current = false;
     setIsErasingLive(false);
-    
-    if (e.pointerType === 'pen') {
-      e.currentTarget.style.touchAction = 'pan-y';
-    }
+
   };
 
   const handlePointerLeave = () => {
@@ -764,7 +760,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
             width={canvasWidth}
             height={canvasHeight}
             style={{
-              touchAction: 'pan-y',
+              touchAction: readOnly
+                ? 'pan-y'
+                : allowTouchDrawing
+                  ? 'none'
+                  : 'pan-y',
               WebkitTouchCallout: 'none',
               WebkitUserSelect: 'none',
               userSelect: 'none',
