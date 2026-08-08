@@ -112,10 +112,12 @@ export const Navbar: React.FC = () => {
             </button>
 
             <span
-              onClick={handleLogoClick}
-              onDoubleClick={() => window.location.reload()}
+              onClick={() => setTimeout(() => {
+                window.location.reload()
+              }, 200)}
+              onDoubleClick={handleLogoClick}
               className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight select-none cursor-pointer group"
-              title="前往錯題首頁 (雙擊重新整理)"
+              title="重新整理 (雙擊前往首頁)"
             >
               <div className="p-2.5 bg-[#6366F1]/10 group-hover:bg-[#6366F1]/20 text-[#6366F1] dark:text-indigo-400 rounded-2xl transition-all">
                 <PenTool className="w-5 h-5" />
@@ -274,102 +276,104 @@ export const Navbar: React.FC = () => {
             </form>
           </div>
         )}
-      </header>
+      </header >
 
       {/* Floating Mobile Navigation Drawer (Overlay, non-pushing) */}
-      {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 top-[61px] z-50 bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
-          onClick={() => setMobileMenuOpen(false)}
-        >
+      {
+        mobileMenuOpen && (
           <div
-            ref={menuContainerRef}
-            onClick={(e) => e.stopPropagation()}
-            className="m-3 p-4 bg-white/95 dark:bg-[#202023]/95 backdrop-blur-xl rounded-3xl border border-[#E5E7EB] dark:border-[#2C2C30] shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
+            className="fixed inset-0 top-[61px] z-50 bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
+            onClick={() => setMobileMenuOpen(false)}
           >
-            {/* Guest Banner in Mobile Drawer */}
-            {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
-              <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between gap-2">
-                <div className="space-y-0.5">
-                  <div className="text-xs font-bold text-[#1F2937] dark:text-[#F3F4F6]">訪客試用模式</div>
-                  <div className="text-[11px] text-[#6B7280] dark:text-[#9CA3AF]">登入以同步多裝置資料</div>
+            <div
+              ref={menuContainerRef}
+              onClick={(e) => e.stopPropagation()}
+              className="m-3 p-4 bg-white/95 dark:bg-[#202023]/95 backdrop-blur-xl rounded-3xl border border-[#E5E7EB] dark:border-[#2C2C30] shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
+            >
+              {/* Guest Banner in Mobile Drawer */}
+              {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
+                <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between gap-2">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-[#1F2937] dark:text-[#F3F4F6]">訪客試用模式</div>
+                    <div className="text-[11px] text-[#6B7280] dark:text-[#9CA3AF]">登入以同步多裝置資料</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      setAuthModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-semibold active:scale-95 shadow-xs shrink-0"
+                  >
+                    登入 / 註冊
+                  </button>
                 </div>
+              )}
+
+              {/* Mobile Subject Selector */}
+              <div className="px-1 pb-1">
+                <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">目前篩選科目</label>
+                <select
+                  value={selectedSubjectId || 'math'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSelectedSubjectId(val);
+                    setMobileMenuOpen(false);
+                    navigate(`/study/${val}`);
+                  }}
+                  className="w-full p-2.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 focus:outline-none focus:border-[#6366F1]"
+                >
+                  {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
+                    <option key={sub.id} value={sub.id}>
+                      {sub.label}
+                    </option>
+                  ))}
+                  <option value="unclassified">— 其他科目</option>
+                </select>
+              </div>
+
+              <div className="h-px bg-stone-200 dark:bg-stone-800 my-1" />
+
+              {/* Navigation Links */}
+              <div className="space-y-1">
+                {navLinks.map((link) => {
+                  const Icon = link.icon;
+                  const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
+                  return (
+                    <Link
+                      key={link.path}
+                      to={link.path}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
+                        ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                        : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+                        }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span>{link.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Mobile Drawer Upload Action */}
+              <div className="pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setMobileMenuOpen(false);
-                    setAuthModalOpen(true);
+                    setUploadModalOpen(true);
                   }}
-                  className="px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-semibold active:scale-95 shadow-xs shrink-0"
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
                 >
-                  登入 / 註冊
+                  <Upload className="w-4 h-4" />
+                  <span>批次上傳錯題</span>
                 </button>
               </div>
-            )}
-
-            {/* Mobile Subject Selector */}
-            <div className="px-1 pb-1">
-              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">目前篩選科目</label>
-              <select
-                value={selectedSubjectId || 'math'}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedSubjectId(val);
-                  setMobileMenuOpen(false);
-                  navigate(`/study/${val}`);
-                }}
-                className="w-full p-2.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 focus:outline-none focus:border-[#6366F1]"
-              >
-                {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.label}
-                  </option>
-                ))}
-                <option value="unclassified">— 其他科目</option>
-              </select>
-            </div>
-
-            <div className="h-px bg-stone-200 dark:bg-stone-800 my-1" />
-
-            {/* Navigation Links */}
-            <div className="space-y-1">
-              {navLinks.map((link) => {
-                const Icon = link.icon;
-                const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
-                return (
-                  <Link
-                    key={link.path}
-                    to={link.path}
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
-                      }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{link.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Mobile Drawer Upload Action */}
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setUploadModalOpen(true);
-                }}
-                className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
-              >
-                <Upload className="w-4 h-4" />
-                <span>批次上傳錯題</span>
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Upload Modal Container */}
       <UploadModal
