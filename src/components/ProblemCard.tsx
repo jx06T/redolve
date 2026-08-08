@@ -1,30 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  CheckCircle,
-  Share2,
-  Trash2,
-  Eye,
-  EyeOff,
-  Download,
-  FileText,
-  Plus,
-  Minus,
-  RotateCcw,
-  RotateCw,
-  PenLine,
-  ChevronUp,
-  ChevronDown,
-  Archive,
-  ArchiveRestore,
-  ZoomIn,
-} from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Item, DrawData } from '../types';
-import { StatusBadge, formatProblemCode } from './StatusBadge';
-import { DrawCanvas } from './DrawCanvas';
+import { formatProblemCode } from './StatusBadge';
 import { ConfirmModal } from './ConfirmModal';
 import { ShareModal } from './ShareModal';
 import { ImageViewerModal } from './ImageViewerModal';
+import { ProblemCardHeader } from './problem/ProblemCardHeader';
+import { ProblemCardWorkspace } from './problem/ProblemCardWorkspace';
+import { ProblemCardScratchpadControls } from './problem/ProblemCardScratchpadControls';
+import { ProblemCardFooter } from './problem/ProblemCardFooter';
 
 import {
   getProblemImageUrl,
@@ -88,6 +72,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [isReloading, setIsReloading] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [reloadVersion, setReloadVersion] = useState<number>(0);
+
   const getInitialCalcSpaceHeight = useCallback(() => {
     if (problem.draw_data) {
       try {
@@ -377,84 +362,21 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           }`}
       >
         {/* Header Bar */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
-          <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
-            {problemIndex === undefined && (
-              <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
-                {problemCode}
-              </span>
-            )}
-            <StatusBadge
-              status={problem.status}
-              topicId={problem.topic_id}
-              onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
-            />
-            {problem.source && (
-              <span className="inline-block text-xs text-[#9CA3AF] px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800/60 font-medium">
-                {problem.source}
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-1 flex-wrap">
-            {/* Manual Reload Problem Button */}
-            <button
-              onClick={handleReloadProblem}
-              disabled={isReloading}
-              aria-label="手動重新載入本題資料"
-              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${isReloading ? 'text-indigo-500 cursor-not-allowed' : ''
-                }`}
-              title="手動重新載入本題最新狀態"
-            >
-              <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin text-indigo-500' : ''}`} />
-            </button>
-
-            {/* US 3.1 Ink Hide/Show Toggle Button */}
-            <button
-              onClick={() => setInkVisible((prev) => !prev)}
-              aria-label={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
-              className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${!inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
-                }`}
-              title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
-            >
-              {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-amber-500" />}
-            </button>
-
-            {/* Export High-res Image Button */}
-            <button
-              onClick={handleExport}
-              disabled={isExporting}
-              aria-label="導出高清訂正圖檔"
-              className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
-              title="導出合成圖檔 (PNG)"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-
-
-            <button
-              onClick={() => setIsShareModalOpen(true)}
-              aria-label="開啟公開分享設定"
-              className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
-              title="分享題目"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
-
-            {!readOnly && (
-              <button
-                onClick={() => setIsDeleteModalOpen(true)}
-                aria-label="刪除此錯題"
-                className="p-2 rounded-xl text-[#9CA3AF] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
-                title="刪除"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-
-
+        <ProblemCardHeader
+          problem={problem}
+          problemCode={problemCode}
+          problemIndex={problemIndex}
+          readOnly={readOnly}
+          isReloading={isReloading}
+          inkVisible={inkVisible}
+          isExporting={isExporting}
+          onReload={handleReloadProblem}
+          onToggleInk={() => setInkVisible((prev) => !prev)}
+          onExport={handleExport}
+          onOpenShareModal={() => setIsShareModalOpen(true)}
+          onOpenDeleteModal={() => setIsDeleteModalOpen(true)}
+          onEditMetadata={onEditMetadata}
+        />
 
         {/* Keywords Chips */}
         {keywordsArray.length > 0 && (
@@ -471,117 +393,29 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {/* Unified Image & Calculation Scratchpad Workspace */}
-        <div ref={workspaceRef} className="mt-3 relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
-          {/* Main Question Image */}
-          <div className="w-full relative select-none">
-            <img
-              src={imageUrl}
-              alt="題目"
-              className="exam-paper-image w-full h-auto object-contain block select-none pointer-events-none"
-            />
-            <button
-              onClick={() => setIsLightboxOpen(true)}
-              className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-white/70 dark:bg-black/50 backdrop-blur-sm shadow-sm border border-black/5 dark:border-white/10 text-stone-600 dark:text-stone-300 hover:scale-110 active:scale-95 transition-all"
-              title="放大檢視原題"
-            >
-              <ZoomIn className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Extended Calculation Workspace Area */}
-          <div
-            style={{ height: `${renderedCalcSpaceHeight}px` }}
-            className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
-              }`}
-          >
-            {renderedCalcSpaceHeight > 0 && (
-              <>
-                <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-                <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
-                  <PenLine className="w-3 h-3 text-indigo-400" />
-                  <span>延伸推導草稿區</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Full Interactive Canvas Overlay */}
-          <div className="absolute inset-0 pointer-events-auto">
-            <DrawCanvas
-              initialDrawData={problem.draw_data}
-              onSaveDrawData={handleSaveDraw}
-              calcSpaceHeight={calcSpaceHeight}
-              activeTool={tool}
-              activeColor={penColor}
-              activeWidth={penWidth}
-              isEraserActive={eraserActive}
-              readOnly={readOnly || !inkVisible}
-            />
-          </div>
-        </div>
+        <ProblemCardWorkspace
+          imageUrl={imageUrl}
+          drawData={problem.draw_data}
+          calcSpaceHeight={calcSpaceHeight}
+          renderedCalcSpaceHeight={renderedCalcSpaceHeight}
+          workspaceRef={workspaceRef}
+          tool={tool}
+          penColor={penColor}
+          penWidth={penWidth}
+          eraserActive={eraserActive}
+          readOnly={readOnly}
+          inkVisible={inkVisible}
+          onSaveDraw={handleSaveDraw}
+          onOpenLightbox={() => setIsLightboxOpen(true)}
+        />
 
         {/* Scratchpad Height Controls */}
         {!readOnly && (
-          <div className="mt-2 flex items-center justify-between px-1">
-            <div className="flex items-center space-x-1 pt-3">
-              <FileText className="w-3.5 h-3.5 text-indigo-500" />
-              <span className="text-[11px] text-[#9CA3AF]">
-                {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
-              </span>
-            </div>
-            <div className="flex items-center space-x-1.5">
-              {calcSpaceHeight > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => updateCalcHeight(0)}
-                  className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-                  title="完全收合推導區 (0px)"
-                >
-                  <ChevronUp className="w-3 h-3" />
-                  <span className="hidden sm:inline">收合</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => updateCalcHeight(140)}
-                  className="px-2 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all flex items-center space-x-1 active:scale-95"
-                  title="展開推導區 (預設 140px)"
-                >
-                  <ChevronDown className="w-3 h-3 text-indigo-500" />
-                  <span className="hidden sm:inline">展開</span>
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => updateCalcHeight(140)}
-                disabled={calcSpaceHeight === 140}
-                className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-                title="重設草稿高度至預設值 (140px)"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span className="hidden sm:inline">重設</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => updateCalcHeight((h) => Math.max(0, h - 80))}
-                disabled={calcSpaceHeight <= 0}
-                className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-                title="縮小草稿空間 (-80px)"
-              >
-                <Minus className="w-3 h-3" />
-                <span className="hidden sm:inline">縮減</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => updateCalcHeight((h) => Math.min(3000, (h === 0 ? 140 : h + 80)))}
-                className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
-                title="擴增草稿空間 (+80px)"
-              >
-                <Plus className="w-3 h-3 text-indigo-500" />
-                <span className="hidden sm:inline">延伸</span>
-              </button>
-            </div>
-          </div>
+          <ProblemCardScratchpadControls
+            calcSpaceHeight={calcSpaceHeight}
+            isSavingNotes={isSavingNotes}
+            onUpdateCalcHeight={updateCalcHeight}
+          />
         )}
 
         {/* Typed Notes & Calculation Summary Section (Auto-resizing) */}
@@ -596,55 +430,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         />
 
         {/* Bottom Footer Actions */}
-        <div className="mt-3 pt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-[#9CA3AF]">
-          <div className="flex items-center space-x-3">
-            <span>複習次數: {problem.review_count} 次</span>
-            {problem.status === 'archived' && (
-              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 font-medium text-[11px] border border-stone-200 dark:border-stone-700">
-                <Archive className="w-3 h-3 text-stone-500" />
-                <span>已封存</span>
-              </span>
-            )}
-          </div>
-
-          <div className="flex items-center space-x-2">
-            {!readOnly && (
-              <button
-                onClick={handleToggleArchive}
-                aria-label={problem.status === 'archived' ? '解除封存' : '封存此題目（確定不會再錯）'}
-                className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${problem.status === 'archived'
-                  ? 'bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100'
-                  : 'bg-stone-100 dark:bg-stone-800 text-[#6B7280] dark:text-[#9CA3AF] border-stone-200 dark:border-stone-700 hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
-                  }`}
-                title={problem.status === 'archived' ? '解除封存：移回常規複習流' : '封存題目：確定熟練不再錯，自常規複習流隱藏'}
-              >
-                {problem.status === 'archived' ? (
-                  <>
-                    <ArchiveRestore className="w-3.5 h-3.5" />
-                    <span>解除封存</span>
-                  </>
-                ) : (
-                  <>
-                    <Archive className="w-3.5 h-3.5" />
-                    <span>封存題目</span>
-                  </>
-                )}
-              </button>
-            )}
-
-            <button
-              onClick={handleToggleStatus}
-              aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
-              className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${isResolved
-                ? 'bg-[#39a07d] text-white hover:bg-[#0c8b63]'
-                : 'bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700'
-                }`}
-            >
-              <CheckCircle className="w-4 h-4" />
-              <span>{isResolved ? '已標記訂正完畢' : '標記完成訂正'}</span>
-            </button>
-          </div>
-        </div>
+        <ProblemCardFooter
+          problem={problem}
+          isResolved={isResolved}
+          readOnly={readOnly}
+          onToggleArchive={handleToggleArchive}
+          onToggleStatus={handleToggleStatus}
+        />
       </div>
 
       {/* Non-blocking Confirm Delete Modal */}
