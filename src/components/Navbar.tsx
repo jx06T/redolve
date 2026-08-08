@@ -99,13 +99,13 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/85 dark:bg-[#202023]/85 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#2C2C30] px-4 py-3">
+      <header className="sticky top-0 z-30 bg-surface/85 backdrop-blur-md border-b border-border-subtle px-4 py-3">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Brand Logo & Subject Selector */}
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-2xl text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-95 transition-all"
+              className="md:hidden p-2 rounded-2xl text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all"
               aria-label="選單 Toggle"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -116,20 +116,20 @@ export const Navbar: React.FC = () => {
                 window.location.reload()
               }, 200)}
               onDoubleClick={handleLogoClick}
-              className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight select-none cursor-pointer group"
+              className="flex items-center space-x-2 text-text-main font-semibold tracking-tight select-none cursor-pointer group"
               title="重新整理 (雙擊前往首頁)"
             >
-              <div className="p-2.5 bg-[#6366F1]/10 group-hover:bg-[#6366F1]/20 text-[#6366F1] dark:text-indigo-400 rounded-2xl transition-all">
+              <div className="p-2.5 bg-primary/10 group-hover:bg-primary/20 text-primary rounded-2xl transition-all">
                 <PenTool className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
                 <span className="text-lg font-bold leading-none">Redolve</span>
-                <span className="text-[10px] text-[#9CA3AF] mt-0.5">Redo & Solve</span>
+                <span className="text-[10px] text-text-muted mt-0.5">Redo & Solve</span>
               </div>
             </span>
 
             {/* Subject Selector Dropdown */}
-            <div className="hidden sm:flex items-center pl-2 border-l border-stone-200 dark:border-stone-800">
+            <div className="hidden sm:flex items-center pl-2 border-l border-border-subtle">
               <CustomSelect
                 value={selectedSubjectId || 'math'}
                 onChange={(val) => {
@@ -159,8 +159,8 @@ export const Navbar: React.FC = () => {
                   title={link.label}
                   aria-label={link.label}
                   className={`flex items-center space-x-1.5 px-5 lg:px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${isActive
-                    ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-semibold'
-                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                    ? 'bg-primary/10 text-primary font-semibold'
+                    : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -174,20 +174,20 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center space-x-1.5 sm:space-x-3">
             {/* Desktop Search */}
             <form onSubmit={handleSearchSubmit} className="relative hidden sm:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 type="text"
                 placeholder="搜尋錯題、關鍵字..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1] transition-all w-32 md:w-48 xl:w-64"
+                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 dark:bg-neutral-800 border border-border-subtle text-text-main focus:outline-none focus:border-primary transition-all w-32 md:w-48 xl:w-64"
               />
             </form>
 
             {/* Mobile Search Toggle Button */}
             <button
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-              className="sm:hidden p-1.5 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="sm:hidden p-1.5 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800"
               title="開啟搜尋"
             >
               <Search className="w-4 h-4" />
@@ -196,17 +196,17 @@ export const Navbar: React.FC = () => {
             {/* Keyboard Shortcuts Trigger Button */}
             <button
               onClick={() => setShortcutsModalOpen(true)}
-              className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-medium border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+              className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-medium border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
               title="鍵盤快捷鍵指南 (?)"
             >
-              <Command className="w-3.5 h-3.5 text-[#9CA3AF]" />
+              <Command className="w-3.5 h-3.5 text-text-muted" />
               <span className="hidden xl:inline">快捷鍵</span>
             </button>
 
             {/* Upload Modal Trigger Button */}
             <button
               onClick={() => setUploadModalOpen(true)}
-              className="flex items-center justify-center p-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+              className="flex items-center justify-center p-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-medium bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all shadow-xs"
               title="上傳錯題"
             >
               <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
@@ -216,7 +216,7 @@ export const Navbar: React.FC = () => {
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 sm:p-2 rounded-2xl border border-[#E5E7EB] dark:border-[#2C2C30] text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 transition-colors"
+              className="p-1.5 sm:p-2 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
               title="切換深淺色模式 (Cmd+D)"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -227,7 +227,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
-                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/60 text-[#6366F1] dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-primary-50/50 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 text-primary hover:bg-primary-100/50 dark:hover:bg-primary-900/50 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
                 title="登入 Google 帳號以啟用雲端跨裝置同步"
               >
                 <LogIn className="w-3.5 h-3.5" />
@@ -238,10 +238,10 @@ export const Navbar: React.FC = () => {
             {/* User Session & Auth Profile Button */}
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="flex items-center space-x-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+              className="flex items-center space-x-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-border-subtle bg-neutral-50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-main transition-all"
               title="使用者帳號與身分管理"
             >
-              <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">
+              <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">
                 {currentUser?.image ? (
                   <img src={currentUser.image} alt={currentUser.name || 'User'} className="w-full h-full object-cover" />
                 ) : (
@@ -262,21 +262,21 @@ export const Navbar: React.FC = () => {
 
         {/* Mobile Search Bar Expandable in Header */}
         {mobileSearchOpen && (
-          <div className="sm:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30]">
+          <div className="sm:hidden mt-3 pt-3 border-t border-border-subtle">
             <form onSubmit={handleSearchSubmit} className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#9CA3AF]" />
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 type="text"
                 placeholder="搜尋錯題、關鍵字..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
-                className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-stone-100 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
+                className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-neutral-100 dark:bg-neutral-800 border border-border-subtle text-text-main"
               />
             </form>
           </div>
         )}
-      </header >
+      </header>
 
       {/* Floating Mobile Navigation Drawer (Overlay, non-pushing) */}
       {
@@ -288,14 +288,14 @@ export const Navbar: React.FC = () => {
             <div
               ref={menuContainerRef}
               onClick={(e) => e.stopPropagation()}
-              className="m-3 p-4 bg-white/95 dark:bg-[#202023]/95 backdrop-blur-xl rounded-3xl border border-[#E5E7EB] dark:border-[#2C2C30] shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
+              className="m-3 p-4 bg-surface/95 backdrop-blur-xl rounded-3xl border border-border-subtle shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
             >
               {/* Guest Banner in Mobile Drawer */}
               {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
-                <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between gap-2">
+                <div className="p-3 rounded-2xl bg-primary-50/60 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 flex items-center justify-between gap-2">
                   <div className="space-y-0.5">
-                    <div className="text-xs font-bold text-[#1F2937] dark:text-[#F3F4F6]">訪客試用模式</div>
-                    <div className="text-[11px] text-[#6B7280] dark:text-[#9CA3AF]">登入以同步多裝置資料</div>
+                    <div className="text-xs font-bold text-text-main">訪客試用模式</div>
+                    <div className="text-[11px] text-text-muted">登入以同步多裝置資料</div>
                   </div>
                   <button
                     type="button"
@@ -303,7 +303,7 @@ export const Navbar: React.FC = () => {
                       setMobileMenuOpen(false);
                       setAuthModalOpen(true);
                     }}
-                    className="px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-semibold active:scale-95 shadow-xs shrink-0"
+                    className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-semibold active:scale-95 shadow-xs shrink-0"
                   >
                     登入 / 註冊
                   </button>
@@ -312,7 +312,7 @@ export const Navbar: React.FC = () => {
 
               {/* Mobile Subject Selector */}
               <div className="px-1 pb-1">
-                <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">目前篩選科目</label>
+                <label className="block text-[11px] font-bold text-text-muted mb-1.5">目前篩選科目</label>
                 <select
                   value={selectedSubjectId || 'math'}
                   onChange={(e) => {
@@ -321,7 +321,7 @@ export const Navbar: React.FC = () => {
                     setMobileMenuOpen(false);
                     navigate(`/study/${val}`);
                   }}
-                  className="w-full p-2.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 focus:outline-none focus:border-[#6366F1]"
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs font-semibold text-text-main border border-border-subtle focus:outline-none focus:border-primary"
                 >
                   {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                     <option key={sub.id} value={sub.id}>
@@ -332,7 +332,7 @@ export const Navbar: React.FC = () => {
                 </select>
               </div>
 
-              <div className="h-px bg-stone-200 dark:bg-stone-800 my-1" />
+              <div className="h-px bg-border-subtle my-1" />
 
               {/* Navigation Links */}
               <div className="space-y-1">
@@ -345,8 +345,8 @@ export const Navbar: React.FC = () => {
                       to={link.path}
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
-                        ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                        : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+                        ? 'bg-primary/10 text-primary font-semibold'
+                        : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
                         }`}
                     >
                       <Icon className="w-4 h-4" />
@@ -364,7 +364,7 @@ export const Navbar: React.FC = () => {
                     setMobileMenuOpen(false);
                     setUploadModalOpen(true);
                   }}
-                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+                  className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl text-xs font-bold bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all shadow-xs"
                 >
                   <Upload className="w-4 h-4" />
                   <span>批次上傳錯題</span>

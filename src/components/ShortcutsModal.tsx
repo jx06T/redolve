@@ -51,25 +51,25 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in-50 duration-200">
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="bg-surface border border-border-subtle rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="shrink-0 px-6 py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <div className="shrink-0 px-6 py-4 border-b border-border-subtle flex items-center justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-[#6366F1]/10 text-[#6366F1] rounded-2xl">
+            <div className="p-2 bg-primary/10 text-primary rounded-2xl">
               <Command className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+              <h3 className="text-base font-bold text-text-main">
                 iPad 外接鍵盤 & 桌面快捷鍵指南
               </h3>
-              <p className="text-[11px] text-[#9CA3AF]">
+              <p className="text-[11px] text-text-muted">
                 支援 iPad Magic Keyboard 與外接藍牙鍵盤高效操作
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-colors"
+            className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted transition-colors"
             title="關閉 (Esc)"
           >
             <X className="w-5 h-5" />
@@ -80,7 +80,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
           {shortcutGroups.map((group, gIdx) => (
             <div key={gIdx} className="space-y-2">
-              <h4 className="text-xs font-bold text-[#9CA3AF] tracking-wider">
+              <h4 className="text-xs font-bold text-text-muted tracking-wider">
                 {group.title}
               </h4>
               <div className="space-y-1.5">
@@ -89,15 +89,15 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
                   return (
                     <div
                       key={iIdx}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-50 dark:bg-[#1a1a1d] border border-stone-200/50 dark:border-stone-800/80"
+                      className="flex items-center justify-between p-2.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle"
                     >
                       <div className="flex items-center space-x-2.5">
-                        <Icon className="w-4 h-4 text-[#6366F1] shrink-0" />
-                        <span className="text-xs text-[#374151] dark:text-[#D1D5DB] font-medium">
+                        <Icon className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs text-text-main font-medium">
                           {item.desc}
                         </span>
                       </div>
-                      <kbd className="px-2.5 py-1 rounded-xl bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[11px] font-mono font-bold text-[#374151] dark:text-[#D1D5DB] shadow-2xs">
+                      <kbd className="px-2.5 py-1 rounded-xl bg-surface border border-border-subtle text-[11px] font-mono font-bold text-text-main shadow-2xs">
                         {item.key}
                       </kbd>
                     </div>
@@ -109,10 +109,10 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 px-6 py-3 bg-stone-50 dark:bg-[#1a1a1d] border-t border-stone-200 dark:border-stone-800 flex justify-end">
+        <div className="shrink-0 px-6 py-3 bg-neutral-50 dark:bg-neutral-900/60 border-t border-border-subtle flex justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary-hover transition-colors"
           >
             我知道了
           </button>

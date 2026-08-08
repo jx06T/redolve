@@ -97,21 +97,21 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-start justify-center p-4 select-none">
-      <div className="mt-14 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in duration-200">
+      <div className="mt-14 bg-surface border border-border-subtle rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-stone-200 dark:border-stone-800">
+        <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] rounded-2xl">
+            <div className="p-2 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">公開題目分享</h3>
-              <p className="text-xs text-[#9CA3AF]">設定分享範圍並生成網址</p>
+              <h3 className="text-base font-bold text-text-main">公開題目分享</h3>
+              <p className="text-xs text-text-muted">設定分享範圍並生成網址</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
+            className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
           >
             <X className="w-5 h-5" />
           </button>
@@ -119,63 +119,62 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
         {/* Options */}
         <div className="space-y-3 text-xs">
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 cursor-pointer">
+          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle cursor-pointer">
             <div className="flex items-center space-x-2.5">
-              <Eye className="w-4 h-4 text-indigo-500" />
-              <span className="font-semibold text-[#374151] dark:text-[#D1D5DB]">包含手寫筆跡 (Drawings)</span>
+              <Eye className="w-4 h-4 text-primary" />
+              <span className="font-semibold text-text-main">包含手寫筆跡 (Drawings)</span>
             </div>
             <input
               type="checkbox"
               checked={includeInk}
               onChange={(e) => setIncludeInk(e.target.checked)}
-              className="w-4 h-4 accent-[#6366F1] rounded cursor-pointer"
+              className="w-4 h-4 accent-primary rounded cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 cursor-pointer">
+          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle cursor-pointer">
             <div className="flex items-center space-x-2.5">
               <FileText className="w-4 h-4 text-emerald-500" />
-              <span className="font-semibold text-[#374151] dark:text-[#D1D5DB]">包含打字筆記 (Typed Notes)</span>
+              <span className="font-semibold text-text-main">包含打字筆記 (Typed Notes)</span>
             </div>
             <input
               type="checkbox"
               checked={includeNotes}
               onChange={(e) => setIncludeNotes(e.target.checked)}
-              className="w-4 h-4 accent-[#6366F1] rounded cursor-pointer"
+              className="w-4 h-4 accent-primary rounded cursor-pointer"
             />
           </label>
         </div>
 
         {/* Result Area */}
         {shareUrl && (
-          <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-900/60 space-y-3">
-            <div className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400">已生成的分享網址</div>
+          <div className="p-3.5 rounded-2xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-850/60 space-y-3">
+            <div className="text-[11px] font-semibold text-primary">已生成的分享網址</div>
 
             <div className="flex items-center space-x-2">
               <input
                 type="text"
                 readOnly
                 value={shareUrl}
-                className="flex-1 px-3 py-2 rounded-xl bg-white dark:bg-stone-900 border border-indigo-200 dark:border-indigo-800 font-mono text-xs text-[#374151] dark:text-[#D1D5DB] select-all focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 dark:border-primary-850 font-mono text-xs text-text-main select-all focus:outline-none"
               />
             </div>
 
             {/* 按鈕功能組 */}
-            <div className="flex  items-center gap-2 pt-1">
+            <div className="flex items-center gap-2 pt-1">
               {/* 如果手機支援原生分享面板 (Web Share API) */}
               {typeof navigator !== 'undefined' && 'share' in navigator && (
                 <button
                   onClick={handleNativeShare}
-                  className="flex-1 py-2 rounded-xl bg-[#6366F1] text-white text-xs font-semibold hover:bg-[#4F46E5] active:scale-95 transition-all flex items-center justify-center space-x-1.5 shadow-xs"
+                  className="flex-1 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover active:scale-95 transition-all flex items-center justify-center space-x-1.5 shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  {/* <span>分享至 App</span> */}
                 </button>
               )}
 
               <button
                 onClick={handleCopyShareUrl}
-                className="flex-1 px-1 py-2 rounded-xl bg-white dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 text-xs font-semibold hover:bg-stone-100 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
+                className="flex-1 px-1 py-2 rounded-xl bg-surface text-text-main border border-border-subtle text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
               >
                 {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{isCopied ? '已複製' : '複製網址'}</span>
@@ -199,7 +198,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium text-[#6B7280] dark:text-[#9CA3AF] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            className="px-4 py-2 rounded-xl text-xs font-medium text-text-muted hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             關閉
           </button>
@@ -207,7 +206,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
             type="button"
             onClick={handleGenerateShareLink}
             disabled={isGenerating}
-            className="px-5 py-2 rounded-xl bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-bold shadow-xs active:scale-95 transition-all disabled:opacity-50"
+            className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-xs active:scale-95 transition-all disabled:opacity-50"
           >
             {isGenerating ? '正在生成...' : '確認產生連結'}
           </button>

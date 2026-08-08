@@ -7,6 +7,7 @@ import {
   Minus,
   Plus,
 } from 'lucide-react';
+import { DEFAULT_CALC_SPACE_HEIGHT, CALC_SPACE_STEP } from '../../config/constants';
 
 interface ProblemCardScratchpadControlsProps {
   calcSpaceHeight: number;
@@ -22,8 +23,8 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
   return (
     <div className="mt-2 flex items-center justify-between px-1">
       <div className="flex items-center space-x-1 pt-3">
-        <FileText className="w-3.5 h-3.5 text-indigo-500" />
-        <span className="text-[11px] text-[#9CA3AF]">
+        <FileText className="w-3.5 h-3.5 text-primary" />
+        <span className="text-[11px] text-text-muted">
           {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
         </span>
       </div>
@@ -33,7 +34,7 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
           <button
             type="button"
             onClick={() => onUpdateCalcHeight(0)}
-            className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
+            className="px-2 py-1 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-text-main transition-all flex items-center space-x-1 active:scale-95"
             title="完全收合推導區 (0px)"
           >
             <ChevronUp className="w-3 h-3" />
@@ -42,21 +43,21 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
         ) : (
           <button
             type="button"
-            onClick={() => onUpdateCalcHeight(140)}
-            className="px-2 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all flex items-center space-x-1 active:scale-95"
-            title="展開推導區 (預設 140px)"
+            onClick={() => onUpdateCalcHeight(DEFAULT_CALC_SPACE_HEIGHT)}
+            className="px-2 py-1 text-xs rounded-lg bg-primary-50 dark:bg-primary-950/60 border border-primary-200/50 dark:border-primary-850/50 text-primary hover:bg-primary-100 dark:hover:bg-primary-900/60 transition-all flex items-center space-x-1 active:scale-95"
+            title={`展開推導區 (預設 ${DEFAULT_CALC_SPACE_HEIGHT}px)`}
           >
-            <ChevronDown className="w-3 h-3 text-indigo-500" />
+            <ChevronDown className="w-3 h-3 text-primary" />
             <span className="hidden sm:inline">展開</span>
           </button>
         )}
 
         <button
           type="button"
-          onClick={() => onUpdateCalcHeight(140)}
-          disabled={calcSpaceHeight === 140}
-          className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-          title="重設草稿高度至預設值 (140px)"
+          onClick={() => onUpdateCalcHeight(DEFAULT_CALC_SPACE_HEIGHT)}
+          disabled={calcSpaceHeight === DEFAULT_CALC_SPACE_HEIGHT}
+          className="px-2 py-1 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-40 text-text-main transition-all flex items-center space-x-1 active:scale-95"
+          title={`重設草稿高度至預設值 (${DEFAULT_CALC_SPACE_HEIGHT}px)`}
         >
           <RotateCcw className="w-3 h-3" />
           <span className="hidden sm:inline">重設</span>
@@ -64,10 +65,10 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
 
         <button
           type="button"
-          onClick={() => onUpdateCalcHeight((h) => Math.max(0, h - 80))}
+          onClick={() => onUpdateCalcHeight((h) => Math.max(0, h - CALC_SPACE_STEP))}
           disabled={calcSpaceHeight <= 0}
-          className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-          title="縮小草稿空間 (-80px)"
+          className="px-2 py-1 text-xs rounded-lg bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 disabled:opacity-40 text-text-main transition-all flex items-center space-x-1 active:scale-95"
+          title={`縮小草稿空間 (-${CALC_SPACE_STEP}px)`}
         >
           <Minus className="w-3 h-3" />
           <span className="hidden sm:inline">縮減</span>
@@ -75,11 +76,11 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
 
         <button
           type="button"
-          onClick={() => onUpdateCalcHeight((h) => Math.min(3000, h === 0 ? 140 : h + 80))}
-          className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
-          title="擴增草稿空間 (+80px)"
+          onClick={() => onUpdateCalcHeight((h) => Math.min(3000, h === 0 ? DEFAULT_CALC_SPACE_HEIGHT : h + CALC_SPACE_STEP))}
+          className="px-2.5 py-1 text-xs rounded-lg bg-primary-50 dark:bg-primary-950/60 border border-primary-200/50 dark:border-primary-850/50 hover:bg-primary-100 dark:hover:bg-primary-900/60 text-primary transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
+          title={`擴增草稿空間 (+${CALC_SPACE_STEP}px)`}
         >
-          <Plus className="w-3 h-3 text-indigo-500" />
+          <Plus className="w-3 h-3 text-primary" />
           <span className="hidden sm:inline">延伸</span>
         </button>
       </div>

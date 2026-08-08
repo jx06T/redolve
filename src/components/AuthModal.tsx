@@ -85,25 +85,25 @@ export const AuthModal: React.FC = () => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div
-        className="relative w-full max-w-lg bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl shadow-xl flex flex-col max-h-[88vh] overflow-hidden"
+        className="relative w-full max-w-lg bg-surface border border-border-subtle rounded-3xl shadow-xl flex flex-col max-h-[88vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Fixed Header */}
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-[#E5E7EB] dark:border-[#2C2C30] shrink-0">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-border-subtle shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-400">
+            <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
               <User className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[#1F2937] dark:text-[#F3F4F6]">
+              <h2 className="text-base font-bold text-text-main">
                 使用者身分與帳號管理
               </h2>
-              <p className="text-xs text-[#9CA3AF]">Redolve 多帳號隔離與雲端資料同步</p>
+              <p className="text-xs text-text-muted">Redolve 多帳號隔離與雲端資料同步</p>
             </div>
           </div>
           <button
             onClick={() => setAuthModalOpen(false)}
-            className="p-2 rounded-2xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+            className="p-2 rounded-2xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -113,13 +113,13 @@ export const AuthModal: React.FC = () => {
         <div className="p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
 
           {/* Current Active Session Info */}
-          <div className="p-4 rounded-2xl bg-stone-50 dark:bg-[#18181B] border border-stone-200/70 dark:border-stone-800 space-y-2.5">
+          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold tracking-wider text-[#9CA3AF] uppercase">
+              <span className="text-[11px] font-semibold tracking-wider text-text-muted uppercase">
                 目前使用身分 (Active Session)
               </span>
               {isGuest ? (
-                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-400 border border-stone-200 dark:border-stone-700">
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-border-subtle">
                   <span>訪客試用模式 (未登入)</span>
                 </span>
               ) : (
@@ -131,7 +131,7 @@ export const AuthModal: React.FC = () => {
             </div>
 
             <div className="flex items-center space-x-3 pt-1">
-              <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-xs overflow-hidden">
+              <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center font-bold text-base shadow-xs overflow-hidden">
                 {isGuest ? (
                   '訪'
                 ) : currentUser?.image ? (
@@ -141,10 +141,10 @@ export const AuthModal: React.FC = () => {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-sm text-[#1F2937] dark:text-[#F3F4F6] truncate">
+                <div className="font-bold text-sm text-text-main truncate">
                   {isGuest ? '本機訪客使用者' : currentUser?.name || '雲端使用者'}
                 </div>
-                <div className="text-xs text-[#6B7280] dark:text-[#9CA3AF] font-mono truncate">
+                <div className="text-xs text-text-muted font-mono truncate">
                   {isGuest
                     ? '筆跡與篩選設定暫存於目前瀏覽器'
                     : currentUser?.email}
@@ -165,32 +165,32 @@ export const AuthModal: React.FC = () => {
 
           {/* Feature Comparison Table (Only shown in guest mode to explain differences) */}
           {isGuest && (
-            <div className="p-4 rounded-2xl bg-stone-50/70 dark:bg-[#18181B] border border-stone-200/70 dark:border-stone-800 space-y-3">
+            <div className="p-4 rounded-2xl bg-neutral-50/70 dark:bg-neutral-900/60 border border-border-subtle space-y-3">
               <div className="flex items-center space-x-1.5">
-                <Sparkles className="w-4 h-4 text-[#6366F1]" />
-                <h3 className="text-xs font-bold text-[#1F2937] dark:text-[#F3F4F6]">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-xs font-bold text-text-main">
                   訪客試用 vs 登入會員 功能比較
                 </h3>
               </div>
 
-              <div className="overflow-hidden rounded-xl border border-stone-200 dark:border-stone-800 text-[11px]">
+              <div className="overflow-hidden rounded-xl border border-border-subtle text-[11px]">
                 <table className="w-full text-left">
-                  <thead className="bg-stone-100/70 dark:bg-stone-800/60 text-[#6B7280] dark:text-[#9CA3AF] border-b border-stone-200 dark:border-stone-800 font-semibold">
+                  <thead className="bg-neutral-100/70 dark:bg-neutral-800/60 text-text-muted border-b border-border-subtle font-semibold">
                     <tr>
                       <th className="py-2 px-3">功能項目</th>
-                      <th className="py-2 px-2.5 text-stone-500">訪客試用</th>
-                      <th className="py-2 px-2.5 text-[#6366F1] dark:text-indigo-400">登入會員</th>
+                      <th className="py-2 px-2.5 text-neutral-500">訪客試用</th>
+                      <th className="py-2 px-2.5 text-primary">登入會員</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-stone-200/70 dark:divide-stone-800/70 text-[#374151] dark:text-[#D1D5DB]">
+                  <tbody className="divide-y divide-border-subtle text-text-main">
                     <tr>
                       <td className="py-2 px-3">Apple Pencil 向量書寫與草稿</td>
-                      <td className="py-2 px-2.5 text-[#6B7280]">本機暫存</td>
+                      <td className="py-2 px-2.5 text-text-muted">本機暫存</td>
                       <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">雲端永久備份</td>
                     </tr>
                     <tr>
                       <td className="py-2 px-3">iPad / Mac / iPhone 跨裝置同步</td>
-                      <td className="py-2 px-2.5 text-stone-400">
+                      <td className="py-2 px-2.5 text-neutral-400">
                         <Minus className="w-3.5 h-3.5" />
                       </td>
                       <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">
@@ -200,7 +200,7 @@ export const AuthModal: React.FC = () => {
                     </tr>
                     <tr>
                       <td className="py-2 px-3">iOS 截圖一鍵傳送捷徑 (API Key)</td>
-                      <td className="py-2 px-2.5 text-stone-400">
+                      <td className="py-2 px-2.5 text-neutral-400">
                         <Minus className="w-3.5 h-3.5" />
                       </td>
                       <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">
@@ -210,7 +210,7 @@ export const AuthModal: React.FC = () => {
                     </tr>
                     <tr>
                       <td className="py-2 px-3">高中學測・分科課綱章節篩選</td>
-                      <td className="py-2 px-2.5 text-[#6B7280]">支援</td>
+                      <td className="py-2 px-2.5 text-text-muted">支援</td>
                       <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">支援並記憶偏好</td>
                     </tr>
                   </tbody>
@@ -226,7 +226,7 @@ export const AuthModal: React.FC = () => {
                 type="button"
                 disabled={isLoading}
                 onClick={handleGoogleLogin}
-                className="w-full py-3 px-4 rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 hover:bg-indigo-100/70 dark:hover:bg-indigo-900/60 text-[#374151] dark:text-[#F3F4F6] text-xs font-bold transition-all active:scale-[0.98] shadow-xs flex items-center justify-center space-x-2.5"
+                className="w-full py-3 px-4 rounded-2xl border border-primary-200/80 dark:border-primary-800/80 bg-primary-50/60 dark:bg-primary-950/40 hover:bg-primary-100/70 dark:hover:bg-primary-900/60 text-text-main text-xs font-bold transition-all active:scale-[0.98] shadow-xs flex items-center justify-center space-x-2.5"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path
@@ -248,7 +248,7 @@ export const AuthModal: React.FC = () => {
                 </svg>
                 <span>使用 Google 帳號一鍵登入 / 免費註冊</span>
               </button>
-              <p className="text-[11px] text-center text-[#9CA3AF]">
+              <p className="text-[11px] text-center text-text-muted">
                 登入僅讀取基本公開個人檔案與 Email，不存取任何額外隱私資訊。
               </p>
             </div>

@@ -12,7 +12,7 @@ export const Toast: React.FC = () => {
       ? 'bg-rose-600 text-white ring-4 ring-rose-500/20 shadow-xl'
       : toast.type === 'success'
       ? 'bg-emerald-600 text-white ring-4 ring-emerald-500/20 shadow-xl'
-      : 'bg-[#6366F1] text-white ring-4 ring-[#6366F1]/20 shadow-xl';
+      : 'bg-primary text-white ring-4 ring-primary/20 shadow-xl';
 
   const Icon = toast.type === 'error' ? AlertCircle : toast.type === 'success' ? CheckCircle : Info;
 

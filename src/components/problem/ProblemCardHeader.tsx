@@ -42,11 +42,11 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onEditMetadata,
 }) => {
   return (
-    <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-border-subtle">
       {/* Left Badges */}
       <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
         {problemIndex === undefined && (
-          <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
+          <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/50 dark:border-primary-850/40 font-mono">
             {problemCode}
           </span>
         )}
@@ -56,26 +56,25 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
         />
         {problem.source && (
-          <span className="inline-block text-xs text-[#9CA3AF] px-2.5 py-1 rounded-lg bg-stone-100 dark:bg-stone-800/60 font-medium">
+          <span className="inline-block text-xs text-text-muted px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 font-medium">
             {problem.source}
           </span>
         )}
       </div>
 
       {/* Right Toolbar Actions */}
-      <div className="flex items-center space-x-1 flex-wrap">
+      <div className="flex items-center gap-1 flex-wrap ">
         {/* Manual Reload Button */}
         <button
           type="button"
           onClick={onReload}
           disabled={isReloading}
           aria-label="手動重新載入本題資料"
-          className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${
-            isReloading ? 'text-indigo-500 cursor-not-allowed' : ''
-          }`}
+          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all ${isReloading ? 'text-primary cursor-not-allowed' : ''
+            }`}
           title="手動重新載入本題最新狀態"
         >
-          <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin text-indigo-500' : ''}`} />
+          <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin text-primary' : ''}`} />
         </button>
 
         {/* Ink Hide/Show Toggle */}
@@ -83,12 +82,11 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={onToggleInk}
           aria-label={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
-          className={`p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all ${
-            !inkVisible ? 'text-amber-500 font-semibold bg-amber-50 dark:bg-amber-950/30' : ''
-          }`}
+          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all ${!inkVisible ? 'text-accent-500 font-semibold bg-accent-50 dark:bg-accent-950/30' : ''
+            }`}
           title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
         >
-          {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-amber-500" />}
+          {inkVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4 text-accent-500" />}
         </button>
 
         {/* Export High-Res PNG Button */}
@@ -97,7 +95,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           onClick={onExport}
           disabled={isExporting}
           aria-label="導出高清訂正圖檔"
-          className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
+          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all"
           title="導出合成圖檔 (PNG)"
         >
           <Download className="w-4 h-4" />
@@ -108,7 +106,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={onOpenShareModal}
           aria-label="開啟公開分享設定"
-          className="p-2 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50 active:scale-95 transition-all"
+          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all"
           title="分享題目"
         >
           <Share2 className="w-4 h-4" />
@@ -120,7 +118,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
             type="button"
             onClick={onOpenDeleteModal}
             aria-label="刪除此錯題"
-            className="p-2 rounded-xl text-[#9CA3AF] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
+            className="p-2 rounded-xl text-text-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
             title="刪除"
           >
             <Trash2 className="w-4 h-4" />

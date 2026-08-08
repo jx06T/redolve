@@ -65,24 +65,24 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between space-x-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700/80 hover:bg-stone-200/70 dark:hover:bg-stone-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
+        className={`flex items-center justify-between space-x-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface text-text-main border border-border-subtle hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
       >
         <span className="truncate">
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown
-          className={`w-3.5 h-3.5 text-[#9CA3AF] transition-transform duration-150 ${
-            isOpen ? 'rotate-180 text-indigo-500' : ''
+          className={`w-3.5 h-3.5 text-text-muted transition-transform duration-150 ${
+            isOpen ? 'rotate-180 text-primary' : ''
           }`}
         />
       </button>
 
       {isOpen && (
         <div
-          className={`absolute left-0 top-full mt-1.5 z-50 min-w-[160px] max-h-60 overflow-y-auto rounded-2xl bg-white dark:bg-[#202023] border border-stone-200/80 dark:border-stone-800 p-1.5 shadow-xl shadow-stone-900/10 animate-in fade-in duration-100 ${menuClassName}`}
+          className={`absolute left-0 top-full mt-1.5 z-50 min-w-[160px] max-h-60 overflow-y-auto rounded-2xl bg-surface border border-border-subtle p-1.5 shadow-xl shadow-stone-900/10 animate-in fade-in duration-100 ${menuClassName}`}
         >
           {options.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-[#9CA3AF] text-center">無可用選項</div>
+            <div className="px-3 py-2 text-xs text-text-muted text-center">無可用選項</div>
           ) : (
             options.map((opt) => {
               const isSelected = opt.value === value;
@@ -93,15 +93,15 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   onClick={() => handleSelect(opt.value)}
                   className={`w-full flex items-center justify-between space-x-2 px-3 py-2 rounded-xl text-xs font-medium text-left transition-colors ${
                     isSelected
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
                   }`}
                 >
                   <div className="flex items-center space-x-2 truncate">
                     {opt.icon}
                     <span className="truncate">{opt.label}</span>
                   </div>
-                  {isSelected && <Check className="w-3.5 h-3.5 text-[#6366F1] shrink-0" />}
+                  {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
                 </button>
               );
             })

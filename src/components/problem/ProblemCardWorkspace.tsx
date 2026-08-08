@@ -37,7 +37,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
   return (
     <div
       ref={workspaceRef}
-      className="mt-3 relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col"
+      className="mt-3 relative rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex flex-col"
     >
       {/* Main Question Image */}
       <div className="w-full relative select-none">
@@ -49,7 +49,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
         <button
           type="button"
           onClick={onOpenLightbox}
-          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-white/70 dark:bg-black/50 backdrop-blur-sm shadow-sm border border-black/5 dark:border-white/10 text-stone-600 dark:text-stone-300 hover:scale-110 active:scale-95 transition-all"
+          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-surface/80 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm border border-border-subtle text-text-main hover:scale-110 active:scale-95 transition-all"
           title="放大檢視原題"
         >
           <ZoomIn className="w-4 h-4" />
@@ -59,15 +59,15 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
       {/* Extended Calculation Workspace Area */}
       <div
         style={{ height: `${renderedCalcSpaceHeight}px` }}
-        className={`w-full relative border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] transition-[height] duration-200 ease-out select-none overflow-hidden ${
+        className={`w-full relative border-border-subtle bg-neutral-50/50 dark:bg-neutral-900/40 transition-[height] duration-200 ease-out select-none overflow-hidden ${
           renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
         }`}
       >
         {renderedCalcSpaceHeight > 0 && (
           <>
             <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
-              <PenLine className="w-3 h-3 text-indigo-400" />
+            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface/80 dark:bg-neutral-900/80 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-border-subtle">
+              <PenLine className="w-3 h-3 text-primary" />
               <span>延伸推導草稿區</span>
             </div>
           </>

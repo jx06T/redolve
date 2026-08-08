@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import getStroke from 'perfect-freehand';
 import { DrawData, Stroke, EraserMask } from '../types';
 import { useStore } from '../store/useStore';
+import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -106,7 +107,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   initialDrawData,
   readOnly = false,
   inkVisible = true,
-  calcSpaceHeight = 140,
+  calcSpaceHeight = DEFAULT_CALC_SPACE_HEIGHT,
   onSaveDrawData,
   activeTool = 'pen',
   activeColor = '#6366F1',
@@ -789,7 +790,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           {/* Visual Eraser Indicator Ring */}
           {!readOnly && inkVisible && (isErasingLive || (isHoveringEraser && (isEraserActive || activeTool === 'eraser'))) && eraserCursorPos && (
             <div
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#E11D48]/70 bg-[#E11D48]/15 backdrop-blur-[0.5px] transition-none z-20"
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-rose-500/70 bg-rose-500/15 backdrop-blur-[0.5px] transition-none z-20"
               style={{
                 left: eraserCursorPos.x,
                 top: eraserCursorPos.y,

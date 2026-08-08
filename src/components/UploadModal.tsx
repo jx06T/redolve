@@ -208,24 +208,24 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 select-none">
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-surface border border-border-subtle rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Fixed Header */}
-        <div className="shrink-0 px-5 sm:px-6 py-3.5 sm:py-4 border-b border-stone-200 dark:border-stone-800 flex items-center justify-between bg-white dark:bg-[#202023]">
+        <div className="shrink-0 px-5 sm:px-6 py-3.5 sm:py-4 border-b border-border-subtle flex items-center justify-between bg-surface">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-[#6366F1]/10 text-[#6366F1] rounded-2xl">
+            <div className="p-2 bg-primary/10 text-primary rounded-2xl">
               <Upload className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm sm:text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+              <h3 className="text-sm sm:text-base font-bold text-text-main">
                 錯題批次上傳
               </h3>
-              <p className="text-[11px] text-[#9CA3AF]">自動前端壓縮並以高效率上傳，支援拖曳多張圖檔</p>
+              <p className="text-[11px] text-text-muted">自動前端壓縮並以高效率上傳，支援拖曳多張圖檔</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isUploading}
-            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-colors disabled:opacity-30"
+            className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted transition-colors disabled:opacity-30"
             title="關閉視窗 (Esc)"
           >
             <X className="w-5 h-5" />
@@ -236,9 +236,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
           {/* Guest Mode Notice */}
           {isGuest && (
-            <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between text-xs text-[#6B7280] dark:text-[#9CA3AF]">
+            <div className="p-3 rounded-2xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-850/40 flex items-center justify-between text-xs text-text-muted">
               <div className="flex items-center space-x-2">
-                <Cloud className="w-4 h-4 text-[#6366F1] shrink-0" />
+                <Cloud className="w-4 h-4 text-primary shrink-0" />
                 <span>訪客上傳之錯題僅暫存於此瀏覽器。登入 Google 帳號可自動備份至雲端。</span>
               </div>
               <button
@@ -247,7 +247,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   onClose();
                   setAuthModalOpen(true);
                 }}
-                className="text-[#6366F1] dark:text-indigo-400 font-semibold hover:underline shrink-0 ml-2"
+                className="text-primary font-semibold hover:underline shrink-0 ml-2"
               >
                 登入帳號
               </button>
@@ -255,10 +255,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           )}
 
           {/* 1. Separated Year & Exam Type Selector */}
-          <div className="space-y-3 p-3.5 bg-stone-50 dark:bg-[#1a1a1d] rounded-2xl border border-stone-200/60 dark:border-stone-800">
+          <div className="space-y-3 p-3.5 bg-neutral-50 dark:bg-neutral-900/60 rounded-2xl border border-border-subtle">
             {/* Year Chips */}
             <div>
-              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">
+              <label className="block text-[11px] font-bold text-text-muted mb-1.5">
                 1. 考卷年分 (Exam Year)
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -269,8 +269,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     onClick={() => handleSelectYear(year)}
                     className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
                       selectedYear === year
-                        ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                        : 'bg-white dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] border border-stone-200/50 dark:border-stone-700/50'
+                        ? 'bg-primary text-white font-bold shadow-xs'
+                        : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
                     }`}
                   >
                     {year}
@@ -281,7 +281,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
             {/* Exam Type Chips */}
             <div>
-              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">
+              <label className="block text-[11px] font-bold text-text-muted mb-1.5">
                 2. 考卷卷別 (Exam Type)
               </label>
               <div className="flex flex-wrap gap-1.5">
@@ -292,8 +292,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     onClick={() => handleSelectType(type)}
                     className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
                       selectedType === type
-                        ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                        : 'bg-white dark:bg-stone-800 text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] border border-stone-200/50 dark:border-stone-700/50'
+                        ? 'bg-primary text-white font-bold shadow-xs'
+                        : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
                     }`}
                   >
                     {type}
@@ -304,7 +304,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
             {/* Combined Source Input */}
             <div>
-              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">
+              <label className="block text-[11px] font-bold text-text-muted mb-1">
                 最終套用來源標籤 (Combined Source Tag)
               </label>
               <input
@@ -312,7 +312,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 value={sourceInput}
                 onChange={(e) => setSourceInput(e.target.value)}
                 placeholder="例如: 113年 全模 數學"
-                className="w-full px-3.5 py-1.5 rounded-xl text-xs bg-white dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB] focus:outline-none focus:border-[#6366F1]"
+                className="w-full px-3.5 py-1.5 rounded-xl text-xs bg-surface border border-border-subtle text-text-main focus:outline-none focus:border-primary"
               />
             </div>
           </div>
@@ -327,15 +327,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             onDrop={handleDrop}
             className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${
               isDraggingOver
-                ? 'border-[#6366F1] bg-[#6366F1]/10 scale-[1.01]'
-                : 'border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/50'
+                ? 'border-primary bg-primary/10 scale-[1.01]'
+                : 'border-border-subtle hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
             }`}
           >
-            <ImageIcon className="w-8 h-8 text-[#6366F1] mb-1.5" />
-            <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
+            <ImageIcon className="w-8 h-8 text-primary mb-1.5" />
+            <span className="text-xs font-bold text-text-main">
               {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
             </span>
-            <span className="text-[10px] text-[#9CA3AF] mt-0.5">自動進行前端壓縮 (支援 JPG, PNG, WEBP)</span>
+            <span className="text-[10px] text-text-muted mt-0.5">自動進行前端壓縮 (支援 JPG, PNG, WEBP)</span>
             <input
               type="file"
               multiple
@@ -348,9 +348,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
           {/* Thumbnail Preview Queue */}
           {selectedFiles.length > 0 && (
-            <div className="space-y-2 p-3 bg-stone-50 dark:bg-[#1a1a1d] rounded-2xl border border-stone-200/60 dark:border-stone-800">
-              <div className="flex items-center justify-between text-xs text-[#9CA3AF]">
-                <span className="font-semibold text-[#374151] dark:text-[#D1D5DB]">
+            <div className="space-y-2 p-3 bg-neutral-50 dark:bg-neutral-900/60 rounded-2xl border border-border-subtle">
+              <div className="flex items-center justify-between text-xs text-text-muted">
+                <span className="font-semibold text-text-main">
                   待上傳圖片清單 ({selectedFiles.length} 張)
                 </span>
                 {!isUploading && (
@@ -370,7 +370,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 {selectedFiles.map((item) => (
                   <div
                     key={item.id}
-                    className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 shrink-0 group"
+                    className="relative w-14 h-14 rounded-xl overflow-hidden border border-border-subtle shrink-0 group"
                   >
                     <img src={item.previewUrl} alt="預覽" className="w-full h-full object-cover" />
                     {!isUploading && (
@@ -390,10 +390,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         </div>
 
         {/* Guaranteed Sticky / Fixed Footer */}
-        <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-stone-50 dark:bg-[#1a1a1d] border-t border-stone-200 dark:border-stone-800 flex items-center justify-between">
+        <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-neutral-50 dark:bg-neutral-900/60 border-t border-border-subtle flex items-center justify-between">
           <div>
             {isUploading ? (
-              <div className="flex items-center space-x-2 text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
+              <div className="flex items-center space-x-2 text-xs text-primary font-semibold">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>
                   處理中... {uploadProgress ? `(${uploadProgress.current}/${uploadProgress.total})` : ''}
@@ -405,7 +405,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 <span>已選取 {selectedFiles.length} 張圖檔</span>
               </div>
             ) : (
-              <span className="text-xs text-[#9CA3AF]">尚未加入題目圖片</span>
+              <span className="text-xs text-text-muted">尚未加入題目圖片</span>
             )}
           </div>
 
@@ -414,7 +414,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               type="button"
               disabled={isUploading}
               onClick={onClose}
-              className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors disabled:opacity-40"
+              className="px-3.5 py-2 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors disabled:opacity-40"
             >
               取消
             </button>
@@ -424,8 +424,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               disabled={selectedFiles.length === 0 || isUploading}
               className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
                 selectedFiles.length > 0 && !isUploading
-                  ? 'bg-[#6366F1] hover:bg-[#4F46E5] active:scale-95 cursor-pointer'
-                  : 'bg-stone-300 dark:bg-stone-700 cursor-not-allowed opacity-60'
+                  ? 'bg-primary hover:bg-primary-hover active:scale-95 cursor-pointer'
+                  : 'bg-neutral-300 dark:bg-neutral-700 cursor-not-allowed opacity-60'
               }`}
             >
               {isUploading ? (

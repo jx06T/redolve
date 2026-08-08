@@ -149,12 +149,12 @@ export const FloatingPenToolbar: React.FC = () => {
           transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
           touchAction: 'none',
         }}
-        className={`fixed top-0 left-0 z-50 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-lg rounded-full p-2 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-[#6366F1]/50' : 'cursor-grab'
+        className={`fixed top-0 left-0 z-50 bg-surface/90 backdrop-blur-md border border-border-subtle shadow-lg rounded-full p-2 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
           }`}
       >
         <button
           onClick={() => setIsCollapsed(false)}
-          className="p-1 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+          className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-main transition-all"
           title="展開工具列"
         >
           <Maximize2 className="w-4 h-4" />
@@ -174,7 +174,7 @@ export const FloatingPenToolbar: React.FC = () => {
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         touchAction: 'none',
       }}
-      className={`fixed top-0 left-0 z-50 bg-white/90 dark:bg-stone-900/90 backdrop-blur-md border border-stone-200/80 dark:border-stone-800/80 shadow-lg rounded-3xl p-1.5 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-[#6366F1]/50' : 'cursor-grab'
+      className={`fixed top-0 left-0 z-50 bg-surface/90 backdrop-blur-md border border-border-subtle shadow-lg rounded-3xl p-1.5 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
         } ${isHorizontal
           ? 'flex-row items-center space-x-2'
           : 'flex-col items-center space-y-2'
@@ -184,13 +184,13 @@ export const FloatingPenToolbar: React.FC = () => {
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center border-r border-stone-200 dark:border-stone-800 pr-2'
-            : 'flex flex-col items-center border-b border-stone-200 dark:border-stone-800 pb-2'
+            ? 'flex flex-row items-center border-r border-border-subtle pr-2'
+            : 'flex flex-col items-center border-b border-border-subtle pb-2'
         }
       >
         <button
           onClick={() => setIsCollapsed(true)}
-          className="p-1.5 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-all"
+          className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted transition-all"
           title="收合工具列"
         >
           <Minimize2 className="w-4 h-4" />
@@ -201,16 +201,16 @@ export const FloatingPenToolbar: React.FC = () => {
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-1 border-r border-stone-200 dark:border-stone-800 pr-2'
-            : 'flex flex-col items-center space-y-1 border-b border-stone-200 dark:border-stone-800 pb-2'
+            ? 'flex flex-row items-center space-x-1 border-r border-border-subtle pr-2'
+            : 'flex flex-col items-center space-y-1 border-b border-border-subtle pb-2'
         }
       >
         <button
           onClick={() => setTool('pen')}
           aria-label="鋼筆書寫工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'pen'
-            ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold ring-1 ring-[#6366F1]/30'
-            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+            ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
+            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           title="鋼筆"
         >
@@ -221,8 +221,8 @@ export const FloatingPenToolbar: React.FC = () => {
           onClick={() => setTool('highlighter')}
           aria-label="螢光筆標記工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'highlighter'
-            ? 'bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 font-bold ring-1 ring-[#6366F1]/30'
-            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+            ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
+            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           title="螢光筆"
         >
@@ -233,8 +233,8 @@ export const FloatingPenToolbar: React.FC = () => {
           onClick={() => setTool('eraser')}
           aria-label="橡皮擦工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'eraser'
-            ? 'bg-[#E11D48]/10 text-[#E11D48] dark:text-rose-400 font-bold ring-1 ring-[#E11D48]/30'
-            : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+            ? 'bg-rose-500/10 text-rose-500 font-bold ring-1 ring-rose-500/30'
+            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           title="橡皮擦 (局部向量擦除)"
         >
@@ -246,8 +246,8 @@ export const FloatingPenToolbar: React.FC = () => {
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-1.5 border-r border-stone-200 dark:border-stone-800 pr-2'
-            : 'flex flex-col items-center space-y-1.5 border-b border-stone-200 dark:border-stone-800 pb-2'
+            ? 'flex flex-row items-center space-x-1.5 border-r border-border-subtle pr-2'
+            : 'flex flex-col items-center space-y-1.5 border-b border-border-subtle pb-2'
         }
       >
         {/* 前 5 個固定顏色 */}
@@ -260,7 +260,7 @@ export const FloatingPenToolbar: React.FC = () => {
             }}
             aria-label={`選取顏色: ${c.name || c.hex}`}
             className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${penColor.toUpperCase() === c.hex.toUpperCase()
-              ? 'scale-105 ring-1 ring-[#6366F1] shadow-xs'
+              ? 'scale-105 ring-1 ring-primary shadow-xs'
               : 'hover:scale-110'
               }`}
             style={{ backgroundColor: c.hex }}
@@ -273,39 +273,33 @@ export const FloatingPenToolbar: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              // 如果已經有記憶顏色，且當前畫筆還不是這個顏色，點擊就是「選取它」
               if (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase()) {
                 setPenColor(lastCustomColor);
                 if (tool === 'eraser') setTool('pen');
               }
-              // 注意：這裡移除了 colorInputRef.current?.click()，因為我們改用透明 input 覆蓋
             }}
             aria-label="自訂色插槽"
             title={lastCustomColor ? "點擊選取自訂色 / 再次點擊開啟調色盤" : "新增自訂色"}
             className={`absolute inset-0 w-full h-full rounded-full flex items-center justify-center transition-all border ${lastCustomColor && penColor.toUpperCase() === lastCustomColor.toUpperCase()
-              ? 'scale-105 ring-1 ring-[#6366F1] shadow-xs border-black/10 dark:border-white/10'
+              ? 'scale-105 ring-1 ring-primary shadow-xs border-black/10 dark:border-white/10'
               : lastCustomColor
                 ? 'border-black/10 dark:border-white/10 hover:scale-110'
-                : 'bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 border-stone-300 dark:border-stone-600 hover:scale-110'
+                : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border-border-subtle hover:scale-110'
               }`}
             style={{
               backgroundColor: lastCustomColor || undefined,
             }}
           >
             {!lastCustomColor && (
-              <Plus className="w-3.5 h-3.5 text-[#374151] dark:text-[#D1D5DB]" />
+              <Plus className="w-3.5 h-3.5 text-text-main" />
             )}
           </button>
 
-          {/* ✅ 關鍵修正：將 input 撐滿整個容器並設為透明，讓行動裝置直接點擊它 */}
           <input
             type="color"
             value={lastCustomColor || penColor}
             onChange={handleCustomColorChange}
             className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${
-              // 如果已經記憶了顏色，且還沒被選取時，我們把 input 的點擊事件關閉，
-              // 讓點擊事件穿透到下方的 button 去執行「選取」動作。
-              // 當已經選取時，才打開點擊事件，讓使用者可以點擊叫出調色盤。
               (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase())
                 ? 'pointer-events-none'
                 : 'pointer-events-auto'
@@ -319,8 +313,8 @@ export const FloatingPenToolbar: React.FC = () => {
       <div
         className={
           isHorizontal
-            ? 'flex flex-row items-center space-x-1 font-mono text-xs border-r border-stone-200 dark:border-stone-800 pr-2'
-            : 'flex flex-col items-center space-y-1 font-mono text-xs border-b border-stone-200 dark:border-stone-800 pb-2'
+            ? 'flex flex-row items-center space-x-1 font-mono text-xs border-r border-border-subtle pr-2'
+            : 'flex flex-col items-center space-y-1 font-mono text-xs border-b border-border-subtle pb-2'
         }
       >
         {STROKE_WIDTHS.map((w) => (
@@ -329,8 +323,8 @@ export const FloatingPenToolbar: React.FC = () => {
             onClick={() => setPenWidth(w)}
             aria-label={`選取筆觸粗細 ${w} pt`}
             className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center active:scale-95 transition-all ${penWidth === w
-              ? 'bg-[#6366F1] text-white font-bold'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+              ? 'bg-primary text-white font-bold'
+              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
               }`}
           >
             {w}p
@@ -350,7 +344,7 @@ export const FloatingPenToolbar: React.FC = () => {
           }
           className={`p-2 rounded-2xl active:scale-95 transition-all flex items-center justify-center relative ${allowTouchDrawing
             ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold ring-1 ring-emerald-500/30'
-            : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-700'
+            : 'bg-neutral-100 dark:bg-neutral-800 text-text-muted hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
         >
           <Hand className="w-4 h-4" />

@@ -32,7 +32,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-white dark:bg-[#202023] border border-stone-200/80 dark:border-stone-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4"
+        className="bg-surface border border-border-subtle rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4"
       >
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-3">
@@ -40,24 +40,24 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               className={`p-2.5 rounded-2xl ${
                 isDestructive
                   ? 'bg-rose-500/10 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400'
-                  : 'bg-indigo-500/10 text-indigo-500 dark:bg-indigo-950/40 dark:text-indigo-400'
+                  : 'bg-primary/10 text-primary dark:bg-primary-950/40 dark:text-primary-300'
               }`}
             >
               <AlertCircle className="w-5 h-5" />
             </div>
-            <h3 className="text-sm font-bold text-[#374151] dark:text-[#E5E7EB]">
+            <h3 className="text-sm font-bold text-text-main">
               {title}
             </h3>
           </div>
           <button
             onClick={onCancel}
-            className="p-1 rounded-xl text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 transition-colors"
+            className="p-1 rounded-xl text-text-muted hover:text-text-main transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF] leading-relaxed">
+        <p className="text-xs text-text-muted leading-relaxed">
           {message}
         </p>
 
@@ -65,7 +65,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-xs font-medium bg-stone-100 dark:bg-stone-800 text-[#4B5563] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700 transition-all active:scale-95"
+            className="px-4 py-2 rounded-xl text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
           >
             {cancelText}
           </button>
@@ -77,8 +77,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             }}
             className={`px-4 py-2 rounded-xl text-xs font-medium text-white transition-all active:scale-95 ${
               isDestructive
-                ? 'bg-[#E11D48] hover:bg-[#BE123C] shadow-xs'
-                : 'bg-[#6366F1] hover:bg-[#4F46E5] shadow-xs'
+                ? 'bg-rose-600 hover:bg-rose-700 shadow-xs'
+                : 'bg-primary hover:bg-primary-hover shadow-xs'
             }`}
           >
             {confirmText}

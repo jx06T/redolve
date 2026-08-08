@@ -75,7 +75,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <div className="min-h-screen bg-[#F4F4F2] dark:bg-[#161618] text-[#374151] dark:text-[#D1D5DB] transition-colors duration-200 flex flex-col font-sans">
+        <div className="min-h-screen bg-page-bg text-text-main transition-colors duration-200 flex flex-col font-sans">
           <Toast />
           <Routes>
             {/* Public Share Route without main layout header */}

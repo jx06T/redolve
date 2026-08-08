@@ -52,6 +52,11 @@ export const PEN_COLORS = DEFAULT_PALETTE_COLORS.map((c) => c.hex);
 export const STROKE_WIDTHS = [1, 2, 4];
 export const PEN_WIDTHS = [1, 2, 4];
 
+// Problem Canvas & Scratchpad Configuration
+export const DEFAULT_CALC_SPACE_HEIGHT = 100;
+export const DEFAULT_BASE_WIDTH = 800;
+export const CALC_SPACE_STEP = 40;
+
 // Problem Status Filter Options
 export const STATUS_FILTER_ITEMS = [
   { key: 'all', label: '全部' },

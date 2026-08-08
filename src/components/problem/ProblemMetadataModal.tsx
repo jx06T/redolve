@@ -33,15 +33,15 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl max-w-md w-full p-6 space-y-4 shadow-xl">
+      <div className="bg-surface border border-border-subtle rounded-3xl max-w-md w-full p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+          <h3 className="text-base font-bold text-text-main">
             手動修正課綱單元與關鍵字
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
+            className="p-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
           >
             <X className="w-5 h-5" />
           </button>
@@ -49,11 +49,11 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
 
         <div className="space-y-3 text-xs">
           <div>
-            <label className="block text-[#9CA3AF] mb-1 font-medium">選擇學測/分科課綱單元</label>
+            <label className="block text-text-muted mb-1 font-medium">選擇學測/分科課綱單元</label>
             <select
               value={editTopicId}
               onChange={(e) => onTopicIdChange(e.target.value)}
-              className="w-full p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
+              className="w-full p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main"
             >
               <option value="">未指定單元</option>
               {activeTaxonomies.map((subject) => (
@@ -74,13 +74,13 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-[#9CA3AF] mb-1 font-medium">自訂關鍵字 (以逗號分隔)</label>
+            <label className="block text-text-muted mb-1 font-medium">自訂關鍵字 (以逗號分隔)</label>
             <input
               type="text"
               value={editKeywordsStr}
               onChange={(e) => onKeywordsStrChange(e.target.value)}
               placeholder="例如: 貝氏定理, 條件機率"
-              className="w-full p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
+              className="w-full p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main"
             />
           </div>
         </div>
@@ -90,7 +90,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
             type="button"
             onClick={onRunAiAnalysis}
             disabled={isAnalyzing}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all disabled:opacity-50"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/60 dark:border-primary-850/40 hover:bg-primary-100 dark:hover:bg-primary-900/60 active:scale-95 transition-all disabled:opacity-50"
           >
             {isAnalyzing ? (
               <>
@@ -109,14 +109,14 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]"
+              className="px-4 py-2 rounded-xl text-xs bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
             >
               取消
             </button>
             <button
               type="button"
               onClick={onSave}
-              className="px-4 py-2 rounded-xl text-xs bg-[#6366F1] text-white font-medium hover:bg-[#4F46E5]"
+              className="px-4 py-2 rounded-xl text-xs bg-primary text-white font-medium hover:bg-primary-hover transition-colors"
             >
               儲存變更
             </button>

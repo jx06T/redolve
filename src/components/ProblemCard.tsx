@@ -20,6 +20,7 @@ import {
 } from '../services/api';
 import { useStore } from '../store/useStore';
 import { exportProblemAsImage } from '../utils/exportImage';
+import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 
 interface ProblemCardProps {
   problem: Item;
@@ -91,7 +92,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         }
       } catch { }
     }
-    return 140;
+    return DEFAULT_CALC_SPACE_HEIGHT;
   }, [problem.draw_data]);
 
   const calcSpaceHeightRef = useRef<number>(getInitialCalcSpaceHeight());
@@ -114,16 +115,16 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   }, []);
 
   const baseWidth = (() => {
-    if (!problem.draw_data) return undefined;
+    if (!problem.draw_data) return DEFAULT_BASE_WIDTH;
     try {
       const parsed = typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data;
-      return typeof parsed.baseWidth === 'number' && parsed.baseWidth > 0 ? parsed.baseWidth : undefined;
+      return typeof parsed.baseWidth === 'number' && parsed.baseWidth > 0 ? parsed.baseWidth : DEFAULT_BASE_WIDTH;
     } catch {
-      return undefined;
+      return DEFAULT_BASE_WIDTH;
     }
   })();
 
-  const responsiveScale = baseWidth && containerWidth > 0 ? containerWidth / baseWidth : 1.0;
+  const responsiveScale = containerWidth > 0 ? containerWidth / baseWidth : 1.0;
   const renderedCalcSpaceHeight = Math.round(calcSpaceHeight * responsiveScale);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
@@ -343,12 +344,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     <div className="space-y-4 mb-6">
       {/* Visual Divider & Problem Code Header */}
       {problemIndex !== undefined && (
-        <div className="flex items-center space-x-3 text-[#9CA3AF] my-2 select-none">
-          <div className="flex-1 h-px bg-stone-200 dark:bg-stone-800" />
-          <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-stone-100 dark:bg-stone-800 text-[#9CA3AF]">
+        <div className="flex items-center space-x-3 text-text-muted my-2 select-none">
+          <div className="flex-1 h-px bg-border-subtle" />
+          <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-text-muted">
             {problemCode}
           </span>
-          <div className="flex-1 h-px bg-stone-200 dark:bg-stone-800" />
+          <div className="flex-1 h-px bg-border-subtle" />
         </div>
       )}
 
@@ -356,9 +357,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       <div
         id={`problem-${problem.id}`}
         data-problem-id={problem.id}
-        className={`bg-white dark:bg-[#202023] border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${isActive
-          ? 'border-[#6366F1] shadow-md ring-1 ring-[#6366F1]/20 dark:ring-[#6366F1]/30'
-          : 'border-[#E5E7EB] dark:border-[#2C2C30] shadow-xs'
+        className={`bg-surface border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${isActive
+          ? 'border-primary shadow-md ring-1 ring-primary/20 dark:ring-primary/30'
+          : 'border-border-subtle shadow-xs'
           }`}
       >
         {/* Header Bar */}
@@ -384,7 +385,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {keywordsArray.map((kw, idx) => (
               <span
                 key={idx}
-                className="px-2.5 py-1 text-xs rounded-xl bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] font-medium"
+                className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 dark:bg-neutral-800 text-text-main font-medium"
               >
                 #{kw}
               </span>
@@ -426,7 +427,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
           minRows={2}
           maxRows={12}
-          className="w-full mt-3 p-2.5 rounded-xl bg-stone-50/70 dark:bg-[#202023] border border-stone-200 dark:border-stone-700/80 text-xs text-[#374151] dark:text-[#E5E7EB] placeholder:text-[#9CA3AF] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none leading-relaxed"
+          className="w-full mt-3 p-2.5 rounded-xl bg-surface border border-border-subtle text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none leading-relaxed"
         />
 
         {/* Bottom Footer Actions */}

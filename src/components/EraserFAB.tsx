@@ -59,8 +59,8 @@ export const EraserFAB: React.FC = () => {
           userSelect: 'none',
         }}
         className={`w-14 h-14 rounded-full flex flex-col items-center justify-center text-white shadow-xl transition-all duration-150 active:scale-95 touch-none select-none ${eraserActive
-          ? 'bg-[#E11D48] scale-110 ring-4 ring-[#E11D48]/40'
-          : 'bg-[#E11D48]/90 hover:bg-[#E11D48] ring-2 ring-white/50 dark:ring-stone-700'
+          ? 'bg-rose-500 scale-110 ring-4 ring-rose-500/40'
+          : 'bg-rose-500/90 hover:bg-rose-500 ring-2 ring-white/50 dark:ring-neutral-700'
           }`}
         title="按住啟用橡皮擦，鬆開恢復"
       >

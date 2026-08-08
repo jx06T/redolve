@@ -134,8 +134,8 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
 
   if (status === 'processing') {
     return (
-      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-stone-100 dark:bg-stone-800 text-[#9CA3AF] border border-[#E5E7EB] dark:border-[#2C2C30]">
-        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#6366F1]" />
+      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-muted border border-border-subtle">
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
         <span>AI 辨識中...</span>
       </span>
     );
@@ -159,10 +159,10 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
   return (
     <button
       onClick={onClickEdit}
-      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-300 border border-[#6366F1]/20 hover:bg-[#6366F1]/15 transition-all text-left"
+      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all text-left"
       title="點擊以變更題目分類"
     >
-      <Tag className="w-3.5 h-3.5 text-[#6366F1] dark:text-indigo-400 shrink-0" />
+      <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
       <span className="truncate max-w-[280px]">{pathInfo.fullPath}</span>
     </button>
   );

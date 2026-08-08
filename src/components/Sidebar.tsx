@@ -90,10 +90,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     <div className="space-y-4">
       {/* Status Filter Toggle */}
       <div>
-        <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           <span>訂正狀態過濾</span>
         </div>
-        <div className="grid grid-cols-4 gap-1 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl">
+        <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 dark:bg-neutral-800/60 rounded-2xl">
           {STATUS_FILTER_ITEMS.map((item) => {
             const isSelected = selectedStatus === item.key;
             return (
@@ -101,8 +101,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 key={item.key}
                 onClick={() => setSelectedStatus(item.key as any)}
                 className={`py-1.5 text-xs font-medium rounded-xl transition-all ${isSelected
-                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-semibold shadow-xs'
-                  : 'text-[#374151] dark:text-[#D1D5DB] hover:text-[#6366F1]'
+                  ? 'bg-surface text-primary font-semibold shadow-xs'
+                  : 'text-text-main hover:text-primary'
                   }`}
               >
                 {item.label}
@@ -114,9 +114,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
       {/* Subject Taxonomy Topic Filter */}
       <div>
-        <div className="flex items-center justify-between text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+        <div className="flex items-center justify-between text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           <div className="flex items-center space-x-1.5">
-            <Layers className="w-3.5 h-3.5 text-[#6366F1]" />
+            <Layers className="w-3.5 h-3.5 text-primary" />
             <span>{isUnclassifiedSubject ? '其他科目' : (activeSubject?.label || '章節')} 篩選</span>
           </div>
         </div>
@@ -131,15 +131,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
-                : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                 }`}
             >
               <span>全部未分類題目</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
                 {problems.length}
               </span>
             </button>
-            <p className="px-3 pt-2 text-[10px] text-[#9CA3AF] leading-relaxed">
+            <p className="px-3 pt-2 text-[10px] text-text-muted leading-relaxed">
               AI 辨識中或尚未指派科目的題目會集中於此。
             </p>
           </div>
@@ -152,14 +152,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setMobileDrawerOpen(false);
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
-                ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                ? 'bg-primary/10 text-primary font-semibold'
+                : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                 }`}
             >
               <span>全部 {activeSubject?.label || '科目'} 錯題</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${selectedTopicId === null
-                ? 'bg-[#6366F1]/20 text-[#6366F1]'
-                : 'bg-stone-200/70 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+                ? 'bg-primary/20 text-primary'
+                : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
                 }`}>
                 {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
               </span>
@@ -177,15 +177,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       setMobileDrawerOpen(false);
                     }}
                     className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
-                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                      ? 'bg-primary/10 text-primary font-semibold'
+                      : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                       }`}
                   >
                     <span className="truncate">{unit.label}</span>
                     {unitCount > 0 && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
-                        ? 'bg-[#6366F1]/20 text-[#6366F1] font-semibold'
-                        : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400'
+                        ? 'bg-primary/20 text-primary font-semibold'
+                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
                         }`}>
                         {unitCount}
                       </span>
@@ -194,7 +194,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
                   {/* Sub-points / detailed topics */}
                   {unit.children && unit.children.length > 0 && (
-                    <div className="pl-3 space-y-0.5 mt-0.5 border-l border-stone-200 dark:border-stone-800 ml-3">
+                    <div className="pl-3 space-y-0.5 mt-0.5 border-l border-border-subtle ml-3">
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
                         const pointCount = computeCountForNode(point);
@@ -207,15 +207,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                               setMobileDrawerOpen(false);
                             }}
                             className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${isPointSelected
-                              ? 'bg-[#6366F1]/15 text-[#6366F1] font-bold'
-                              : 'text-[#6B7280] dark:text-[#9CA3AF] hover:text-[#374151] dark:hover:text-white'
+                              ? 'bg-primary/15 text-primary font-bold'
+                              : 'text-text-muted hover:text-text-main'
                               }`}
                           >
                             <span className="truncate">• {point.label}</span>
                             {pointCount > 0 && (
                               <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
-                                ? 'bg-[#6366F1]/20 text-[#6366F1] font-bold'
-                                : 'text-stone-400 dark:text-stone-500'
+                                ? 'bg-primary/20 text-primary font-bold'
+                                : 'text-neutral-400 dark:text-neutral-500'
                                 }`}>
                                 {pointCount}
                               </span>
@@ -234,8 +234,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
       {/* Problem Outline List / Minimap Navigation */}
       {problems.length > 0 && (
-        <div className="pt-3 border-t border-stone-200 dark:border-stone-800">
-          <div className="flex items-center space-x-2 text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+        <div className="pt-3 border-t border-border-subtle">
+          <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
             <ListOrdered className="w-3.5 h-3.5" />
             <span>
               {selectedTopicId
@@ -260,15 +260,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     setMobileDrawerOpen(false);
                   }}
                   className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${isActive
-                    ? 'bg-[#6366F1] text-white font-bold shadow-xs'
-                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/50'
+                    ? 'bg-primary text-white font-bold shadow-xs'
+                    : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                     }`}
                 >
                   <div className="flex flex-col min-w-0 pr-2">
                     <span className="font-mono font-medium truncate">
                       {formatProblemCode(item, taxonomies)}
                     </span>
-                    <span className={`text-[10px] truncate max-w-[150px] ${isActive ? 'text-white/80 font-normal' : 'text-[#6B7280] dark:text-[#9CA3AF]'
+                    <span className={`text-[10px] truncate max-w-[150px] ${isActive ? 'text-white/80 font-normal' : 'text-text-muted'
                       }`}>
                       {topicBadgeLabel}
                     </span>
@@ -279,7 +279,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       : item.status === 'resolved'
                         ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
                         : item.status === 'archived'
-                          ? 'bg-stone-500/20 text-stone-600 dark:text-stone-300'
+                          ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-300'
                           : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
                       }`}
                   >
@@ -300,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       <div className="lg:hidden fixed bottom-24 left-6 z-40">
         <button
           onClick={() => setMobileDrawerOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-full bg-[#6366F1] text-white font-semibold text-xs shadow-xl ring-2 ring-white/50 dark:ring-stone-700 active:scale-95 transition-all"
+          className="flex items-center space-x-2 px-4 py-2.5 rounded-full bg-primary text-white font-semibold text-xs shadow-xl ring-2 ring-white/50 dark:ring-neutral-700 active:scale-95 transition-all"
         >
           <Compass className="w-4 h-4" />
           <span>章節導航</span>
@@ -315,17 +315,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className={`w-80 max-w-[85vw] bg-white dark:bg-[#202023] border-r border-[#E5E7EB] dark:border-[#2C2C30] h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+          className={`w-80 max-w-[85vw] bg-surface border-r border-border-subtle h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
         >
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-subtle shrink-0">
             <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-[#6366F1]" />
-              <span className="text-sm font-bold text-[#374151] dark:text-[#D1D5DB]">章節導航與篩選</span>
+              <Filter className="w-4 h-4 text-primary" />
+              <span className="text-sm font-bold text-text-main">章節導航與篩選</span>
             </div>
             <button
               onClick={() => setMobileDrawerOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF]"
+              className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
             >
               <X className="w-5 h-5" />
             </button>
@@ -341,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           <div className=" absolute self-start top-0 -left-2">
             <button
               onClick={toggleSidebarCollapsed}
-              className="p-3 rounded-2xl bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] text-[#6366F1] shadow-xs hover:bg-stone-100 dark:hover:bg-stone-800 transition-all"
+              className="p-3 rounded-2xl bg-surface border border-border-subtle text-primary shadow-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
               title="展開側邊欄 (退出專注模式)"
             >
               <PanelLeftOpen className="w-5 h-5" />
@@ -350,15 +350,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         </div>
       ) : (
         // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
-        <aside className="hidden lg:flex flex-col w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
-          <div className="flex items-center justify-between pb-2 mb-3 border-b border-stone-200 dark:border-stone-800 shrink-0">
+        <aside className="hidden lg:flex flex-col w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
+          <div className="flex items-center justify-between pb-2 mb-3 border-b border-border-subtle shrink-0">
             <div className="flex items-center space-x-2">
-              <Filter className="w-4 h-4 text-[#6366F1]" />
-              <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">章節大綱導航</span>
+              <Filter className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold text-text-main">章節大綱導航</span>
             </div>
             <button
               onClick={toggleSidebarCollapsed}
-              className="p-1.5 rounded-xl text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]"
+              className="p-1.5 rounded-xl text-text-muted hover:text-text-main"
               title="收合側邊欄 (專注模式)"
             >
               <PanelLeftClose className="w-4 h-4" />
