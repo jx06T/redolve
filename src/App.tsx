@@ -15,7 +15,19 @@ import { updateProblemDrawData } from './services/api';
 import { useStore } from './store/useStore';
 
 export default function App() {
-  const { setCurrentUser, showToast } = useStore();
+  const { setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  useEffect(() => {
+    loadTaxonomies();
+  }, [loadTaxonomies]);
 
   useEffect(() => {
     // Check for Google OAuth callback parameters

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { Bindings, Variables, UserRow } from '../types';
-import { authMiddleware, createAuthJwt } from '../middleware/auth';
+import { optionalAuthMiddleware, createAuthJwt } from '../middleware/auth';
 
 export const authRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -21,8 +21,15 @@ function isValidFrontendOrigin(urlStr: string): boolean {
 }
 
 // 1. Get Current Authenticated User Session
-authRouter.get('/me', authMiddleware, async (c) => {
-  const userId = c.get('userId') || 'dev_user_default';
+authRouter.get('/me', optionalAuthMiddleware, async (c) => {
+  const userId = c.get('userId');
+  if (!userId) {
+    return c.json({
+      status: 'ok',
+      user: null,
+      isGuest: true,
+    });
+  }
 
   let user: UserRow | null = null;
   try {
@@ -34,19 +41,17 @@ authRouter.get('/me', authMiddleware, async (c) => {
   }
 
   if (!user) {
-    // Default fallback for dev mode
-    user = {
-      id: userId || 'dev_user_default',
-      email: 'dev@redolve.local',
-      name: 'Default Developer',
-      created_at: new Date().toISOString(),
-    };
+    return c.json({
+      status: 'ok',
+      user: null,
+      isGuest: true,
+    });
   }
 
   return c.json({
     status: 'ok',
     user,
-    isDevFallback: user.id === 'dev_user_default',
+    isGuest: false,
   });
 });
 
@@ -232,66 +237,7 @@ authRouter.post('/google/credential', async (c) => {
   }
 });
 
-// 5. Standard Email / Account Switch (Dev & Local testing)
-authRouter.post('/login', async (c) => {
-  const body = await c.req.json();
-  const email = (body.email || '').trim().toLowerCase();
-  const name = (body.name || '').trim() || (email ? email.split('@')[0] : 'Redolve User');
-  const customId = (body.userId || '').trim();
-
-  if (!email && !customId) {
-    return c.json({ error: { code: 'INVALID_INPUT', message: '請提供電子郵件或使用者 ID' } }, 400);
-  }
-
-  const userId = customId || `usr_${Math.random().toString(36).substring(2, 10)}`;
-  const userEmail = email || `${userId}@redolve.local`;
-
-  // Upsert user into D1
-  await c.env.DB.prepare(
-    `INSERT INTO users (id, email, name)
-     VALUES (?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET name = excluded.name, email = excluded.email`
-  ).bind(userId, userEmail, name).run();
-
-  const user = await c.env.DB.prepare(
-    'SELECT id, email, name, created_at FROM users WHERE id = ?'
-  ).bind(userId).first<UserRow>();
-
-  const token = await createAuthJwt({ id: userId, email: userEmail, name }, c.env);
-
-  return c.json({
-    status: 'ok',
-    token,
-    user,
-  });
-});
-
-// 6. List Registered Users for Quick Account Switching (Dev & Testing only)
-authRouter.get('/users', authMiddleware, async (c) => {
-  const isDev = c.env.ENV === 'development' || !c.env.ENV;
-  const userEmail = c.get('userEmail') || '';
-  const adminEmails = (c.env.ADMIN_EMAILS || '').split(',').map((e) => e.trim().toLowerCase());
-  const isAdmin = userEmail && adminEmails.includes(userEmail.toLowerCase());
-
-  if (!isDev && !isAdmin) {
-    return c.json({ error: { code: 'FORBIDDEN', message: '僅開發環境或管理員可存取使用者清單' } }, 403);
-  }
-
-  try {
-    const { results } = await c.env.DB.prepare(
-      'SELECT id, email, name, created_at FROM users ORDER BY created_at DESC LIMIT 20'
-    ).all<UserRow>();
-
-    return c.json({
-      status: 'ok',
-      users: results || [],
-    });
-  } catch (err) {
-    return c.json({ status: 'ok', users: [] });
-  }
-});
-
-// 7. Logout
+// 5. Logout
 authRouter.post('/logout', async (c) => {
   return c.json({ status: 'ok', message: '已成功登出' });
 });

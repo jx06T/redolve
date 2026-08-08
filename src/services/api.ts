@@ -28,10 +28,11 @@ export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || (
 );
 
 export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null;
   let token = localStorage.getItem('redolve_auth_token');
-  if (!token && typeof window !== 'undefined') {
-    token = 'dev_user_default';
-    localStorage.setItem('redolve_auth_token', token);
+  if (token === 'dev_user_default') {
+    localStorage.removeItem('redolve_auth_token');
+    token = null;
   }
   return token;
 }
@@ -57,24 +58,24 @@ function getAuthHeaders(includeContentType = true): HeadersInit {
 }
 
 // User Authentication Endpoints
-export async function fetchCurrentUser(): Promise<{ user: User; isDevFallback: boolean }> {
-  const res = await fetch(`${API_BASE}/auth/me`, {
-    headers: getAuthHeaders(false),
-  });
-  if (!res.ok) throw new Error('Failed to fetch current user');
-  return res.json();
-}
-
-export async function loginUser(payload: { email?: string; name?: string; userId?: string }): Promise<{ token: string; user: User }> {
-  const res = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('Login failed');
-  const data = (await res.json()) as { token: string; user: User };
-  setAuthToken(data.token);
-  return data;
+export async function fetchCurrentUser(): Promise<{ user: User | null; isGuest: boolean }> {
+  const token = getAuthToken();
+  if (!token) {
+    return { user: null, isGuest: true };
+  }
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: getAuthHeaders(false),
+    });
+    if (!res.ok) {
+      setAuthToken(null);
+      return { user: null, isGuest: true };
+    }
+    const data = (await res.json()) as { user?: User; isGuest?: boolean };
+    return { user: data.user || null, isGuest: !data.user || !!data.isGuest };
+  } catch {
+    return { user: null, isGuest: true };
+  }
 }
 
 export async function logoutUser(): Promise<void> {
@@ -86,14 +87,6 @@ export async function logoutUser(): Promise<void> {
   } finally {
     setAuthToken(null);
   }
-}
-
-export async function fetchAuthUsers(): Promise<{ users: User[] }> {
-  const res = await fetch(`${API_BASE}/auth/users`, {
-    headers: getAuthHeaders(false),
-  });
-  if (!res.ok) throw new Error('Failed to fetch users');
-  return res.json();
 }
 
 export async function getGoogleAuthUrl(): Promise<{ configured: boolean; url?: string; message?: string }> {

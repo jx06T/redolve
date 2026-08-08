@@ -1,12 +1,10 @@
 import { Hono } from 'hono';
 import { Bindings, Variables, ItemRow, TaxonomyNode } from '../types';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { createAIService } from '../services/ai';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 
 export const problemsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
-
-problemsRouter.use('*', authMiddleware);
 
 // Helper for Base64 Cursor Encoding/Decoding
 function encodeCursor(created_at: string, id: string): string {
@@ -137,7 +135,7 @@ async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNo
 }
 
 // 1. Upload Problem (FormData) -> R2 + D1 + Background AI Tagging
-problemsRouter.post('/', async (c) => {
+problemsRouter.post('/', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const body = await c.req.parseBody();
 
@@ -254,8 +252,12 @@ problemsRouter.post('/', async (c) => {
 });
 
 // 2. Cursor-based Pagination List
-problemsRouter.get('/', async (c) => {
+problemsRouter.get('/', optionalAuthMiddleware, async (c) => {
   const userId = c.get('userId');
+  if (!userId) {
+    return c.json({ items: [], nextCursor: null });
+  }
+
   const cursorParam = c.req.query('cursor');
   const limitParam = parseInt(c.req.query('limit') || '20', 10);
   const topicId = c.req.query('topic_id');
@@ -338,24 +340,37 @@ problemsRouter.get('/', async (c) => {
   return c.json({ items, nextCursor });
 });
 
-// 3. Single Problem Metadata
-problemsRouter.get('/:id', async (c) => {
+// 3. Get Single Problem Details
+problemsRouter.get('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 
-  const item = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')
-    .bind(problemId, userId)
+  const item = await c.env.DB.prepare('SELECT * FROM items WHERE id = ?')
+    .bind(problemId)
     .first<ItemRow>();
 
   if (!item) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到此題目' } }, 404);
+    return c.json({ error: { code: 'NOT_FOUND', message: '題目不存在' } }, 404);
   }
 
-  return c.json(item);
+  if (item.user_id !== userId) {
+    try {
+      const share = await c.env.DB.prepare(
+        'SELECT id FROM problem_shares WHERE item_id = ? AND receiver_id = ?'
+      ).bind(problemId, userId).first();
+      if (!share) {
+        return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此題目' } }, 403);
+      }
+    } catch {
+      return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此題目' } }, 403);
+    }
+  }
+
+  return c.json({ item });
 });
 
-// 4. R2 Private Worker Proxy Image Stream
-problemsRouter.get('/:id/image', async (c) => {
+// 4. Stream Problem Image directly from R2
+problemsRouter.get('/:id/image', optionalAuthMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 
@@ -367,8 +382,8 @@ problemsRouter.get('/:id/image', async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '題目或圖片不存在' } }, 404);
   }
 
-  // Access check: Allow owner or dev fallback
-  if (item.user_id !== userId && userId !== 'dev_user_default') {
+  // Access check: Allow owner or shared recipient
+  if (item.user_id !== userId) {
     try {
       const share = await c.env.DB.prepare(
         'SELECT id FROM problem_shares WHERE item_id = ? AND receiver_id = ?'
@@ -394,8 +409,8 @@ problemsRouter.get('/:id/image', async (c) => {
   });
 });
 
-// 5. Update Metadata (Manual Edit & Typed Notes)
-problemsRouter.put('/:id', async (c) => {
+// 5. Update Metadata / Status / Taxonomy
+problemsRouter.put('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
   const body = await c.req.json();
@@ -469,8 +484,8 @@ problemsRouter.put('/:id', async (c) => {
   return c.json({ status: 'ok' });
 });
 
-// 6. Delete Problem & R2 Object
-problemsRouter.delete('/:id', async (c) => {
+// 6. Delete Problem
+problemsRouter.delete('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 
@@ -492,8 +507,8 @@ problemsRouter.delete('/:id', async (c) => {
   return c.json({ status: 'deleted' });
 });
 
-// 7. Save Canvas Draw Data (Vector Clock Conflict Check & Ownership Protection)
-problemsRouter.patch('/:id/draw', async (c) => {
+// 7. Auto-save Drawing Stroke Data (Vector Canvas)
+problemsRouter.patch('/:id/draw', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
   const body = await c.req.json();
@@ -559,8 +574,8 @@ problemsRouter.patch('/:id/draw', async (c) => {
   return c.json({ status: 'ok', seq: finalSeq }, 200);
 });
 
-// 8. Toggle Problem Status
-problemsRouter.patch('/:id/status', async (c) => {
+// 8. Quick Status Toggle (unsolved <-> resolved / archived)
+problemsRouter.patch('/:id/status', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
   const body = await c.req.json();
@@ -583,8 +598,8 @@ problemsRouter.patch('/:id/status', async (c) => {
   return c.json({ status: 'updated' });
 });
 
-// 9. Trigger AI Visual Analysis for an existing problem
-problemsRouter.post('/:id/analyze', async (c) => {
+// 9. Manual Re-run AI Analysis & Taxonomy Classification
+problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 

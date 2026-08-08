@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { Bindings, Variables, TaxonomyNode } from '../types';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 import { ensureSeedTaxonomies, syncSeedTaxonomies } from './problems';
@@ -70,7 +70,7 @@ function buildTree(rows: TaxonomyRow[]): TaxonomyNode[] {
 }
 
 // 1. Get Combined Taxonomy Tree (Official Seed + User Custom Nodes)
-taxonomyRouter.get('/', authMiddleware, async (c) => {
+taxonomyRouter.get('/', optionalAuthMiddleware, async (c) => {
   const userId = c.get('userId');
 
   try {
@@ -79,56 +79,60 @@ taxonomyRouter.get('/', authMiddleware, async (c) => {
     const { results } = await c.env.DB.prepare(
       `SELECT id, user_id, parent_id, label, level
        FROM taxonomies
-       WHERE user_id IS NULL OR user_id = ?
+       WHERE user_id IS NULL ${userId ? 'OR user_id = ?' : ''}
        ORDER BY level ASC, id ASC`
-    ).bind(userId).all<TaxonomyRow>();
+    ).bind(...(userId ? [userId] : [])).all<TaxonomyRow>();
 
     let tree: TaxonomyNode[] = [];
     let customNodes: TaxonomyNode[] = [];
 
     if (results && results.length > 0) {
       tree = buildTree(results);
-      customNodes = results
-        .filter((r) => r.user_id === userId)
-        .map((r) => ({
-          id: r.id,
-          user_id: r.user_id,
-          parent_id: r.parent_id,
-          label: r.label,
-          level: r.level,
-        }));
+      if (userId) {
+        customNodes = results
+          .filter((r) => r.user_id === userId)
+          .map((r) => ({
+            id: r.id,
+            user_id: r.user_id,
+            parent_id: r.parent_id,
+            label: r.label,
+            level: r.level,
+          }));
+      }
     } else {
       // If DB has no taxonomy data yet, fallback to TAXONOMY_SEED_DATA
       tree = TAXONOMY_SEED_DATA;
     }
 
     const countsMap: Record<string, { total: number; unsolved: number; resolved: number; archived: number }> = {};
-    try {
-      const { results: countResults } = await c.env.DB.prepare(
-        `SELECT topic_id, 
-                COUNT(id) as total,
-                SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) as unsolved,
-                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
-                SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived
-         FROM items
-         WHERE user_id = ? AND topic_id IS NOT NULL AND topic_id != ''
-         GROUP BY topic_id`
-      ).bind(userId).all<{ topic_id: string; total: number; unsolved: number; resolved: number; archived: number }>();
+    if (userId) {
+      try {
+        const { results: countResults } = await c.env.DB.prepare(
+          `SELECT topic_id, 
+                  COUNT(id) as total,
+                  SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) as unsolved,
+                  SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                  SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived
+           FROM items
+           WHERE user_id = ? AND topic_id IS NOT NULL AND topic_id != ''
+           GROUP BY topic_id`
+        ).bind(userId).all<{ topic_id: string; total: number; unsolved: number; resolved: number; archived: number }>();
 
-      if (countResults) {
-        for (const row of countResults) {
-          if (row.topic_id) {
-            countsMap[row.topic_id] = {
-              total: row.total,
-              unsolved: row.unsolved || 0,
-              resolved: row.resolved || 0,
-              archived: row.archived || 0
-            };
+        if (countResults) {
+          for (const row of countResults) {
+            if (row.topic_id) {
+              countsMap[row.topic_id] = {
+                total: row.total,
+                unsolved: row.unsolved || 0,
+                resolved: row.resolved || 0,
+                archived: row.archived || 0
+              };
+            }
           }
         }
+      } catch (e) {
+        console.warn('Failed to query topic counts:', e);
       }
-    } catch (e) {
-      console.warn('Failed to query topic counts:', e);
     }
 
     // Bottom-Up Rollup: aggregate child node counts into parent nodes recursively

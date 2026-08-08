@@ -221,7 +221,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             {/* Guest Direct Sign-In CTA (Visible when not logged in) */}
-            {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
+            {(!currentUser || !currentUser.id) && (
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
@@ -243,14 +243,14 @@ export const Navbar: React.FC = () => {
                 {currentUser?.image ? (
                   <img src={currentUser.image} alt={currentUser.name || 'User'} className="w-full h-full object-cover" />
                 ) : (
-                  (currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                  (!currentUser || !currentUser.id
                     ? '訪'
-                    : (currentUser?.name || currentUser?.email || '訪')
+                    : (currentUser?.name || currentUser?.email || 'U')
                   ).charAt(0).toUpperCase()
                 )}
               </div>
               <span className="hidden xl:inline text-xs font-semibold max-w-[90px] truncate">
-                {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
+                {!currentUser || !currentUser.id
                   ? '訪客試用'
                   : currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
               </span>

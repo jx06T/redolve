@@ -1,13 +1,27 @@
 import { Hono } from 'hono';
 import { Bindings, Variables } from '../types';
-import { authMiddleware } from '../middleware/auth';
+import { optionalAuthMiddleware } from '../middleware/auth';
 
 export const dashboardRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-dashboardRouter.use('*', authMiddleware);
+dashboardRouter.use('*', optionalAuthMiddleware);
 
 dashboardRouter.get('/', async (c) => {
   const userId = c.get('userId');
+
+  if (!userId) {
+    return c.json({
+      summary: {
+        total: 0,
+        resolved: 0,
+        unsolved: 0,
+        processing: 0,
+        unclassified: 0,
+      },
+      subjects: [],
+      top_unsolved_topics: [],
+    });
+  }
 
   // 1. Overall counts
   const totalRow = await c.env.DB.prepare(

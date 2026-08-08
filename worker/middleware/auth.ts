@@ -30,11 +30,6 @@ export async function verifyAuthJwt(
   token: string,
   env: Bindings
 ): Promise<{ userId: string; email?: string } | null> {
-  // Support dev fallback token in development or test mode
-  if (token === 'dev_user_default') {
-    return { userId: 'dev_user_default', email: 'dev@redolve.local' };
-  }
-
   const secret = getJwtSecret(env);
   try {
     const payload = await verify(token, secret, 'HS256');
@@ -50,10 +45,9 @@ export async function verifyAuthJwt(
   return null;
 }
 
-export async function authMiddleware(
-  c: Context<{ Bindings: Bindings; Variables: Variables }>,
-  next: Next
-) {
+export async function resolveAuthCredentials(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>
+): Promise<{ userId: string | null; userEmail: string | null }> {
   const authHeader = c.req.header('Authorization');
   const sessionCookie = c.req.header('Cookie');
 
@@ -77,13 +71,6 @@ export async function authMiddleware(
           break;
         }
       }
-    }
-    if (!userId) {
-      return c.json({
-        status: 'error',
-        error: 'Unauthorized',
-        message: '無效或已過期的 API Key (rdv_...)，請檢查授權標頭',
-      }, 401);
     }
   } else if (authHeader && authHeader.startsWith('Bearer ')) {
     // 2. JWT Session / Token Header
@@ -113,6 +100,27 @@ export async function authMiddleware(
     }
   }
 
+  // Resolve user email from DB if not already embedded in token
+  if (userId && !userEmail) {
+    try {
+      const userRow = await c.env.DB.prepare(
+        'SELECT email FROM users WHERE id = ?'
+      ).bind(userId).first<Pick<UserRow, 'email'>>();
+      userEmail = userRow?.email ?? null;
+    } catch {
+      // Non-critical
+    }
+  }
+
+  return { userId, userEmail };
+}
+
+export async function authMiddleware(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>,
+  next: Next
+) {
+  const { userId, userEmail } = await resolveAuthCredentials(c);
+
   // Reject unauthenticated requests with HTTP 401 Unauthorized
   if (!userId) {
     return c.json({
@@ -123,19 +131,17 @@ export async function authMiddleware(
   }
 
   c.set('userId', userId);
-
-  // Resolve user email from DB if not already embedded in token
-  if (!userEmail) {
-    try {
-      const userRow = await c.env.DB.prepare(
-        'SELECT email FROM users WHERE id = ?'
-      ).bind(userId).first<Pick<UserRow, 'email'>>();
-      userEmail = userRow?.email ?? null;
-    } catch {
-      // Non-critical: admin checks will simply fail gracefully
-    }
-  }
   c.set('userEmail', userEmail);
 
+  await next();
+}
+
+export async function optionalAuthMiddleware(
+  c: Context<{ Bindings: Bindings; Variables: Variables }>,
+  next: Next
+) {
+  const { userId, userEmail } = await resolveAuthCredentials(c);
+  c.set('userId', userId || '');
+  c.set('userEmail', userEmail || '');
   await next();
 }

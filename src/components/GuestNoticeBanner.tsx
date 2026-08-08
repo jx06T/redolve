@@ -15,7 +15,7 @@ export const GuestNoticeBanner: React.FC = () => {
   }, []);
 
   // Is user currently a guest / unauthenticated
-  const isGuest = !currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV);
+  const isGuest = !currentUser || !currentUser.id;
 
   if (!isGuest || dismissed) return null;
 
