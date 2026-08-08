@@ -60,6 +60,7 @@ export interface DashboardData {
     unsolved: number;
     archived?: number;
     processing: number;
+    unclassified?: number;
   };
   subjects: {
     subject_id: string;

@@ -156,7 +156,11 @@ export const useStore = create<StoreState>()(
         set({ currentUser: null, authToken: null });
       },
 
-      setSelectedSubjectId: (subjectId) => set({ selectedSubjectId: subjectId, selectedTopicId: null }),
+      setSelectedSubjectId: (subjectId) =>
+        set((state) => ({
+          selectedSubjectId: subjectId,
+          selectedTopicId: state.selectedSubjectId === subjectId ? state.selectedTopicId : null,
+        })),
       setSelectedTopicId: (topicId) => set({ selectedTopicId: topicId }),
       setSelectedStatus: (status) => set({ selectedStatus: status }),
       setSearchQuery: (query) => set({ searchQuery: query }),
@@ -310,6 +314,7 @@ export const useStore = create<StoreState>()(
       // 指定哪些狀態要被存入 localStorage（完全交由 Zustand Persist 管理）
       partialize: (state) => ({
         selectedSubjectId: state.selectedSubjectId,
+        selectedTopicId: state.selectedTopicId,
         selectedStatus: state.selectedStatus,
         sidebarCollapsed: state.sidebarCollapsed,
         darkMode: state.darkMode,

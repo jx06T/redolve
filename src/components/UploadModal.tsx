@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { X, Upload, Camera, Trash2, CheckCircle2, RefreshCw, Layers } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Upload, Trash2, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
 import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
@@ -10,20 +10,27 @@ const compressImage = (file: File): Promise<File> => {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(img.src);
-      if (img.width <= 1920) {
-        return resolve(file);
-      }
       const canvas = document.createElement('canvas');
-      const scale = 1920 / img.width;
-      canvas.width = 1920;
-      canvas.height = img.height * scale;
+      let targetWidth = img.width;
+      let targetHeight = img.height;
+      if (targetWidth > 1920) {
+        const scale = 1920 / targetWidth;
+        targetWidth = 1920;
+        targetHeight = Math.round(img.height * scale);
+      }
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
       const ctx = canvas.getContext('2d');
       if (!ctx) return resolve(file);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(
         (blob) => {
-          if (blob) resolve(new File([blob], file.name, { type: 'image/jpeg' }));
-          else resolve(file);
+          if (blob) {
+            const baseName = file.name.replace(/\.[^/.]+$/, '');
+            resolve(new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
         },
         'image/jpeg',
         0.8
@@ -43,34 +50,27 @@ interface UploadModalProps {
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
   const { setIsLoading, showToast, addOptimisticProblem, removeProblemFromStore, selectedSubjectId } = useStore();
 
-  const [mode, setMode] = useState<'files' | 'camera'>('files');
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>('113年');
   const [selectedType, setSelectedType] = useState<string>('全模');
   const [sourceInput, setSourceInput] = useState<string>(() => {
     return sessionStorage.getItem('redolve_last_source') || '113年 全模';
   });
   const [selectedFiles, setSelectedFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
-
-  // Camera stream states
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
 
   // Close modal on Escape key press
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        stopCamera();
+      if (e.key === 'Escape' && !isUploading) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isUploading]);
 
   // Sync year and type selection into sourceInput
   const handleSelectYear = (year: string) => {
@@ -82,41 +82,6 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setSelectedType(type);
     setSourceInput(`${selectedYear} ${type}`);
   };
-
-  // Handle Camera Stream Start/Stop
-  const startCamera = async (facing: 'environment' | 'user') => {
-    try {
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      console.error('Failed to access webcamera:', err);
-      showToast('無法存取視訊鏡頭，請確認瀏覽器相機權限！', 'error');
-    }
-  };
-
-  const stopCamera = () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen && mode === 'camera') {
-      startCamera(facingMode);
-    } else {
-      stopCamera();
-    }
-    return () => stopCamera();
-  }, [isOpen, mode, facingMode]);
 
   if (!isOpen) return null;
 
@@ -145,6 +110,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   const handleRemoveFile = (id: string) => {
+    if (isUploading) return;
     setSelectedFiles((prev) => {
       const target = prev.find((item) => item.id === id);
       if (target) URL.revokeObjectURL(target.previewUrl);
@@ -152,50 +118,24 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     });
   };
 
-  const handleCaptureSnapshot = () => {
-    if (!videoRef.current || !canvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) return;
-        const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        const newItem = {
-          id: Math.random().toString(36).substring(2, 9),
-          file,
-          previewUrl: URL.createObjectURL(blob),
-        };
-        setSelectedFiles((prev) => [...prev, newItem]);
-        showToast('完成相機快拍！已加入待上傳清單', 'info', 2000);
-      },
-      'image/jpeg',
-      0.85
-    );
-  };
-
   const handleSubmitBatch = async () => {
-    if (selectedFiles.length === 0) {
-      showToast('請先選擇圖檔或拍攝題目照片！', 'error');
+    if (selectedFiles.length === 0 || isUploading) {
+      if (selectedFiles.length === 0) showToast('請先選擇考卷圖檔！', 'error');
       return;
     }
 
+    setIsUploading(true);
     setIsLoading(true);
-    // Save active source into sessionStorage
+    setUploadProgress({ current: 0, total: selectedFiles.length });
     sessionStorage.setItem('redolve_last_source', sourceInput);
 
     try {
+      let completedCount = 0;
       const results = await Promise.allSettled(
         selectedFiles.map(async (item) => {
           const compressedFile = await compressImage(item.file);
           const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}`;
-          
+
           const tempItem: Item = {
             id: tempId,
             user_id: 'temp',
@@ -212,11 +152,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             updated_at: new Date().toISOString(),
             created_at: new Date().toISOString(),
           };
-          
+
           addOptimisticProblem(tempItem);
-          
+
           try {
-            return await uploadProblem(compressedFile, sourceInput);
+            const res = await uploadProblem(compressedFile, sourceInput);
+            completedCount += 1;
+            setUploadProgress({ current: completedCount, total: selectedFiles.length });
+            return res;
           } catch (err) {
             removeProblemFromStore(tempId);
             throw err;
@@ -235,10 +178,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         showToast('錯題上傳失敗！請檢查圖片格式與網路連線後重試。', 'error', 6000);
       }
 
-      // Reset state
+      // Cleanup
       selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       setSelectedFiles([]);
-      stopCamera();
       onClose();
 
       if (onUploadSuccess) {
@@ -248,7 +190,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       console.error('Batch upload failed:', err);
       showToast('上傳過程發生未知錯誤，請稍後再試！', 'error', 6000);
     } finally {
+      setIsUploading(false);
       setIsLoading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -263,17 +207,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
-                錯題批次上傳 & Webcamera 快拍
+                錯題批次上傳
               </h3>
-              <p className="text-[11px] text-[#9CA3AF]">選擇年分與卷別後即可批次上傳多張題目照片</p>
+              <p className="text-[11px] text-[#9CA3AF]">自動前端壓縮並以高效率上傳，支援拖曳多張圖檔</p>
             </div>
           </div>
           <button
-            onClick={() => {
-              stopCamera();
-              onClose();
-            }}
-            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-colors"
+            onClick={onClose}
+            disabled={isUploading}
+            className="p-1.5 rounded-xl hover:bg-stone-100 dark:hover:bg-stone-800 text-[#9CA3AF] transition-colors disabled:opacity-30"
             title="關閉視窗 (Esc)"
           >
             <X className="w-5 h-5" />
@@ -345,90 +287,34 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             </div>
           </div>
 
-          {/* 2. Mode Switcher Tabs */}
-          <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 dark:bg-stone-800/60 rounded-2xl text-xs font-medium">
-            <button
-              onClick={() => setMode('files')}
-              className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-                mode === 'files'
-                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
-                  : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-              }`}
-            >
-              <Layers className="w-4 h-4" />
-              <span>批次選檔 ({selectedFiles.length})</span>
-            </button>
-
-            <button
-              onClick={() => setMode('camera')}
-              className={`flex items-center justify-center space-x-2 py-2 rounded-xl transition-all ${
-                mode === 'camera'
-                  ? 'bg-white dark:bg-[#2C2C30] text-[#6366F1] dark:text-indigo-400 font-bold shadow-xs'
-                  : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
-              }`}
-            >
-              <Camera className="w-4 h-4" />
-              <span>Webcamera 快拍</span>
-            </button>
-          </div>
-
-          {/* Tab 1: File Upload Mode */}
-          {mode === 'files' && (
-            <label
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDraggingOver(true);
-              }}
-              onDragLeave={() => setIsDraggingOver(false)}
-              onDrop={handleDrop}
-              className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${
-                isDraggingOver
-                  ? 'border-[#6366F1] bg-[#6366F1]/10 scale-[1.01]'
-                  : 'border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/50'
-              }`}
-            >
-              <Upload className="w-7 h-7 text-[#6366F1] mb-1.5" />
-              <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
-                {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
-              </span>
-              <span className="text-[10px] text-[#9CA3AF] mt-0.5">支援 JPG, PNG, WEBP</span>
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-            </label>
-          )}
-
-          {/* Tab 2: Webcamera Live Capture Mode */}
-          {mode === 'camera' && (
-            <div className="relative rounded-2xl overflow-hidden bg-black h-48 sm:h-56 w-full flex items-center justify-center border border-stone-800">
-              <video ref={videoRef} autoPlay playsInline className="w-full h-full object-contain" />
-              <canvas ref={canvasRef} className="hidden" />
-
-              {/* Facing Mode Toggle */}
-              <button
-                type="button"
-                onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
-                className="absolute top-2.5 right-2.5 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors backdrop-blur-xs"
-                title="切換前後鏡頭"
-              >
-                <RefreshCw className="w-4 h-4" />
-              </button>
-
-              {/* Shutter Button */}
-              <button
-                type="button"
-                onClick={handleCaptureSnapshot}
-                className="absolute bottom-2.5 left-1/2 -translate-x-1/2 w-11 h-11 rounded-full bg-white text-[#6366F1] border-4 border-indigo-200 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
-                title="即時拍攝題目"
-              >
-                <Camera className="w-5 h-5" />
-              </button>
-            </div>
-          )}
+          {/* File Drag & Drop Box */}
+          <label
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${
+              isDraggingOver
+                ? 'border-[#6366F1] bg-[#6366F1]/10 scale-[1.01]'
+                : 'border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800/50'
+            }`}
+          >
+            <ImageIcon className="w-8 h-8 text-[#6366F1] mb-1.5" />
+            <span className="text-xs font-bold text-[#374151] dark:text-[#D1D5DB]">
+              {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
+            </span>
+            <span className="text-[10px] text-[#9CA3AF] mt-0.5">自動進行前端壓縮 (支援 JPG, PNG, WEBP)</span>
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              disabled={isUploading}
+              onChange={handleFileChange}
+              className="hidden"
+            />
+          </label>
 
           {/* Thumbnail Preview Queue */}
           {selectedFiles.length > 0 && (
@@ -437,16 +323,18 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 <span className="font-semibold text-[#374151] dark:text-[#D1D5DB]">
                   待上傳圖片清單 ({selectedFiles.length} 張)
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-                    setSelectedFiles([]);
-                  }}
-                  className="text-[11px] text-rose-500 hover:underline"
-                >
-                  清空全部
-                </button>
+                {!isUploading && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+                      setSelectedFiles([]);
+                    }}
+                    className="text-[11px] text-rose-500 hover:underline"
+                  >
+                    清空全部
+                  </button>
+                )}
               </div>
               <div className="flex items-center space-x-2 overflow-x-auto pb-1">
                 {selectedFiles.map((item) => (
@@ -455,13 +343,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     className="relative w-14 h-14 rounded-xl overflow-hidden border border-stone-200 dark:border-stone-700 shrink-0 group"
                   >
                     <img src={item.previewUrl} alt="預覽" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFile(item.id)}
-                      className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!isUploading && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveFile(item.id)}
+                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -472,7 +362,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         {/* Guaranteed Sticky / Fixed Footer */}
         <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-stone-50 dark:bg-[#1a1a1d] border-t border-stone-200 dark:border-stone-800 flex items-center justify-between">
           <div>
-            {selectedFiles.length > 0 ? (
+            {isUploading ? (
+              <div className="flex items-center space-x-2 text-xs text-indigo-600 dark:text-indigo-400 font-semibold">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>
+                  處理中... {uploadProgress ? `(${uploadProgress.current}/${uploadProgress.total})` : ''}
+                </span>
+              </div>
+            ) : selectedFiles.length > 0 ? (
               <div className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>已選取 {selectedFiles.length} 張圖檔</span>
@@ -485,26 +382,33 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           <div className="flex items-center space-x-2">
             <button
               type="button"
-              onClick={() => {
-                stopCamera();
-                onClose();
-              }}
-              className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors"
+              disabled={isUploading}
+              onClick={onClose}
+              className="px-3.5 py-2 rounded-xl text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors disabled:opacity-40"
             >
               取消
             </button>
             <button
               type="button"
               onClick={handleSubmitBatch}
-              disabled={selectedFiles.length === 0}
+              disabled={selectedFiles.length === 0 || isUploading}
               className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
-                selectedFiles.length > 0
+                selectedFiles.length > 0 && !isUploading
                   ? 'bg-[#6366F1] hover:bg-[#4F46E5] active:scale-95 cursor-pointer'
                   : 'bg-stone-300 dark:bg-stone-700 cursor-not-allowed opacity-60'
               }`}
             >
-              <Upload className="w-4 h-4" />
-              <span>開始批次上傳 ({selectedFiles.length} 題)</span>
+              {isUploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>正在壓縮並上傳...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" />
+                  <span>開始批次上傳 ({selectedFiles.length} 題)</span>
+                </>
+              )}
             </button>
           </div>
         </div>

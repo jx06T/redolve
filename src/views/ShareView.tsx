@@ -31,9 +31,9 @@ export const ShareView: React.FC = () => {
     }
   }, [token]);
 
-  // Compute calculation workspace height from draw_data (matching ProblemCard 240px baseline)
+  // Compute calculation workspace height from draw_data (matching ProblemCard 140px baseline)
   const calcSpaceHeight = useMemo(() => {
-    if (!data?.item?.draw_data) return 240;
+    if (!data?.item?.draw_data) return 140;
     try {
       const parsed: DrawData =
         typeof data.item.draw_data === 'string'
@@ -45,13 +45,13 @@ export const ShareView: React.FC = () => {
       if (parsed.expansions && parsed.expansions.length > 0) {
         const lastExp = parsed.expansions[parsed.expansions.length - 1];
         if (lastExp && typeof lastExp.addedHeight === 'number') {
-          return Math.max(100, lastExp.addedHeight);
+          return Math.max(80, lastExp.addedHeight);
         }
       }
     } catch {
       // safe fallback
     }
-    return 240;
+    return 140;
   }, [data]);
 
   const keywordsArray = useMemo(() => {

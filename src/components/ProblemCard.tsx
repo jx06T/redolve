@@ -17,7 +17,6 @@ import {
   Archive,
   ArchiveRestore,
   ZoomIn,
-  X,
 } from 'lucide-react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Item, DrawData } from '../types';
@@ -25,6 +24,8 @@ import { StatusBadge, formatProblemCode } from './StatusBadge';
 import { DrawCanvas } from './DrawCanvas';
 import { ConfirmModal } from './ConfirmModal';
 import { ShareModal } from './ShareModal';
+import { ImageViewerModal } from './ImageViewerModal';
+
 import {
   getProblemImageUrl,
   fetchProblemById,
@@ -105,7 +106,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         }
       } catch { }
     }
-    return 240;
+    return 140;
   }, [problem.draw_data]);
 
   const calcSpaceHeightRef = useRef<number>(getInitialCalcSpaceHeight());
@@ -378,9 +379,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {/* Header Bar */}
         <div className="flex items-center justify-between pb-3 border-b border-[#E5E7EB] dark:border-[#2C2C30]">
           <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
-            <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
-              {problemCode}
-            </span>
+            {problemIndex === undefined && (
+              <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
+                {problemCode}
+              </span>
+            )}
             <StatusBadge
               status={problem.status}
               topicId={problem.topic_id}
@@ -391,7 +394,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
                 {problem.source}
               </span>
             )}
-
           </div>
 
           <div className="flex items-center space-x-1 flex-wrap">
@@ -536,47 +538,47 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
                   title="完全收合推導區 (0px)"
                 >
                   <ChevronUp className="w-3 h-3" />
-                  <span>收合</span>
+                  <span className="hidden sm:inline">收合</span>
                 </button>
               ) : (
                 <button
                   type="button"
-                  onClick={() => updateCalcHeight(240)}
+                  onClick={() => updateCalcHeight(140)}
                   className="px-2 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-all flex items-center space-x-1 active:scale-95"
-                  title="展開推導區 (預設 240px)"
+                  title="展開推導區 (預設 140px)"
                 >
                   <ChevronDown className="w-3 h-3 text-indigo-500" />
-                  <span>展開</span>
+                  <span className="hidden sm:inline">展開</span>
                 </button>
               )}
               <button
                 type="button"
-                onClick={() => updateCalcHeight(240)}
-                disabled={calcSpaceHeight === 240}
+                onClick={() => updateCalcHeight(140)}
+                disabled={calcSpaceHeight === 140}
                 className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-                title="重設草稿高度至預設值 (240px)"
+                title="重設草稿高度至預設值 (140px)"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>重設</span>
+                <span className="hidden sm:inline">重設</span>
               </button>
               <button
                 type="button"
-                onClick={() => updateCalcHeight((h) => Math.max(0, h - 200))}
+                onClick={() => updateCalcHeight((h) => Math.max(0, h - 80))}
                 disabled={calcSpaceHeight <= 0}
                 className="px-2 py-1 text-xs rounded-lg bg-stone-100 dark:bg-stone-800 hover:bg-stone-200 dark:hover:bg-stone-700 disabled:opacity-40 text-[#4B5563] dark:text-[#D1D5DB] transition-all flex items-center space-x-1 active:scale-95"
-                title="縮小草稿空間 (-200px)"
+                title="縮小草稿空間 (-80px)"
               >
                 <Minus className="w-3 h-3" />
-                <span>縮減</span>
+                <span className="hidden sm:inline">縮減</span>
               </button>
               <button
                 type="button"
-                onClick={() => updateCalcHeight((h) => Math.min(3000, (h === 0 ? 240 : h + 200)))}
+                onClick={() => updateCalcHeight((h) => Math.min(3000, (h === 0 ? 140 : h + 80)))}
                 className="px-2.5 py-1 text-xs rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/50 dark:border-indigo-800/50 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-600 dark:text-indigo-400 transition-all font-medium flex items-center space-x-1 active:scale-95 shadow-2xs"
-                title="擴增草稿空間 (+200px)"
+                title="擴增草稿空間 (+80px)"
               >
                 <Plus className="w-3 h-3 text-indigo-500" />
-                <span>延伸</span>
+                <span className="hidden sm:inline">延伸</span>
               </button>
             </div>
           </div>
@@ -658,184 +660,18 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       />
 
       {/* Lightbox Modal */}
-      {isLightboxOpen && (
-        <ImageLightbox
-          imageUrl={imageUrl}
-          onClose={() => setIsLightboxOpen(false)}
-        />
-      )}
+      <ImageViewerModal
+        isOpen={isLightboxOpen}
+        imageUrl={imageUrl}
+        onClose={() => setIsLightboxOpen(false)}
+      />
+
       {/* Share Modal */}
       <ShareModal
         isOpen={isShareModalOpen}
         problemId={problem.id}
         onClose={() => setIsShareModalOpen(false)}
       />
-    </div>
-  );
-};
-
-
-import { ZoomOut } from 'lucide-react';
-
-interface ImageLightboxProps {
-  imageUrl: string;
-  onClose: () => void;
-}
-
-export const ImageLightbox: React.FC<ImageLightboxProps> = ({ imageUrl, onClose }) => {
-  const [scale, setScale] = useState<number>(1);
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState<boolean>(false);
-
-  const dragStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const lastTouchDistRef = useRef<number | null>(null);
-
-  // 雙擊 / 雙點擊：在 1x 與 2.5x 之間切換
-  const handleDoubleTap = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (scale > 1) {
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
-    } else {
-      setScale(2.5);
-    }
-  };
-
-  // 電腦端滾輪縮放
-  const handleWheel = (e: React.WheelEvent) => {
-    e.stopPropagation();
-    const delta = e.deltaY < 0 ? 0.25 : -0.25;
-    const newScale = Math.min(Math.max(1, scale + delta), 5);
-    setScale(newScale);
-    if (newScale === 1) {
-      setPosition({ x: 0, y: 0 });
-    }
-  };
-
-  // 拖銜平移 (Pointer Events，同時支援滑動與單指拖銜)
-  const handlePointerDown = (e: React.PointerEvent) => {
-    if (scale <= 1) return;
-    e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    setIsDragging(true);
-    dragStartRef.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
-    };
-  };
-
-  const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || scale <= 1) return;
-    e.stopPropagation();
-    setPosition({
-      x: e.clientX - dragStartRef.current.x,
-      y: e.clientY - dragStartRef.current.y,
-    });
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (!isDragging) return;
-    e.stopPropagation();
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch { }
-    setIsDragging(false);
-  };
-
-  // 移動端雙指手勢縮放 (Touch Pinch)
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (e.touches.length === 2) {
-      e.stopPropagation();
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-
-      if (lastTouchDistRef.current !== null) {
-        const delta = (dist - lastTouchDistRef.current) * 0.01;
-        const newScale = Math.min(Math.max(1, scale + delta), 5);
-        setScale(newScale);
-        if (newScale === 1) setPosition({ x: 0, y: 0 });
-      }
-      lastTouchDistRef.current = dist;
-    }
-  };
-
-  const handleTouchEnd = () => {
-    lastTouchDistRef.current = null;
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
-      onClick={onClose}
-      onWheel={handleWheel}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* 頂部浮動工具列 (按鈕) */}
-      <div
-        className="absolute top-4 right-4 z-[110] flex items-center space-x-2 bg-black/60 backdrop-blur-md p-1.5 rounded-full border border-white/10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          onClick={() => setScale((s) => Math.min(s + 0.5, 5))}
-          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
-          title="放大"
-        >
-          <ZoomIn className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => {
-            const next = Math.max(1, scale - 0.5);
-            setScale(next);
-            if (next === 1) setPosition({ x: 0, y: 0 });
-          }}
-          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
-          title="縮小"
-        >
-          <ZoomOut className="w-5 h-5" />
-        </button>
-        <button
-          onClick={() => {
-            setScale(1);
-            setPosition({ x: 0, y: 0 });
-          }}
-          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
-          title="重置"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
-        <div className="w-px h-4 bg-white/20 my-auto" />
-        <button
-          onClick={onClose}
-          className="p-2 rounded-full text-white/80 hover:text-white hover:bg-white/20 active:scale-95 transition-all"
-          title="關閉 (Esc)"
-        >
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      {/* 圖片容器 */}
-      <div
-        className={`relative max-w-full max-h-full flex items-center justify-center p-4 ${scale > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-zoom-in'
-          }`}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onClick={handleDoubleTap}
-      >
-        <img
-          src={imageUrl}
-          alt="題目放大檢視"
-          draggable={false}
-          className="exam-paper-image max-w-full max-h-[88vh] object-contain select-none shadow-2xl transition-transform duration-75 ease-out"
-          style={{
-            transform: `translate3d(${position.x}px, ${position.y}px, 0) scale(${scale})`,
-            touchAction: 'none',
-          }}
-        />
-      </div>
     </div>
   );
 };

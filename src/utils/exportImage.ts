@@ -40,7 +40,7 @@ export async function exportProblemAsImage(
 
   const width = img.naturalWidth || 1200;
   const imgHeight = img.naturalHeight || 800;
-  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? 240;
+  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? 140;
 
   // Determine base coordinate space width
   const baseWidth = parsedDrawData?.baseWidth || 800;

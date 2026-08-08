@@ -16,11 +16,13 @@ dashboardRouter.get('/', async (c) => {
        SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved,
        SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) AS unsolved,
        SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
-       SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing
+       SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing,
+       SUM(CASE WHEN topic_id IS NULL OR topic_id = '' OR topic_id = 'unclassified' THEN 1 ELSE 0 END) AS unclassified
      FROM items WHERE user_id = ?`
   )
     .bind(userId)
-    .first<{ total: number; resolved: number; unsolved: number; archived: number; processing: number }>();
+    .first<{ total: number; resolved: number; unsolved: number; archived: number; processing: number; unclassified: number }>();
+
 
   // 2. Subject Breakdown using recursive CTE to find root subject for any depth
   let subjectStats: any[] = [];
@@ -84,6 +86,7 @@ dashboardRouter.get('/', async (c) => {
       resolved: totalRow?.resolved ?? 0,
       unsolved: totalRow?.unsolved ?? 0,
       processing: totalRow?.processing ?? 0,
+      unclassified: totalRow?.unclassified ?? 0,
     },
     subjects: subjectStats,
     top_unsolved_topics: topUnsolved,

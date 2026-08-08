@@ -1,9 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { BookOpen, CheckCircle2, HelpCircle, Loader2, ArrowRight, Sparkles, TrendingUp } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  BookOpen,
+  CheckCircle2,
+  HelpCircle,
+  Loader2,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  AlertCircle,
+  FolderSync,
+} from 'lucide-react';
 import { fetchDashboard } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { DashboardData } from '../types';
+import { useStore } from '../store/useStore';
+import { getRootSubjectId } from '../components/StatusBadge';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -11,6 +23,8 @@ export const DashboardView: React.FC = () => {
     description: '查看高中學測・分科錯題複習進度、已訂正比率與最需加強的弱點單元 Top 3。',
   });
 
+  const navigate = useNavigate();
+  const { taxonomies, setSelectedSubjectId, setSelectedTopicId } = useStore();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -29,11 +43,31 @@ export const DashboardView: React.FC = () => {
     );
   }
 
-  const summary = data?.summary || { total: 0, resolved: 0, unsolved: 0, processing: 0 };
+  const summary = data?.summary || { total: 0, resolved: 0, unsolved: 0, processing: 0, unclassified: 0 };
   const subjects = data?.subjects || [];
   const topUnsolved = data?.top_unsolved_topics || [];
 
   const completionRate = summary.total > 0 ? Math.round((summary.resolved / summary.total) * 100) : 0;
+  const unclassifiedCount = summary.unclassified ?? 0;
+
+  const handleSubjectClick = (subjectId: string) => {
+    setSelectedSubjectId(subjectId);
+    setSelectedTopicId(null);
+    navigate(`/study/${subjectId}`);
+  };
+
+  const handleTopicClick = (topicId: string) => {
+    const rootSub = getRootSubjectId(topicId, taxonomies);
+    setSelectedSubjectId(rootSub);
+    setSelectedTopicId(topicId);
+    navigate(`/study/${rootSub}/${topicId}`);
+  };
+
+  const handleUnclassifiedClick = () => {
+    setSelectedSubjectId('all');
+    setSelectedTopicId('unclassified');
+    navigate('/study/all');
+  };
 
   return (
     <div className="space-y-6">
@@ -55,6 +89,32 @@ export const DashboardView: React.FC = () => {
         {/* Decorative Wave Gradient */}
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-[#F4A0A0]/20 via-[#F5C6A0]/15 to-transparent pointer-events-none" />
       </div>
+
+      {/* Unclassified Alert Banner (if any unclassified problems exist) */}
+      {unclassifiedCount > 0 && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+          <div className="flex items-center space-x-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                發現 {unclassifiedCount} 題尚未指派課綱章節
+              </div>
+              <div className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                將題目指派至具體單元，可讓進度追蹤與弱點分析更為精確。
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleUnclassifiedClick}
+            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-xs flex items-center space-x-1.5 shrink-0"
+          >
+            <FolderSync className="w-3.5 h-3.5" />
+            <span>立即指派章節</span>
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -100,6 +160,10 @@ export const DashboardView: React.FC = () => {
             </h2>
             <Link
               to="/study/math"
+              onClick={() => {
+                setSelectedSubjectId('math');
+                setSelectedTopicId(null);
+              }}
               className="text-xs text-[#6366F1] font-medium flex items-center space-x-1 hover:underline"
             >
               <span>進入刷題</span>
@@ -112,18 +176,32 @@ export const DashboardView: React.FC = () => {
               尚無科目統計資料。點擊右上角「上傳錯題」開始使用！
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {subjects.map((sub) => {
                 const pct = sub.total > 0 ? Math.round((sub.resolved / sub.total) * 100) : 0;
+                const unsolvedSub = sub.total - sub.resolved;
                 return (
-                  <div key={sub.subject_id} className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-[#374151] dark:text-[#D1D5DB]">{sub.subject_label}</span>
-                      <span className="text-[#9CA3AF]">
+                  <div
+                    key={sub.subject_id}
+                    onClick={() => handleSubjectClick(sub.subject_id)}
+                    className="p-3.5 rounded-2xl bg-stone-50/70 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 hover:border-indigo-400/40 dark:hover:border-indigo-500/40 hover:bg-stone-100/70 dark:hover:bg-stone-800/70 cursor-pointer transition-all duration-150 space-y-2 group"
+                  >
+                    <div className="flex justify-between items-center text-xs font-medium">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[#374151] dark:text-[#D1D5DB] font-semibold group-hover:text-[#6366F1] transition-colors">
+                          {sub.subject_label}
+                        </span>
+                        {unsolvedSub > 0 && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold">
+                            {unsolvedSub} 題待複習
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[#9CA3AF] text-[11px] font-mono">
                         {sub.resolved} / {sub.total} 題 ({pct}%)
                       </span>
                     </div>
-                    <div className="w-full h-2.5 bg-stone-100 dark:bg-stone-800 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-[#6366F1] to-[#10B981] rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
@@ -149,18 +227,18 @@ export const DashboardView: React.FC = () => {
           ) : (
             <div className="space-y-3">
               {topUnsolved.map((topic, idx) => {
-                const subjectCode = topic.topic_id ? topic.topic_id.split('-')[0] : 'math';
                 return (
                   <div
                     key={topic.topic_id}
-                    className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between"
+                    onClick={() => handleTopicClick(topic.topic_id)}
+                    className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between hover:border-indigo-400/40 dark:hover:border-indigo-500/40 cursor-pointer transition-all duration-150 group"
                   >
                     <div className="flex items-center space-x-3">
                       <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
                         #{idx + 1}
                       </span>
                       <div>
-                        <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]">
+                        <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] group-hover:text-[#6366F1] transition-colors">
                           {topic.topic_label}
                         </div>
                         <div className="text-[10px] text-[#9CA3AF]">
@@ -168,13 +246,9 @@ export const DashboardView: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <Link
-                      to={`/study/${subjectCode}/${topic.topic_id}`}
-                      aria-label={`前往 ${topic.topic_label} 錯題列表`}
-                      className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 hover:bg-stone-200 dark:hover:bg-stone-600 active:scale-95 transition-all"
-                    >
+                    <div className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/40 active:scale-95 transition-all">
                       <ArrowRight className="w-4 h-4" />
-                    </Link>
+                    </div>
                   </div>
                 );
               })}

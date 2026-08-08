@@ -106,7 +106,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   initialDrawData,
   readOnly = false,
   inkVisible = true,
-  calcSpaceHeight = 240,
+  calcSpaceHeight = 140,
   onSaveDrawData,
   activeTool = 'pen',
   activeColor = '#6366F1',
@@ -227,8 +227,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         eraserMasks: updatedErasers,
         baseWidth: activeBaseW,
         baseHeight: activeBaseH,
-        calcSpaceHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 240,
-        expansions: [{ addedHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 240, atY: currentHeight }],
+        calcSpaceHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 140,
+        expansions: [{ addedHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 140, atY: currentHeight }],
       };
       lastSavedDataJsonRef.current = JSON.stringify(payload);
       if (onSaveDrawData) {

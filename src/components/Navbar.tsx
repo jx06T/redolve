@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -19,6 +19,8 @@ export const Navbar: React.FC = () => {
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
   const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState<boolean>(false);
+
+  const menuContainerRef = useRef<HTMLDivElement>(null);
 
   // Global Keyboard Shortcuts Hook
   useKeyboardShortcuts({
@@ -51,6 +53,36 @@ export const Navbar: React.FC = () => {
     }
   }, [currentUser, setCurrentUser, loadTaxonomies]);
 
+  // Close mobile drawer on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setMobileSearchOpen(false);
+  }, [location.pathname]);
+
+  // Handle click outside and ESC key for mobile drawer
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuContainerRef.current && !menuContainerRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMenuOpen]);
+
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -59,29 +91,33 @@ export const Navbar: React.FC = () => {
     }
   };
 
+  const handleLogoClick = () => {
+    navigate(`/study/${selectedSubjectId || 'math'}`);
+  };
 
   const navLinks = NAV_LINKS;
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-white/80 dark:bg-[#202023]/80 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#2C2C30] px-4 py-3">
+      <header className="sticky top-0 z-30 bg-white/85 dark:bg-[#202023]/85 backdrop-blur-md border-b border-[#E5E7EB] dark:border-[#2C2C30] px-4 py-3">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Brand Logo & Subject Selector */}
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-2xl text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="md:hidden p-2 rounded-2xl text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800 active:scale-95 transition-all"
               aria-label="選單 Toggle"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
             <span
-              onDoubleClick={() => navigate('/')}
-              onClick={() => setTimeout(() => window.location.reload(), 200)}
-              className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight select-none cursor-pointer"
+              onClick={handleLogoClick}
+              onDoubleClick={() => window.location.reload()}
+              className="flex items-center space-x-2 text-slate-800 dark:text-slate-100 font-semibold tracking-tight select-none cursor-pointer group"
+              title="前往錯題首頁 (雙擊重新整理)"
             >
-              <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400 rounded-2xl">
+              <div className="p-2.5 bg-[#6366F1]/10 group-hover:bg-[#6366F1]/20 text-[#6366F1] dark:text-indigo-400 rounded-2xl transition-all">
                 <PenTool className="w-5 h-5" />
               </div>
               <div className="flex flex-col">
@@ -209,7 +245,7 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
 
-        {/* Mobile Search Bar Overlay */}
+        {/* Mobile Search Bar Expandable in Header */}
         {mobileSearchOpen && (
           <div className="sm:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30]">
             <form onSubmit={handleSearchSubmit} className="relative">
@@ -225,21 +261,31 @@ export const Navbar: React.FC = () => {
             </form>
           </div>
         )}
+      </header>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="md:hidden mt-3 pt-3 border-t border-[#E5E7EB] dark:border-[#2C2C30] space-y-2">
+      {/* Floating Mobile Navigation Drawer (Overlay, non-pushing) */}
+      {mobileMenuOpen && (
+        <div
+          className="fixed inset-0 top-[61px] z-50 bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
+          onClick={() => setMobileMenuOpen(false)}
+        >
+          <div
+            ref={menuContainerRef}
+            onClick={(e) => e.stopPropagation()}
+            className="m-3 p-4 bg-white/95 dark:bg-[#202023]/95 backdrop-blur-xl rounded-3xl border border-[#E5E7EB] dark:border-[#2C2C30] shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
+          >
             {/* Mobile Subject Selector */}
-            <div className="px-2 pb-2">
-              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1">科目選擇</label>
+            <div className="px-1 pb-1">
+              <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">目前篩選科目</label>
               <select
                 value={selectedSubjectId || 'math'}
                 onChange={(e) => {
                   const val = e.target.value;
                   setSelectedSubjectId(val);
+                  setMobileMenuOpen(false);
                   navigate(`/study/${val}`);
                 }}
-                className="w-full p-2 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]"
+                className="w-full p-2.5 rounded-xl bg-stone-100 dark:bg-stone-800 text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] border border-stone-200 dark:border-stone-700 focus:outline-none focus:border-[#6366F1]"
               >
                 {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                   <option key={sub.id} value={sub.id}>
@@ -250,24 +296,29 @@ export const Navbar: React.FC = () => {
               </select>
             </div>
 
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
-              return (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center space-x-3 px-4 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
-                    ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
-                    : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
-                    }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{link.label}</span>
-                </Link>
-              );
-            })}
+            <div className="h-px bg-stone-200 dark:bg-stone-800 my-1" />
+
+            {/* Navigation Links */}
+            <div className="space-y-1">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                const isActive = location.pathname === link.path || (link.path !== '/' && location.pathname.startsWith(link.path));
+                return (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
+                      ? 'bg-[#6366F1]/10 text-[#6366F1] font-semibold'
+                      : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800'
+                      }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{link.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
 
             {/* Mobile Drawer Upload Action */}
             <div className="pt-2">
@@ -277,24 +328,21 @@ export const Navbar: React.FC = () => {
                   setMobileMenuOpen(false);
                   setUploadModalOpen(true);
                 }}
-                className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
+                className="w-full flex items-center justify-center space-x-2 py-3 px-4 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-[0.98] transition-all shadow-xs"
               >
                 <Upload className="w-4 h-4" />
                 <span>批次上傳錯題</span>
               </button>
             </div>
           </div>
-        )}
-      </header>
+        </div>
+      )}
 
       {/* Upload Modal Container */}
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onUploadSuccess={() => {
-          // Clear the current problem list so StudyView shows a loading state
-          // rather than the stale filtered list. StudyView's useEffect will
-          // re-fetch with the correct subject_id immediately after navigation.
           setProblems([], null);
           navigate(`/study/${selectedSubjectId || 'math'}`);
         }}

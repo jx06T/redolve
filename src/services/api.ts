@@ -376,6 +376,15 @@ export async function seedAdminTaxonomy(): Promise<{ status: string; count: numb
     headers: getAuthHeaders(),
     credentials: 'include',
   });
+  return res.json();
+}
+
+export async function syncSeedTaxonomiesApi(): Promise<{ status: string; message: string; count: number }> {
+  const res = await fetch(`${API_BASE}/taxonomy/sync-seed`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    credentials: 'include',
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -392,4 +401,5 @@ export async function fetchAdminMe(): Promise<{ isAdmin: boolean }> {
     return { isAdmin: false };
   }
 }
+
 

@@ -12,7 +12,7 @@ export const SearchView: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
-  const { taxonomies, setActiveProblemId } = useStore();
+  const { taxonomies, setActiveProblemId, setSelectedSubjectId, setSelectedTopicId } = useStore();
 
   useSEO({
     title: query ? `搜尋「${query}」` : '全域錯題搜尋',
@@ -36,6 +36,8 @@ export const SearchView: React.FC = () => {
   const handleNavigateToProblem = (item: Item) => {
     setActiveProblemId(item.id);
     const targetSubject = getRootSubjectId(item.topic_id, taxonomies);
+    setSelectedSubjectId(targetSubject);
+    setSelectedTopicId(item.topic_id || null);
     navigate(`/study/${targetSubject}#problem-${item.id}`);
   };
 

@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import { Bindings, Variables, TaxonomyNode } from '../types';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
-import { ensureSeedTaxonomies } from './problems';
+import { ensureSeedTaxonomies, syncSeedTaxonomies } from './problems';
 import { isAdminUser } from './admin';
 
 export const taxonomyRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -14,6 +14,16 @@ interface TaxonomyRow {
   label: string;
   level: number;
 }
+
+const seedOrderMap = new Map<string, number>();
+let orderIdx = 0;
+const indexSeedNodes = (nodes: TaxonomyNode[]) => {
+  for (const node of nodes) {
+    seedOrderMap.set(node.id, orderIdx++);
+    if (node.children) indexSeedNodes(node.children);
+  }
+};
+indexSeedNodes(TAXONOMY_SEED_DATA);
 
 function buildTree(rows: TaxonomyRow[]): TaxonomyNode[] {
   const nodeMap = new Map<string, TaxonomyNode>();
@@ -41,6 +51,21 @@ function buildTree(rows: TaxonomyRow[]): TaxonomyNode[] {
     }
   }
 
+  const sortNodes = (list: TaxonomyNode[]) => {
+    list.sort((a, b) => {
+      const orderA = seedOrderMap.has(a.id) ? seedOrderMap.get(a.id)! : 100000;
+      const orderB = seedOrderMap.has(b.id) ? seedOrderMap.get(b.id)! : 100000;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.id.localeCompare(b.id);
+    });
+    for (const n of list) {
+      if (n.children && n.children.length > 0) {
+        sortNodes(n.children);
+      }
+    }
+  };
+
+  sortNodes(rootNodes);
   return rootNodes;
 }
 
@@ -277,3 +302,18 @@ taxonomyRouter.delete('/:id', authMiddleware, async (c) => {
     message: '已刪除項目',
   });
 });
+
+// 5. Sync / Reset Official Seed Taxonomies (Incremental Update)
+taxonomyRouter.post('/sync-seed', authMiddleware, async (c) => {
+  try {
+    const result = await syncSeedTaxonomies(c.env.DB);
+    return c.json({
+      status: 'ok',
+      message: `已同步官方課綱架構 (共 ${result.count} 個官方節點)`,
+      count: result.count,
+    });
+  } catch (err: any) {
+    return c.json({ error: { code: 'SYNC_FAILED', message: err.message || '課綱同步失敗' } }, 500);
+  }
+});
+

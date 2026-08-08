@@ -22,18 +22,10 @@ function decodeCursor(cursor: string): { created_at: string; id: string } | null
 }
 
 /**
- * Ensures all official seed taxonomies exist in D1 database
+ * Ensures and syncs official seed taxonomies in D1 database
  */
-export async function ensureSeedTaxonomies(db: D1Database): Promise<void> {
+export async function syncSeedTaxonomies(db: D1Database): Promise<{ count: number }> {
   try {
-    const row = await db
-      .prepare('SELECT COUNT(*) as count FROM taxonomies WHERE user_id IS NULL')
-      .first<{ count: number }>();
-    // Seed data has 43 nodes; check for at least 40 to handle minor variations
-    if (row && row.count >= 40) {
-      return;
-    }
-
     const flattenNodes = (nodes: TaxonomyNode[]): { id: string; parent_id: string | null; label: string; level: number }[] => {
       const list: any[] = [];
       const traverse = (items: TaxonomyNode[]) => {
@@ -49,10 +41,31 @@ export async function ensureSeedTaxonomies(db: D1Database): Promise<void> {
     const flat = flattenNodes(TAXONOMY_SEED_DATA);
     const stmts = flat.map((node) =>
       db
-        .prepare('INSERT OR IGNORE INTO taxonomies (id, user_id, parent_id, label, level) VALUES (?, NULL, ?, ?, ?)')
+        .prepare(
+          `INSERT INTO taxonomies (id, user_id, parent_id, label, level)
+           VALUES (?, NULL, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET label = excluded.label, parent_id = excluded.parent_id, level = excluded.level
+           WHERE taxonomies.user_id IS NULL`
+        )
         .bind(node.id, node.parent_id, node.label, node.level)
     );
     await db.batch(stmts);
+    return { count: flat.length };
+  } catch (err) {
+    console.warn('[syncSeedTaxonomies] Failed to sync seed taxonomies:', err);
+    throw err;
+  }
+}
+
+export async function ensureSeedTaxonomies(db: D1Database): Promise<void> {
+  try {
+    const row = await db
+      .prepare('SELECT COUNT(*) as count FROM taxonomies WHERE user_id IS NULL')
+      .first<{ count: number }>();
+    if (row && row.count >= 40) {
+      return;
+    }
+    await syncSeedTaxonomies(db);
   } catch (err) {
     console.warn('[ensureSeedTaxonomies] Failed to ensure seed taxonomies:', err);
   }
