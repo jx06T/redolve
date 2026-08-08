@@ -16,6 +16,7 @@ import { useSEO } from '../hooks/useSEO';
 import { DashboardData } from '../types';
 import { useStore } from '../store/useStore';
 import { getRootSubjectId } from '../components/StatusBadge';
+import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -71,6 +72,8 @@ export const DashboardView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <GuestNoticeBanner />
+
       {/* Header Banner */}
       <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 relative overflow-hidden">
         <div className="max-w-2xl relative z-10 space-y-2">

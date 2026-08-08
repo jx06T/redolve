@@ -16,14 +16,20 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
   loadingKeys,
   loadKeys,
 }) => {
-  const { showToast } = useStore();
+  const { showToast, currentUser, setAuthModalOpen } = useStore();
   const [newKey, setNewKey] = useState<string | null>(null);
   const [description, setDescription] = useState<string>('');
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [revokeKeyTarget, setRevokeKeyTarget] = useState<string | null>(null);
 
+  const isGuest = !currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV);
+
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isGuest) {
+      setAuthModalOpen(true);
+      return;
+    }
     try {
       const res = await createApiKey(description.trim() || 'iPad 捷徑 Key');
       setNewKey(res.key);
@@ -73,6 +79,26 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Guest Lock Notice Banner */}
+      {isGuest && (
+        <div className="p-6 rounded-3xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 space-y-3 animate-in fade-in">
+          <div className="flex items-center space-x-2.5 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
+            <ShieldCheck className="w-5 h-5 text-[#6366F1]" />
+            <span>iOS 捷徑金鑰需綁定雲端會員帳號</span>
+          </div>
+          <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF] leading-relaxed">
+            iOS 截圖一鍵傳送捷徑會將照片自動歸屬到您的個人帳號。目前您處於訪客試用模式，請先登入 Google 帳號以取得專屬 API Key。
+          </p>
+          <button
+            type="button"
+            onClick={() => setAuthModalOpen(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-[#6366F1] text-white hover:bg-[#4F46E5] text-xs font-semibold shadow-xs transition-all active:scale-95"
+          >
+            <span>登入 Google 帳號以啟用金鑰</span>
+          </button>
+        </div>
+      )}
 
       {/* Newly Generated Key Alert Box */}
       {newKey && (

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
+import { X, Upload, Trash2, CheckCircle2, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
 import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
 
 const compressImage = (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(img.src);
@@ -25,18 +25,18 @@ const compressImage = (file: File): Promise<File> => {
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(
         (blob) => {
-          if (blob) {
-            const baseName = file.name.replace(/\.[^/.]+$/, '');
-            resolve(new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' }));
-          } else {
-            resolve(file);
-          }
+          if (!blob) return resolve(file);
+          const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressed);
         },
         'image/jpeg',
         0.8
       );
     };
-    img.onerror = () => reject(new Error('Image load failed'));
+    img.onerror = () => resolve(file);
     img.src = URL.createObjectURL(file);
   });
 };
@@ -48,7 +48,17 @@ interface UploadModalProps {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { setIsLoading, showToast, addOptimisticProblem, removeProblemFromStore, selectedSubjectId } = useStore();
+  const { 
+    setIsLoading, 
+    showToast, 
+    addOptimisticProblem, 
+    removeProblemFromStore, 
+    selectedSubjectId,
+    currentUser,
+    setAuthModalOpen,
+  } = useStore();
+
+  const isGuest = !currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV);
 
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
@@ -224,6 +234,26 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
         {/* Scrollable Body Content */}
         <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+          {/* Guest Mode Notice */}
+          {isGuest && (
+            <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between text-xs text-[#6B7280] dark:text-[#9CA3AF]">
+              <div className="flex items-center space-x-2">
+                <Cloud className="w-4 h-4 text-[#6366F1] shrink-0" />
+                <span>訪客上傳之錯題僅暫存於此瀏覽器。登入 Google 帳號可自動備份至雲端。</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  setAuthModalOpen(true);
+                }}
+                className="text-[#6366F1] dark:text-indigo-400 font-semibold hover:underline shrink-0 ml-2"
+              >
+                登入帳號
+              </button>
+            </div>
+          )}
+
           {/* 1. Separated Year & Exam Type Selector */}
           <div className="space-y-3 p-3.5 bg-stone-50 dark:bg-[#1a1a1d] rounded-2xl border border-stone-200/60 dark:border-stone-800">
             {/* Year Chips */}

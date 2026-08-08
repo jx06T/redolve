@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command, LogIn } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
@@ -220,10 +220,23 @@ export const Navbar: React.FC = () => {
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
+            {/* Guest Direct Sign-In CTA (Visible when not logged in) */}
+            {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
+              <button
+                type="button"
+                onClick={() => setAuthModalOpen(true)}
+                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200/80 dark:border-indigo-800/60 text-[#6366F1] dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+                title="登入 Google 帳號以啟用雲端跨裝置同步"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>登入 / 註冊</span>
+              </button>
+            )}
+
             {/* User Session & Auth Profile Button */}
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="flex items-center space-x-1.5 p-1 sm:px-3 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
+              className="flex items-center space-x-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-stone-200 dark:border-stone-800 bg-stone-50 dark:bg-stone-800/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] transition-all"
               title="使用者帳號與身分管理"
             >
               <div className="w-6 h-6 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">
@@ -238,7 +251,7 @@ export const Navbar: React.FC = () => {
               </div>
               <span className="hidden xl:inline text-xs font-semibold max-w-[90px] truncate">
                 {currentUser?.id === 'dev_user_default' && !import.meta.env.DEV
-                  ? '登入帳號'
+                  ? '訪客試用'
                   : currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}
               </span>
             </button>
@@ -274,6 +287,26 @@ export const Navbar: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             className="m-3 p-4 bg-white/95 dark:bg-[#202023]/95 backdrop-blur-xl rounded-3xl border border-[#E5E7EB] dark:border-[#2C2C30] shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
           >
+            {/* Guest Banner in Mobile Drawer */}
+            {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
+              <div className="p-3 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/60 dark:border-indigo-800/40 flex items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-[#1F2937] dark:text-[#F3F4F6]">訪客試用模式</div>
+                  <div className="text-[11px] text-[#6B7280] dark:text-[#9CA3AF]">登入以同步多裝置資料</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setAuthModalOpen(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-semibold active:scale-95 shadow-xs shrink-0"
+                >
+                  登入 / 註冊
+                </button>
+              </div>
+            )}
+
             {/* Mobile Subject Selector */}
             <div className="px-1 pb-1">
               <label className="block text-[11px] font-bold text-[#9CA3AF] mb-1.5">目前篩選科目</label>

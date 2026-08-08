@@ -7,6 +7,7 @@ import { fetchProblems, updateProblemMetadata, analyzeProblem } from '../service
 import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { ProblemMetadataModal } from '../components/problem/ProblemMetadataModal';
+import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
 import { Sidebar } from '../components/Sidebar';
 import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 // import { EraserFAB } from '../components/EraserFAB';
@@ -356,6 +357,9 @@ export const StudyView: React.FC = () => {
       {/* Main Virtualized Problem Stream Feed */}
       <section className="flex-1 flex flex-col min-w-0" aria-label="錯題串流列表">
         <h1 className="sr-only">{currentSubjectLabel}{currentTopicLabel} 錯題刷題複習</h1>
+        <div className="pl-3 sm:pl-6 lg:pl-9 pr-2 sm:pr-4 lg:pr-5">
+          <GuestNoticeBanner />
+        </div>
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
