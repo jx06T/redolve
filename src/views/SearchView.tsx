@@ -22,6 +22,18 @@ export const SearchView: React.FC = () => {
   const [results, setResults] = useState<Item[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
+  const [localQuery, setLocalQuery] = useState<string>(query);
+
+  useEffect(() => {
+    setLocalQuery(query);
+  }, [query]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (localQuery.trim()) {
+      navigate(`/search?q=${encodeURIComponent(localQuery.trim())}`);
+    }
+  };
 
   useEffect(() => {
     if (query) {
@@ -43,20 +55,42 @@ export const SearchView: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {/* Prominent Search Bar */}
+      <form onSubmit={handleSearchSubmit} className="w-full relative group">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-text-muted group-focus-within:text-primary transition-colors" />
+        </div>
+        <input
+          type="text"
+          value={localQuery}
+          onChange={(e) => setLocalQuery(e.target.value)}
+          placeholder="輸入關鍵字、標籤或錯題來源..."
+          className="block w-full pl-11 pr-24 py-4 rounded-3xl bg-surface border-2 border-border-subtle focus:border-primary focus:ring-4 focus:ring-primary/10 text-base text-text-main transition-all shadow-sm"
+        />
+        <div className="absolute inset-y-0 right-2 flex items-center">
+          <button
+            type="submit"
+            className="px-5 py-2 bg-primary text-white font-bold text-sm rounded-2xl hover:bg-primary-hover active:scale-95 transition-all shadow-sm"
+          >
+            搜尋
+          </button>
+        </div>
+      </form>
+
       {/* Search Header Bar */}
-      <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-xs">
         <div>
-          <div className="flex items-center space-x-3 text-text-main">
-            <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
-              <Search className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 className="text-base font-bold">全域 FTS5 中文檢索</h1>
-              <p className="text-xs text-text-muted mt-0.5">
-                關鍵字：<span className="font-semibold text-primary">"{query}"</span> · 共找到 {results.length} 題
-              </p>
-            </div>
-          </div>
+          <h1 className="text-sm font-bold text-text-main flex items-center space-x-2">
+            <span>FTS5 中文檢索結果</span>
+            {query && (
+              <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-lg border border-primary/20">
+                "{query}"
+              </span>
+            )}
+          </h1>
+          <p className="text-[11px] text-text-muted mt-1">
+            共找到 <span className="font-semibold text-text-main">{results.length}</span> 題
+          </p>
         </div>
 
         {/* View Mode Switcher */}
