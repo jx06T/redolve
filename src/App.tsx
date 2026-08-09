@@ -89,7 +89,7 @@ export default function App() {
               element={
                 <>
                   <Navbar />
-                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-20 md:pb-6">
+                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-16 md:pb-6">
                     <Routes>
                       <Route path="/" element={<DashboardView />} />
                       <Route path="/study" element={<Navigate to="/study/math" replace />} />

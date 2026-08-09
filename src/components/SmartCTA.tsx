@@ -43,7 +43,7 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
 
   return (
     <div
-      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.5rem)' }}
+      style={{ bottom: 'calc(max(env(safe-area-inset-bottom, 0px), 2px) + 3.75rem)' }}
       className="fixed md:bottom-8 right-5 sm:right-6 z-40 flex items-center space-x-2"
     >
       <button
