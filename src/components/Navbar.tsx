@@ -185,7 +185,7 @@ export const Navbar: React.FC = () => {
                 placeholder="搜尋錯題、關鍵字..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main focus:outline-none focus:border-primary transition-all w-32 md:w-48 xl:w-64"
+                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main focus:outline-none focus:ring-1 focus:ring-primary transition-all w-32 md:w-48 xl:w-64"
               />
             </form>
 

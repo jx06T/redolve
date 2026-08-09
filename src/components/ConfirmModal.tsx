@@ -40,7 +40,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
               className={`p-2.5 rounded-2xl ${
                 isDestructive
                   ? 'bg-status-eraser/10 text-status-eraser border border-status-eraser/20'
-                  : 'bg-primary/10 text-primary dark:bg-primary-950/40 dark:text-primary-300'
+                  : 'bg-primary/10 text-primary'
               }`}
             >
               <AlertCircle className="w-5 h-5" />
@@ -65,7 +65,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             type="button"
             onClick={onCancel}
-            className="px-4 py-2 rounded-xl text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-all active:scale-95"
+            className="px-4 py-2 rounded-xl text-xs font-medium bg-neutral-100 text-text-main hover:bg-neutral-200 transition-all active:scale-95"
           >
             {cancelText}
           </button>
