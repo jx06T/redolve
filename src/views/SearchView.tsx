@@ -146,12 +146,12 @@ export const SearchView: React.FC = () => {
               >
                 <div className="space-y-3">
                   {/* Top Badges */}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex flex-col items-start gap-2 min-w-0 flex-1">
                       <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 text-primary border border-primary-200/50 shrink-0">
                         {problemCode}
                       </span>
-                      <div className="min-w-0">
+                      <div className="min-w-0 max-w-full">
                         <StatusBadge
                           status={item.status}
                           topicId={item.topic_id}
