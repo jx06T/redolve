@@ -159,7 +159,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
   return (
     <button
       onClick={onClickEdit}
-      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all text-left max-w-[86vw] min-w-0 overflow-hidden"
+      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all text-left max-w-[84vw] min-w-0 overflow-hidden"
       title="點擊以變更題目分類"
     >
       <Tag className="w-3.5 h-3.5 text-primary shrink-0" />
