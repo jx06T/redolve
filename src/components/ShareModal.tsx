@@ -156,7 +156,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
                 type="text"
                 readOnly
                 value={shareUrl}
-                className="flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 font-mono text-xs text-text-main select-all focus:outline-none"
+                className=" outline-none flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 font-mono text-xs text-text-main select-all focus:outline-none"
               />
             </div>
 

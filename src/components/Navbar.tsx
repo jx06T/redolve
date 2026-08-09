@@ -204,9 +204,9 @@ export const Navbar: React.FC = () => {
                 value={inPageSearchQuery}
                 onChange={(e) => setInPageSearchQuery(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
-                className="pl-9 pr-16 py-1.5 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle border-r-0 text-text-main focus:outline-none focus:ring-1 focus:ring-primary transition-all w-32 md:w-48 xl:w-56"
+                className=" outline-none pl-9 pr-16 py-1.5 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle border-r-0 text-text-main focus:outline-none focus:ring-1 focus:ring-primary transition-all w-32 md:w-48 xl:w-56"
               />
-              
+
               {/* In-Page Search Controls */}
               {inPageSearchQuery && (
                 <div className="absolute right-10 flex items-center space-x-0.5 px-1 bg-neutral-100 h-full">
@@ -221,7 +221,7 @@ export const Navbar: React.FC = () => {
                   </button>
                 </div>
               )}
-              
+
               {/* Global Search Button */}
               <button
                 onClick={handleGlobalSearch}
@@ -321,9 +321,9 @@ export const Navbar: React.FC = () => {
                   onChange={(e) => setInPageSearchQuery(e.target.value)}
                   onKeyDown={handleSearchKeyDown}
                   autoFocus
-                  className="w-full pl-9 pr-24 py-2 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main"
+                  className=" outline-none w-full pl-9 pr-24 py-2 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main"
                 />
-                
+
                 {inPageSearchQuery && (
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 bg-neutral-100 pl-2">
                     <span className="text-[10px] text-text-muted font-medium">
@@ -343,7 +343,7 @@ export const Navbar: React.FC = () => {
                 className="px-3 py-2 rounded-r-2xl border border-border-subtle border-l-0 bg-neutral-200 hover:bg-neutral-300 text-text-main font-medium text-xs transition-colors shrink-0 flex items-center space-x-1"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>全局搜尋</span>
+                <span className=' hidden xs:inline'>全局搜尋</span>
               </button>
             </div>
           </div>

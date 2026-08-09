@@ -80,7 +80,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
               value={editKeywordsStr}
               onChange={(e) => onKeywordsStrChange(e.target.value)}
               placeholder="例如: 貝氏定理, 條件機率"
-              className="w-full p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-text-main"
+              className="outline-none w-full p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-text-main"
             />
           </div>
         </div>

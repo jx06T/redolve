@@ -58,19 +58,19 @@ export const SearchView: React.FC = () => {
       {/* Prominent Search Bar */}
       <form onSubmit={handleSearchSubmit} className="w-full relative group">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-text-muted group-focus-within:text-primary transition-colors" />
+          <Search className="h-5 w-5 text-text-muted transition-colors" />
         </div>
         <input
           type="text"
           value={localQuery}
           onChange={(e) => setLocalQuery(e.target.value)}
           placeholder="輸入關鍵字、標籤或錯題來源..."
-          className="block w-full pl-11 pr-24 py-4 rounded-3xl bg-surface border-2 border-border-subtle focus:border-primary focus:ring-4 focus:ring-primary/10 text-base text-text-main transition-all shadow-sm"
+          className="outline-none block w-full pl-11 pr-24 py-4 rounded-3xl bg-surface text-base text-text-main transition-all "
         />
         <div className="absolute inset-y-0 right-2 flex items-center">
           <button
             type="submit"
-            className="px-5 py-2 bg-primary text-white font-bold text-sm rounded-2xl hover:bg-primary-hover active:scale-95 transition-all shadow-sm"
+            className="px-5 py-2 bg-primary text-white font-bold text-sm rounded-2xl hover:bg-primary-hover active:scale-95 transition-all"
           >
             搜尋
           </button>
@@ -78,7 +78,7 @@ export const SearchView: React.FC = () => {
       </form>
 
       {/* Search Header Bar */}
-      <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-sm font-bold text-text-main flex items-center space-x-2">
             <span>FTS5 中文檢索結果</span>
