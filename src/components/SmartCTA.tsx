@@ -42,7 +42,10 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
   };
 
   return (
-    <div className="fixed bottom-8 right-6 z-40 flex items-center space-x-2">
+    <div
+      style={{ bottom: 'calc(env(safe-area-inset-bottom, 0px) + 4.5rem)' }}
+      className="fixed md:bottom-8 right-5 sm:right-6 z-40 flex items-center space-x-2"
+    >
       <button
         onClick={handleSmartResolve}
         className={`flex items-center space-x-1.5 px-4 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 ${isResolved

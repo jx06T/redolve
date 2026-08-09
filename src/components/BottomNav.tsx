@@ -19,7 +19,10 @@ export const BottomNav: React.FC = () => {
   const isSearchRoute = location.pathname.startsWith('/search');
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border-subtle flex items-center justify-around py-1.5 px-2 shadow-lg">
+    <div
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.375rem)' }}
+      className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-border-subtle flex items-center justify-around pt-1.5 px-2 shadow-lg"
+    >
       {/* 1. Dashboard */}
       <Link
         to="/"

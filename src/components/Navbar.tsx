@@ -101,7 +101,10 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-surface border-b border-border-subtle px-4 py-3">
+      <header
+        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }}
+        className="sticky top-0 z-30 bg-surface border-b border-border-subtle px-4 pb-3"
+      >
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Brand Logo & Subject Selector */}
           <div className="flex items-center space-x-3">
@@ -284,7 +287,8 @@ export const Navbar: React.FC = () => {
       {
         mobileMenuOpen && (
           <div
-            className="fixed inset-0 top-[61px] z-50 bg-black/60 md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
+            style={{ top: 'calc(58px + env(safe-area-inset-top, 0px))' }}
+            className="fixed inset-0 z-50 bg-black/60 md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
             <div
