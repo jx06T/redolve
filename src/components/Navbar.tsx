@@ -40,9 +40,9 @@ export const Navbar: React.FC = () => {
     setProblems,
     uploadModalOpen,
     setUploadModalOpen,
-    mobileDrawerOpen: mobileMenuOpen,
-    setMobileDrawerOpen: setMobileMenuOpen,
   } = useStore();
+
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
   useEffect(() => {
     loadTaxonomies();

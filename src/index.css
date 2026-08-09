@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
 
 :root {
   /* 品牌主色系 (Primary Scales) */
@@ -190,6 +189,7 @@
 }
 
 @layer base {
+
   html,
   body {
     height: 100%;

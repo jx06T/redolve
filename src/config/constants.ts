@@ -9,14 +9,15 @@ export const NAV_LINKS = [
 
 // Separated Exam Years & Exam Types (年分與卷別獨立分離)
 export const EXAM_YEARS = [
-  '113年',
-  '112年',
-  '111年',
-  '110年',
-  '109年',
-  '108年',
-  '107年',
-  '106年',
+  '114',
+  '113',
+  '112',
+  '111',
+  '110',
+  '109',
+  '108',
+  '107',
+  '106',
 ];
 
 export const EXAM_TYPES = [
@@ -24,12 +25,9 @@ export const EXAM_TYPES = [
   '分科/指考',
   '全模',
   '北模',
-  '中模',
-  '南模',
-  '建中段考',
-  '中一中段考',
-  '雄中段考',
-  '課本例題',
+  '段考',
+  '講義',
+  '練習卷',
 ];
 
 export interface PaletteColorItem {

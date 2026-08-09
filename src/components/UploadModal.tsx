@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Upload, Trash2, CheckCircle2, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
+import { X, Upload, Trash2, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
 import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
@@ -48,11 +48,11 @@ interface UploadModalProps {
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUploadSuccess }) => {
-  const { 
-    setIsLoading, 
-    showToast, 
-    addOptimisticProblem, 
-    removeProblemFromStore, 
+  const {
+    setIsLoading,
+    showToast,
+    addOptimisticProblem,
+    removeProblemFromStore,
     selectedSubjectId,
     currentUser,
     setAuthModalOpen,
@@ -267,11 +267,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     key={year}
                     type="button"
                     onClick={() => handleSelectYear(year)}
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                      selectedYear === year
-                        ? 'bg-primary text-white font-bold shadow-xs'
-                        : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
-                    }`}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${selectedYear === year
+                      ? 'bg-primary text-white font-bold shadow-xs'
+                      : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
+                      }`}
                   >
                     {year}
                   </button>
@@ -290,11 +289,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     key={type}
                     type="button"
                     onClick={() => handleSelectType(type)}
-                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                      selectedType === type
-                        ? 'bg-primary text-white font-bold shadow-xs'
-                        : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
-                    }`}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${selectedType === type
+                      ? 'bg-primary text-white font-bold shadow-xs'
+                      : 'bg-surface text-text-muted hover:text-text-main border border-border-subtle'
+                      }`}
                   >
                     {type}
                   </button>
@@ -325,11 +323,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             }}
             onDragLeave={() => setIsDraggingOver(false)}
             onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${
-              isDraggingOver
-                ? 'border-primary bg-primary/10 scale-[1.01]'
-                : 'border-border-subtle hover:bg-neutral-50'
-            }`}
+            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${isDraggingOver
+              ? 'border-primary bg-primary/10 scale-[1.01]'
+              : 'border-border-subtle hover:bg-neutral-50'
+              }`}
           >
             <ImageIcon className="w-8 h-8 text-primary mb-1.5" />
             <span className="text-xs font-bold text-text-main">
@@ -391,56 +388,37 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
         {/* Guaranteed Sticky / Fixed Footer */}
         <div className="shrink-0 px-5 sm:px-6 py-3.5 bg-neutral-50 border-t border-border-subtle flex items-center justify-between">
-          <div>
-            {isUploading ? (
-              <div className="flex items-center space-x-2 text-xs text-primary font-semibold">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>
-                  處理中... {uploadProgress ? `(${uploadProgress.current}/${uploadProgress.total})` : ''}
-                </span>
-              </div>
-            ) : selectedFiles.length > 0 ? (
-              <div className="flex items-center space-x-1.5 text-xs text-status-resolved font-semibold">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>已選取 {selectedFiles.length} 張圖檔</span>
-              </div>
-            ) : (
-              <span className="text-xs text-text-muted">尚未加入題目圖片</span>
-            )}
-          </div>
 
-          <div className="flex items-center space-x-2">
-            <button
-              type="button"
-              disabled={isUploading}
-              onClick={onClose}
-              className="px-3.5 py-2 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-200 transition-colors disabled:opacity-40"
-            >
-              取消
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmitBatch}
-              disabled={selectedFiles.length === 0 || isUploading}
-              className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${
-                selectedFiles.length > 0 && !isUploading
-                  ? 'bg-primary hover:bg-primary-hover active:scale-95 cursor-pointer'
-                  : 'bg-neutral-300 cursor-not-allowed opacity-60'
+          <button
+            type="button"
+            disabled={isUploading}
+            onClick={onClose}
+            className="px-3.5 py-2 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-200 transition-colors disabled:opacity-40"
+          >
+            取消
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSubmitBatch}
+            disabled={selectedFiles.length === 0 || isUploading}
+            className={`flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold text-white transition-all shadow-md ${selectedFiles.length > 0 && !isUploading
+              ? 'bg-primary hover:bg-primary-hover active:scale-95 cursor-pointer'
+              : 'bg-neutral-300 cursor-not-allowed opacity-60'
               }`}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>正在壓縮並上傳...</span>
-                </>
-              ) : (
-                <>
-                  <Upload className="w-4 h-4" />
-                  <span>開始批次上傳 ({selectedFiles.length} 題)</span>
-                </>
-              )}
-            </button>
-          </div>
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>正在壓縮並上傳... {uploadProgress ? `(${uploadProgress.current}/${uploadProgress.total})` : ''}</span>
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                <span>開始批次上傳 ({selectedFiles.length} 題)</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>

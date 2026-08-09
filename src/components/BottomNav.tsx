@@ -40,8 +40,10 @@ export const BottomNav: React.FC = () => {
         onClick={() => {
           if (!isStudyRoute) {
             navigate(`/study/${currentSubject}`);
+            setMobileDrawerOpen(true);
+          } else {
+            setMobileDrawerOpen(!mobileDrawerOpen);
           }
-          setMobileDrawerOpen(!mobileDrawerOpen);
         }}
         className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
           mobileDrawerOpen ? 'text-primary font-bold' : 'text-text-muted hover:text-text-main'
