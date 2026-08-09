@@ -374,17 +374,6 @@ export const StudyView: React.FC = () => {
       <section className="flex-1 flex flex-col min-w-0" aria-label="錯題串流列表">
         <h1 className="sr-only">{currentSubjectLabel}{currentTopicLabel} 錯題刷題複習</h1>
 
-        {/* Medium Screen (iPad) Sidebar Trigger Button */}
-        <div className="hidden md:flex lg:hidden pl-3 sm:pl-6 pt-4 pb-2">
-          <button
-            onClick={() => setMobileDrawerOpen(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-surface border border-border-subtle text-primary font-bold shadow-xs hover:bg-neutral-100 transition-colors"
-          >
-            <Layers className="w-4 h-4" />
-            <span className="text-sm">開啟章節導航與篩選</span>
-          </button>
-        </div>
-
         <div className="pl-3 sm:pl-6 lg:pl-9 pr-2 sm:pr-4 lg:pr-5 pt-2 md:pt-0">
           <GuestNoticeBanner />
         </div>
@@ -447,6 +436,17 @@ export const StudyView: React.FC = () => {
 
       {/* 2. Left-Bottom Spring Eraser FAB */}
       {/* <EraserFAB /> */}
+      
+      {/* Medium Screen (iPad) Sidebar Trigger FAB */}
+      <div className="hidden md:flex lg:hidden fixed bottom-6 left-6 z-40">
+        <button
+          onClick={() => setMobileDrawerOpen(true)}
+          className="p-4 rounded-full bg-primary text-white shadow-xl hover:bg-primary-hover hover:-translate-y-1 active:scale-95 transition-all flex items-center justify-center"
+          title="開啟章節導航"
+        >
+          <Layers className="w-6 h-6" />
+        </button>
+      </div>
 
       {/* 3. Right-Bottom Floating Smart CTA */}
       <SmartCTA onStatusResolved={handleStatusResolved} />
