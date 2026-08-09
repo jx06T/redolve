@@ -90,7 +90,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Decorative Wave Gradient */}
-        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-[#F4A0A0]/20 via-[#F5C6A0]/15 to-transparent pointer-events-none" />
+        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-accent-300/20 via-accent-100/15 to-transparent pointer-events-none" />
       </div>
 
       {/* Unclassified Alert Banner (if any unclassified problems exist) */}
