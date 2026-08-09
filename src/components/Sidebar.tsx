@@ -342,7 +342,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       {/* Mobile Floating Slide-over Drawer */}
       <div
         onClick={() => setMobileDrawerOpen(false)}
-        className={`md:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`lg:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
       >
         <div
@@ -370,7 +370,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       {/* 3. Desktop Permanent Sticky Sidebar (< 1024px hidden, >= 1024px visible) */}
       {sidebarCollapsed ? (
         // 加入 self-start，避免 Flex stretch 強迫與主要內容等高而失去 sticky 效果
-        <div className='hidden md:block w-2 h-1 relative'>
+        <div className=' hidden lg:block w-2 h-1 relative'>
           <div className=" absolute self-start top-0 -left-2">
             <button
               onClick={toggleSidebarCollapsed}
@@ -383,7 +383,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         </div>
       ) : (
         // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
-        <aside className="hidden md:flex flex-col w-64 lg:w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
+        <aside className="hidden lg:flex flex-col w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-border-subtle shrink-0">
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-primary" />

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Layers } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { fetchProblems, fetchProblemById, updateProblemMetadata, analyzeProblem } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
@@ -34,6 +34,7 @@ export const StudyView: React.FC = () => {
     setActiveProblemId,
     taxonomies,
     showToast,
+    setMobileDrawerOpen,
   } = useStore();
 
   const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
@@ -372,7 +373,19 @@ export const StudyView: React.FC = () => {
       {/* Main Virtualized Problem Stream Feed */}
       <section className="flex-1 flex flex-col min-w-0" aria-label="錯題串流列表">
         <h1 className="sr-only">{currentSubjectLabel}{currentTopicLabel} 錯題刷題複習</h1>
-        <div className="pl-3 sm:pl-6 lg:pl-9 pr-2 sm:pr-4 lg:pr-5">
+
+        {/* Medium Screen (iPad) Sidebar Trigger Button */}
+        <div className="hidden md:flex lg:hidden pl-3 sm:pl-6 pt-4 pb-2">
+          <button
+            onClick={() => setMobileDrawerOpen(true)}
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-surface border border-border-subtle text-primary font-bold shadow-xs hover:bg-neutral-100 transition-colors"
+          >
+            <Layers className="w-4 h-4" />
+            <span className="text-sm">開啟章節導航與篩選</span>
+          </button>
+        </div>
+
+        <div className="pl-3 sm:pl-6 lg:pl-9 pr-2 sm:pr-4 lg:pr-5 pt-2 md:pt-0">
           <GuestNoticeBanner />
         </div>
         {isLoading && problems.length === 0 ? (
