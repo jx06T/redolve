@@ -95,23 +95,23 @@ export const DashboardView: React.FC = () => {
 
       {/* Unclassified Alert Banner (if any unclassified problems exist) */}
       {unclassifiedCount > 0 && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
+        <div className="bg-status-warning/10 border border-status-warning/30 rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+            <div className="p-2.5 rounded-2xl bg-status-warning/20 text-status-warning shrink-0">
               <AlertCircle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+              <div className="text-sm font-semibold text-status-warning">
                 發現 {unclassifiedCount} 題尚未指派課綱章節
               </div>
-              <div className="text-xs text-amber-700/80 dark:text-amber-400/80">
+              <div className="text-xs text-status-warning/80">
                 將題目指派至具體單元，可讓進度追蹤與弱點分析更為精確。
               </div>
             </div>
           </div>
           <button
             onClick={handleUnclassifiedClick}
-            className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 active:scale-95 transition-all shadow-xs flex items-center space-x-1.5 shrink-0"
+            className="px-4 py-2 rounded-xl bg-status-warning text-white text-xs font-semibold hover:bg-status-warning/90 active:scale-95 transition-all shadow-xs flex items-center space-x-1.5 shrink-0"
           >
             <FolderSync className="w-3.5 h-3.5" />
             <span>立即指派章節</span>
@@ -132,7 +132,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-2xl">
+          <div className="p-3.5 bg-status-resolved/10 text-status-resolved rounded-2xl">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
@@ -142,7 +142,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
-          <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 text-amber-500 rounded-2xl">
+          <div className="p-3.5 bg-status-warning/10 text-status-warning rounded-2xl">
             <HelpCircle className="w-6 h-6" />
           </div>
           <div>
@@ -195,7 +195,7 @@ export const DashboardView: React.FC = () => {
                           {sub.subject_label}
                         </span>
                         {unsolvedSub > 0 && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-status-warning/10 text-status-warning font-semibold">
                             {unsolvedSub} 題待複習
                           </span>
                         )}
@@ -206,7 +206,7 @@ export const DashboardView: React.FC = () => {
                     </div>
                     <div className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-300"
+                        className="h-full bg-gradient-to-r from-accent-peach to-accent-sage rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -237,7 +237,7 @@ export const DashboardView: React.FC = () => {
                     className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
+                      <span className="w-6 h-6 rounded-full bg-status-warning/10 text-status-warning font-bold text-xs flex items-center justify-center">
                         #{idx + 1}
                       </span>
                       <div>

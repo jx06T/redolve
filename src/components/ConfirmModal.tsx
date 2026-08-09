@@ -39,7 +39,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             <div
               className={`p-2.5 rounded-2xl ${
                 isDestructive
-                  ? 'bg-rose-500/10 text-rose-500 dark:bg-rose-950/40 dark:text-rose-400'
+                  ? 'bg-status-eraser/10 text-status-eraser border border-status-eraser/20'
                   : 'bg-primary/10 text-primary dark:bg-primary-950/40 dark:text-primary-300'
               }`}
             >
@@ -77,7 +77,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             }}
             className={`px-4 py-2 rounded-xl text-xs font-medium text-white transition-all active:scale-95 ${
               isDestructive
-                ? 'bg-rose-600 hover:bg-rose-700 shadow-xs'
+                ? 'bg-status-eraser hover:bg-status-eraser/90 shadow-xs'
                 : 'bg-primary hover:bg-primary-hover shadow-xs'
             }`}
           >

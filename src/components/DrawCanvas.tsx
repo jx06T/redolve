@@ -790,7 +790,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           {/* Visual Eraser Indicator Ring */}
           {!readOnly && inkVisible && (isErasingLive || (isHoveringEraser && (isEraserActive || activeTool === 'eraser'))) && eraserCursorPos && (
             <div
-              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-rose-500/70 bg-rose-500/15 backdrop-blur-[0.5px] transition-none z-20"
+              className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-status-eraser/70 bg-status-eraser/15 backdrop-blur-[0.5px] transition-none z-20"
               style={{
                 left: eraserCursorPos.x,
                 top: eraserCursorPos.y,

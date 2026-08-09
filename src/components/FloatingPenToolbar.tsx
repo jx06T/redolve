@@ -233,7 +233,7 @@ export const FloatingPenToolbar: React.FC = () => {
           onClick={() => setTool('eraser')}
           aria-label="橡皮擦工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'eraser'
-            ? 'bg-rose-500/10 text-rose-500 font-bold ring-1 ring-rose-500/30'
+            ? 'bg-status-eraser/10 text-status-eraser font-bold ring-1 ring-status-eraser/30'
             : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
             }`}
           title="橡皮擦 (局部向量擦除)"
@@ -343,13 +343,13 @@ export const FloatingPenToolbar: React.FC = () => {
               : '手指繪圖：已鎖定 (僅限 Pencil，點擊以允許手指繪圖)'
           }
           className={`p-2 rounded-2xl active:scale-95 transition-all flex items-center justify-center relative ${allowTouchDrawing
-            ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold ring-1 ring-emerald-500/30'
+            ? 'bg-status-resolved/15 text-status-resolved font-bold ring-1 ring-status-resolved/30'
             : 'bg-neutral-100 dark:bg-neutral-800 text-text-muted hover:bg-neutral-200 dark:hover:bg-neutral-700'
             }`}
         >
           <Hand className="w-4 h-4" />
           {!allowTouchDrawing && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-white dark:ring-stone-900" />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-status-warning ring-1 ring-white dark:ring-surface" />
           )}
         </button>
       </div>

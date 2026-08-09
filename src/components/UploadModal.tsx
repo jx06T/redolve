@@ -400,7 +400,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 </span>
               </div>
             ) : selectedFiles.length > 0 ? (
-              <div className="flex items-center space-x-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
+              <div className="flex items-center space-x-1.5 text-xs text-status-resolved font-semibold">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>已選取 {selectedFiles.length} 張圖檔</span>
               </div>

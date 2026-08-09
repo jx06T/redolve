@@ -102,13 +102,13 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
       {/* Newly Generated Key Alert Box */}
       {newKey && (
-        <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/40 rounded-3xl p-6 space-y-3">
-          <div className="flex items-center space-x-2 text-emerald-700 dark:text-emerald-300 text-xs font-semibold">
+        <div className="bg-status-resolved/10 border border-status-resolved/20 rounded-3xl p-6 space-y-3">
+          <div className="flex items-center space-x-2 text-status-resolved text-xs font-semibold">
             <ShieldCheck className="w-4 h-4" />
             <span>新 API Key 已順利生成！此明文僅顯示一次，請立即複製：</span>
           </div>
 
-          <div className="flex items-center space-x-2 bg-surface p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40">
+          <div className="flex items-center space-x-2 bg-surface p-3 rounded-2xl border border-status-resolved/20">
             <code className="text-xs font-mono text-text-main flex-1 truncate">
               {newKey}
             </code>

@@ -123,7 +123,7 @@ export const SearchView: React.FC = () => {
                       />
                     </div>
                     {item.status === 'resolved' && (
-                      <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center space-x-1 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-lg">
+                      <span className="text-[11px] font-medium text-status-resolved flex items-center space-x-1 bg-status-resolved/10 border border-status-resolved/20 px-2 py-0.5 rounded-lg">
                         <CheckCircle2 className="w-3 h-3" />
                         <span>已完成</span>
                       </span>

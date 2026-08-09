@@ -130,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 setMobileDrawerOpen(false);
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
-                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'
+                ? 'bg-status-warning/10 text-status-warning font-semibold'
                 : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
                 }`}
             >
@@ -277,10 +277,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     className={`text-[10px] px-1.5 py-0.5 rounded-md shrink-0 ${isActive
                       ? 'bg-white/20 text-white'
                       : item.status === 'resolved'
-                        ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-300'
+                        ? 'bg-status-resolved/15 text-status-resolved'
                         : item.status === 'archived'
-                          ? 'bg-neutral-500/20 text-neutral-600 dark:text-neutral-300'
-                          : 'bg-amber-500/20 text-amber-600 dark:text-amber-300'
+                          ? 'bg-neutral-500/20 text-text-muted'
+                          : 'bg-status-warning/15 text-status-warning'
                       }`}
                   >
                     {item.status === 'resolved' ? '已完成' : item.status === 'archived' ? '已封存' : '未訂正'}

@@ -50,29 +50,42 @@
   --color-brand: #2D3250;
   --color-brand-light: #676F9D;
   --color-brand-dark: #2D3250;
-  --color-brand-accent: #F8B179;
+  --color-brand-accent: #E7BA99;
 
-  /* 柔和粉彩 (Pastel Accents) */
+  /* 柔和點綴色系 (Pastel Low-contrast Accents Scale) */
+  --color-accent-50: #FFF8F2;
+  --color-accent-100: #FCEFE3;
+  --color-accent-200: #F7DFC9;
+  --color-accent-300: #F0CDB1;
+  --color-accent-400: #E7BA99;
+  --color-accent-500: #DDA580;
+  --color-accent-600: #CC8E68;
+  --color-accent-700: #B37852;
+  --color-accent-800: #945F3C;
+  --color-accent-900: #75482A;
+  --color-accent-950: #52311A;
+
+  /* 柔和粉彩別名 (Pastel Accents) */
   --bg-cream: #F4F4F2;
   --card-base: #FFFFFF;
   --text-soft: #4B5563;
-  --accent-peach: #F6B8A2;
-  --accent-mint: #A6CCCC;
-  --accent-lavender: #C1C2D6;
-  --accent-yellow: #EDCEA3;
-  --accent-rose: #F4A0A0;
-  --accent-sage: #A8C5BD;
+  --accent-peach: #EBB5A2;
+  --accent-mint: #A0C4C4;
+  --accent-lavender: #BDC0D4;
+  --accent-yellow: #E6C99E;
+  --accent-rose: #ECA0A0;
+  --accent-sage: #A2C1B9;
 
-  /* 核心介面語意變數 */
+  /* 核心介面語意變數 (Soft Pastel Status Colors) */
   --color-page-bg: #F4F4F2;
   --color-surface: #FFFFFF;
   --color-surface-elevated: #F9FAFB;
   --color-border-subtle: #E5E7EB;
   --color-text-main: #374151;
   --color-text-muted: #9CA3AF;
-  --color-status-resolved: #10B981;
-  --color-status-eraser: #E11D48;
-  --color-status-warning: #F59E0B;
+  --color-status-resolved: #4EA88B;
+  --color-status-eraser: #E06D75;
+  --color-status-warning: #E5A855;
 
   /* 品牌與柔和陰影 */
   --shadow-brand-sm: 0 1px 2px 0 rgba(45, 50, 80, 0.05);
@@ -80,13 +93,13 @@
   --shadow-brand-md: 0 4px 6px -1px rgba(45, 50, 80, 0.08), 0 2px 4px -1px rgba(45, 50, 80, 0.04);
   --shadow-brand-lg: 0 10px 15px -3px rgba(45, 50, 80, 0.08), 0 4px 6px -2px rgba(45, 50, 80, 0.03);
   --shadow-brand-xl: 0 20px 25px -5px rgba(45, 50, 80, 0.08), 0 10px 10px -5px rgba(45, 50, 80, 0.03);
-  --shadow-accent: 0 4px 6px -1px rgba(248, 177, 121, 0.2), 0 2px 4px -1px rgba(248, 177, 121, 0.1);
+  --shadow-accent: 0 4px 6px -1px rgba(231, 186, 153, 0.2), 0 2px 4px -1px rgba(231, 186, 153, 0.1);
   --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
 
   /* 柔和漸層 */
   --gradient-brand: linear-gradient(135deg, #2D3250 0%, #424669 50%, #676F9D 100%);
-  --gradient-accent: linear-gradient(135deg, #F8B179 0%, #F69D5A 100%);
-  --gradient-hero: linear-gradient(135deg, #2D3250 0%, #676F9D 50%, #F8B179 100%);
+  --gradient-accent: linear-gradient(135deg, #E7BA99 0%, #DDA580 100%);
+  --gradient-hero: linear-gradient(135deg, #2D3250 0%, #676F9D 50%, #E7BA99 100%);
 }
 
 .dark {
@@ -107,18 +120,18 @@
   --color-primary: #818CF8;
   --color-primary-hover: #6366F1;
 
-  /* 點綴色系 (Dark) */
-  --color-accent-50: #A85208;
-  --color-accent-100: #AF5A16;
-  --color-accent-200: #BB6827;
-  --color-accent-300: #C87638;
-  --color-accent-400: #D38347;
-  --color-accent-500: #E09255;
-  --color-accent-600: #EC9F65;
-  --color-accent-700: #F5AB71;
-  --color-accent-800: #F8B47C;
-  --color-accent-900: #FBBC89;
-  --color-accent-950: #FFCA9E;
+  /* 柔和點綴色系 (Dark Pastel Accents Scale) */
+  --color-accent-50: #52311A;
+  --color-accent-100: #75482A;
+  --color-accent-200: #945F3C;
+  --color-accent-300: #B37852;
+  --color-accent-400: #CC8E68;
+  --color-accent-500: #DDA580;
+  --color-accent-600: #E7BA99;
+  --color-accent-700: #F0CDB1;
+  --color-accent-800: #F7DFC9;
+  --color-accent-900: #FCEFE3;
+  --color-accent-950: #FFF8F2;
 
   /* 中性色系 (Dark) */
   --color-neutral-50: #030712;
@@ -137,29 +150,29 @@
   --color-brand: #F1F3F4;
   --color-brand-light: #A5A8BD;
   --color-brand-dark: #2D3250;
-  --color-brand-accent: #F69D5A;
+  --color-brand-accent: #DDA580;
 
   /* 柔和粉彩 (Pastel Accents - Dark) */
   --bg-cream: #161618;
   --card-base: #202023;
   --text-soft: #D1D5DB;
-  --accent-peach: #D38347;
-  --accent-mint: #78A3A3;
-  --accent-lavender: #8F91AD;
-  --accent-yellow: #BF9F72;
-  --accent-rose: #C07A7A;
-  --accent-sage: #75948C;
+  --accent-peach: #C87A65;
+  --accent-mint: #729B9B;
+  --accent-lavender: #8A8C9E;
+  --accent-yellow: #B89C76;
+  --accent-rose: #B87575;
+  --accent-sage: #76968E;
 
-  /* 核心介面語意變數 (Dark) */
+  /* 核心介面語意變數 (Dark - Soft Pastel Status Colors) */
   --color-page-bg: #161618;
   --color-surface: #202023;
   --color-surface-elevated: #28282C;
   --color-border-subtle: #2C2C30;
   --color-text-main: #D1D5DB;
   --color-text-muted: #9CA3AF;
-  --color-status-resolved: #34D399;
-  --color-status-eraser: #FB7185;
-  --color-status-warning: #FBBF24;
+  --color-status-resolved: #54B996;
+  --color-status-eraser: #E57D84;
+  --color-status-warning: #EDB869;
 
   /* 品牌陰影 (Dark) */
   --shadow-brand-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
@@ -191,12 +204,20 @@
     -webkit-user-select: none;
   }
 
-  input, textarea, select, [contenteditable="true"] {
+  input,
+  textarea,
+  select,
+  [contenteditable="true"] {
     user-select: auto;
     -webkit-user-select: auto;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'Outfit', 'Inter', system-ui, sans-serif;
   }
 
@@ -222,6 +243,7 @@ canvas.pencil-active {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

@@ -134,7 +134,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
           <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle cursor-pointer">
             <div className="flex items-center space-x-2.5">
-              <FileText className="w-4 h-4 text-emerald-500" />
+              <FileText className="w-4 h-4 text-primary" />
               <span className="font-semibold text-text-main">包含打字筆記 (Typed Notes)</span>
             </div>
             <input
@@ -176,7 +176,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
                 onClick={handleCopyShareUrl}
                 className="flex-1 px-1 py-2 rounded-xl bg-surface text-text-main border border-border-subtle text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
               >
-                {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                {isCopied ? <Check className="w-3.5 h-3.5 text-status-resolved" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{isCopied ? '已複製' : '複製網址'}</span>
               </button>
             </div>

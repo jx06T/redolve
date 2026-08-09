@@ -123,7 +123,7 @@ export const AuthModal: React.FC = () => {
                   <span>訪客試用模式 (未登入)</span>
                 </span>
               ) : (
-                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-900/50">
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-status-resolved/10 text-status-resolved border border-status-resolved/20">
                   <CheckCircle2 className="w-3 h-3" />
                   <span>已登入雲端帳號</span>
                 </span>
@@ -186,14 +186,14 @@ export const AuthModal: React.FC = () => {
                     <tr>
                       <td className="py-2 px-3">Apple Pencil 向量書寫與草稿</td>
                       <td className="py-2 px-2.5 text-text-muted">本機暫存</td>
-                      <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">雲端永久備份</td>
+                      <td className="py-2 px-2.5 font-medium text-status-resolved">雲端永久備份</td>
                     </tr>
                     <tr>
                       <td className="py-2 px-3">iPad / Mac / iPhone 跨裝置同步</td>
                       <td className="py-2 px-2.5 text-neutral-400">
                         <Minus className="w-3.5 h-3.5" />
                       </td>
-                      <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">
+                      <td className="py-2 px-2.5 font-medium text-status-resolved">
                         <Check className="w-3.5 h-3.5 inline mr-1" />
                         即時同步
                       </td>
@@ -203,7 +203,7 @@ export const AuthModal: React.FC = () => {
                       <td className="py-2 px-2.5 text-neutral-400">
                         <Minus className="w-3.5 h-3.5" />
                       </td>
-                      <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">
+                      <td className="py-2 px-2.5 font-medium text-status-resolved">
                         <Check className="w-3.5 h-3.5 inline mr-1" />
                         專屬金鑰
                       </td>
@@ -211,7 +211,7 @@ export const AuthModal: React.FC = () => {
                     <tr>
                       <td className="py-2 px-3">高中學測・分科課綱章節篩選</td>
                       <td className="py-2 px-2.5 text-text-muted">支援</td>
-                      <td className="py-2 px-2.5 font-medium text-emerald-600 dark:text-emerald-400">支援並記憶偏好</td>
+                      <td className="py-2 px-2.5 font-medium text-status-resolved">支援並記憶偏好</td>
                     </tr>
                   </tbody>
                 </table>

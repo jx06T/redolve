@@ -322,7 +322,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
             )}
 
             {isCustom ? (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 shrink-0">
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-status-resolved/10 text-status-resolved border border-status-resolved/20 shrink-0">
                 自訂
               </span>
             ) : (

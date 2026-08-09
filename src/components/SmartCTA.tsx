@@ -46,7 +46,7 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
       <button
         onClick={handleSmartResolve}
         className={`flex items-center space-x-1.5 px-4 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 ${isResolved
-          ? 'bg-emerald-600 hover:bg-emerald-700 ring-2 ring-emerald-500/20'
+          ? 'bg-status-resolved hover:bg-status-resolved/90 ring-2 ring-status-resolved/30'
           : 'bg-primary hover:bg-primary-hover ring-2 ring-primary/30'
           }`}
         title="智慧工作流推進器：標記當前題目並推進至下一題"

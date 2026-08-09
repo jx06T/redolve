@@ -148,7 +148,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
       <button
         onClick={onClickEdit}
         aria-label="尚未分類題目，點此編輯標籤"
-        className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400 border border-amber-200/60 dark:border-amber-900/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 active:scale-95 transition-all"
+        className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-status-warning/10 text-status-warning border border-status-warning/20 hover:bg-status-warning/15 active:scale-95 transition-all"
       >
         <AlertCircle className="w-3.5 h-3.5" />
         <span>尚未分類 — 點此指派</span>

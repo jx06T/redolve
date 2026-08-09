@@ -97,7 +97,7 @@ export const ShareView: React.FC = () => {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="bg-surface border border-border-subtle rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm">
-          <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl w-fit mx-auto">
+          <div className="p-3 bg-status-warning/10 text-status-warning rounded-2xl w-fit mx-auto">
             <AlertTriangle className="w-8 h-8" />
           </div>
           <h2 className="text-base font-bold text-text-main">連結不可用</h2>
@@ -151,7 +151,7 @@ export const ShareView: React.FC = () => {
               topicId={item.topic_id || null}
             />
             {item.status === 'resolved' && (
-              <span className="inline-flex items-center space-x-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-xl border border-emerald-200/60 dark:border-emerald-800/40">
+              <span className="inline-flex items-center space-x-1 text-xs font-medium text-status-resolved bg-status-resolved/10 px-2.5 py-1 rounded-xl border border-status-resolved/20">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>已完成訂正</span>
               </span>

@@ -68,7 +68,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
           aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
           className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
             isResolved
-              ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+              ? 'bg-status-resolved text-white hover:bg-status-resolved/90'
               : 'bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700'
           }`}
         >
