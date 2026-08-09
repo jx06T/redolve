@@ -255,6 +255,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
       const count = Math.max(targetTouchList.length, touchList.length);
 
+      // 關鍵修正：如果允許手指繪圖，且是單指，必須 preventDefault 防止 iOS Safari 在 overflow 容器中滑動
+      if (allowTouchDrawing && count === 1 && !hasStylus) {
+        e.preventDefault();
+      }
+
       if (count >= 2 && count <= 3) {
         e.preventDefault();
         isMultiTouchGestureRef.current = true;
@@ -330,7 +335,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         window.clearTimeout(gestureTimerRef.current);
       }
     };
-  }, [readOnly, isEraserActive, emitSave]);
+  }, [readOnly, isEraserActive, emitSave, allowTouchDrawing]);
 
   // Partial Vector Stroke Eraser: splits stroke into sub-strokes around the eraser circle
   const lastErasePosRef = useRef<{ x: number; y: number } | null>(null);
