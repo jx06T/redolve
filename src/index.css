@@ -60,7 +60,7 @@
 
   /* 核心介面語意變數 (Core UI Tokens - Light) */
   --color-page-bg: #F4F4F2;
-  --color-surface: #FFFFFF;
+  --color-surface: #fbfbfb;
   --color-surface-elevated: #F9FAFB;
   --color-border-subtle: #E5E7EB;
   --color-text-main: #374151;
@@ -167,6 +167,7 @@
 }
 
 @layer base {
+
   html,
   body {
     height: 100%;

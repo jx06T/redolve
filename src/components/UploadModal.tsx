@@ -207,8 +207,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4 select-none">
-      <div className="bg-surface border border-border-subtle rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+    <div 
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4 select-none"
+      onClick={() => {
+        if (!isUploading) onClose();
+      }}
+    >
+      <div 
+        className="bg-surface border border-border-subtle rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Fixed Header */}
         <div className="shrink-0 px-3 sm:px-5 py-3.5 sm:py-4 border-b border-border-subtle flex items-center justify-between bg-surface">
           <div className="flex items-center space-x-2.5">
