@@ -149,7 +149,7 @@ export const FloatingPenToolbar: React.FC = () => {
           transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
           touchAction: 'none',
         }}
-        className={`fixed top-0 left-0 z-50 bg-surface border border-border-subtle shadow-lg rounded-full p-2 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
+        className={`fixed top-0 left-0 z-40 bg-surface border border-border-subtle shadow-lg rounded-full p-2 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
           }`}
       >
         <button

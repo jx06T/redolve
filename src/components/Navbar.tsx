@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command, LogIn } from 'lucide-react';
+import { PenTool, Search, Moon, Sun, Upload, Menu, X, Command, LogIn, ChevronUp, ChevronDown, Globe } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { UploadModal } from './UploadModal';
@@ -28,7 +28,6 @@ export const Navbar: React.FC = () => {
   const {
     darkMode,
     toggleDarkMode,
-    searchQuery,
     setSearchQuery,
     selectedSubjectId,
     setSelectedSubjectId,
@@ -40,6 +39,13 @@ export const Navbar: React.FC = () => {
     setProblems,
     uploadModalOpen,
     setUploadModalOpen,
+    inPageSearchQuery,
+    setInPageSearchQuery,
+    inPageMatches,
+    inPageCurrentIndex,
+    nextInPageMatch,
+    prevInPageMatch,
+    clearInPageMatches,
   } = useStore();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -55,11 +61,12 @@ export const Navbar: React.FC = () => {
     }
   }, [currentUser, setCurrentUser, loadTaxonomies]);
 
-  // Close mobile drawer on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setMobileSearchOpen(false);
-  }, [location.pathname]);
+    clearInPageMatches();
+    setInPageSearchQuery('');
+  }, [location.pathname, clearInPageMatches, setInPageSearchQuery]);
 
   // Handle click outside and ESC key for mobile drawer
   useEffect(() => {
@@ -85,11 +92,22 @@ export const Navbar: React.FC = () => {
     };
   }, [mobileMenuOpen]);
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+  const handleGlobalSearch = () => {
+    if (inPageSearchQuery.trim()) {
+      setSearchQuery(inPageSearchQuery.trim());
+      navigate(`/search?q=${encodeURIComponent(inPageSearchQuery.trim())}`);
       setMobileSearchOpen(false);
+    }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) {
+        prevInPageMatch();
+      } else {
+        nextInPageMatch();
+      }
     }
   };
 
@@ -177,17 +195,42 @@ export const Navbar: React.FC = () => {
 
           {/* Right Search & Controls */}
           <div className="flex items-center space-x-1.5 sm:space-x-3">
-            {/* Desktop Search */}
-            <form onSubmit={handleSearchSubmit} className="relative hidden sm:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+            {/* Desktop In-Page Search */}
+            <div className="relative hidden sm:flex items-center">
+              <Search className="w-4 h-4 absolute left-3 text-text-muted" />
               <input
                 type="text"
-                placeholder="搜尋錯題、關鍵字..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main focus:outline-none focus:ring-1 focus:ring-primary transition-all w-32 md:w-48 xl:w-64"
+                placeholder="在此頁面搜尋..."
+                value={inPageSearchQuery}
+                onChange={(e) => setInPageSearchQuery(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-9 pr-16 py-1.5 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle border-r-0 text-text-main focus:outline-none focus:ring-1 focus:ring-primary transition-all w-32 md:w-48 xl:w-56"
               />
-            </form>
+              
+              {/* In-Page Search Controls */}
+              {inPageSearchQuery && (
+                <div className="absolute right-10 flex items-center space-x-0.5 px-1 bg-neutral-100 h-full">
+                  <span className="text-[10px] text-text-muted font-medium px-1">
+                    {inPageMatches.length > 0 ? inPageCurrentIndex + 1 : 0}/{inPageMatches.length}
+                  </span>
+                  <button onClick={prevInPageMatch} className="p-0.5 hover:bg-neutral-200 rounded text-text-main">
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={nextInPageMatch} className="p-0.5 hover:bg-neutral-200 rounded text-text-main">
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              
+              {/* Global Search Button */}
+              <button
+                onClick={handleGlobalSearch}
+                className="px-2 py-1.5 h-[30px] rounded-r-2xl border border-border-subtle bg-neutral-200 hover:bg-neutral-300 text-text-main transition-colors flex items-center justify-center shrink-0"
+                title="前往完整全局搜尋"
+              >
+                <Globe className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
             {/* Mobile Search Toggle Button */}
             <button
@@ -268,17 +311,41 @@ export const Navbar: React.FC = () => {
         {/* Mobile Search Bar Expandable in Header */}
         {mobileSearchOpen && (
           <div className="sm:hidden mt-3 pt-3 border-t border-border-subtle">
-            <form onSubmit={handleSearchSubmit} className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input
-                type="text"
-                placeholder="搜尋錯題、關鍵字..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-                className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main"
-              />
-            </form>
+            <div className="flex items-center">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                <input
+                  type="text"
+                  placeholder="在此頁面搜尋..."
+                  value={inPageSearchQuery}
+                  onChange={(e) => setInPageSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                  autoFocus
+                  className="w-full pl-9 pr-24 py-2 rounded-l-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main"
+                />
+                
+                {inPageSearchQuery && (
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1 bg-neutral-100 pl-2">
+                    <span className="text-[10px] text-text-muted font-medium">
+                      {inPageMatches.length > 0 ? inPageCurrentIndex + 1 : 0}/{inPageMatches.length}
+                    </span>
+                    <button onClick={prevInPageMatch} className="p-1 hover:bg-neutral-200 rounded text-text-main">
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button onClick={nextInPageMatch} className="p-1 hover:bg-neutral-200 rounded text-text-main">
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleGlobalSearch}
+                className="px-3 py-2 rounded-r-2xl border border-border-subtle border-l-0 bg-neutral-200 hover:bg-neutral-300 text-text-main font-medium text-xs transition-colors shrink-0 flex items-center space-x-1"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>全局搜尋</span>
+              </button>
+            </div>
           </div>
         )}
       </header>

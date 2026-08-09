@@ -32,6 +32,11 @@ interface StoreState {
   uploadModalOpen: boolean;
   mobileDrawerOpen: boolean;
 
+  // In-Page Search State (Ctrl+F experience)
+  inPageSearchQuery: string;
+  inPageMatches: string[];
+  inPageCurrentIndex: number;
+
   // Problem Items State
   problems: Item[];
   nextCursor: string | null;
@@ -70,6 +75,14 @@ interface StoreState {
   setActiveProblemId: (problemId: string | null) => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   toggleSidebarCollapsed: () => void;
+
+  // In-Page Search Actions
+  setInPageSearchQuery: (query: string) => void;
+  registerInPageMatch: (id: string) => void;
+  unregisterInPageMatch: (id: string) => void;
+  clearInPageMatches: () => void;
+  nextInPageMatch: () => void;
+  prevInPageMatch: () => void;
   setProblems: (problems: Item[], nextCursor: string | null) => void;
   appendProblems: (problems: Item[], nextCursor: string | null) => void;
   addProblemToStore: (problem: Item) => void;
@@ -114,6 +127,10 @@ export const useStore = create<StoreState>()(
       sidebarCollapsed: false,
       uploadModalOpen: false,
       mobileDrawerOpen: false,
+
+      inPageSearchQuery: '',
+      inPageMatches: [],
+      inPageCurrentIndex: 0,
 
       problems: [],
       nextCursor: null,
@@ -194,6 +211,28 @@ export const useStore = create<StoreState>()(
       setActiveProblemId: (activeProblemId) => set({ activeProblemId }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+
+      setInPageSearchQuery: (query) => set({ inPageSearchQuery: query }),
+      registerInPageMatch: (id) => set((state) => {
+        if (!state.inPageMatches.includes(id)) {
+          return { inPageMatches: [...state.inPageMatches, id] };
+        }
+        return state;
+      }),
+      unregisterInPageMatch: (id) => set((state) => ({
+        inPageMatches: state.inPageMatches.filter(matchId => matchId !== id)
+      })),
+      clearInPageMatches: () => set({ inPageMatches: [], inPageCurrentIndex: 0 }),
+      nextInPageMatch: () => set((state) => {
+        if (state.inPageMatches.length === 0) return state;
+        const nextIdx = (state.inPageCurrentIndex + 1) % state.inPageMatches.length;
+        return { inPageCurrentIndex: nextIdx };
+      }),
+      prevInPageMatch: () => set((state) => {
+        if (state.inPageMatches.length === 0) return state;
+        const prevIdx = (state.inPageCurrentIndex - 1 + state.inPageMatches.length) % state.inPageMatches.length;
+        return { inPageCurrentIndex: prevIdx };
+      }),
 
       setProblems: (problems, nextCursor) => set({ problems, nextCursor }),
       appendProblems: (newItems, nextCursor) =>

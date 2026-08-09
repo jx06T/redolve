@@ -384,7 +384,7 @@ export const StudyView: React.FC = () => {
             目前這個篩選條件下沒有錯題紀錄。請在右上角上傳新錯題！
           </div>
         ) : (
-          <div ref={parentRef} className="flex-1 overflow-y-auto max-h-[calc(100vh-110px)] pl-3 sm:pl-6 lg:pl-9  pr-2 sm:pr-4 lg:pr-5 py-1">
+          <div ref={parentRef} className="flex-1 overflow-y-auto max-h-[calc(100vh-110px)] pl-0 sm:pl-6 lg:pl-9  pr-0 sm:pr-4 lg:pr-5 py-1">
             <div
               className="w-full relative"
               style={{ height: `${rowVirtualizer.getTotalSize()}px` }}

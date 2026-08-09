@@ -47,6 +47,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     showToast,
     activeProblemId,
     taxonomies,
+    inPageSearchQuery,
+    registerInPageMatch,
+    unregisterInPageMatch,
+    inPageMatches,
+    inPageCurrentIndex,
   } = useStore();
 
   const isActive = activeProblemId === problem.id;
@@ -136,6 +141,41 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     setIsResolved(problem.status === 'resolved');
     setTypedNotes(problem.typed_notes || '');
   }, [problem.status, problem.typed_notes]);
+
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // In-Page Search matching logic
+  useEffect(() => {
+    if (!inPageSearchQuery) {
+      unregisterInPageMatch(problem.id);
+      return;
+    }
+    const q = inPageSearchQuery.toLowerCase();
+    const source = problem.source?.toLowerCase() || '';
+    const keywordsStr = typeof problem.keywords === 'string' ? problem.keywords.toLowerCase() : '';
+    const keywordTokens = typeof problem.keyword_tokens === 'string' ? problem.keyword_tokens.toLowerCase() : '';
+    const notes = problem.typed_notes?.toLowerCase() || '';
+    
+    if (source.includes(q) || keywordsStr.includes(q) || keywordTokens.includes(q) || notes.includes(q)) {
+      registerInPageMatch(problem.id);
+    } else {
+      unregisterInPageMatch(problem.id);
+    }
+  }, [inPageSearchQuery, problem, registerInPageMatch, unregisterInPageMatch]);
+
+  useEffect(() => {
+    return () => {
+      unregisterInPageMatch(problem.id);
+    };
+  }, [problem.id, unregisterInPageMatch]);
+
+  const isActiveMatch = inPageMatches.length > 0 && inPageMatches[inPageCurrentIndex] === problem.id;
+
+  useEffect(() => {
+    if (isActiveMatch && cardRef.current) {
+      cardRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isActiveMatch]);
 
   // Sync external draw_data changes on problem switch
   useEffect(() => {
@@ -356,11 +396,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       {/* Main Problem Card Container */}
       <div
         id={`problem-${problem.id}`}
+        ref={cardRef}
         data-problem-id={problem.id}
-        className={`bg-surface border rounded-3xl p-3 sm:p-5 transition-all duration-200 scroll-mt-24 ${isActive
-          ? 'border-primary shadow-md ring-1 ring-primary/20'
-          : 'border-border-subtle shadow-xs'
-          }`}
+        className={`bg-surface border rounded-3xl p-3 sm:p-5 transition-all duration-300 scroll-mt-[120px] ${
+          isActiveMatch
+            ? 'border-primary shadow-2xl ring-2 ring-primary ring-offset-2 ring-offset-surface scale-[1.01] z-10 relative'
+            : isActive
+              ? 'border-primary shadow-md ring-1 ring-primary/20'
+              : 'border-border-subtle shadow-xs hover:border-border-subtle/80 hover:shadow-sm'
+        }`}
       >
         {/* Header Bar */}
         <ProblemCardHeader
