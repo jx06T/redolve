@@ -169,7 +169,7 @@ export const Navbar: React.FC = () => {
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
-                  <span className="hidden lg:inline leading-[0.875rem]">{link.label}</span>
+                  <span className="hidden lg:inline leading-3.5">{link.label}</span>
                 </Link>
               );
             })}
@@ -256,7 +256,7 @@ export const Navbar: React.FC = () => {
                   ).charAt(0).toUpperCase()
                 )}
               </div>
-              <span className="hidden xl:inline text-xs font-semibold max-w-[90px] truncate">
+              <span className="hidden xl:inline text-xs font-semibold max-w-22.5 truncate">
                 {!currentUser || !currentUser.id
                   ? '訪客試用'
                   : currentUser?.name || (currentUser?.email ? currentUser.email.split('@')[0] : '帳號設定')}

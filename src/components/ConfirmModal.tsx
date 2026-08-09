@@ -28,7 +28,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const modalContent = (
     <div
       onClick={onCancel}
-      className="fixed inset-0 z-[9999] bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-9999 bg-black/60 flex items-center justify-center p-4 animate-in fade-in duration-150"
     >
       <div
         onClick={(e) => e.stopPropagation()}

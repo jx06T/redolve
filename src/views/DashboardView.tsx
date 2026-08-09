@@ -90,7 +90,7 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Decorative Wave Gradient */}
-        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-gradient-to-l from-accent-300/20 via-accent-100/15 to-transparent pointer-events-none" />
+        <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent pointer-events-none" />
       </div>
 
       {/* Unclassified Alert Banner (if any unclassified problems exist) */}
@@ -206,7 +206,7 @@ export const DashboardView: React.FC = () => {
                     </div>
                     <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-accent-peach to-accent-sage rounded-full transition-all duration-300"
+                        className="h-full bg-linear-to-r from-accent-peach to-accent-sage rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
