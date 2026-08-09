@@ -65,7 +65,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen((prev) => !prev)}
-        className={`flex items-center justify-between space-x-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface text-text-main border border-border-subtle hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
+        className={`flex items-center justify-between space-x-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-surface text-text-main border border-border-subtle hover:bg-neutral-100 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed ${buttonClassName}`}
       >
         <span className="truncate">
           {selectedOption ? selectedOption.label : placeholder}
@@ -94,7 +94,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   className={`w-full flex items-center justify-between space-x-2 px-3 py-2 rounded-xl text-xs font-medium text-left transition-colors ${
                     isSelected
                       ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
+                      : 'text-text-main hover:bg-neutral-100 '
                   }`}
                 >
                   <div className="flex items-center space-x-2 truncate">

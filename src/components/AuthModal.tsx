@@ -91,7 +91,7 @@ export const AuthModal: React.FC = () => {
         {/* Fixed Header */}
         <div className="flex items-center justify-between p-6 pb-4 border-b border-border-subtle shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2.5 rounded-2xl bg-primary-50 dark:bg-primary-950/40 text-primary">
+            <div className="p-2.5 rounded-2xl bg-primary-50 text-primary">
               <User className="w-5 h-5" />
             </div>
             <div>
@@ -103,7 +103,7 @@ export const AuthModal: React.FC = () => {
           </div>
           <button
             onClick={() => setAuthModalOpen(false)}
-            className="p-2 rounded-2xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            className="p-2 rounded-2xl text-text-muted hover:text-text-main hover:bg-neutral-100 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -113,13 +113,13 @@ export const AuthModal: React.FC = () => {
         <div className="p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
 
           {/* Current Active Session Info */}
-          <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle space-y-2.5">
+          <div className="p-4 rounded-2xl bg-neutral-50 border border-border-subtle space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold tracking-wider text-text-muted uppercase">
                 目前使用身分 (Active Session)
               </span>
               {isGuest ? (
-                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-border-subtle">
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-border-subtle">
                   <span>訪客試用模式 (未登入)</span>
                 </span>
               ) : (
@@ -165,7 +165,7 @@ export const AuthModal: React.FC = () => {
 
           {/* Feature Comparison Table (Only shown in guest mode to explain differences) */}
           {isGuest && (
-            <div className="p-4 rounded-2xl bg-neutral-50/70 dark:bg-neutral-900/60 border border-border-subtle space-y-3">
+            <div className="p-4 rounded-2xl bg-neutral-50/70 border border-border-subtle space-y-3">
               <div className="flex items-center space-x-1.5">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <h3 className="text-xs font-bold text-text-main">
@@ -175,7 +175,7 @@ export const AuthModal: React.FC = () => {
 
               <div className="overflow-hidden rounded-xl border border-border-subtle text-[11px]">
                 <table className="w-full text-left">
-                  <thead className="bg-neutral-100/70 dark:bg-neutral-800/60 text-text-muted border-b border-border-subtle font-semibold">
+                  <thead className="bg-neutral-100/70 text-text-muted border-b border-border-subtle font-semibold">
                     <tr>
                       <th className="py-2 px-3">功能項目</th>
                       <th className="py-2 px-2.5 text-neutral-500">訪客試用</th>
@@ -226,7 +226,7 @@ export const AuthModal: React.FC = () => {
                 type="button"
                 disabled={isLoading}
                 onClick={handleGoogleLogin}
-                className="w-full py-3 px-4 rounded-2xl border border-primary-200/80 dark:border-primary-800/80 bg-primary-50/60 dark:bg-primary-950/40 hover:bg-primary-100/70 dark:hover:bg-primary-900/60 text-text-main text-xs font-bold transition-all active:scale-[0.98] shadow-xs flex items-center justify-center space-x-2.5"
+                className="w-full py-3 px-4 rounded-2xl border border-primary-200/80 bg-primary-50/60 hover:bg-primary-100/70 text-text-main text-xs font-bold transition-all active:scale-[0.98] shadow-xs flex items-center justify-center space-x-2.5"
               >
                 <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                   <path

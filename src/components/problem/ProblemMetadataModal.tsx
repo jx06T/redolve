@@ -41,7 +41,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
+            className="p-1 rounded-xl hover:bg-neutral-100 text-text-muted"
           >
             <X className="w-5 h-5" />
           </button>
@@ -53,7 +53,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
             <select
               value={editTopicId}
               onChange={(e) => onTopicIdChange(e.target.value)}
-              className="w-full p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main"
+              className="w-full p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-text-main"
             >
               <option value="">未指定單元</option>
               {activeTaxonomies.map((subject) => (
@@ -80,7 +80,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
               value={editKeywordsStr}
               onChange={(e) => onKeywordsStrChange(e.target.value)}
               placeholder="例如: 貝氏定理, 條件機率"
-              className="w-full p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main"
+              className="w-full p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-text-main"
             />
           </div>
         </div>
@@ -90,7 +90,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
             type="button"
             onClick={onRunAiAnalysis}
             disabled={isAnalyzing}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/60 dark:border-primary-850/40 hover:bg-primary-100 dark:hover:bg-primary-900/60 active:scale-95 transition-all disabled:opacity-50"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium bg-primary-50 text-primary border border-primary-200/60 hover:bg-primary-100 active:scale-95 transition-all disabled:opacity-50"
           >
             {isAnalyzing ? (
               <>
@@ -109,7 +109,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-xs bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs bg-neutral-100 text-text-main hover:bg-neutral-200 transition-colors"
             >
               取消
             </button>

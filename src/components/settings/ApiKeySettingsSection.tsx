@@ -68,7 +68,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
     <div className="space-y-6">
       <div className="bg-surface border border-border-subtle rounded-3xl p-6">
         <div className="flex items-center space-x-3 text-text-main">
-          <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+          <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
             <Key className="w-5 h-5" />
           </div>
           <div>
@@ -82,7 +82,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
       {/* Guest Lock Notice Banner */}
       {isGuest && (
-        <div className="p-6 rounded-3xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200/80 dark:border-primary-850/60 space-y-3 animate-in fade-in">
+        <div className="p-6 rounded-3xl bg-primary-50/80 border border-primary-200/80 space-y-3 animate-in fade-in">
           <div className="flex items-center space-x-2.5 text-primary font-bold text-sm">
             <ShieldCheck className="w-5 h-5 text-primary" />
             <span>iOS 捷徑金鑰需綁定雲端會員帳號</span>
@@ -134,7 +134,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
             placeholder="金鑰用途說明 (例如: iPad Pro 拍照捷徑)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="flex-1 px-4 py-2 rounded-2xl text-xs bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main focus:outline-none focus:border-primary"
+            className="flex-1 px-4 py-2 rounded-2xl text-xs bg-neutral-50 border border-border-subtle text-text-main focus:outline-none focus:border-primary"
           />
           <button
             type="submit"
@@ -161,7 +161,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
             {keys.map((k) => (
               <div
                 key={k.key_prefix}
-                className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex items-center justify-between"
+                className="p-4 rounded-2xl bg-neutral-50 border border-border-subtle flex items-center justify-between"
               >
                 <div>
                   <div className="text-xs font-semibold text-text-main">

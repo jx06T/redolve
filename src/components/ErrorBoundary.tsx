@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component<Props, State> {
               很抱歉，畫面前端渲染遭遇未預期例外。您可以點擊下方按鈕重新載入應用程式。
             </p>
             {this.state.error && (
-              <div className="p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-[11px] font-mono text-text-muted text-left overflow-x-auto max-h-32">
+              <div className="p-3 rounded-2xl bg-neutral-100 text-[11px] font-mono text-text-muted text-left overflow-x-auto max-h-32">
                 {this.state.error.message}
               </div>
             )}

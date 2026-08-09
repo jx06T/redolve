@@ -46,7 +46,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
       {/* Left Badges */}
       <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
         {problemIndex === undefined && (
-          <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/50 dark:border-primary-850/40 font-mono">
+          <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-primary-50 text-primary border border-primary-200/50 font-mono">
             {problemCode}
           </span>
         )}
@@ -56,7 +56,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           onClickEdit={() => onEditMetadata && onEditMetadata(problem)}
         />
         {problem.source && (
-          <span className="inline-block text-xs text-text-muted px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800/60 font-medium">
+          <span className="inline-block text-xs text-text-muted px-2.5 py-1 rounded-lg bg-neutral-100 font-medium">
             {problem.source}
           </span>
         )}
@@ -70,7 +70,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           onClick={onReload}
           disabled={isReloading}
           aria-label="手動重新載入本題資料"
-          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all ${isReloading ? 'text-primary cursor-not-allowed' : ''
+          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all ${isReloading ? 'text-primary cursor-not-allowed' : ''
             }`}
           title="手動重新載入本題最新狀態"
         >
@@ -82,7 +82,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={onToggleInk}
           aria-label={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
-          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all ${!inkVisible ? 'text-accent-500 font-semibold bg-accent-50 dark:bg-accent-950/30' : ''
+          className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all ${!inkVisible ? 'text-accent-500 font-semibold bg-accent-50 ' : ''
             }`}
           title={inkVisible ? '隱藏筆跡 (二刷原題)' : '顯示筆跡'}
         >
@@ -95,7 +95,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           onClick={onExport}
           disabled={isExporting}
           aria-label="導出高清訂正圖檔"
-          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all"
+          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
           title="導出合成圖檔 (PNG)"
         >
           <Download className="w-4 h-4" />

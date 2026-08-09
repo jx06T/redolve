@@ -48,7 +48,7 @@ export const PencilSettingsSection: React.FC = () => {
   return (
     <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-6">
       <div className="flex items-center space-x-3 text-text-main">
-        <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+        <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
           <Sliders className="w-5 h-5" />
         </div>
         <div>
@@ -61,7 +61,7 @@ export const PencilSettingsSection: React.FC = () => {
 
       <div className="space-y-6 pt-2">
         {/* Unified Pen Color Palette Management */}
-        <div className="p-5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle space-y-4">
+        <div className="p-5 rounded-2xl bg-neutral-50 border border-border-subtle space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Palette className="w-4 h-4 text-primary" />
@@ -75,7 +75,7 @@ export const PencilSettingsSection: React.FC = () => {
             <button
               type="button"
               onClick={handleResetPalette}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs text-text-muted hover:text-primary hover:bg-neutral-200/60 dark:hover:bg-neutral-700/60 transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs text-text-muted hover:text-primary hover:bg-neutral-200/60 transition-colors"
               title="還原為系統經典 4 色預設"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -115,7 +115,7 @@ export const PencilSettingsSection: React.FC = () => {
                       removePaletteColor(c.hex);
                     }}
                     aria-label={`刪除顏色 ${c.name || c.hex}`}
-                    className="p-1 rounded-lg text-text-muted hover:text-rose-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    className="p-1 rounded-lg text-text-muted hover:text-rose-500 hover:bg-neutral-100 transition-colors"
                     title="自調色盤刪除"
                   >
                     <X className="w-3 h-3" />
@@ -190,7 +190,7 @@ export const PencilSettingsSection: React.FC = () => {
                 className={`px-4 py-2 rounded-xl text-xs font-semibold border transition-all ${
                   penWidth === w
                     ? 'bg-primary text-white border-primary shadow-xs'
-                    : 'bg-neutral-50 dark:bg-neutral-800 text-text-main border-border-subtle hover:bg-neutral-100'
+                    : 'bg-neutral-50 text-text-main border-border-subtle hover:bg-neutral-100'
                 }`}
               >
                 {w}px {w === 1 ? '(細)' : w === 2 ? '(標準)' : '(粗)'}
@@ -200,7 +200,7 @@ export const PencilSettingsSection: React.FC = () => {
         </div>
 
         {/* iPad Gestures Guide */}
-        <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-xs text-text-muted space-y-1">
+        <div className="p-4 rounded-2xl bg-neutral-50 border border-border-subtle text-xs text-text-muted space-y-1">
           <p className="font-semibold text-text-main">iPad 觸控手勢提示：</p>
           <p>• 雙指輕觸畫布可直接 Undo 復原上一步筆跡。</p>
           <p>• 運筆接近卡片底部 100px 時，畫布將平滑自動向下展延 400px。</p>

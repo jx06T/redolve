@@ -37,7 +37,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
   return (
     <div
       ref={workspaceRef}
-      className="mt-3 relative rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex flex-col"
+      className="mt-3 relative rounded-2xl overflow-hidden bg-neutral-50 border border-border-subtle flex flex-col"
     >
       {/* Main Question Image */}
       <div className="w-full relative select-none">
@@ -49,7 +49,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
         <button
           type="button"
           onClick={onOpenLightbox}
-          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-surface/80 dark:bg-neutral-900/80 shadow-sm border border-border-subtle text-text-main hover:scale-110 active:scale-95 transition-all"
+          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-surface/80 shadow-sm border border-border-subtle text-text-main hover:scale-110 active:scale-95 transition-all"
           title="放大檢視原題"
         >
           <ZoomIn className="w-4 h-4" />
@@ -59,7 +59,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
       {/* Extended Calculation Workspace Area */}
       <div
         style={{ height: `${renderedCalcSpaceHeight}px` }}
-        className={`w-full relative border-border-subtle bg-neutral-50/50 dark:bg-neutral-900/40 transition-[height] duration-200 ease-out select-none overflow-hidden ${
+        className={`w-full relative border-border-subtle bg-neutral-50/50 transition-[height] duration-200 ease-out select-none overflow-hidden ${
           renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
         }`}
       >

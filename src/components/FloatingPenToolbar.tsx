@@ -154,7 +154,7 @@ export const FloatingPenToolbar: React.FC = () => {
       >
         <button
           onClick={() => setIsCollapsed(false)}
-          className="p-1 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-main transition-all"
+          className="p-1 rounded-full hover:bg-neutral-100 text-text-main transition-all"
           title="展開工具列"
         >
           <Maximize2 className="w-4 h-4" />
@@ -190,7 +190,7 @@ export const FloatingPenToolbar: React.FC = () => {
       >
         <button
           onClick={() => setIsCollapsed(true)}
-          className="p-1.5 rounded-full hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted transition-all"
+          className="p-1.5 rounded-full hover:bg-neutral-100 text-text-muted transition-all"
           title="收合工具列"
         >
           <Minimize2 className="w-4 h-4" />
@@ -210,7 +210,7 @@ export const FloatingPenToolbar: React.FC = () => {
           aria-label="鋼筆書寫工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'pen'
             ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
-            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
+            : 'text-text-main hover:bg-neutral-100 '
             }`}
           title="鋼筆"
         >
@@ -222,7 +222,7 @@ export const FloatingPenToolbar: React.FC = () => {
           aria-label="螢光筆標記工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'highlighter'
             ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
-            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
+            : 'text-text-main hover:bg-neutral-100 '
             }`}
           title="螢光筆"
         >
@@ -234,7 +234,7 @@ export const FloatingPenToolbar: React.FC = () => {
           aria-label="橡皮擦工具"
           className={`p-2.5 rounded-2xl active:scale-95 transition-all ${tool === 'eraser'
             ? 'bg-status-eraser/10 text-status-eraser font-bold ring-1 ring-status-eraser/30'
-            : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
+            : 'text-text-main hover:bg-neutral-100 '
             }`}
           title="橡皮擦 (局部向量擦除)"
         >
@@ -284,7 +284,7 @@ export const FloatingPenToolbar: React.FC = () => {
               ? 'scale-105 ring-1 ring-primary shadow-xs border-black/10 dark:border-white/10'
               : lastCustomColor
                 ? 'border-black/10 dark:border-white/10 hover:scale-110'
-                : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border-border-subtle hover:scale-110'
+                : 'bg-neutral-100 hover:bg-neutral-200 border-border-subtle hover:scale-110'
               }`}
             style={{
               backgroundColor: lastCustomColor || undefined,
@@ -324,7 +324,7 @@ export const FloatingPenToolbar: React.FC = () => {
             aria-label={`選取筆觸粗細 ${w} pt`}
             className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center active:scale-95 transition-all ${penWidth === w
               ? 'bg-primary text-white font-bold'
-              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
+              : 'text-text-main hover:bg-neutral-100 '
               }`}
           >
             {w}p
@@ -344,12 +344,12 @@ export const FloatingPenToolbar: React.FC = () => {
           }
           className={`p-2 rounded-2xl active:scale-95 transition-all flex items-center justify-center relative ${allowTouchDrawing
             ? 'bg-status-resolved/15 text-status-resolved font-bold ring-1 ring-status-resolved/30'
-            : 'bg-neutral-100 dark:bg-neutral-800 text-text-muted hover:bg-neutral-200 dark:hover:bg-neutral-700'
+            : 'bg-neutral-100 text-text-muted hover:bg-neutral-200 '
             }`}
         >
           <Hand className="w-4 h-4" />
           {!allowTouchDrawing && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-status-warning ring-1 ring-white dark:ring-surface" />
+            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-status-warning ring-1 ring-white " />
           )}
         </button>
       </div>

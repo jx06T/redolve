@@ -296,7 +296,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
                 <button
                   type="button"
                   onClick={() => setEditingNodeId(null)}
-                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors"
+                  className="p-1 rounded-lg text-text-muted hover:text-text-main hover:bg-neutral-200/50 transition-colors"
                   title="取消"
                 >
                   <X className="w-3 h-3" />
@@ -327,7 +327,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               </span>
             ) : (
               depth === 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-text-muted border border-border-subtle shrink-0">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-neutral-100 text-text-muted border border-border-subtle shrink-0">
                   官方課綱
                 </span>
               )
@@ -344,8 +344,8 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               }}
               className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg text-xs font-mono font-medium transition-all ${
                 totalProblemCount > 0
-                  ? 'bg-primary-50 dark:bg-primary-950/50 text-primary hover:bg-primary-100 dark:hover:bg-primary-900/50 border border-primary-200/50 dark:border-primary-850/50'
-                  : 'bg-neutral-100 dark:bg-neutral-800/60 text-text-muted border border-transparent'
+                  ? 'bg-primary-50 text-primary hover:bg-primary-100 border border-primary-200/50 '
+                  : 'bg-neutral-100 text-text-muted border border-transparent'
               }`}
               title={totalProblemCount > 0 ? `點擊前往此分類刷題 (共 ${totalProblemCount} 題)` : '目前無收錄題目'}
             >
@@ -409,7 +409,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
                 if (e.key === 'Enter') handleAddSubNode(node.id);
                 if (e.key === 'Escape') setInlineAddParentId(null);
               }}
-              className="flex-1 px-3 py-1.5 rounded-lg text-xs bg-surface border border-primary-200 dark:border-primary-800 text-text-main focus:outline-none"
+              className="flex-1 px-3 py-1.5 rounded-lg text-xs bg-surface border border-primary-200 text-text-main focus:outline-none"
             />
             <button
               type="button"
@@ -444,7 +444,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
       <div className="bg-surface border border-border-subtle rounded-3xl p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-3 text-text-main">
-            <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+            <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
               <FolderPlus className="w-5 h-5" />
             </div>
             <div>
@@ -460,7 +460,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               type="button"
               onClick={handleSyncOfficialTaxonomy}
               disabled={isSyncing}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-text-main border border-border-subtle transition-all active:scale-95"
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 text-text-main border border-border-subtle transition-all active:scale-95"
               title="增量同步官方學測/分科測驗最新課綱，不影響自訂章節"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
@@ -482,10 +482,10 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
         {showTopSubjectForm && (
           <form
             onSubmit={handleAddTopSubject}
-            className="mt-4 p-4 rounded-2xl bg-primary-50/50 dark:bg-primary-950/30 border border-primary-200/60 dark:border-primary-900/50 space-y-3"
+            className="mt-4 p-4 rounded-2xl bg-primary-50/50 border border-primary-200/60 space-y-3"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-primary dark:text-primary-200">
+              <span className="text-xs font-bold text-primary ">
                 新增頂層自訂科目 (Top-level Subject)
               </span>
               <button
@@ -503,7 +503,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
                 placeholder="輸入科目名稱（例：國中理化、多益英文、托福聽力）"
                 value={newTopSubjectLabel}
                 onChange={(e) => setNewTopSubjectLabel(e.target.value)}
-                className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-surface border border-primary-200 dark:border-primary-800 text-text-main focus:outline-none"
+                className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-surface border border-primary-200 text-text-main focus:outline-none"
               />
               <button
                 type="submit"
@@ -527,7 +527,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               placeholder="快速搜尋科目、單元或概念標籤..."
               value={treeSearchQuery}
               onChange={(e) => setTreeSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-border-subtle text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
+              className="w-full pl-9 pr-8 py-2 text-xs rounded-xl bg-neutral-50 border border-border-subtle text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary"
             />
             {treeSearchQuery && (
               <button
@@ -544,14 +544,14 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
             <button
               type="button"
               onClick={expandAllNodes}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              className="px-3 py-1.5 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-100 transition-colors"
             >
               展開全部
             </button>
             <button
               type="button"
               onClick={collapseAllNodes}
-              className="px-3 py-1.5 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              className="px-3 py-1.5 rounded-xl text-xs font-medium text-text-main hover:bg-neutral-100 transition-colors"
             >
               收合全部
             </button>
