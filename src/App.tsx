@@ -14,6 +14,8 @@ import { initOnlineSync } from './services/offlineStorage';
 import { updateProblemDrawData } from './services/api';
 import { useStore } from './store/useStore';
 
+import { BottomNav } from './components/BottomNav';
+
 export default function App() {
   const { setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
 
@@ -75,7 +77,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <div className="min-h-screen bg-page-bg text-text-main transition-colors duration-200 flex flex-col font-sans">
+        <div className="h-full bg-page-bg text-text-main transition-colors duration-200 flex flex-col font-sans overflow-hidden">
           <Toast />
           <Routes>
             {/* Public Share Route without main layout header */}
@@ -87,7 +89,7 @@ export default function App() {
               element={
                 <>
                   <Navbar />
-                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3">
+                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-20 md:pb-6">
                     <Routes>
                       <Route path="/" element={<DashboardView />} />
                       <Route path="/study" element={<Navigate to="/study/math" replace />} />
@@ -99,6 +101,7 @@ export default function App() {
                       <Route path="/settings" element={<SettingsView />} />
                     </Routes>
                   </main>
+                  <BottomNav />
                 </>
               }
             />

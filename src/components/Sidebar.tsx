@@ -1,19 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, Compass, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { STATUS_FILTER_ITEMS } from '../config/constants';
 import { formatProblemCode, getTaxonomyPath } from './StatusBadge';
+import { CustomSelect } from './CustomSelect';
 
 interface SidebarProps {
   onSelectProblemOutline?: (problemId: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState<boolean>(false);
+  const navigate = useNavigate();
 
   const {
+    mobileDrawerOpen,
+    setMobileDrawerOpen,
     selectedSubjectId,
+    setSelectedSubjectId,
     selectedTopicId,
     setSelectedTopicId,
     selectedStatus,
@@ -85,9 +90,42 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   const subjectTotalCount = activeSubject
     ? computeCountForNode(activeSubject)
     : problems.filter(p => selectedStatus === 'all' || p.status === selectedStatus).length;
+  const handleSelectTopic = (tId: string | null) => {
+    setSelectedTopicId(tId);
+    setMobileDrawerOpen(false);
+    if (tId) {
+      navigate(`/study/${currentSubjectId}/${tId}`);
+    } else {
+      navigate(`/study/${currentSubjectId}`);
+    }
+  };
+
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
     <div className="space-y-4">
+      {/* Subject Selection Dropdown inside Sidebar */}
+      <div>
+        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+          <span>選擇科目</span>
+        </div>
+        <CustomSelect
+          value={currentSubjectId}
+          onChange={(val) => {
+            setSelectedSubjectId(val);
+            setSelectedTopicId(null);
+            setMobileDrawerOpen(false);
+            navigate(`/study/${val}`);
+          }}
+          options={[
+            ...(baseTaxonomy || []).map((sub) => ({
+              value: sub.id,
+              label: sub.label,
+            })),
+            { value: 'unclassified', label: '— 其他科目' },
+          ]}
+        />
+      </div>
+
       {/* Status Filter Toggle */}
       <div>
         <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
@@ -125,10 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           /* Unclassified virtual subject: no chapter tree, just a single "all" entry */
           <div className="space-y-1">
             <button
-              onClick={() => {
-                setSelectedTopicId(null);
-                setMobileDrawerOpen(false);
-              }}
+              onClick={() => handleSelectTopic(null)}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                 ? 'bg-status-warning/10 text-status-warning font-semibold'
                 : 'text-text-main hover:bg-neutral-100'
@@ -147,10 +182,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           <div className="space-y-1">
             {/* All Chapters in this Subject */}
             <button
-              onClick={() => {
-                setSelectedTopicId(null);
-                setMobileDrawerOpen(false);
-              }}
+              onClick={() => handleSelectTopic(null)}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                 ? 'bg-primary/10 text-primary font-semibold'
                 : 'text-text-main hover:bg-neutral-100'
@@ -169,19 +201,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             {activeSubject?.children?.map((unit) => {
               const isUnitSelected = selectedTopicId === unit.id;
               const unitCount = computeCountForNode(unit);
+              const isCustomUnit = (unit as any).is_custom || unit.id.startsWith('custom_');
+
               return (
                 <div key={unit.id} className="pt-1">
                   <button
-                    onClick={() => {
-                      setSelectedTopicId(unit.id);
-                      setMobileDrawerOpen(false);
-                    }}
+                    onClick={() => handleSelectTopic(unit.id)}
                     className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
                       ? 'bg-primary/10 text-primary font-semibold'
                       : 'text-text-main hover:bg-neutral-100'
                       }`}
                   >
-                    <span className="truncate">{unit.label}</span>
+                    <span className="truncate flex items-center gap-1.5">
+                      <span>{unit.label}</span>
+                      {isCustomUnit && (
+                        <span className="px-1 py-0.2 rounded text-[9px] font-normal bg-accent-peach/20 text-accent-peach border border-accent-peach/30 shrink-0">
+                          自訂
+                        </span>
+                      )}
+                    </span>
                     {unitCount > 0 && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
                         ? 'bg-primary/20 text-primary font-semibold'
@@ -198,20 +236,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                       {unit.children.map((point) => {
                         const isPointSelected = selectedTopicId === point.id;
                         const pointCount = computeCountForNode(point);
+                        const isCustomPoint = (point as any).is_custom || point.id.startsWith('custom_');
 
                         return (
                           <button
                             key={point.id}
-                            onClick={() => {
-                              setSelectedTopicId(point.id);
-                              setMobileDrawerOpen(false);
-                            }}
+                            onClick={() => handleSelectTopic(point.id)}
                             className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${isPointSelected
                               ? 'bg-primary/15 text-primary font-bold'
                               : 'text-text-muted hover:text-text-main'
                               }`}
                           >
-                            <span className="truncate">• {point.label}</span>
+                            <span className="truncate flex items-center gap-1">
+                              <span>• {point.label}</span>
+                              {isCustomPoint && (
+                                <span className="px-1 py-0.2 rounded text-[9px] font-normal bg-accent-peach/20 text-accent-peach border border-accent-peach/30 shrink-0">
+                                  自訂
+                                </span>
+                              )}
+                            </span>
                             {pointCount > 0 && (
                               <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
                                 ? 'bg-primary/20 text-primary font-bold'
@@ -310,7 +353,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       {/* 2. Mobile Floating Slide-over Drawer */}
       <div
         onClick={() => setMobileDrawerOpen(false)}
-        className={`lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`lg:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
       >
         <div
@@ -330,7 +373,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0 pr-1">{NavigationContent}</div>
+          <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y min-h-0 pr-1">{NavigationContent}</div>
         </div>
       </div>
 

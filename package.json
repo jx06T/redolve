@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.15.0",
+    "@panzoom/panzoom": "^4.6.2",
     "@tanstack/react-virtual": "^3.10.8",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",

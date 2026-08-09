@@ -346,7 +346,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       {problemIndex !== undefined && (
         <div className="flex items-center space-x-3 text-text-muted my-2 select-none">
           <div className="flex-1 h-px bg-border-subtle" />
-          <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-text-muted">
+          <span className="text-[11px] font-mono font-bold tracking-wider px-3 py-1 rounded-full bg-neutral-100 text-text-muted">
             {problemCode}
           </span>
           <div className="flex-1 h-px bg-border-subtle" />
@@ -357,8 +357,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       <div
         id={`problem-${problem.id}`}
         data-problem-id={problem.id}
-        className={`bg-surface border rounded-3xl p-5 transition-all duration-200 scroll-mt-24 ${isActive
-          ? 'border-primary shadow-md ring-1 ring-primary/20 dark:ring-primary/30'
+        className={`bg-surface border rounded-3xl p-3 sm:p-5 transition-all duration-200 scroll-mt-24 ${isActive
+          ? 'border-primary shadow-md ring-1 ring-primary/20'
           : 'border-border-subtle shadow-xs'
           }`}
       >

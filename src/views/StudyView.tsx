@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2 } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { fetchProblems, updateProblemMetadata, analyzeProblem } from '../services/api';
+import { fetchProblems, fetchProblemById, updateProblemMetadata, analyzeProblem } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
 import { ProblemMetadataModal } from '../components/problem/ProblemMetadataModal';
@@ -103,13 +103,28 @@ export const StudyView: React.FC = () => {
         status: selectedStatus === 'all' ? undefined : selectedStatus,
         limit: 15,
       });
-      setProblems(res.items, res.nextCursor);
+
+      let finalItems = res.items;
+      const targetId = problemId || targetHashProblemIdRef.current;
+
+      if (targetId && !finalItems.some((p) => p.id === targetId)) {
+        try {
+          const targetItem = await fetchProblemById(targetId);
+          if (targetItem) {
+            finalItems = [targetItem, ...finalItems];
+          }
+        } catch (err) {
+          console.warn('Could not fetch target problem by ID:', err);
+        }
+      }
+
+      setProblems(finalItems, res.nextCursor);
     } catch (err) {
       console.error('Failed to load problems:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [effectiveSubject, effectiveTopic, selectedStatus, setProblems, setIsLoading]);
+  }, [effectiveSubject, effectiveTopic, selectedStatus, problemId, setProblems, setIsLoading]);
 
   useEffect(() => {
     loadInitialProblems();

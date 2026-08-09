@@ -96,7 +96,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-start justify-center p-4 select-none">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 select-none">
       <div className="mt-14 bg-surface border border-border-subtle rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in duration-200">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-border-subtle">

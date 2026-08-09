@@ -29,6 +29,8 @@ interface StoreState {
   darkMode: boolean;
   activeProblemId: string | null;
   sidebarCollapsed: boolean;
+  uploadModalOpen: boolean;
+  mobileDrawerOpen: boolean;
 
   // Problem Items State
   problems: Item[];
@@ -55,6 +57,8 @@ interface StoreState {
   showToast: (message: string, type?: 'success' | 'error' | 'info', durationMs?: number, action?: () => void) => void;
   hideToast: () => void;
   setAuthModalOpen: (open: boolean) => void;
+  setUploadModalOpen: (open: boolean) => void;
+  setMobileDrawerOpen: (open: boolean) => void;
   setCurrentUser: (user: User | null, token?: string | null) => void;
   logout: () => void;
   setSelectedSubjectId: (subjectId: string | null) => void;
@@ -108,6 +112,8 @@ export const useStore = create<StoreState>()(
       darkMode: false,
       activeProblemId: null,
       sidebarCollapsed: false,
+      uploadModalOpen: false,
+      mobileDrawerOpen: false,
 
       problems: [],
       nextCursor: null,
@@ -139,6 +145,8 @@ export const useStore = create<StoreState>()(
       hideToast: () => set({ toast: null }),
 
       setAuthModalOpen: (authModalOpen) => set({ authModalOpen }),
+      setUploadModalOpen: (uploadModalOpen) => set({ uploadModalOpen }),
+      setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
       setCurrentUser: (user, token) => {
         if (token !== undefined) {
           if (token) {

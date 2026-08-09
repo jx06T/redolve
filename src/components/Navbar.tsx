@@ -15,9 +15,7 @@ export const Navbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState<boolean>(false);
-  const [uploadModalOpen, setUploadModalOpen] = useState<boolean>(false);
   const [shortcutsModalOpen, setShortcutsModalOpen] = useState<boolean>(false);
 
   const menuContainerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +38,10 @@ export const Navbar: React.FC = () => {
     taxonomies,
     loadTaxonomies,
     setProblems,
+    uploadModalOpen,
+    setUploadModalOpen,
+    mobileDrawerOpen: mobileMenuOpen,
+    setMobileDrawerOpen: setMobileMenuOpen,
   } = useStore();
 
   useEffect(() => {
@@ -99,7 +101,7 @@ export const Navbar: React.FC = () => {
 
   return (
     <>
-      <header className="sticky top-0 z-30 bg-surface/85 backdrop-blur-md border-b border-border-subtle px-4 py-3">
+      <header className="sticky top-0 z-30 bg-surface border-b border-border-subtle px-4 py-3">
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           {/* Brand Logo & Subject Selector */}
           <div className="flex items-center space-x-3">
@@ -206,11 +208,11 @@ export const Navbar: React.FC = () => {
             {/* Upload Modal Trigger Button */}
             <button
               onClick={() => setUploadModalOpen(true)}
-              className="flex items-center justify-center p-1.5 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-medium bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all shadow-xs"
+              className="flex items-center justify-center p-2 sm:px-3.5 sm:py-2 rounded-2xl text-xs font-medium bg-primary text-white hover:bg-primary-hover active:scale-[0.98] transition-all shadow-xs"
               title="上傳錯題"
             >
               <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              <span className="hidden xl:inline ml-1.5">上傳錯題</span>
+              <span className="hidden md:inline ml-1.5">上傳錯題</span>
             </button>
 
             {/* Dark Mode Toggle */}
@@ -282,13 +284,13 @@ export const Navbar: React.FC = () => {
       {
         mobileMenuOpen && (
           <div
-            className="fixed inset-0 top-[61px] z-50 bg-black/40 backdrop-blur-xs md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
+            className="fixed inset-0 top-[61px] z-50 bg-black/60 md:hidden animate-in fade-in duration-150 flex flex-col justify-start"
             onClick={() => setMobileMenuOpen(false)}
           >
             <div
               ref={menuContainerRef}
               onClick={(e) => e.stopPropagation()}
-              className="m-3 p-4 bg-surface/95 backdrop-blur-xl rounded-3xl border border-border-subtle shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200"
+              className="m-3 p-4 bg-surface rounded-3xl border border-border-subtle shadow-2xl space-y-3 animate-in slide-in-from-top-2 duration-200 text-text-main"
             >
               {/* Guest Banner in Mobile Drawer */}
               {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
@@ -310,26 +312,24 @@ export const Navbar: React.FC = () => {
                 </div>
               )}
 
-              {/* Mobile Subject Selector */}
+              {/* Mobile Subject Selector using CustomSelect */}
               <div className="px-1 pb-1">
                 <label className="block text-[11px] font-bold text-text-muted mb-1.5">目前篩選科目</label>
-                <select
+                <CustomSelect
                   value={selectedSubjectId || 'math'}
-                  onChange={(e) => {
-                    const val = e.target.value;
+                  onChange={(val) => {
                     setSelectedSubjectId(val);
                     setMobileMenuOpen(false);
                     navigate(`/study/${val}`);
                   }}
-                  className="w-full p-2.5 rounded-xl bg-neutral-100 text-xs font-semibold text-text-main border border-border-subtle focus:outline-none focus:border-primary"
-                >
-                  {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
-                    <option key={sub.id} value={sub.id}>
-                      {sub.label}
-                    </option>
-                  ))}
-                  <option value="unclassified">— 其他科目</option>
-                </select>
+                  options={[
+                    ...(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => ({
+                      value: sub.id,
+                      label: sub.label,
+                    })),
+                    { value: 'unclassified', label: '\u2014 其他科目' },
+                  ]}
+                />
               </div>
 
               <div className="h-px bg-border-subtle my-1" />

@@ -38,7 +38,7 @@ export const SearchView: React.FC = () => {
     const targetSubject = getRootSubjectId(item.topic_id, taxonomies);
     setSelectedSubjectId(targetSubject);
     setSelectedTopicId(item.topic_id || null);
-    navigate(`/study/${targetSubject}#problem-${item.id}`);
+    navigate(`/study/${targetSubject}/${item.topic_id || 'all'}/${item.id}#problem-${item.id}`);
   };
 
   return (

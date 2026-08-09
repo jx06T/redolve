@@ -49,7 +49,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
         <button
           type="button"
           onClick={onOpenLightbox}
-          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-surface/80 dark:bg-neutral-900/80 backdrop-blur-sm shadow-sm border border-border-subtle text-text-main hover:scale-110 active:scale-95 transition-all"
+          className="absolute top-3 right-3 z-20 p-2 rounded-xl bg-surface/80 dark:bg-neutral-900/80 shadow-sm border border-border-subtle text-text-main hover:scale-110 active:scale-95 transition-all"
           title="放大檢視原題"
         >
           <ZoomIn className="w-4 h-4" />
@@ -66,7 +66,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
         {renderedCalcSpaceHeight > 0 && (
           <>
             <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface/80 dark:bg-neutral-900/80 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-border-subtle">
+            <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface px-2 py-0.5 rounded-md border border-border-subtle">
               <PenLine className="w-3 h-3 text-primary" />
               <span>延伸推導草稿區</span>
             </div>

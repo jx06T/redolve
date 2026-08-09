@@ -32,7 +32,7 @@ export const ProblemMetadataModal: React.FC<ProblemMetadataModalProps> = ({
   if (!isOpen || !problem) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-surface border border-border-subtle rounded-3xl max-w-md w-full p-6 space-y-4 shadow-xl">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-text-main">
