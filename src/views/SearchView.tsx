@@ -146,20 +146,22 @@ export const SearchView: React.FC = () => {
               >
                 <div className="space-y-3">
                   {/* Top Badges */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 text-primary border border-primary-200/50">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 text-primary border border-primary-200/50 shrink-0">
                         {problemCode}
                       </span>
-                      <StatusBadge
-                        status={item.status}
-                        topicId={item.topic_id}
-                      />
+                      <div className="min-w-0">
+                        <StatusBadge
+                          status={item.status}
+                          topicId={item.topic_id}
+                        />
+                      </div>
                     </div>
                     {item.status === 'resolved' && (
-                      <span className="text-[11px] font-medium text-status-resolved flex items-center space-x-1 bg-status-resolved/10 border border-status-resolved/20 px-2 py-0.5 rounded-lg">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>已完成</span>
+                      <span className="text-[11px] font-medium text-status-resolved flex items-center space-x-1 bg-status-resolved/10 border border-status-resolved/20 px-2 py-0.5 rounded-lg shrink-0 ml-auto">
+                        <CheckCircle2 className="w-3 h-3 shrink-0" />
+                        <span className="shrink-0 whitespace-nowrap">已完成</span>
                       </span>
                     )}
                   </div>

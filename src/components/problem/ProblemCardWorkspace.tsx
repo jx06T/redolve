@@ -59,16 +59,15 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
       {/* Extended Calculation Workspace Area */}
       <div
         style={{ height: `${renderedCalcSpaceHeight}px` }}
-        className={`w-full relative border-border-subtle bg-neutral-50/50 transition-[height] duration-200 ease-out select-none overflow-hidden ${
-          renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
-        }`}
+        className={`w-full relative border-border-subtle bg-neutral-50/50 transition-[height] duration-200 ease-out select-none overflow-hidden ${renderedCalcSpaceHeight > 0 ? 'border-t border-dashed' : ''
+          }`}
       >
         {renderedCalcSpaceHeight > 0 && (
           <>
             <div className="absolute inset-0 opacity-25 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
             <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface px-2 py-0.5 rounded-md border border-border-subtle">
               <PenLine className="w-3 h-3 text-primary" />
-              <span>延伸推導草稿區</span>
+              <span className='hidden xs:inline'>延伸推導草稿區</span>
             </div>
           </>
         )}
