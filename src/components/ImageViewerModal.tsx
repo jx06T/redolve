@@ -29,7 +29,6 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     const panzoom = Panzoom(elem, {
       maxScale: 5,
       minScale: 1,
-      contain: 'outside',
       duration: 150,
       easing: 'ease-out',
     });
@@ -171,8 +170,13 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
 
       {/* Image Stage Container */}
       <div
-        className="relative w-full h-full flex items-center justify-center p-4 md:p-8 cursor-grab active:cursor-grabbing"
+        className="relative w-full h-full flex items-center justify-center p-4 md:p-8"
         onDoubleClick={handleDoubleTap}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
       >
         <img
           ref={imgRef}

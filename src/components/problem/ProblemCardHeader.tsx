@@ -42,9 +42,9 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onEditMetadata,
 }) => {
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-border-subtle">
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-border-subtle gap-2 min-w-0">
       {/* Left Badges */}
-      <div className="flex items-center flex-wrap gap-2 gap-y-1.5">
+      <div className="flex items-center flex-wrap gap-2 gap-y-1.5 min-w-0 flex-1">
         {problemIndex === undefined && (
           <span className="inline-block text-xs px-2.5 py-1 rounded-lg bg-primary-50 text-primary border border-primary-200/50 font-mono">
             {problemCode}
