@@ -101,13 +101,13 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Navigation Tabs */}
-      <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] p-1.5 rounded-2xl select-none">
+      <div className="flex items-center space-x-2 bg-surface border border-border-subtle p-1.5 rounded-2xl select-none">
         <button
           onClick={() => handleTabChange('pencil')}
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'pencil'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+              ? 'bg-primary text-white shadow-xs'
+              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
           }`}
         >
           <Sliders className="w-4 h-4 shrink-0" />
@@ -118,8 +118,8 @@ export const SettingsView: React.FC = () => {
           onClick={() => handleTabChange('taxonomy')}
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'taxonomy'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+              ? 'bg-primary text-white shadow-xs'
+              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
           }`}
         >
           <Tag className="w-4 h-4 shrink-0" />
@@ -130,8 +130,8 @@ export const SettingsView: React.FC = () => {
           onClick={() => handleTabChange('apikeys')}
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'apikeys'
-              ? 'bg-[#6366F1] text-white shadow-xs'
-              : 'text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-100 dark:hover:bg-stone-800/60'
+              ? 'bg-primary text-white shadow-xs'
+              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
           }`}
         >
           <Key className="w-4 h-4 shrink-0" />

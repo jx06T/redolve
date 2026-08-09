@@ -44,29 +44,29 @@ export const SearchView: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Search Header Bar */}
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
         <div>
-          <div className="flex items-center space-x-3 text-[#374151] dark:text-[#D1D5DB]">
-            <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] rounded-2xl">
+          <div className="flex items-center space-x-3 text-text-main">
+            <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
               <Search className="w-5 h-5" />
             </div>
             <div>
               <h1 className="text-base font-bold">全域 FTS5 中文檢索</h1>
-              <p className="text-xs text-[#9CA3AF] mt-0.5">
-                關鍵字：<span className="font-semibold text-[#6366F1]">"{query}"</span> · 共找到 {results.length} 題
+              <p className="text-xs text-text-muted mt-0.5">
+                關鍵字：<span className="font-semibold text-primary">"{query}"</span> · 共找到 {results.length} 題
               </p>
             </div>
           </div>
         </div>
 
         {/* View Mode Switcher */}
-        <div className="flex items-center space-x-1 p-1 bg-stone-100 dark:bg-stone-800 rounded-2xl">
+        <div className="flex items-center space-x-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-2xl">
           <button
             type="button"
             onClick={() => setViewMode('compact')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'compact'
-              ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
-              : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              ? 'bg-surface text-text-main shadow-2xs font-semibold'
+              : 'text-text-muted hover:text-text-main'
               }`}
           >
             <LayoutGrid className="w-3.5 h-3.5" />
@@ -76,8 +76,8 @@ export const SearchView: React.FC = () => {
             type="button"
             onClick={() => setViewMode('full')}
             className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'full'
-              ? 'bg-white dark:bg-[#202023] text-[#374151] dark:text-[#E5E7EB] shadow-2xs font-semibold'
-              : 'text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB]'
+              ? 'bg-surface text-text-main shadow-2xs font-semibold'
+              : 'text-text-muted hover:text-text-main'
               }`}
           >
             <List className="w-3.5 h-3.5" />
@@ -88,10 +88,10 @@ export const SearchView: React.FC = () => {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : results.length === 0 ? (
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-12 text-center text-xs text-[#9CA3AF] shadow-xs">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-text-muted shadow-xs">
           沒有找到符合 "{query}" 的錯題。請嘗試關鍵字拆解或簡化搜尋詞。
         </div>
       ) : viewMode === 'compact' ? (
@@ -108,13 +108,13 @@ export const SearchView: React.FC = () => {
             return (
               <div
                 key={item.id}
-                className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 flex flex-col justify-between space-y-4 hover:border-indigo-300 dark:hover:border-indigo-700/60 transition-all shadow-xs"
+                className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/60 transition-all shadow-xs"
               >
                 <div className="space-y-3">
                   {/* Top Badges */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] dark:text-indigo-300 border border-indigo-200/50 dark:border-indigo-800/40">
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/50 dark:border-primary-850/40">
                         {problemCode}
                       </span>
                       <StatusBadge
@@ -131,7 +131,7 @@ export const SearchView: React.FC = () => {
                   </div>
 
                   {/* Thumbnail Image */}
-                  <div className="w-full h-44 rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 relative group cursor-pointer"
+                  <div className="w-full h-44 rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle relative group cursor-pointer"
                     onClick={() => handleNavigateToProblem(item)}
                   >
                     <img
@@ -143,8 +143,8 @@ export const SearchView: React.FC = () => {
 
                   {/* Typed Notes Snippet */}
                   {item.typed_notes && (
-                    <div className="p-2.5 rounded-xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/50 dark:border-stone-700/50 text-[11px] text-[#4B5563] dark:text-[#D1D5DB] flex items-start space-x-1.5">
-                      <FileText className="w-3.5 h-3.5 text-indigo-500 shrink-0 mt-0.5" />
+                    <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-[11px] text-text-main flex items-start space-x-1.5">
+                      <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                       <p className="line-clamp-2 leading-relaxed">{item.typed_notes}</p>
                     </div>
                   )}
@@ -155,7 +155,7 @@ export const SearchView: React.FC = () => {
                       {keywordsArray.slice(0, 4).map((kw, kIdx) => (
                         <span
                           key={kIdx}
-                          className="px-2 py-0.5 text-[10px] rounded-lg bg-stone-100 dark:bg-stone-800 text-[#6B7280] dark:text-[#9CA3AF]"
+                          className="px-2 py-0.5 text-[10px] rounded-lg bg-neutral-100 dark:bg-neutral-800 text-text-muted"
                         >
                           #{kw}
                         </span>
@@ -165,14 +165,14 @@ export const SearchView: React.FC = () => {
                 </div>
 
                 {/* Direct Navigation Button */}
-                <div className="pt-2 border-t border-stone-100 dark:border-stone-800/80 flex items-center justify-between">
-                  <span className="text-[10px] text-[#9CA3AF]">
+                <div className="pt-2 border-t border-border-subtle flex items-center justify-between">
+                  <span className="text-[10px] text-text-muted">
                     複習次數: {item.review_count} 次
                   </span>
                   <button
                     type="button"
                     onClick={() => handleNavigateToProblem(item)}
-                    className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-95 transition-all shadow-2xs"
+                    className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary-hover active:scale-95 transition-all shadow-2xs"
                   >
                     <span>前往此題目</span>
                     <ArrowUpRight className="w-3.5 h-3.5" />

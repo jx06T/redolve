@@ -66,14 +66,14 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6">
-        <div className="flex items-center space-x-3 text-[#374151] dark:text-[#D1D5DB]">
-          <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] rounded-2xl">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-6">
+        <div className="flex items-center space-x-3 text-text-main">
+          <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
             <Key className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-base font-bold">iOS 捷徑 API Key 管理</h1>
-            <p className="text-xs text-[#9CA3AF]">
+            <p className="text-xs text-text-muted">
               產生傳輸金鑰供 iPad / iPhone 捷徑將照片拍完直接 POST 上傳至 Redolve
             </p>
           </div>
@@ -82,18 +82,18 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
       {/* Guest Lock Notice Banner */}
       {isGuest && (
-        <div className="p-6 rounded-3xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 space-y-3 animate-in fade-in">
-          <div className="flex items-center space-x-2.5 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
-            <ShieldCheck className="w-5 h-5 text-[#6366F1]" />
+        <div className="p-6 rounded-3xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200/80 dark:border-primary-850/60 space-y-3 animate-in fade-in">
+          <div className="flex items-center space-x-2.5 text-primary font-bold text-sm">
+            <ShieldCheck className="w-5 h-5 text-primary" />
             <span>iOS 捷徑金鑰需綁定雲端會員帳號</span>
           </div>
-          <p className="text-xs text-[#6B7280] dark:text-[#9CA3AF] leading-relaxed">
+          <p className="text-xs text-text-muted leading-relaxed">
             iOS 截圖一鍵傳送捷徑會將照片自動歸屬到您的個人帳號。目前您處於訪客試用模式，請先登入 Google 帳號以取得專屬 API Key。
           </p>
           <button
             type="button"
             onClick={() => setAuthModalOpen(true)}
-            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-[#6366F1] text-white hover:bg-[#4F46E5] text-xs font-semibold shadow-xs transition-all active:scale-95"
+            className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-2xl bg-primary text-white hover:bg-primary-hover text-xs font-semibold shadow-xs transition-all active:scale-95"
           >
             <span>登入 Google 帳號以啟用金鑰</span>
           </button>
@@ -108,13 +108,13 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
             <span>新 API Key 已順利生成！此明文僅顯示一次，請立即複製：</span>
           </div>
 
-          <div className="flex items-center space-x-2 bg-white dark:bg-[#202023] p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40">
-            <code className="text-xs font-mono text-[#374151] dark:text-[#D1D5DB] flex-1 truncate">
+          <div className="flex items-center space-x-2 bg-surface p-3 rounded-2xl border border-emerald-200 dark:border-emerald-900/40">
+            <code className="text-xs font-mono text-text-main flex-1 truncate">
               {newKey}
             </code>
             <button
               onClick={handleCopyNewKey}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-medium hover:bg-[#4F46E5]"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-medium hover:bg-primary-hover transition-colors"
             >
               {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{isCopied ? '已複製' : '複製 Key'}</span>
@@ -124,8 +124,8 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
       )}
 
       {/* Generate Key Form */}
-      <form onSubmit={handleCreateKey} className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
-        <h2 className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">
+      <form onSubmit={handleCreateKey} className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
           新增 API 金鑰
         </h2>
         <div className="flex items-center space-x-3">
@@ -134,11 +134,11 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
             placeholder="金鑰用途說明 (例如: iPad Pro 拍照捷徑)"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="flex-1 px-4 py-2 rounded-2xl text-xs bg-stone-50 dark:bg-stone-800 border border-stone-200 dark:border-stone-700 text-[#374151] dark:text-[#D1D5DB]"
+            className="flex-1 px-4 py-2 rounded-2xl text-xs bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-text-main focus:outline-none focus:border-primary"
           />
           <button
             type="submit"
-            className="flex items-center space-x-1.5 px-4 py-2 rounded-2xl text-xs font-medium bg-[#6366F1] text-white hover:bg-[#4F46E5] shrink-0"
+            className="flex items-center space-x-1.5 px-4 py-2 rounded-2xl text-xs font-medium bg-primary text-white hover:bg-primary-hover shrink-0 transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>生成 Key</span>
@@ -147,34 +147,34 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
       </form>
 
       {/* Keys List */}
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
-        <h2 className="text-xs font-semibold text-[#9CA3AF] uppercase tracking-wider">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
+        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
           已授權的 API Key 列表
         </h2>
 
         {loadingKeys ? (
-          <div className="text-center py-6 text-xs text-[#9CA3AF]">載入金鑰中...</div>
+          <div className="text-center py-6 text-xs text-text-muted">載入金鑰中...</div>
         ) : keys.length === 0 ? (
-          <div className="text-center py-8 text-xs text-[#9CA3AF]">目前尚未建立任何 API Key。</div>
+          <div className="text-center py-8 text-xs text-text-muted">目前尚未建立任何 API Key。</div>
         ) : (
           <div className="space-y-3">
             {keys.map((k) => (
               <div
                 key={k.key_prefix}
-                className="p-4 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between"
+                className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex items-center justify-between"
               >
                 <div>
-                  <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB]">
+                  <div className="text-xs font-semibold text-text-main">
                     {k.description || '無備註'}
                   </div>
-                  <div className="text-[11px] font-mono text-[#9CA3AF] mt-0.5">
+                  <div className="text-[11px] font-mono text-text-muted mt-0.5">
                     前綴: {k.key_prefix}••••••••
                   </div>
                 </div>
 
                 <button
                   onClick={() => setRevokeKeyTarget(k.key_prefix)}
-                  className="p-2 rounded-xl text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                  className="p-2 rounded-xl text-text-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
                   title="撤銷此 Key"
                 >
                   <Trash2 className="w-4 h-4" />

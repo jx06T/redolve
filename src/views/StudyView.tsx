@@ -362,10 +362,10 @@ export const StudyView: React.FC = () => {
         </div>
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : problems.length === 0 ? (
-          <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-12 text-center text-xs text-[#9CA3AF]">
+          <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-text-muted">
             目前這個篩選條件下沒有錯題紀錄。請在右上角上傳新錯題！
           </div>
         ) : (
@@ -403,7 +403,7 @@ export const StudyView: React.FC = () => {
                 <button
                   onClick={loadMore}
                   disabled={isLoading}
-                  className="px-6 py-2.5 rounded-2xl bg-stone-100 dark:bg-stone-800 text-xs font-medium text-[#374151] dark:text-[#D1D5DB] hover:bg-stone-200 dark:hover:bg-stone-700 transition-colors"
+                  className="px-6 py-2.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-xs font-medium text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                 >
                   {isLoading ? '載入中...' : '載入更多錯題'}
                 </button>

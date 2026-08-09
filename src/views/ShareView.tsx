@@ -87,21 +87,21 @@ export const ShareView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 dark:bg-[#161618] flex items-center justify-center p-4">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   if (errorMsg || !data) {
     return (
-      <div className="min-h-screen bg-stone-50 dark:bg-[#161618] flex items-center justify-center p-4">
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm">
           <div className="p-3 bg-amber-500/10 text-amber-500 rounded-2xl w-fit mx-auto">
             <AlertTriangle className="w-8 h-8" />
           </div>
-          <h2 className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">連結不可用</h2>
-          <p className="text-xs text-[#9CA3AF]">{errorMsg || '分享連結不存在或已被建立者撤銷'}</p>
+          <h2 className="text-base font-bold text-text-main">連結不可用</h2>
+          <p className="text-xs text-text-muted">{errorMsg || '分享連結不存在或已被建立者撤銷'}</p>
         </div>
       </div>
     );
@@ -112,29 +112,29 @@ export const ShareView: React.FC = () => {
   const imageUrl = getSharedImageUrl(token!);
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-[#161618] py-8 px-4">
+    <div className="min-h-screen bg-background py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header Bar */}
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-[#6366F1]/10 text-[#6366F1] rounded-2xl">
+            <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
-              <a href="/" className="text-base font-bold text-[#374151] dark:text-[#D1D5DB]">
+              <a href="/" className="text-base font-bold text-text-main">
                 Redolve
               </a>
-              <p className="text-xs text-[#9CA3AF]">公開錯題分享</p>
+              <p className="text-xs text-text-muted">公開錯題分享</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="px-3 py-1.5 rounded-xl text-xs font-medium bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB]">
+            <span className="px-3 py-1.5 rounded-xl text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-main">
               {share.allow_ink ? '包含作者手寫推導' : '無筆跡原圖'}
             </span>
             <button
               onClick={handleExport}
               disabled={isExporting}
-              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-[#6366F1] text-white text-xs font-medium hover:bg-[#4F46E5] active:scale-95 transition-all shadow-xs"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-primary text-white text-xs font-medium hover:bg-primary-hover active:scale-95 transition-all shadow-xs"
             >
               <Download className="w-3.5 h-3.5" />
               <span>{isExporting ? '下載中...' : '下載全幅圖檔'}</span>
@@ -143,9 +143,9 @@ export const ShareView: React.FC = () => {
         </div>
 
         {/* Card View */}
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4 shadow-xs">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4 shadow-xs">
           {/* Metadata Top Bar */}
-          <div className="flex items-center justify-between pb-2 border-b border-stone-200/60 dark:border-stone-800">
+          <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
             <StatusBadge
               status={item.status as any || 'unsolved'}
               topicId={item.topic_id || null}
@@ -164,7 +164,7 @@ export const ShareView: React.FC = () => {
               {keywordsArray.map((kw, idx) => (
                 <span
                   key={idx}
-                  className="px-2.5 py-1 text-xs rounded-xl bg-stone-100 dark:bg-stone-800 text-[#374151] dark:text-[#D1D5DB] font-medium"
+                  className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 dark:bg-neutral-800 text-text-main font-medium"
                 >
                   #{kw}
                 </span>
@@ -173,7 +173,7 @@ export const ShareView: React.FC = () => {
           )}
 
           {/* Unified Exam Image & Scratchpad Canvas Workspace */}
-          <div className="relative rounded-2xl overflow-hidden bg-stone-50 dark:bg-[#161618] border border-stone-200/60 dark:border-stone-800 flex flex-col">
+          <div className="relative rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex flex-col">
             <div className="w-full relative select-none">
               <img
                 src={imageUrl}
@@ -186,11 +186,11 @@ export const ShareView: React.FC = () => {
             {isInkAllowed && (
               <div
                 style={{ height: `${calcSpaceHeight}px` }}
-                className="w-full relative border-t border-dashed border-stone-200 dark:border-stone-800 bg-[#FAFAF9] dark:bg-[#17171A] select-none"
+                className="w-full relative border-t border-dashed border-border-subtle bg-neutral-50 dark:bg-neutral-900/60 select-none"
               >
                 <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
-                <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-[#9CA3AF] select-none pointer-events-none bg-white/70 dark:bg-stone-900/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-stone-200/50 dark:border-stone-800/50">
-                  <PenLine className="w-3 h-3 text-indigo-400" />
+                <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-border-subtle">
+                  <PenLine className="w-3 h-3 text-primary" />
                   <span>延伸推導草稿區</span>
                 </div>
               </div>
@@ -211,12 +211,12 @@ export const ShareView: React.FC = () => {
 
           {/* Typed Notes & Summary Section */}
           {item.typed_notes && (
-            <div className="mt-4 rounded-2xl bg-stone-50/80 dark:bg-[#18181B] border border-stone-200/60 dark:border-stone-800/80 p-4">
-              <div className="flex items-center space-x-2 text-xs font-semibold text-[#4B5563] dark:text-[#D1D5DB] mb-2">
-                <FileText className="w-4 h-4 text-indigo-500" />
+            <div className="mt-4 rounded-2xl bg-neutral-50/80 dark:bg-neutral-900/60 border border-border-subtle p-4">
+              <div className="flex items-center space-x-2 text-xs font-semibold text-text-main mb-2">
+                <FileText className="w-4 h-4 text-primary" />
                 <span>作者文字筆記 / 解題思路與觀念總結</span>
               </div>
-              <p className="text-xs text-[#374151] dark:text-[#E5E7EB] leading-relaxed whitespace-pre-wrap">
+              <p className="text-xs text-text-main leading-relaxed whitespace-pre-wrap">
                 {item.typed_notes}
               </p>
             </div>

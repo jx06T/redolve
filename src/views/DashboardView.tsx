@@ -39,7 +39,7 @@ export const DashboardView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -75,16 +75,16 @@ export const DashboardView: React.FC = () => {
       <GuestNoticeBanner />
 
       {/* Header Banner */}
-      <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 relative overflow-hidden">
+      <div className="bg-surface border border-border-subtle rounded-3xl p-6 relative overflow-hidden">
         <div className="max-w-2xl relative z-10 space-y-2">
-          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-[#6366F1]/10 text-[#6366F1] dark:text-indigo-400">
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-primary-50 dark:bg-primary-950/40 text-primary">
             <Sparkles className="w-3.5 h-3.5" />
             <span>錯題複習進度 Dashboard</span>
           </span>
-          <h1 className="text-2xl font-bold tracking-tight text-[#374151] dark:text-[#D1D5DB]">
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">
             保持心流，完成今日訂正
           </h1>
-          <p className="text-xs text-[#9CA3AF]">
+          <p className="text-xs text-text-muted">
             目前系統累積收錄 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。
           </p>
         </div>
@@ -121,33 +121,33 @@ export const DashboardView: React.FC = () => {
 
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 flex items-center space-x-4">
-          <div className="p-3.5 bg-indigo-50 dark:bg-indigo-950/40 text-[#6366F1] rounded-2xl">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
+          <div className="p-3.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-[#374151] dark:text-[#D1D5DB]">{summary.total}</div>
-            <div className="text-xs text-[#9CA3AF]">總錯題張數</div>
+            <div className="text-2xl font-bold text-text-main">{summary.total}</div>
+            <div className="text-xs text-text-muted">總錯題張數</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 flex items-center space-x-4">
-          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-[#10B981] rounded-2xl">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
+          <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500 rounded-2xl">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-[#374151] dark:text-[#D1D5DB]">{summary.resolved}</div>
-            <div className="text-xs text-[#9CA3AF]">已完成訂正</div>
+            <div className="text-2xl font-bold text-text-main">{summary.resolved}</div>
+            <div className="text-xs text-text-muted">已完成訂正</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-5 flex items-center space-x-4">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
           <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 text-amber-500 rounded-2xl">
             <HelpCircle className="w-6 h-6" />
           </div>
           <div>
-            <div className="text-2xl font-bold text-[#374151] dark:text-[#D1D5DB]">{summary.unsolved}</div>
-            <div className="text-xs text-[#9CA3AF]">待解決題目</div>
+            <div className="text-2xl font-bold text-text-main">{summary.unsolved}</div>
+            <div className="text-xs text-text-muted">待解決題目</div>
           </div>
         </div>
       </div>
@@ -155,10 +155,10 @@ export const DashboardView: React.FC = () => {
       {/* Grid Content: Subjects Progress & Top Review Topics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Subject Progress Cards */}
-        <div className="lg:col-span-2 bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
+        <div className="lg:col-span-2 bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-[#374151] dark:text-[#D1D5DB] flex items-center space-x-2">
-              <TrendingUp className="w-4 h-4 text-[#6366F1]" />
+            <h2 className="text-base font-semibold text-text-main flex items-center space-x-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
               <span>各科目錯題訂正率</span>
             </h2>
             <Link
@@ -167,7 +167,7 @@ export const DashboardView: React.FC = () => {
                 setSelectedSubjectId('math');
                 setSelectedTopicId(null);
               }}
-              className="text-xs text-[#6366F1] font-medium flex items-center space-x-1 hover:underline"
+              className="text-xs text-primary font-medium flex items-center space-x-1 hover:underline"
             >
               <span>進入刷題</span>
               <ArrowRight className="w-3 h-3" />
@@ -175,7 +175,7 @@ export const DashboardView: React.FC = () => {
           </div>
 
           {subjects.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[#9CA3AF]">
+            <div className="py-8 text-center text-xs text-text-muted">
               尚無科目統計資料。點擊右上角「上傳錯題」開始使用！
             </div>
           ) : (
@@ -187,11 +187,11 @@ export const DashboardView: React.FC = () => {
                   <div
                     key={sub.subject_id}
                     onClick={() => handleSubjectClick(sub.subject_id)}
-                    className="p-3.5 rounded-2xl bg-stone-50/70 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 hover:border-indigo-400/40 dark:hover:border-indigo-500/40 hover:bg-stone-100/70 dark:hover:bg-stone-800/70 cursor-pointer transition-all duration-150 space-y-2 group"
+                    className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle hover:border-primary/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/70 cursor-pointer transition-all duration-150 space-y-2 group"
                   >
                     <div className="flex justify-between items-center text-xs font-medium">
                       <div className="flex items-center space-x-2">
-                        <span className="text-[#374151] dark:text-[#D1D5DB] font-semibold group-hover:text-[#6366F1] transition-colors">
+                        <span className="text-text-main font-semibold group-hover:text-primary transition-colors">
                           {sub.subject_label}
                         </span>
                         {unsolvedSub > 0 && (
@@ -200,13 +200,13 @@ export const DashboardView: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <span className="text-[#9CA3AF] text-[11px] font-mono">
+                      <span className="text-text-muted text-[11px] font-mono">
                         {sub.resolved} / {sub.total} 題 ({pct}%)
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-[#6366F1] to-[#10B981] rounded-full transition-all duration-300"
+                        className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
@@ -218,13 +218,13 @@ export const DashboardView: React.FC = () => {
         </div>
 
         {/* Top 3 Weakest Units */}
-        <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-6 space-y-4">
-          <h2 className="text-base font-semibold text-[#374151] dark:text-[#D1D5DB]">
+        <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
+          <h2 className="text-base font-semibold text-text-main">
             最需複習單元 Top 3
           </h2>
 
           {topUnsolved.length === 0 ? (
-            <div className="py-8 text-center text-xs text-[#9CA3AF]">
+            <div className="py-8 text-center text-xs text-text-muted">
               太棒了！目前沒有積壓未訂正的單元。
             </div>
           ) : (
@@ -234,22 +234,22 @@ export const DashboardView: React.FC = () => {
                   <div
                     key={topic.topic_id}
                     onClick={() => handleTopicClick(topic.topic_id)}
-                    className="p-3.5 rounded-2xl bg-stone-50 dark:bg-stone-800/40 border border-stone-200/60 dark:border-stone-800 flex items-center justify-between hover:border-indigo-400/40 dark:hover:border-indigo-500/40 cursor-pointer transition-all duration-150 group"
+                    className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
                   >
                     <div className="flex items-center space-x-3">
                       <span className="w-6 h-6 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold text-xs flex items-center justify-center">
                         #{idx + 1}
                       </span>
                       <div>
-                        <div className="text-xs font-semibold text-[#374151] dark:text-[#D1D5DB] group-hover:text-[#6366F1] transition-colors">
+                        <div className="text-xs font-semibold text-text-main group-hover:text-primary transition-colors">
                           {topic.topic_label}
                         </div>
-                        <div className="text-[10px] text-[#9CA3AF]">
+                        <div className="text-[10px] text-text-muted">
                           {topic.unsolved_count} 題未訂正
                         </div>
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-stone-100 dark:bg-stone-700 text-[#6366F1] dark:text-indigo-300 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/40 active:scale-95 transition-all">
+                    <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-700 text-primary group-hover:bg-primary-50 dark:group-hover:bg-primary-950/40 active:scale-95 transition-all">
                       <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>

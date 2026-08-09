@@ -27,25 +27,25 @@ export class ErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#F4F4F2] dark:bg-[#161618] flex items-center justify-center p-6 select-none">
-          <div className="bg-white dark:bg-[#202023] border border-[#E5E7EB] dark:border-[#2C2C30] rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
+        <div className="min-h-screen bg-background flex items-center justify-center p-6 select-none">
+          <div className="bg-surface border border-border-subtle rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-xl">
             <div className="w-12 h-12 rounded-full bg-rose-500/10 text-rose-500 flex items-center justify-center mx-auto">
               <AlertCircle className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-[#374151] dark:text-[#D1D5DB]">
+            <h2 className="text-lg font-bold text-text-main">
               應用程式發生意外錯誤
             </h2>
-            <p className="text-xs text-[#9CA3AF] leading-relaxed">
+            <p className="text-xs text-text-muted leading-relaxed">
               很抱歉，畫面前端渲染遭遇未預期例外。您可以點擊下方按鈕重新載入應用程式。
             </p>
             {this.state.error && (
-              <div className="p-3 rounded-2xl bg-stone-100 dark:bg-stone-800 text-[11px] font-mono text-stone-600 dark:text-stone-400 text-left overflow-x-auto max-h-32">
+              <div className="p-3 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-[11px] font-mono text-text-muted text-left overflow-x-auto max-h-32">
                 {this.state.error.message}
               </div>
             )}
             <button
               onClick={() => window.location.reload()}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-[#6366F1] text-white hover:bg-[#4F46E5] active:scale-95 transition-all shadow-md"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-2xl text-xs font-bold bg-primary text-white hover:bg-primary-hover active:scale-95 transition-all shadow-md"
             >
               <RefreshCw className="w-4 h-4" />
               <span>重新載入頁面</span>

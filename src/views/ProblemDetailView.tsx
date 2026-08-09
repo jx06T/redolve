@@ -31,7 +31,7 @@ export const ProblemDetailView: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-8 h-8 animate-spin text-[#6366F1]" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -39,8 +39,8 @@ export const ProblemDetailView: React.FC = () => {
   if (!problem) {
     return (
       <div className="text-center py-16 space-y-4">
-        <p className="text-xs text-[#9CA3AF]">找不到此題目或已經刪除。</p>
-        <Link to="/study/math" className="inline-flex items-center space-x-2 text-xs text-[#6366F1] font-medium">
+        <p className="text-xs text-text-muted">找不到此題目或已經刪除。</p>
+        <Link to="/study/math" className="inline-flex items-center space-x-2 text-xs text-primary font-medium hover:underline">
           <ArrowLeft className="w-4 h-4" />
           <span>返回刷題頁面</span>
         </Link>
@@ -55,12 +55,12 @@ export const ProblemDetailView: React.FC = () => {
       <div className="flex items-center justify-between">
         <Link
           to={`/study/${subjectCode}#problem-${problem.id}`}
-          className="inline-flex items-center space-x-2 text-xs text-[#9CA3AF] hover:text-[#374151] dark:hover:text-[#D1D5DB] transition-colors"
+          className="inline-flex items-center space-x-2 text-xs text-text-muted hover:text-text-main transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>返回錯題列表</span>
         </Link>
-        <h1 className="text-xs font-semibold text-[#9CA3AF]">錯題詳情 #{problem.id.slice(0, 8)}</h1>
+        <h1 className="text-xs font-semibold text-text-muted">錯題詳情 #{problem.id.slice(0, 8)}</h1>
       </div>
 
       <ProblemCard problem={problem} />
