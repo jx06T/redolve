@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, Compass, X } from 'lucide-react';
+import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { STATUS_FILTER_ITEMS } from '../config/constants';
@@ -339,18 +339,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
   return (
     <>
-      {/* 1. Mobile Floating Trigger FAB */}
-      <div className="lg:hidden fixed bottom-24 left-6 z-40">
-        <button
-          onClick={() => setMobileDrawerOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-full bg-primary text-white font-semibold text-xs shadow-xl ring-2 ring-white/50 active:scale-95 transition-all"
-        >
-          <Compass className="w-4 h-4" />
-          <span>章節導航</span>
-        </button>
-      </div>
-
-      {/* 2. Mobile Floating Slide-over Drawer */}
+      {/* Mobile Floating Slide-over Drawer */}
       <div
         onClick={() => setMobileDrawerOpen(false)}
         className={`lg:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
@@ -358,7 +347,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       >
         <div
           onClick={(e) => e.stopPropagation()}
-          className={`w-80 max-w-[85vw] bg-surface border-r border-border-subtle h-full p-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
+          style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
+          className={`w-80 max-w-[85vw] bg-surface border-r border-border-subtle h-full px-5 pb-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
         >
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-border-subtle shrink-0">
