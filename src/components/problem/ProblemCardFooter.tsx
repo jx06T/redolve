@@ -37,11 +37,10 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
             type="button"
             onClick={onToggleArchive}
             aria-label={problem.status === 'archived' ? '解除封存' : '封存此題目（確定不會再錯）'}
-            className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${
-              problem.status === 'archived'
+            className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${problem.status === 'archived'
                 ? 'bg-primary-50 text-primary border-primary-200 hover:bg-primary-100'
                 : 'bg-neutral-100 text-text-muted border-border-subtle hover:text-text-main hover:bg-neutral-200'
-            }`}
+              }`}
             title={
               problem.status === 'archived'
                 ? '解除封存：移回常規複習流'
@@ -65,15 +64,14 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
         <button
           type="button"
           onClick={onToggleStatus}
-          aria-label={isResolved ? '已標記訂正完畢' : '標記完成訂正'}
-          className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
-            isResolved
+          aria-label={isResolved ? '已訂正完畢' : '完成訂正'}
+          className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${isResolved
               ? 'bg-status-resolved text-white hover:bg-status-resolved/90'
               : 'bg-neutral-100 text-text-main hover:bg-neutral-200'
-          }`}
+            }`}
         >
           <CheckCircle className="w-4 h-4" />
-          <span>{isResolved ? '已標記訂正完畢' : '標記完成訂正'}</span>
+          <span>{isResolved ? '已訂正完畢' : '完成訂正'}</span>
         </button>
       </div>
     </div>

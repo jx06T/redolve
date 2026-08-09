@@ -55,7 +55,7 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
         title="智慧工作流推進器：標記當前題目並推進至下一題"
       >
         <CheckCircle2 className="w-4 h-4 mr-0.5" />
-        <span>{isResolved ? '已標記完成' : '標記完成訂正'}</span>
+        <span>{isResolved ? '已完成' : '完成訂正'}</span>
         <ArrowDown className="w-3.5 h-3.5 " />
       </button>
     </div>
