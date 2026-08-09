@@ -3,82 +3,6 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-primary-50: var(--color-primary-50);
-  --color-primary-100: var(--color-primary-100);
-  --color-primary-200: var(--color-primary-200);
-  --color-primary-300: var(--color-primary-300);
-  --color-primary-400: var(--color-primary-400);
-  --color-primary-500: var(--color-primary-500);
-  --color-primary-600: var(--color-primary-600);
-  --color-primary-700: var(--color-primary-700);
-  --color-primary-800: var(--color-primary-800);
-  --color-primary-900: var(--color-primary-900);
-  --color-primary-950: var(--color-primary-950);
-  --color-primary: var(--color-primary);
-  --color-primary-hover: var(--color-primary-hover);
-  --color-primary-light: #EEF2FF;
-  --color-primary-dark: #818CF8;
-
-  --color-accent-50: var(--color-accent-50);
-  --color-accent-100: var(--color-accent-100);
-  --color-accent-200: var(--color-accent-200);
-  --color-accent-300: var(--color-accent-300);
-  --color-accent-400: var(--color-accent-400);
-  --color-accent-500: var(--color-accent-500);
-  --color-accent-600: var(--color-accent-600);
-  --color-accent-700: var(--color-accent-700);
-  --color-accent-800: var(--color-accent-800);
-  --color-accent-900: var(--color-accent-900);
-  --color-accent-950: var(--color-accent-950);
-  --color-accent-peach: var(--accent-peach);
-  --color-accent-mint: var(--accent-mint);
-  --color-accent-lavender: var(--accent-lavender);
-  --color-accent-yellow: var(--accent-yellow);
-  --color-accent-rose: var(--accent-rose);
-  --color-accent-sage: var(--accent-sage);
-
-  --color-neutral-50: var(--color-neutral-50);
-  --color-neutral-100: var(--color-neutral-100);
-  --color-neutral-200: var(--color-neutral-200);
-  --color-neutral-300: var(--color-neutral-300);
-  --color-neutral-400: var(--color-neutral-400);
-  --color-neutral-500: var(--color-neutral-500);
-  --color-neutral-600: var(--color-neutral-600);
-  --color-neutral-700: var(--color-neutral-700);
-  --color-neutral-800: var(--color-neutral-800);
-  --color-neutral-900: var(--color-neutral-900);
-  --color-neutral-950: var(--color-neutral-950);
-
-  --color-brand: var(--color-brand);
-  --color-brand-light: var(--color-brand-light);
-  --color-brand-dark: var(--color-brand-dark);
-  --color-brand-accent: var(--color-brand-accent);
-
-  --color-page-bg: var(--color-page-bg);
-  --color-surface: var(--color-surface);
-  --color-surface-elevated: var(--color-surface-elevated);
-  --color-border-subtle: var(--color-border-subtle);
-  --color-text-main: var(--color-text-main);
-  --color-text-muted: var(--color-text-muted);
-  --color-text-soft: var(--text-soft);
-
-  --color-status-resolved: var(--color-status-resolved);
-  --color-status-eraser: var(--color-status-eraser);
-  --color-status-warning: var(--color-status-warning);
-
-  --shadow-brand-sm: var(--shadow-brand-sm);
-  --shadow-brand: var(--shadow-brand);
-  --shadow-brand-md: var(--shadow-brand-md);
-  --shadow-brand-lg: var(--shadow-brand-lg);
-  --shadow-brand-xl: var(--shadow-brand-xl);
-  --shadow-accent: var(--shadow-accent);
-  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
-
-  --font-sans: 'Inter', '"Noto Sans TC"', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
-}
-
-:root {
   /* 品牌主色系 (Primary Scales) */
   --color-primary-50: #EEF2FF;
   --color-primary-100: #E0E7FF;
@@ -95,6 +19,8 @@
   /* 品牌快捷主色 */
   --color-primary: #6366F1;
   --color-primary-hover: #4F46E5;
+  --color-primary-light: #EEF2FF;
+  --color-primary-dark: #818CF8;
 
   /* 中性色系 (Neutral Scales) */
   --color-neutral-50: #F9FAFB;
@@ -109,13 +35,7 @@
   --color-neutral-900: #111827;
   --color-neutral-950: #030712;
 
-  /* 品牌快捷別名 */
-  --color-brand: #2D3250;
-  --color-brand-light: #676F9D;
-  --color-brand-dark: #2D3250;
-  --color-brand-accent: #E7BA99;
-
-  /* 柔和點綴色系 (Pastel Low-contrast Accents Scale) */
+  /* 柔和點綴色系 (Pastel Low-contrast Accents) */
   --color-accent-50: #FFF8F2;
   --color-accent-100: #FCEFE3;
   --color-accent-200: #F7DFC9;
@@ -128,29 +48,34 @@
   --color-accent-900: #75482A;
   --color-accent-950: #52311A;
 
-  /* 柔和粉彩別名 (Pastel Accents) */
-  --bg-cream: #F4F4F2;
-  --card-base: #FFFFFF;
-  --text-soft: #4B5563;
-  --accent-peach: #EBB5A2;
-  --accent-mint: #A0C4C4;
-  --accent-lavender: #BDC0D4;
-  --accent-yellow: #E6C99E;
-  --accent-rose: #ECA0A0;
-  --accent-sage: #A2C1B9;
+  /* 柔和粉彩別名 */
+  --color-accent-peach: #EBB5A2;
+  --color-accent-mint: #A0C4C4;
+  --color-accent-lavender: #BDC0D4;
+  --color-accent-yellow: #E6C99E;
+  --color-accent-rose: #ECA0A0;
+  --color-accent-sage: #A2C1B9;
 
-  /* 核心介面語意變數 (Soft Pastel Status Colors) */
+  /* 品牌快捷別名 */
+  --color-brand: #2D3250;
+  --color-brand-light: #676F9D;
+  --color-brand-dark: #2D3250;
+  --color-brand-accent: #E7BA99;
+
+  /* 核心介面語意變數 */
   --color-page-bg: #F4F4F2;
   --color-surface: #FFFFFF;
   --color-surface-elevated: #F9FAFB;
   --color-border-subtle: #E5E7EB;
   --color-text-main: #374151;
   --color-text-muted: #9CA3AF;
+  --color-text-soft: #4B5563;
+
   --color-status-resolved: #4EA88B;
   --color-status-eraser: #E06D75;
   --color-status-warning: #E5A855;
 
-  /* 品牌與柔和陰影 */
+  /* 陰影與字型 */
   --shadow-brand-sm: 0 1px 2px 0 rgba(45, 50, 80, 0.05);
   --shadow-brand: 0 1px 3px 0 rgba(45, 50, 80, 0.08), 0 1px 2px 0 rgba(45, 50, 80, 0.04);
   --shadow-brand-md: 0 4px 6px -1px rgba(45, 50, 80, 0.08), 0 2px 4px -1px rgba(45, 50, 80, 0.04);
@@ -159,85 +84,37 @@
   --shadow-accent: 0 4px 6px -1px rgba(231, 186, 153, 0.2), 0 2px 4px -1px rgba(231, 186, 153, 0.1);
   --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
 
-  /* 柔和漸層 */
-  --gradient-brand: linear-gradient(135deg, #2D3250 0%, #424669 50%, #676F9D 100%);
-  --gradient-accent: linear-gradient(135deg, #E7BA99 0%, #DDA580 100%);
-  --gradient-hero: linear-gradient(135deg, #2D3250 0%, #676F9D 50%, #E7BA99 100%);
+  --font-sans: 'Inter', '"Noto Sans TC"', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
 }
 
+/* 深色模式覆寫：僅切換動態改變的顏色值 */
 .dark {
-  /* 品牌主色系 (Dark Scales) */
-  --color-primary-50: #1E1B4B;
-  --color-primary-100: #312E81;
-  --color-primary-200: #3730A3;
-  --color-primary-300: #4338CA;
-  --color-primary-400: #4F46E5;
-  --color-primary-500: #6366F1;
-  --color-primary-600: #818CF8;
-  --color-primary-700: #A5B4FC;
-  --color-primary-800: #C7D2FE;
-  --color-primary-900: #E0E7FF;
-  --color-primary-950: #EEF2FF;
-
-  /* 品牌快捷主色 */
   --color-primary: #818CF8;
   --color-primary-hover: #6366F1;
 
-  /* 柔和點綴色系 (Dark Pastel Accents Scale) */
-  --color-accent-50: #52311A;
-  --color-accent-100: #75482A;
-  --color-accent-200: #945F3C;
-  --color-accent-300: #B37852;
-  --color-accent-400: #CC8E68;
-  --color-accent-500: #DDA580;
-  --color-accent-600: #E7BA99;
-  --color-accent-700: #F0CDB1;
-  --color-accent-800: #F7DFC9;
-  --color-accent-900: #FCEFE3;
-  --color-accent-950: #FFF8F2;
-
-  /* 中性色系 (Dark) */
-  --color-neutral-50: #030712;
-  --color-neutral-100: #111827;
-  --color-neutral-200: #1F2937;
-  --color-neutral-300: #374151;
-  --color-neutral-400: #4B5563;
-  --color-neutral-500: #6B7280;
-  --color-neutral-600: #9CA3AF;
-  --color-neutral-700: #D1D5DB;
-  --color-neutral-800: #E5E7EB;
-  --color-neutral-900: #F3F4F6;
-  --color-neutral-950: #F9FAFB;
-
-  /* 品牌快捷別名 (Dark) */
   --color-brand: #F1F3F4;
   --color-brand-light: #A5A8BD;
-  --color-brand-dark: #2D3250;
-  --color-brand-accent: #DDA580;
 
-  /* 柔和粉彩 (Pastel Accents - Dark) */
-  --bg-cream: #161618;
-  --card-base: #202023;
-  --text-soft: #D1D5DB;
-  --accent-peach: #C87A65;
-  --accent-mint: #729B9B;
-  --accent-lavender: #8A8C9E;
-  --accent-yellow: #B89C76;
-  --accent-rose: #B87575;
-  --accent-sage: #76968E;
+  --color-accent-peach: #C87A65;
+  --color-accent-mint: #729B9B;
+  --color-accent-lavender: #8A8C9E;
+  --color-accent-yellow: #B89C76;
+  --color-accent-rose: #B87575;
+  --color-accent-sage: #76968E;
 
-  /* 核心介面語意變數 (Dark - Soft Pastel Status Colors) */
   --color-page-bg: #161618;
   --color-surface: #202023;
   --color-surface-elevated: #28282C;
   --color-border-subtle: #2C2C30;
   --color-text-main: #D1D5DB;
   --color-text-muted: #9CA3AF;
+  --color-text-soft: #D1D5DB;
+
   --color-status-resolved: #54B996;
   --color-status-eraser: #E57D84;
   --color-status-warning: #EDB869;
 
-  /* 品牌陰影 (Dark) */
   --shadow-brand-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   --shadow-brand: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
   --shadow-brand-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
@@ -245,11 +122,6 @@
   --shadow-brand-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
   --shadow-accent: 0 4px 6px -1px rgba(246, 157, 90, 0.2), 0 2px 4px -1px rgba(246, 157, 90, 0.1);
   --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.2);
-
-  /* 柔和漸層 (Dark) */
-  --gradient-brand: linear-gradient(135deg, #F1F3F4 0%, #A5A8BD 50%, #2D3250 100%);
-  --gradient-accent: linear-gradient(135deg, #F69D5A 0%, #7C3C22 100%);
-  --gradient-hero: linear-gradient(135deg, #F8F9FA 0%, #676F9D 50%, #F69D5A 100%);
 }
 
 @layer base {
