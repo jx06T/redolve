@@ -148,7 +148,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
       <button
         onClick={onClickEdit}
         aria-label="尚未分類題目，點此編輯標籤"
-        className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-status-warning/10 text-status-warning border border-status-warning/20 hover:bg-status-warning/15 active:scale-95 transition-all max-w-full min-w-0"
+        className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-status-warning/10 text-status-warning border border-status-warning/20 hover:bg-status-warning/15 active:scale-95 transition-all max-w-full min-w-0 overflow-hidden"
       >
         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
         <span className="truncate min-w-0">尚未分類 — 點此指派</span>
@@ -159,7 +159,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
   return (
     <button
       onClick={onClickEdit}
-      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all text-left max-w-full min-w-0"
+      className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-all text-left max-w-[86vw] min-w-0 overflow-hidden"
       title="點擊以變更題目分類"
     >
       <Tag className="w-3.5 h-3.5 text-primary shrink-0" />

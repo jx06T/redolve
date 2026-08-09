@@ -429,7 +429,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
             {keywordsArray.map((kw, idx) => (
               <span
                 key={idx}
-                className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 text-text-main font-medium"
+                className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 text-text-main font-medium max-w-full truncate min-w-0"
               >
                 #{kw}
               </span>

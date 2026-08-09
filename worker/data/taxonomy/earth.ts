@@ -4,7 +4,7 @@ import { TaxonomyNode } from '../../types';
 export const earthTaxonomy: TaxonomyNode = {
   id: 'earth',
   parent_id: null,
-  label: '高中地球科學',
+  label: '高中地科',
   level: 0,
   children: [
     // ================= 1. 固體地球 =================
