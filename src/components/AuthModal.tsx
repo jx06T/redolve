@@ -110,13 +110,13 @@ export const AuthModal: React.FC = () => {
         </div>
 
         {/* Scrollable Inner Body */}
-        <div className="p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+        <div className="p-4 sm:p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
 
           {/* Current Active Session Info */}
           <div className="p-4 rounded-2xl bg-neutral-50 border border-border-subtle space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold tracking-wider text-text-muted uppercase">
-                目前使用身分 (Active Session)
+                Active Session
               </span>
               {isGuest ? (
                 <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-neutral-100 text-neutral-600 border border-border-subtle">
@@ -154,7 +154,7 @@ export const AuthModal: React.FC = () => {
                 <button
                   onClick={handleLogout}
                   disabled={isLoading}
-                  className="px-3 py-1.5 rounded-xl text-xs text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 transition-all font-medium flex items-center space-x-1"
+                  className="px-3 py-1.5 rounded-xl text-xs text-status-eraser hover:bg-status-eraser/10 border border-status-eraser/30 transition-all font-medium flex items-center space-x-1"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                   <span>登出</span>

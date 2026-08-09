@@ -174,7 +174,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
                 <button
                   onClick={() => setRevokeKeyTarget(k.key_prefix)}
-                  className="p-2 rounded-xl text-text-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                  className="p-2 rounded-xl text-text-muted hover:text-status-eraser hover:bg-status-eraser/10 transition-colors"
                   title="撤銷此 Key"
                 >
                   <Trash2 className="w-4 h-4" />

@@ -239,8 +239,8 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
         <div
           className={`group flex items-center justify-between py-2 px-3 rounded-xl transition-all ${
             depth === 0
-              ? 'bg-stone-50/80 dark:bg-stone-800/40 hover:bg-stone-100/80 dark:hover:bg-stone-800/70 border border-stone-200/50 dark:border-stone-800 my-1'
-              : 'hover:bg-stone-50 dark:hover:bg-stone-800/30'
+              ? 'bg-neutral-50/80 hover:bg-neutral-100/80 border border-neutral-200/50 my-1'
+              : 'hover:bg-neutral-50'
           }`}
           style={{ paddingLeft: `${Math.max(12, depth * 22 + 12)}px` }}
         >
@@ -250,17 +250,17 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               <button
                 type="button"
                 onClick={() => toggleNodeExpand(node.id)}
-                className="w-5 h-5 flex items-center justify-center rounded-md text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-stone-200/50 dark:hover:bg-stone-700/50 transition-colors shrink-0"
+                className="w-5 h-5 flex items-center justify-center rounded-md text-neutral-400 hover:text-neutral-700 hover:bg-neutral-200/50 transition-colors shrink-0"
               >
                 {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
               </button>
             ) : (
               <div className="w-5 shrink-0 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-stone-300 dark:bg-stone-700" />
+                <span className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
               </div>
             )}
 
-            <div className="shrink-0 text-stone-400 dark:text-stone-500">
+            <div className="shrink-0 text-neutral-400">
               {depth === 0 ? (
                 <BookOpen className="w-4 h-4 text-indigo-500" />
               ) : depth === 1 ? (
@@ -360,7 +360,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
                   setInlineAddParentId(node.id);
                   setInlineAddLabel('');
                 }}
-                className="p-1 rounded-lg text-stone-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                className="p-1 rounded-lg text-neutral-400 hover:text-primary hover:bg-neutral-100 transition-colors"
                 title={`在「${node.label}」下新增子單元`}
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -374,7 +374,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
                   e.stopPropagation();
                   handleStartRename(node);
                 }}
-                className="p-1 rounded-lg text-stone-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
+                className="p-1 rounded-lg text-neutral-400 hover:text-primary hover:bg-neutral-100 transition-colors"
                 title="重新命名此自訂章節"
               >
                 <Edit2 className="w-3.5 h-3.5" />
@@ -385,7 +385,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
               <button
                 type="button"
                 onClick={() => setDeleteNodeTarget(node.id)}
-                className="p-1 rounded-lg text-stone-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
+                className="p-1 rounded-lg text-neutral-400 hover:text-status-eraser hover:bg-status-eraser/10 transition-colors"
                 title="刪除此自訂分類"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -396,7 +396,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
 
         {isAddingChild && (
           <div
-            className="flex items-center space-x-2 py-2 px-3 my-1 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40"
+            className="flex items-center space-x-2 py-2 px-3 my-1 rounded-xl bg-primary-50/50 border border-primary-200/60"
             style={{ paddingLeft: `${(depth + 1) * 22 + 12}px` }}
           >
             <input
@@ -422,7 +422,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
             <button
               type="button"
               onClick={() => setInlineAddParentId(null)}
-              className="p-1.5 rounded-lg text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 hover:bg-stone-200/50 dark:hover:bg-stone-700/50 transition-colors"
+              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-200/50 transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -430,7 +430,7 @@ export const TaxonomySettingsSection: React.FC<TaxonomySettingsSectionProps> = (
         )}
 
         {hasChildren && isExpanded && (
-          <div className="flex flex-col border-l border-stone-200/60 dark:border-stone-800/80 ml-5">
+          <div className="flex flex-col border-l border-neutral-200/60 ml-5">
             {node.children!.map((child) => renderTreeNode(child, depth + 1))}
           </div>
         )}

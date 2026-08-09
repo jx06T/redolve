@@ -207,10 +207,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-2 sm:p-4 select-none">
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4 select-none">
       <div className="bg-surface border border-border-subtle rounded-3xl max-w-xl w-full max-h-[92vh] sm:max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Fixed Header */}
-        <div className="shrink-0 px-5 sm:px-6 py-3.5 sm:py-4 border-b border-border-subtle flex items-center justify-between bg-surface">
+        <div className="shrink-0 px-3 sm:px-5 py-3.5 sm:py-4 border-b border-border-subtle flex items-center justify-between bg-surface">
           <div className="flex items-center space-x-2.5">
             <div className="p-2 bg-primary/10 text-primary rounded-2xl">
               <Upload className="w-5 h-5" />
@@ -233,7 +233,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         </div>
 
         {/* Scrollable Body Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-5 sm:px-6 py-4 space-y-4">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-5 py-4 space-y-4">
           {/* Guest Mode Notice */}
           {isGuest && (
             <div className="p-3 rounded-2xl bg-primary-50/80 border border-primary-200/60 flex items-center justify-between text-xs text-text-muted">

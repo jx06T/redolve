@@ -174,7 +174,7 @@ export const FloatingPenToolbar: React.FC = () => {
         transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         touchAction: 'none',
       }}
-      className={`fixed top-0 left-0 z-50 bg-surface border border-border-subtle shadow-lg rounded-3xl p-1.5 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
+      className={`fixed top-0 left-0 z-30 bg-surface border border-border-subtle shadow-lg rounded-3xl p-1.5 flex select-none transition-shadow ${isDragging ? 'cursor-grabbing shadow-xl ring-2 ring-primary/50' : 'cursor-grab'
         } ${isHorizontal
           ? 'flex-row items-center space-x-2'
           : 'flex-col items-center space-y-2'
@@ -259,7 +259,7 @@ export const FloatingPenToolbar: React.FC = () => {
               if (tool === 'eraser') setTool('pen');
             }}
             aria-label={`選取顏色: ${c.name || c.hex}`}
-            className={`w-6 h-6 rounded-full transition-transform border border-black/10 dark:border-white/10 active:scale-95 ${penColor.toUpperCase() === c.hex.toUpperCase()
+            className={`w-6 h-6 rounded-full transition-transform border border-border-subtle active:scale-95 ${penColor.toUpperCase() === c.hex.toUpperCase()
               ? 'scale-105 ring-1 ring-primary shadow-xs'
               : 'hover:scale-110'
               }`}
@@ -281,9 +281,9 @@ export const FloatingPenToolbar: React.FC = () => {
             aria-label="自訂色插槽"
             title={lastCustomColor ? "點擊選取自訂色 / 再次點擊開啟調色盤" : "新增自訂色"}
             className={`absolute inset-0 w-full h-full rounded-full flex items-center justify-center transition-all border ${lastCustomColor && penColor.toUpperCase() === lastCustomColor.toUpperCase()
-              ? 'scale-105 ring-1 ring-primary shadow-xs border-black/10 dark:border-white/10'
+              ? 'scale-105 ring-1 ring-primary shadow-xs border-border-subtle'
               : lastCustomColor
-                ? 'border-black/10 dark:border-white/10 hover:scale-110'
+                ? 'border-border-subtle hover:scale-110'
                 : 'bg-neutral-100 hover:bg-neutral-200 border-border-subtle hover:scale-110'
               }`}
             style={{
@@ -299,10 +299,9 @@ export const FloatingPenToolbar: React.FC = () => {
             type="color"
             value={lastCustomColor || penColor}
             onChange={handleCustomColorChange}
-            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${
-              (lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase())
-                ? 'pointer-events-none'
-                : 'pointer-events-auto'
+            className={`absolute inset-0 w-full h-full opacity-0 cursor-pointer ${(lastCustomColor && penColor.toUpperCase() !== lastCustomColor.toUpperCase())
+              ? 'pointer-events-none'
+              : 'pointer-events-auto'
               }`}
             title="選擇自訂顏色"
           />
