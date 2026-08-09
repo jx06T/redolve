@@ -1,5 +1,82 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary-50: var(--color-primary-50);
+  --color-primary-100: var(--color-primary-100);
+  --color-primary-200: var(--color-primary-200);
+  --color-primary-300: var(--color-primary-300);
+  --color-primary-400: var(--color-primary-400);
+  --color-primary-500: var(--color-primary-500);
+  --color-primary-600: var(--color-primary-600);
+  --color-primary-700: var(--color-primary-700);
+  --color-primary-800: var(--color-primary-800);
+  --color-primary-900: var(--color-primary-900);
+  --color-primary-950: var(--color-primary-950);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-light: #EEF2FF;
+  --color-primary-dark: #818CF8;
+
+  --color-accent-50: var(--color-accent-50);
+  --color-accent-100: var(--color-accent-100);
+  --color-accent-200: var(--color-accent-200);
+  --color-accent-300: var(--color-accent-300);
+  --color-accent-400: var(--color-accent-400);
+  --color-accent-500: var(--color-accent-500);
+  --color-accent-600: var(--color-accent-600);
+  --color-accent-700: var(--color-accent-700);
+  --color-accent-800: var(--color-accent-800);
+  --color-accent-900: var(--color-accent-900);
+  --color-accent-950: var(--color-accent-950);
+  --color-accent-peach: var(--accent-peach);
+  --color-accent-mint: var(--accent-mint);
+  --color-accent-lavender: var(--accent-lavender);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-rose: var(--accent-rose);
+  --color-accent-sage: var(--accent-sage);
+
+  --color-neutral-50: var(--color-neutral-50);
+  --color-neutral-100: var(--color-neutral-100);
+  --color-neutral-200: var(--color-neutral-200);
+  --color-neutral-300: var(--color-neutral-300);
+  --color-neutral-400: var(--color-neutral-400);
+  --color-neutral-500: var(--color-neutral-500);
+  --color-neutral-600: var(--color-neutral-600);
+  --color-neutral-700: var(--color-neutral-700);
+  --color-neutral-800: var(--color-neutral-800);
+  --color-neutral-900: var(--color-neutral-900);
+  --color-neutral-950: var(--color-neutral-950);
+
+  --color-brand: var(--color-brand);
+  --color-brand-light: var(--color-brand-light);
+  --color-brand-dark: var(--color-brand-dark);
+  --color-brand-accent: var(--color-brand-accent);
+
+  --color-page-bg: var(--color-page-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-elevated: var(--color-surface-elevated);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-text-main: var(--color-text-main);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-soft: var(--text-soft);
+
+  --color-status-resolved: var(--color-status-resolved);
+  --color-status-eraser: var(--color-status-eraser);
+  --color-status-warning: var(--color-status-warning);
+
+  --shadow-brand-sm: var(--shadow-brand-sm);
+  --shadow-brand: var(--shadow-brand);
+  --shadow-brand-md: var(--shadow-brand-md);
+  --shadow-brand-lg: var(--shadow-brand-lg);
+  --shadow-brand-xl: var(--shadow-brand-xl);
+  --shadow-accent: var(--shadow-accent);
+  --shadow-soft: 0 4px 20px rgba(0, 0, 0, 0.03);
+
+  --font-sans: 'Inter', '"Noto Sans TC"', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', 'Inter', system-ui, sans-serif;
+}
 
 :root {
   /* 品牌主色系 (Primary Scales) */
@@ -18,19 +95,6 @@
   /* 品牌快捷主色 */
   --color-primary: #6366F1;
   --color-primary-hover: #4F46E5;
-
-  /* 點綴色系 (橘色/珊瑚/蜜桃系) */
-  --color-accent-50: #FFEDDA;
-  --color-accent-100: #FDE5CB;
-  --color-accent-200: #FCD8B2;
-  --color-accent-300: #FBCB98;
-  --color-accent-400: #F8B178;
-  --color-accent-500: #F69D5A;
-  --color-accent-600: #F4893A;
-  --color-accent-700: #EC7A26;
-  --color-accent-800: #DD6A1E;
-  --color-accent-900: #C85913;
-  --color-accent-950: #AD4504;
 
   /* 中性色系 (Neutral Scales) */
   --color-neutral-50: #F9FAFB;
