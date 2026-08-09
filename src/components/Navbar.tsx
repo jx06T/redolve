@@ -215,7 +215,7 @@ export const Navbar: React.FC = () => {
               title="上傳錯題"
             >
               <Upload className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              <span className="hidden md:inline ml-1.5">上傳錯題</span>
+              <span className="hidden xl:inline ml-1.5">上傳錯題</span>
             </button>
 
             {/* Dark Mode Toggle */}
