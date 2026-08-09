@@ -69,7 +69,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted transition-colors"
+            className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted transition-colors"
             title="關閉 (Esc)"
           >
             <X className="w-5 h-5" />
@@ -89,7 +89,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
                   return (
                     <div
                       key={iIdx}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle"
+                      className="flex items-center justify-between p-2.5 rounded-2xl bg-neutral-50 border border-border-subtle"
                     >
                       <div className="flex items-center space-x-2.5">
                         <Icon className="w-4 h-4 text-primary shrink-0" />
@@ -109,7 +109,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 px-6 py-3 bg-neutral-50 dark:bg-neutral-900/60 border-t border-border-subtle flex justify-end">
+        <div className="shrink-0 px-6 py-3 bg-neutral-50 border-t border-border-subtle flex justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary-hover transition-colors"

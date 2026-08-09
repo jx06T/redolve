@@ -77,7 +77,7 @@ export const DashboardView: React.FC = () => {
       {/* Header Banner */}
       <div className="bg-surface border border-border-subtle rounded-3xl p-6 relative overflow-hidden">
         <div className="max-w-2xl relative z-10 space-y-2">
-          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-primary-50 dark:bg-primary-950/40 text-primary">
+          <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-xl text-xs font-semibold bg-primary-50 text-primary">
             <Sparkles className="w-3.5 h-3.5" />
             <span>錯題複習進度 Dashboard</span>
           </span>
@@ -122,7 +122,7 @@ export const DashboardView: React.FC = () => {
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex items-center space-x-4">
-          <div className="p-3.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+          <div className="p-3.5 bg-primary-50 text-primary rounded-2xl">
             <BookOpen className="w-6 h-6" />
           </div>
           <div>
@@ -187,7 +187,7 @@ export const DashboardView: React.FC = () => {
                   <div
                     key={sub.subject_id}
                     onClick={() => handleSubjectClick(sub.subject_id)}
-                    className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle hover:border-primary/40 hover:bg-neutral-100 dark:hover:bg-neutral-800/70 cursor-pointer transition-all duration-150 space-y-2 group"
+                    className="p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle hover:border-primary/40 hover:bg-neutral-100 cursor-pointer transition-all duration-150 space-y-2 group"
                   >
                     <div className="flex justify-between items-center text-xs font-medium">
                       <div className="flex items-center space-x-2">
@@ -204,7 +204,7 @@ export const DashboardView: React.FC = () => {
                         {sub.resolved} / {sub.total} 題 ({pct}%)
                       </span>
                     </div>
-                    <div className="w-full h-2 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
                       <div
                         className="h-full bg-gradient-to-r from-accent-peach to-accent-sage rounded-full transition-all duration-300"
                         style={{ width: `${pct}%` }}
@@ -234,7 +234,7 @@ export const DashboardView: React.FC = () => {
                   <div
                     key={topic.topic_id}
                     onClick={() => handleTopicClick(topic.topic_id)}
-                    className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
+                    className="p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
                   >
                     <div className="flex items-center space-x-3">
                       <span className="w-6 h-6 rounded-full bg-status-warning/10 text-status-warning font-bold text-xs flex items-center justify-center">
@@ -249,7 +249,7 @@ export const DashboardView: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-700 text-primary group-hover:bg-primary-50 dark:group-hover:bg-primary-950/40 active:scale-95 transition-all">
+                    <div className="p-2 rounded-xl bg-neutral-100 text-primary group-hover:bg-primary-50 active:scale-95 transition-all">
                       <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>

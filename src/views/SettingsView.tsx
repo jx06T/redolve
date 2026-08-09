@@ -107,7 +107,7 @@ export const SettingsView: React.FC = () => {
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'pencil'
               ? 'bg-primary text-white shadow-xs'
-              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
+              : 'text-text-main hover:bg-neutral-100'
           }`}
         >
           <Sliders className="w-4 h-4 shrink-0" />
@@ -119,7 +119,7 @@ export const SettingsView: React.FC = () => {
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'taxonomy'
               ? 'bg-primary text-white shadow-xs'
-              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
+              : 'text-text-main hover:bg-neutral-100'
           }`}
         >
           <Tag className="w-4 h-4 shrink-0" />
@@ -131,7 +131,7 @@ export const SettingsView: React.FC = () => {
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
             activeTab === 'apikeys'
               ? 'bg-primary text-white shadow-xs'
-              : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/60'
+              : 'text-text-main hover:bg-neutral-100'
           }`}
         >
           <Key className="w-4 h-4 shrink-0" />

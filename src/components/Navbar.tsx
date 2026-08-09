@@ -105,7 +105,7 @@ export const Navbar: React.FC = () => {
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-2xl text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all"
+              className="md:hidden p-2 rounded-2xl text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
               aria-label="選單 Toggle"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -160,7 +160,7 @@ export const Navbar: React.FC = () => {
                   aria-label={link.label}
                   className={`flex items-center space-x-1.5 px-5 lg:px-4 py-2 rounded-2xl text-xs font-medium transition-colors ${isActive
                     ? 'bg-primary/10 text-primary font-semibold'
-                    : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
+                    : 'text-text-main hover:bg-neutral-100'
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -180,14 +180,14 @@ export const Navbar: React.FC = () => {
                 placeholder="搜尋錯題、關鍵字..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 dark:bg-neutral-800 border border-border-subtle text-text-main focus:outline-none focus:border-primary transition-all w-32 md:w-48 xl:w-64"
+                className="pl-9 pr-4 py-1.5 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main focus:outline-none focus:border-primary transition-all w-32 md:w-48 xl:w-64"
               />
             </form>
 
             {/* Mobile Search Toggle Button */}
             <button
               onClick={() => setMobileSearchOpen(!mobileSearchOpen)}
-              className="sm:hidden p-1.5 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              className="sm:hidden p-1.5 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100"
               title="開啟搜尋"
             >
               <Search className="w-4 h-4" />
@@ -196,7 +196,7 @@ export const Navbar: React.FC = () => {
             {/* Keyboard Shortcuts Trigger Button */}
             <button
               onClick={() => setShortcutsModalOpen(true)}
-              className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-medium border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
+              className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-2xl text-xs font-medium border border-border-subtle text-text-main hover:bg-neutral-100 transition-colors"
               title="鍵盤快捷鍵指南 (?)"
             >
               <Command className="w-3.5 h-3.5 text-text-muted" />
@@ -216,7 +216,7 @@ export const Navbar: React.FC = () => {
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
-              className="p-1.5 sm:p-2 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 transition-colors"
+              className="p-1.5 sm:p-2 rounded-2xl border border-border-subtle text-text-main hover:bg-neutral-100 transition-colors"
               title="切換深淺色模式 (Cmd+D)"
             >
               {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -227,7 +227,7 @@ export const Navbar: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
-                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-primary-50/50 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 text-primary hover:bg-primary-100/50 dark:hover:bg-primary-900/50 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
+                className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-2xl bg-primary-50/50 border border-primary-200/60 text-primary hover:bg-primary-100/50 text-xs font-semibold transition-all active:scale-95 shadow-2xs"
                 title="登入 Google 帳號以啟用雲端跨裝置同步"
               >
                 <LogIn className="w-3.5 h-3.5" />
@@ -238,7 +238,7 @@ export const Navbar: React.FC = () => {
             {/* User Session & Auth Profile Button */}
             <button
               onClick={() => setAuthModalOpen(true)}
-              className="flex items-center space-x-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-border-subtle bg-neutral-50 dark:bg-neutral-800/60 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-main transition-all"
+              className="flex items-center space-x-1.5 p-1 sm:px-2.5 sm:py-1.5 rounded-2xl border border-border-subtle bg-neutral-50 hover:bg-neutral-100 text-text-main transition-all"
               title="使用者帳號與身分管理"
             >
               <div className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-[11px] font-bold overflow-hidden shrink-0">
@@ -271,7 +271,7 @@ export const Navbar: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
-                className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-neutral-100 dark:bg-neutral-800 border border-border-subtle text-text-main"
+                className="w-full pl-9 pr-4 py-2 rounded-2xl text-xs bg-neutral-100 border border-border-subtle text-text-main"
               />
             </form>
           </div>
@@ -292,7 +292,7 @@ export const Navbar: React.FC = () => {
             >
               {/* Guest Banner in Mobile Drawer */}
               {(!currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV)) && (
-                <div className="p-3 rounded-2xl bg-primary-50/60 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-800/40 flex items-center justify-between gap-2">
+                <div className="p-3 rounded-2xl bg-primary-50/60 border border-primary-200/60 flex items-center justify-between gap-2">
                   <div className="space-y-0.5">
                     <div className="text-xs font-bold text-text-main">訪客試用模式</div>
                     <div className="text-[11px] text-text-muted">登入以同步多裝置資料</div>
@@ -321,7 +321,7 @@ export const Navbar: React.FC = () => {
                     setMobileMenuOpen(false);
                     navigate(`/study/${val}`);
                   }}
-                  className="w-full p-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-xs font-semibold text-text-main border border-border-subtle focus:outline-none focus:border-primary"
+                  className="w-full p-2.5 rounded-xl bg-neutral-100 text-xs font-semibold text-text-main border border-border-subtle focus:outline-none focus:border-primary"
                 >
                   {(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA).map((sub) => (
                     <option key={sub.id} value={sub.id}>
@@ -346,7 +346,7 @@ export const Navbar: React.FC = () => {
                       onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center space-x-3 px-3.5 py-2.5 rounded-2xl text-xs font-medium transition-colors ${isActive
                         ? 'bg-primary/10 text-primary font-semibold'
-                        : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                        : 'text-text-main hover:bg-neutral-100'
                         }`}
                     >
                       <Icon className="w-4 h-4" />

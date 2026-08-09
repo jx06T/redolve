@@ -23,7 +23,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
       <div className="flex items-center space-x-3">
         <span>複習次數: {problem.review_count} 次</span>
         {problem.status === 'archived' && (
-          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 font-medium text-[11px] border border-border-subtle">
+          <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg bg-neutral-100 text-text-muted font-medium text-[11px] border border-border-subtle">
             <Archive className="w-3 h-3 text-neutral-500" />
             <span>已封存</span>
           </span>
@@ -39,8 +39,8 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
             aria-label={problem.status === 'archived' ? '解除封存' : '封存此題目（確定不會再錯）'}
             className={`inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-medium active:scale-95 transition-all border ${
               problem.status === 'archived'
-                ? 'bg-primary-50 dark:bg-primary-950/40 text-primary border-primary-200 dark:border-primary-850 hover:bg-primary-100'
-                : 'bg-neutral-100 dark:bg-neutral-800 text-text-muted border-border-subtle hover:text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                ? 'bg-primary-50 text-primary border-primary-200 hover:bg-primary-100'
+                : 'bg-neutral-100 text-text-muted border-border-subtle hover:text-text-main hover:bg-neutral-200'
             }`}
             title={
               problem.status === 'archived'
@@ -69,7 +69,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
           className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
             isResolved
               ? 'bg-status-resolved text-white hover:bg-status-resolved/90'
-              : 'bg-neutral-100 dark:bg-neutral-800 text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700'
+              : 'bg-neutral-100 text-text-main hover:bg-neutral-200'
           }`}
         >
           <CheckCircle className="w-4 h-4" />

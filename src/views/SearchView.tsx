@@ -47,7 +47,7 @@ export const SearchView: React.FC = () => {
       <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
         <div>
           <div className="flex items-center space-x-3 text-text-main">
-            <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+            <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
               <Search className="w-5 h-5" />
             </div>
             <div>
@@ -60,7 +60,7 @@ export const SearchView: React.FC = () => {
         </div>
 
         {/* View Mode Switcher */}
-        <div className="flex items-center space-x-1 p-1 bg-neutral-100 dark:bg-neutral-800 rounded-2xl">
+        <div className="flex items-center space-x-1 p-1 bg-neutral-100 rounded-2xl">
           <button
             type="button"
             onClick={() => setViewMode('compact')}
@@ -114,7 +114,7 @@ export const SearchView: React.FC = () => {
                   {/* Top Badges */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 dark:bg-primary-950/40 text-primary border border-primary-200/50 dark:border-primary-850/40">
+                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 text-primary border border-primary-200/50">
                         {problemCode}
                       </span>
                       <StatusBadge
@@ -131,7 +131,7 @@ export const SearchView: React.FC = () => {
                   </div>
 
                   {/* Thumbnail Image */}
-                  <div className="w-full h-44 rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle relative group cursor-pointer"
+                  <div className="w-full h-44 rounded-2xl overflow-hidden bg-neutral-50 border border-border-subtle relative group cursor-pointer"
                     onClick={() => handleNavigateToProblem(item)}
                   >
                     <img
@@ -143,7 +143,7 @@ export const SearchView: React.FC = () => {
 
                   {/* Typed Notes Snippet */}
                   {item.typed_notes && (
-                    <div className="p-2.5 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle text-[11px] text-text-main flex items-start space-x-1.5">
+                    <div className="p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-[11px] text-text-main flex items-start space-x-1.5">
                       <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
                       <p className="line-clamp-2 leading-relaxed">{item.typed_notes}</p>
                     </div>
@@ -155,7 +155,7 @@ export const SearchView: React.FC = () => {
                       {keywordsArray.slice(0, 4).map((kw, kIdx) => (
                         <span
                           key={kIdx}
-                          className="px-2 py-0.5 text-[10px] rounded-lg bg-neutral-100 dark:bg-neutral-800 text-text-muted"
+                          className="px-2 py-0.5 text-[10px] rounded-lg bg-neutral-100 text-text-muted"
                         >
                           #{kw}
                         </span>

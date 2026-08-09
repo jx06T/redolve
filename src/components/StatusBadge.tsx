@@ -134,7 +134,7 @@ export function StatusBadge({ status, topicId, topicLabel, onClickEdit }: Status
 
   if (status === 'processing') {
     return (
-      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-muted border border-border-subtle">
+      <span className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-lg text-xs font-medium bg-neutral-100 text-text-muted border border-border-subtle">
         <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
         <span>AI 辨識中...</span>
       </span>

@@ -106,7 +106,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={onOpenShareModal}
           aria-label="開啟公開分享設定"
-          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50 active:scale-95 transition-all"
+          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
           title="分享題目"
         >
           <Share2 className="w-4 h-4" />
@@ -118,7 +118,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
             type="button"
             onClick={onOpenDeleteModal}
             aria-label="刪除此錯題"
-            className="p-2 rounded-xl text-text-muted hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 active:scale-95 transition-all"
+            className="p-2 rounded-xl text-text-muted hover:text-status-eraser hover:bg-status-eraser/10 active:scale-95 transition-all"
             title="刪除"
           >
             <Trash2 className="w-4 h-4" />

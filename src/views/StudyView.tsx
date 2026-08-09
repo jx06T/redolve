@@ -403,7 +403,7 @@ export const StudyView: React.FC = () => {
                 <button
                   onClick={loadMore}
                   disabled={isLoading}
-                  className="px-6 py-2.5 rounded-2xl bg-neutral-100 dark:bg-neutral-800 text-xs font-medium text-text-main hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                  className="px-6 py-2.5 rounded-2xl bg-neutral-100 text-xs font-medium text-text-main hover:bg-neutral-200 transition-colors"
                 >
                   {isLoading ? '載入中...' : '載入更多錯題'}
                 </button>

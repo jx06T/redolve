@@ -101,7 +101,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
           <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+            <div className="p-2 bg-primary-50 text-primary rounded-2xl">
               <Share2 className="w-5 h-5" />
             </div>
             <div>
@@ -111,7 +111,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
+            className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted"
           >
             <X className="w-5 h-5" />
           </button>
@@ -119,7 +119,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
         {/* Options */}
         <div className="space-y-3 text-xs">
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle cursor-pointer">
+          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 border border-border-subtle cursor-pointer">
             <div className="flex items-center space-x-2.5">
               <Eye className="w-4 h-4 text-primary" />
               <span className="font-semibold text-text-main">包含手寫筆跡 (Drawings)</span>
@@ -132,7 +132,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
             />
           </label>
 
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle cursor-pointer">
+          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 border border-border-subtle cursor-pointer">
             <div className="flex items-center space-x-2.5">
               <FileText className="w-4 h-4 text-primary" />
               <span className="font-semibold text-text-main">包含打字筆記 (Typed Notes)</span>
@@ -148,7 +148,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
         {/* Result Area */}
         {shareUrl && (
-          <div className="p-3.5 rounded-2xl bg-primary-50/80 dark:bg-primary-950/40 border border-primary-200/60 dark:border-primary-850/60 space-y-3">
+          <div className="p-3.5 rounded-2xl bg-primary-50/80 border border-primary-200/60 space-y-3">
             <div className="text-[11px] font-semibold text-primary">已生成的分享網址</div>
 
             <div className="flex items-center space-x-2">
@@ -156,7 +156,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
                 type="text"
                 readOnly
                 value={shareUrl}
-                className="flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 dark:border-primary-850 font-mono text-xs text-text-main select-all focus:outline-none"
+                className="flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 font-mono text-xs text-text-main select-all focus:outline-none"
               />
             </div>
 
@@ -174,7 +174,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
 
               <button
                 onClick={handleCopyShareUrl}
-                className="flex-1 px-1 py-2 rounded-xl bg-surface text-text-main border border-border-subtle text-xs font-semibold hover:bg-neutral-100 dark:hover:bg-neutral-800 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
+                className="flex-1 px-1 py-2 rounded-xl bg-surface text-text-main border border-border-subtle text-xs font-semibold hover:bg-neutral-100 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
               >
                 {isCopied ? <Check className="w-3.5 h-3.5 text-status-resolved" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{isCopied ? '已複製' : '複製網址'}</span>

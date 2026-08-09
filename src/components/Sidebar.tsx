@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           <span>訂正狀態過濾</span>
         </div>
-        <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 dark:bg-neutral-800/60 rounded-2xl">
+        <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 rounded-2xl">
           {STATUS_FILTER_ITEMS.map((item) => {
             const isSelected = selectedStatus === item.key;
             return (
@@ -131,11 +131,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                 ? 'bg-status-warning/10 text-status-warning font-semibold'
-                : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
+                : 'text-text-main hover:bg-neutral-100'
                 }`}
             >
               <span>全部未分類題目</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400">
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-neutral-200/70 text-neutral-500">
                 {problems.length}
               </span>
             </button>
@@ -153,13 +153,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
               }}
               className={`w-full text-left px-3 py-1.5 rounded-2xl text-xs font-medium transition-colors flex items-center justify-between ${selectedTopicId === null
                 ? 'bg-primary/10 text-primary font-semibold'
-                : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
+                : 'text-text-main hover:bg-neutral-100'
                 }`}
             >
               <span>全部 {activeSubject?.label || '科目'} 錯題</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${selectedTopicId === null
                 ? 'bg-primary/20 text-primary'
-                : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
+                : 'bg-neutral-200/70 text-neutral-500'
                 }`}>
                 {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
               </span>
@@ -178,14 +178,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                     }}
                     className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
                       ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
+                      : 'text-text-main hover:bg-neutral-100'
                       }`}
                   >
                     <span className="truncate">{unit.label}</span>
                     {unitCount > 0 && (
                       <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
                         ? 'bg-primary/20 text-primary font-semibold'
-                        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400'
+                        : 'bg-neutral-100 text-neutral-500'
                         }`}>
                         {unitCount}
                       </span>
@@ -215,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                             {pointCount > 0 && (
                               <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
                                 ? 'bg-primary/20 text-primary font-bold'
-                                : 'text-neutral-400 dark:text-neutral-500'
+                                : 'text-neutral-400'
                                 }`}>
                                 {pointCount}
                               </span>
@@ -261,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                   }}
                   className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center justify-between transition-all ${isActive
                     ? 'bg-primary text-white font-bold shadow-xs'
-                    : 'text-text-main hover:bg-neutral-100 dark:hover:bg-neutral-800/50'
+                    : 'text-text-main hover:bg-neutral-100'
                     }`}
                 >
                   <div className="flex flex-col min-w-0 pr-2">
@@ -300,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       <div className="lg:hidden fixed bottom-24 left-6 z-40">
         <button
           onClick={() => setMobileDrawerOpen(true)}
-          className="flex items-center space-x-2 px-4 py-2.5 rounded-full bg-primary text-white font-semibold text-xs shadow-xl ring-2 ring-white/50 dark:ring-neutral-700 active:scale-95 transition-all"
+          className="flex items-center space-x-2 px-4 py-2.5 rounded-full bg-primary text-white font-semibold text-xs shadow-xl ring-2 ring-white/50 active:scale-95 transition-all"
         >
           <Compass className="w-4 h-4" />
           <span>章節導航</span>
@@ -325,7 +325,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             </div>
             <button
               onClick={() => setMobileDrawerOpen(false)}
-              className="p-1.5 rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-text-muted"
+              className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted"
             >
               <X className="w-5 h-5" />
             </button>
@@ -341,7 +341,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           <div className=" absolute self-start top-0 -left-2">
             <button
               onClick={toggleSidebarCollapsed}
-              className="p-3 rounded-2xl bg-surface border border-border-subtle text-primary shadow-xs hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
+              className="p-3 rounded-2xl bg-surface border border-border-subtle text-primary shadow-xs hover:bg-neutral-100 transition-all"
               title="展開側邊欄 (退出專注模式)"
             >
               <PanelLeftOpen className="w-5 h-5" />

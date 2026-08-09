@@ -117,7 +117,7 @@ export const ShareView: React.FC = () => {
         {/* Header Bar */}
         <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
           <div className="flex items-center space-x-3">
-            <div className="p-2.5 bg-primary-50 dark:bg-primary-950/40 text-primary rounded-2xl">
+            <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
               <BookOpen className="w-5 h-5" />
             </div>
             <div>
@@ -128,7 +128,7 @@ export const ShareView: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <span className="px-3 py-1.5 rounded-xl text-xs font-medium bg-neutral-100 dark:bg-neutral-800 text-text-main">
+            <span className="px-3 py-1.5 rounded-xl text-xs font-medium bg-neutral-100 text-text-main">
               {share.allow_ink ? '包含作者手寫推導' : '無筆跡原圖'}
             </span>
             <button
@@ -164,7 +164,7 @@ export const ShareView: React.FC = () => {
               {keywordsArray.map((kw, idx) => (
                 <span
                   key={idx}
-                  className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 dark:bg-neutral-800 text-text-main font-medium"
+                  className="px-2.5 py-1 text-xs rounded-xl bg-neutral-100 text-text-main font-medium"
                 >
                   #{kw}
                 </span>
@@ -173,7 +173,7 @@ export const ShareView: React.FC = () => {
           )}
 
           {/* Unified Exam Image & Scratchpad Canvas Workspace */}
-          <div className="relative rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-900/60 border border-border-subtle flex flex-col">
+          <div className="relative rounded-2xl overflow-hidden bg-neutral-50 border border-border-subtle flex flex-col">
             <div className="w-full relative select-none">
               <img
                 src={imageUrl}
@@ -186,7 +186,7 @@ export const ShareView: React.FC = () => {
             {isInkAllowed && (
               <div
                 style={{ height: `${calcSpaceHeight}px` }}
-                className="w-full relative border-t border-dashed border-border-subtle bg-neutral-50 dark:bg-neutral-900/60 select-none"
+                className="w-full relative border-t border-dashed border-border-subtle bg-neutral-50 select-none"
               >
                 <div className="absolute inset-0 opacity-35 dark:opacity-20 pointer-events-none bg-[radial-gradient(#9CA3AF_1.2px,transparent_1.2px)] [background-size:18px_18px]" />
                 <div className="absolute top-2 left-3 z-10 flex items-center space-x-1.5 text-[11px] text-text-muted select-none pointer-events-none bg-surface/70 px-2 py-0.5 rounded-md backdrop-blur-2xs border border-border-subtle">
@@ -211,7 +211,7 @@ export const ShareView: React.FC = () => {
 
           {/* Typed Notes & Summary Section */}
           {item.typed_notes && (
-            <div className="mt-4 rounded-2xl bg-neutral-50/80 dark:bg-neutral-900/60 border border-border-subtle p-4">
+            <div className="mt-4 rounded-2xl bg-neutral-50/80 border border-border-subtle p-4">
               <div className="flex items-center space-x-2 text-xs font-semibold text-text-main mb-2">
                 <FileText className="w-4 h-4 text-primary" />
                 <span>作者文字筆記 / 解題思路與觀念總結</span>
