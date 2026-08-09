@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Panzoom, { PanzoomObject } from '@panzoom/panzoom';
 import { ZoomIn, ZoomOut, RotateCcw, X } from 'lucide-react';
 
@@ -109,7 +110,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
     panzoomRef.current?.reset();
   };
 
-  return (
+  const modalContent = (
     <div
       className="fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center select-none overflow-hidden animate-in fade-in duration-200"
       onClick={(e) => {
@@ -188,4 +189,6 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
