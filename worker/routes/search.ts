@@ -22,7 +22,7 @@ searchRouter.get('/', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(
       `SELECT i.*,
-         (
+         MAX(
            (CASE WHEN (i.keywords LIKE ? OR fts.keyword_tokens LIKE ?) THEN 100 ELSE 0 END) +
            (CASE WHEN fts.source LIKE ? THEN 60 ELSE 0 END) +
            (CASE WHEN fts.typed_notes LIKE ? THEN 40 ELSE 0 END) +
@@ -39,6 +39,7 @@ searchRouter.get('/', async (c) => {
          OR fts.problem_text LIKE ?
          OR fts MATCH ?
        )
+       GROUP BY i.id
        ORDER BY relevance_score DESC, i.created_at DESC
        LIMIT 50`
     )
@@ -66,7 +67,7 @@ searchRouter.get('/', async (c) => {
     // 💡 降級備用方案：如果 FTS 語法依然解析失敗，純用 LIKE 掃描，權重排序同理
     const { results } = await c.env.DB.prepare(
       `SELECT i.*,
-         (
+         MAX(
            (CASE WHEN (i.keywords LIKE ? OR fts.keyword_tokens LIKE ?) THEN 100 ELSE 0 END) +
            (CASE WHEN fts.source LIKE ? THEN 60 ELSE 0 END) +
            (CASE WHEN fts.typed_notes LIKE ? THEN 40 ELSE 0 END) +
@@ -82,6 +83,7 @@ searchRouter.get('/', async (c) => {
          OR fts.typed_notes LIKE ? 
          OR fts.problem_text LIKE ?
        ) 
+       GROUP BY i.id
        ORDER BY relevance_score DESC, i.created_at DESC 
        LIMIT 50`
     )
