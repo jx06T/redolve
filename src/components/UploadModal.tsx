@@ -178,9 +178,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
               return res;
             }
-          } catch (err) {
+          } catch (err: any) {
             removeProblemFromStore(tempId);
-            throw err;
+            throw new Error(err.message || String(err));
           }
         })
       );
@@ -195,9 +195,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
         }
       } else if (fulfilledCount > 0) {
-        showToast(`已處理 ${fulfilledCount} 張錯題，有 ${rejectedCount} 張失敗！`, 'error', 6000);
+        const firstError = (results.find(r => r.status === 'rejected') as PromiseRejectedResult)?.reason;
+        showToast(`已處理 ${fulfilledCount} 張錯題，有 ${rejectedCount} 張失敗！錯誤: ${firstError?.message || '未知'}`, 'error', 8000);
       } else {
-        showToast('錯題處理失敗！請檢查圖片格式。', 'error', 6000);
+        const firstError = (results.find(r => r.status === 'rejected') as PromiseRejectedResult)?.reason;
+        showToast(`錯題處理失敗！錯誤: ${firstError?.message || '未知'}`, 'error', 8000);
       }
 
       // Cleanup
