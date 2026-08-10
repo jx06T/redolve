@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { Bindings, Variables, ItemRow, TaxonomyNode } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { createAIService } from '../services/ai';
@@ -134,10 +135,36 @@ async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNo
   return TAXONOMY_SEED_DATA;
 }
 
+// Isolate-level in-memory rate limiter (Fixed Window)
+const uploadRateLimits = new Map<string, { count: number; resetAt: number }>();
+const UPLOAD_RATE_LIMIT = 60; // Max 60 uploads per minute
+const RATE_LIMIT_WINDOW = 60 * 1000;
+
 // 1. Upload Problem (FormData) -> R2 + D1 + Background AI Tagging
-problemsRouter.post('/', authMiddleware, async (c) => {
-  const userId = c.get('userId');
-  const body = await c.req.parseBody();
+problemsRouter.post(
+  '/',
+  authMiddleware,
+  bodyLimit({
+    maxSize: 15 * 1024 * 1024, // 15MB strict body limit before parsing
+    onError: (c) => c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '請求 payload 過大，單檔上限為 15MB' } }, 413),
+  }),
+  async (c) => {
+    const userId = c.get('userId');
+
+    // --- Rate Limiting Logic ---
+    const nowMs = Date.now();
+    const userLimit = uploadRateLimits.get(userId);
+    if (!userLimit || nowMs > userLimit.resetAt) {
+      uploadRateLimits.set(userId, { count: 1, resetAt: nowMs + RATE_LIMIT_WINDOW });
+    } else {
+      if (userLimit.count >= UPLOAD_RATE_LIMIT) {
+        return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '上傳頻率過高，請稍後再試' } }, 429);
+      }
+      userLimit.count += 1;
+    }
+    // ---------------------------
+
+    const body = await c.req.parseBody();
 
   const file = body['file'] || body['image'];
   if (!file || !(file instanceof File)) {

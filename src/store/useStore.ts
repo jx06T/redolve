@@ -110,7 +110,7 @@ interface StoreState {
 
 export const useStore = create<StoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       toast: null,
 
       // 只有 Token 保留手動 localStorage，方便 API Client 在外部攔截器讀取
@@ -165,6 +165,9 @@ export const useStore = create<StoreState>()(
       setUploadModalOpen: (uploadModalOpen) => set({ uploadModalOpen }),
       setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
       setCurrentUser: (user, token) => {
+        const wasGuest = !get().currentUser || get().currentUser?.id === 'dev_user_default';
+        const isNowLoggedIn = user && user.id !== 'dev_user_default';
+
         if (token !== undefined) {
           if (token) {
             localStorage.setItem('redolve_auth_token', token);
@@ -175,10 +178,25 @@ export const useStore = create<StoreState>()(
         } else {
           set({ currentUser: user });
         }
+
+        // Trigger offline sync if transitioning from guest to logged in
+        if (wasGuest && isNowLoggedIn) {
+          import('../services/OfflineSyncManager').then(({ OfflineSyncManager }) => {
+            OfflineSyncManager.syncToCloud().then((result) => {
+              if (result.success > 0) {
+                get().showToast(`已成功將 ${result.success} 張本機錯題同步至雲端並自動解析！請重新整理頁面。`, 'success', 8000);
+                // Note: user may need to refresh to fetch the newly uploaded items and cloud IDs.
+              }
+            }).catch(err => console.error("Sync error:", err));
+          });
+        }
       },
       logout: () => {
         localStorage.removeItem('redolve_auth_token');
         set({ currentUser: null, authToken: null });
+        import('../services/OfflineSyncManager').then(({ OfflineSyncManager }) => {
+          OfflineSyncManager.clearOfflineData().catch(err => console.error("Clear error:", err));
+        });
       },
 
       setSelectedSubjectId: (subjectId) =>

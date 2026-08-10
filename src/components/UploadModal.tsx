@@ -4,6 +4,7 @@ import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
+import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 const compressImage = (file: File): Promise<File> => {
   return new Promise((resolve) => {
@@ -148,7 +149,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
           const tempItem: Item = {
             id: tempId,
-            user_id: 'temp',
+            user_id: isGuest ? 'guest' : 'temp',
             type: 'image',
             topic_id: selectedSubjectId || 'math',
             keywords: null,
@@ -156,7 +157,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             source: sourceInput || null,
             image_url: item.previewUrl,
             draw_data: null,
-            status: 'processing',
+            status: isGuest ? 'unsolved' : 'processing', // Guests skip processing locally
             review_count: 0,
             vector_clock: null,
             updated_at: new Date().toISOString(),
@@ -166,10 +167,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           addOptimisticProblem(tempItem);
 
           try {
-            const res = await uploadProblem(compressedFile, sourceInput);
-            completedCount += 1;
-            setUploadProgress({ current: completedCount, total: selectedFiles.length });
-            return res;
+            if (isGuest) {
+              await OfflineSyncManager.saveOfflineProblem(tempId, compressedFile, sourceInput, selectedSubjectId || 'math');
+              completedCount += 1;
+              setUploadProgress({ current: completedCount, total: selectedFiles.length });
+              return { id: tempId }; // Mock success
+            } else {
+              const res = await uploadProblem(compressedFile, sourceInput);
+              completedCount += 1;
+              setUploadProgress({ current: completedCount, total: selectedFiles.length });
+              return res;
+            }
           } catch (err) {
             removeProblemFromStore(tempId);
             throw err;
@@ -181,11 +189,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       const rejectedCount = results.filter((r) => r.status === 'rejected').length;
 
       if (rejectedCount === 0) {
-        showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
+        if (isGuest) {
+          showToast(`成功儲存 ${fulfilledCount} 張錯題至本機！登入後將自動備份並進行 AI 解析。`, 'success', 5000);
+        } else {
+          showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
+        }
       } else if (fulfilledCount > 0) {
-        showToast(`已上傳 ${fulfilledCount} 張錯題，有 ${rejectedCount} 張上傳失敗，請檢查網路！`, 'error', 6000);
+        showToast(`已處理 ${fulfilledCount} 張錯題，有 ${rejectedCount} 張失敗！`, 'error', 6000);
       } else {
-        showToast('錯題上傳失敗！請檢查圖片格式與網路連線後重試。', 'error', 6000);
+        showToast('錯題處理失敗！請檢查圖片格式。', 'error', 6000);
       }
 
       // Cleanup
