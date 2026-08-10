@@ -32,7 +32,7 @@ const OFFLINE_PROBS_STORE = 'offlineProblems';
 
 export async function getOfflineDB() {
   return openDB<RedolveDB>(DB_NAME, 2, {
-    upgrade(db, oldVersion, newVersion, transaction) {
+    upgrade(db) {
       if (!db.objectStoreNames.contains(SYNC_STORE_NAME)) {
         db.createObjectStore(SYNC_STORE_NAME, { keyPath: 'id' });
       }

@@ -27,7 +27,7 @@ dashboardRouter.get('/', async (c) => {
   const totalRow = await c.env.DB.prepare(
     `SELECT
        COUNT(id) AS total,
-       SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) AS resolved,
+       SUM(CASE WHEN status IN ('resolved', 'archived') THEN 1 ELSE 0 END) AS resolved,
        SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) AS unsolved,
        SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing,
@@ -56,7 +56,7 @@ dashboardRouter.get('/', async (c) => {
          t_root.id    AS subject_id,
          t_root.label AS subject_label,
          COUNT(i.id)  AS total,
-         SUM(CASE WHEN i.status = 'resolved' THEN 1 ELSE 0 END) AS resolved
+         SUM(CASE WHEN i.status IN ('resolved', 'archived') THEN 1 ELSE 0 END) AS resolved
        FROM items i
        JOIN ancestors a ON i.topic_id = a.id
        JOIN taxonomies t_root ON a.root_id = t_root.id AND t_root.parent_id IS NULL
