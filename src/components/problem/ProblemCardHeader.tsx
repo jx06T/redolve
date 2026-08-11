@@ -64,7 +64,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
         }
       } else {
-        showToast('這題目前沒有擷取到文字可以複製', 'warning', 3000);
+        showToast('這題目前沒有擷取到文字可以複製', 'info', 3000);
       }
     } catch (err) {
       console.error('Failed to copy text:', err);
