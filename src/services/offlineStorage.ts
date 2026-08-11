@@ -13,6 +13,11 @@ export interface OfflineProblem {
   source: string;
   topicId: string;
   timestamp: number;
+  tagResult?: {
+    topic_id: string;
+    keywords: string[];
+    ocr_text?: string;
+  };
 }
 
 export interface RedolveDB extends DBSchema {

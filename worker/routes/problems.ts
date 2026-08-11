@@ -137,8 +137,67 @@ async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNo
 
 // Isolate-level in-memory rate limiter (Fixed Window)
 const uploadRateLimits = new Map<string, { count: number; resetAt: number }>();
+const guestRateLimits = new Map<string, { count: number; resetAt: number }>();
 const UPLOAD_RATE_LIMIT = 60; // Max 60 uploads per minute
+const GUEST_RATE_LIMIT = 20; // Max 20 guest analysis per minute
 const RATE_LIMIT_WINDOW = 60 * 1000;
+
+// 0. Guest Analysis Endpoint (Synchronous AI Tagging without Storage)
+problemsRouter.post(
+  '/analyze-guest',
+  optionalAuthMiddleware,
+  bodyLimit({
+    maxSize: 15 * 1024 * 1024,
+    onError: (c) => c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '請求 payload 過大，單檔上限為 15MB' } }, 413),
+  }),
+  async (c) => {
+    // IP-based Rate Limiting for Guests
+    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown-ip';
+    const nowMs = Date.now();
+    const limit = guestRateLimits.get(ip);
+    if (!limit || nowMs > limit.resetAt) {
+      guestRateLimits.set(ip, { count: 1, resetAt: nowMs + RATE_LIMIT_WINDOW });
+    } else {
+      if (limit.count >= GUEST_RATE_LIMIT) {
+        return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '訪客分析頻率過高，請稍後再試' } }, 429);
+      }
+      limit.count += 1;
+    }
+
+    const body = await c.req.parseBody();
+    const file = body['file'] || body['image'];
+    if (!file || !(file instanceof File)) {
+      return c.json({ error: { code: 'INVALID_REQUEST', message: '請上傳有效圖片檔案' } }, 400);
+    }
+
+    const fileType = (file.type || '').toLowerCase();
+    const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    if (fileType && !ALLOWED_TYPES.includes(fileType)) {
+      return c.json({ error: { code: 'INVALID_FILE_TYPE', message: '不支援的圖片格式' } }, 400);
+    }
+
+    const imageArrayBuffer = await file.arrayBuffer();
+
+    // Use seed taxonomies for guests by querying with a non-existent userId
+    const tree = await loadFullTaxonomyTree(c.env.DB, 'guest');
+    const aiService = createAIService(c.env);
+    const tagResult = await aiService.tagProblem(imageArrayBuffer, tree);
+
+    if (!tagResult) {
+      return c.json({ error: { code: 'AI_ANALYSIS_FAILED', message: 'AI 分析辨識失敗' } }, 422);
+    }
+
+    const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
+
+    return c.json({
+      status: 'ok',
+      tagResult: {
+        ...tagResult,
+        topic_id: validTopicId,
+      }
+    }, 200);
+  }
+);
 
 // 1. Upload Problem (FormData) -> R2 + D1 + Background AI Tagging
 problemsRouter.post(
@@ -194,25 +253,65 @@ problemsRouter.post(
   });
 
   const now = new Date().toISOString();
-  const initialTopicId = await validateAndEnsureTopicId(c.env.DB, body['topic_id'] as string);
+  // Pre-analyzed tags from Guest sync
+  const tagResultRaw = body['tag_result'] as string | undefined;
+  let preAnalyzedResult: any = null;
+  if (tagResultRaw) {
+    try {
+      preAnalyzedResult = JSON.parse(tagResultRaw);
+    } catch (e) {
+      // ignore
+    }
+  }
 
-  // Insert D1 item record with status 'processing'
+  const initialTopicId = preAnalyzedResult 
+    ? await validateAndEnsureTopicId(c.env.DB, preAnalyzedResult.topic_id) 
+    : await validateAndEnsureTopicId(c.env.DB, body['topic_id'] as string);
+
+  const initialStatus = preAnalyzedResult ? 'unsolved' : 'processing';
+  const initialKeywords = preAnalyzedResult && preAnalyzedResult.keywords ? JSON.stringify(preAnalyzedResult.keywords) : null;
+  const initialKeywordTokens = preAnalyzedResult && preAnalyzedResult.keyword_tokens ? preAnalyzedResult.keyword_tokens.join(' ') : null;
+
+  // Insert D1 item record
   await c.env.DB.prepare(
     `INSERT INTO items (id, user_id, type, topic_id, keywords, keyword_tokens, source, image_url, draw_data, status, review_count, vector_clock, updated_at, created_at)
-     VALUES (?, ?, 'problem', ?, NULL, NULL, ?, ?, NULL, 'processing', 0, NULL, ?, ?)`
+     VALUES (?, ?, 'problem', ?, ?, ?, ?, ?, NULL, ?, 0, NULL, ?, ?)`
   )
     .bind(
       problemId,
       userId,
       initialTopicId,
+      initialKeywords,
+      initialKeywordTokens,
       (body['source'] as string) || 'iOS Shortcut',
       imageKey,
+      initialStatus,
       now,
       now
     )
     .run();
 
-  // Trigger Background AI Tagging via ctx.waitUntil
+  if (preAnalyzedResult) {
+    // Sync FTS5 Index synchronously for pre-analyzed result
+    try {
+      const ocrText = preAnalyzedResult.ocr_text || '';
+      await c.env.DB.prepare(
+        `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          problemId,
+          userId,
+          (body['source'] as string) || 'iOS Shortcut',
+          initialKeywordTokens || '',
+          '',
+          ocrText
+        )
+        .run();
+    } catch (ftsErr) {
+      console.warn('[FTS Sync Warning]', ftsErr);
+    }
+  } else {
+    // Trigger Background AI Tagging via ctx.waitUntil
   c.executionCtx.waitUntil(
     (async () => {
       try {
@@ -274,6 +373,7 @@ problemsRouter.post(
       }
     })()
   );
+  }
 
   return c.json({ id: problemId, status: 'processing' }, 200);
 });

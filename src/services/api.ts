@@ -201,11 +201,33 @@ export function getProblemImageUrl(id: string): string {
   return token ? `${API_BASE}/problems/${id}/image?auth=${encodeURIComponent(token)}` : `${API_BASE}/problems/${id}/image`;
 }
 
-export async function uploadProblem(file: File, source?: string, topicId?: string): Promise<{ id: string }> {
+export async function analyzeGuestProblem(file: File): Promise<{ status: string; tagResult: { topic_id: string; keywords: string[]; ocr_text?: string } }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${API_BASE}/analyze-guest`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errorData: any = await res.json().catch(() => ({}));
+    throw new Error(errorData?.error?.message || `訪客 AI 分析失敗 (HTTP ${res.status})`);
+  }
+  return res.json();
+}
+
+export async function uploadProblem(
+  file: File, 
+  source?: string, 
+  topicId?: string,
+  tagResult?: any
+): Promise<{ id: string }> {
   const formData = new FormData();
   formData.append('file', file);
   if (source) formData.append('source', source);
   if (topicId) formData.append('topic_id', topicId);
+  if (tagResult) formData.append('tag_result', JSON.stringify(tagResult));
 
   const headers: Record<string, string> = {};
   const token = getAuthToken();

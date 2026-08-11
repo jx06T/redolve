@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Upload, Trash2, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
-import { uploadProblem } from '../services/api';
+import { uploadProblem, analyzeGuestProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
@@ -53,6 +53,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setIsLoading,
     showToast,
     addOptimisticProblem,
+    updateProblemInStore,
     removeProblemFromStore,
     selectedSubjectId,
     currentUser,
@@ -157,7 +158,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             source: sourceInput || null,
             image_url: item.previewUrl,
             draw_data: null,
-            status: isGuest ? 'unsolved' : 'processing', // Guests skip processing locally
+            status: 'processing', // Initially processing for both
             review_count: 0,
             vector_clock: null,
             updated_at: new Date().toISOString(),
@@ -168,12 +169,28 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
           try {
             if (isGuest) {
-              await OfflineSyncManager.saveOfflineProblem(tempId, compressedFile, sourceInput, selectedSubjectId || 'math');
+              const analyzeRes = await analyzeGuestProblem(compressedFile);
+              await OfflineSyncManager.saveOfflineProblem(
+                tempId, 
+                compressedFile, 
+                sourceInput, 
+                analyzeRes.tagResult.topic_id,
+                analyzeRes.tagResult
+              );
+              
+              updateProblemInStore(tempId, {
+                status: 'unsolved',
+                topic_id: analyzeRes.tagResult.topic_id,
+                keywords: JSON.stringify(analyzeRes.tagResult.keywords),
+                keyword_tokens: analyzeRes.tagResult.keywords.join(' '),
+                updated_at: new Date().toISOString(),
+              });
+
               completedCount += 1;
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
               return { id: tempId }; // Mock success
             } else {
-              const res = await uploadProblem(compressedFile, sourceInput);
+              const res = await uploadProblem(compressedFile, sourceInput, selectedSubjectId || 'math');
               completedCount += 1;
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
               return res;

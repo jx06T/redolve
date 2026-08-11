@@ -7,7 +7,13 @@ export class OfflineSyncManager {
   /**
    * Save a problem to IndexedDB for offline users.
    */
-  static async saveOfflineProblem(id: string, file: File, source: string, topicId: string): Promise<void> {
+  static async saveOfflineProblem(
+    id: string, 
+    file: File, 
+    source: string, 
+    topicId: string,
+    tagResult?: OfflineProblem['tagResult']
+  ): Promise<void> {
     const db = await getOfflineDB();
     await db.put(OFFLINE_PROBS_STORE, {
       id,
@@ -15,6 +21,7 @@ export class OfflineSyncManager {
       source,
       topicId,
       timestamp: Date.now(),
+      tagResult,
     });
   }
 
@@ -42,8 +49,8 @@ export class OfflineSyncManager {
     for (const prob of problems) {
       try {
         const file = new File([prob.fileData], `offline_${prob.id}.jpg`, { type: prob.fileData.type || 'image/jpeg' });
-        // Upload to backend
-        await uploadProblem(file, prob.source, prob.topicId);
+        // Upload to backend, passing along the pre-analyzed tagResult if available
+        await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
         
         // Remove from IndexedDB on success
         await db.delete(OFFLINE_PROBS_STORE, prob.id);
