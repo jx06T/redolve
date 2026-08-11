@@ -374,7 +374,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   })();
 
-  const baseImageUrl = getProblemImageUrl(problem.id);
+  // For offline guest items the image is stored locally as a Blob URL and
+  // already present in problem.image_url.  Only fall back to the server API
+  // endpoint for items that actually live in the cloud (non-blob URLs).
+  const isOfflineItem = problem.image_url?.startsWith('blob:');
+  const baseImageUrl = isOfflineItem
+    ? problem.image_url
+    : getProblemImageUrl(problem.id);
   const imageUrl = reloadVersion > 0
     ? `${baseImageUrl}${baseImageUrl.includes('?') ? '&' : '?'}v=${reloadVersion}`
     : baseImageUrl;

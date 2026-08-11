@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, Layers } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { fetchProblems, fetchProblemById, updateProblemMetadata, analyzeProblem } from '../services/api';
+import { updateProblemMetadata, analyzeProblem } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
+import { useProblems } from '../hooks/useProblems';
 import { ProblemCard } from '../components/ProblemCard';
 import { ProblemMetadataModal } from '../components/problem/ProblemMetadataModal';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
@@ -13,33 +14,25 @@ import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 // import { EraserFAB } from '../components/EraserFAB';
 import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
-import { isTopicUnderSubject, getRootSubjectId } from '../components/StatusBadge';
+import { isTopicUnderSubject } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
-import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
   const {
     problems,
-    setProblems,
-    appendProblems,
-    nextCursor,
     selectedSubjectId,
     selectedTopicId,
     selectedStatus,
     setSelectedSubjectId,
     setSelectedTopicId,
     isLoading,
-    setIsLoading,
     updateProblemInStore,
     setActiveProblemId,
     taxonomies,
     showToast,
     setMobileDrawerOpen,
-    currentUser,
   } = useStore();
-
-  const isGuest = !currentUser || currentUser.id === 'dev_user_default';
 
   const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
 
@@ -97,77 +90,32 @@ export const StudyView: React.FC = () => {
     }
   }, [subject, topic, selectedSubjectId, selectedTopicId, isValidTopic, setSelectedSubjectId, setSelectedTopicId]);
 
-  const isGuestRef = React.useRef(isGuest);
-  React.useEffect(() => { isGuestRef.current = isGuest; }, [isGuest]);
-  const activeTaxonomiesRef = React.useRef(activeTaxonomies);
-  React.useEffect(() => { activeTaxonomiesRef.current = activeTaxonomies; }, [activeTaxonomies]);
+  // ---------------------------------------------------------------------------
+  // Data loading via useProblems (handles both cloud and offline sources)
+  // ---------------------------------------------------------------------------
+  const targetHashProblemIdRef = useRef<string | null>(
+    typeof window !== 'undefined'
+      ? window.location.hash.replace(/^#problem-/, '').replace(/^#/, '') || null
+      : null
+  );
 
-  const loadInitialProblems = useCallback(async () => {
-    setIsLoading(true);
-    hasPerformedInitialScrollRef.current = false;
-    isInitialScrollPendingRef.current = true;
-    try {
-      const res = await fetchProblems({
-        subject_id: effectiveSubject,
-        topic_id: effectiveTopic ?? undefined,
-        status: selectedStatus === 'all' ? undefined : selectedStatus,
-        limit: 15,
-      });
-
-      let finalItems = res.items;
-      const targetId = problemId || targetHashProblemIdRef.current;
-
-      if (targetId && !finalItems.some((p) => p.id === targetId)) {
-        try {
-          const targetItem = await fetchProblemById(targetId);
-          if (targetItem) {
-            finalItems = [targetItem, ...finalItems];
-          }
-        } catch (err) {
-          console.warn('Could not fetch target problem by ID:', err);
-        }
-      }
-
-      if (isGuestRef.current) {
-        const localTaxonomies = activeTaxonomiesRef.current;
-        const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
-        const filteredOffline = offlineItems.filter((item) => {
-          if (effectiveSubject && effectiveSubject !== 'all') {
-            if (effectiveSubject === 'unclassified') {
-              if (item.topic_id) return false;
-            } else {
-              const root = getRootSubjectId(item.topic_id || '', localTaxonomies);
-              if (root !== effectiveSubject) return false;
-            }
-          }
-          if (effectiveTopic && effectiveTopic !== 'all') {
-            if (item.topic_id !== effectiveTopic) return false;
-          }
-          if (selectedStatus && selectedStatus !== 'all') {
-            if (item.status !== selectedStatus) return false;
-          }
-          return true;
-        });
-        const existingIds = new Set(finalItems.map(i => i.id));
-        finalItems = [...filteredOffline.filter(o => !existingIds.has(o.id)), ...finalItems];
-      }
-
-      setProblems(finalItems, res.nextCursor);
-    } catch (err) {
-      console.error('Failed to load problems:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [effectiveSubject, effectiveTopic, selectedStatus, problemId, setProblems, setIsLoading]);
+  const { load, loadMore, nextCursor } = useProblems({
+    subject: effectiveSubject,
+    topic: effectiveTopic,
+    status: selectedStatus,
+    targetProblemId: problemId || targetHashProblemIdRef.current,
+  });
 
   useEffect(() => {
-    loadInitialProblems();
-  }, [loadInitialProblems]);
+    load();
+  }, [load]);
 
+  // Silent refetch on tab focus (only for logged-in users; guests read IndexedDB locally)
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState === 'visible' && !isLoading) {
         try {
+          const { fetchProblems } = await import('../services/api');
           const res = await fetchProblems({
             subject_id: effectiveSubject,
             topic_id: effectiveTopic ?? undefined,
@@ -175,15 +123,15 @@ export const StudyView: React.FC = () => {
             limit: 15,
           });
           if (res.items.length > 0 && problems.length > 0) {
-            const latestNew = res.items[0];
-            const latestOld = problems[0];
-            if (latestNew.id !== latestOld.id) {
+            // Only notify if the top cloud item changed (guests have blob items at the top, skip them)
+            const firstCloudItem = problems.find(p => !p.image_url?.startsWith('blob:'));
+            if (firstCloudItem && res.items[0]?.id !== firstCloudItem.id) {
               showToast(
                 '[新題目] 偵測到新題目已分類，點此重新整理',
                 'success',
                 10000,
                 () => {
-                  setProblems(res.items, res.nextCursor);
+                  load();
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                   if (parentRef.current) parentRef.current.scrollTop = 0;
                 }
@@ -198,40 +146,18 @@ export const StudyView: React.FC = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [effectiveSubject, effectiveTopic, selectedStatus, problems, isLoading, setProblems, showToast]);
+  }, [effectiveSubject, effectiveTopic, selectedStatus, problems, isLoading, showToast, load]);
 
-  const loadMore = async () => {
-    if (!nextCursor || isLoading) return;
-    setIsLoading(true);
-    try {
-      const res = await fetchProblems({
-        subject_id: effectiveSubject,
-        topic_id: effectiveTopic ?? undefined,
-        status: selectedStatus === 'all' ? undefined : selectedStatus,
-        cursor: nextCursor,
-        limit: 15,
-      });
-      appendProblems(res.items, res.nextCursor);
-    } catch (err) {
-      console.error('Failed to fetch next page:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const targetHashProblemIdRef = useRef<string | null>(
-    typeof window !== 'undefined'
-      ? window.location.hash.replace(/^#problem-/, '').replace(/^#/, '') || null
-      : null
-  );
+  // ---------------------------------------------------------------------------
+  // Virtualizer + scroll tracking
+  // ---------------------------------------------------------------------------
   const isInitialScrollPendingRef = useRef<boolean>(true);
   const hasPerformedInitialScrollRef = useRef<boolean>(false);
 
-  // Virtualizer Setup with dynamic size measurement
   const rowVirtualizer = useVirtualizer({
     count: problems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 620, // estimated card height with divider
+    estimateSize: () => 620,
     overscan: 3,
   });
 
@@ -247,7 +173,6 @@ export const StudyView: React.FC = () => {
           setActiveProblemId(targetId);
           window.history.replaceState(null, '', `${window.location.pathname}#problem-${targetId}`);
 
-          // Instant jump to target index
           requestAnimationFrame(() => {
             rowVirtualizer.scrollToIndex(index, { align: 'start', behavior: 'auto' });
             setTimeout(() => {
@@ -258,7 +183,6 @@ export const StudyView: React.FC = () => {
         }
       }
 
-      // Default fallback to first problem if no valid hash
       const firstProblem = problems[0];
       setActiveProblemId(firstProblem.id);
       window.history.replaceState(null, '', `${window.location.pathname}#problem-${firstProblem.id}`);
@@ -266,14 +190,13 @@ export const StudyView: React.FC = () => {
     }
   }, [problemId, problems, rowVirtualizer, setActiveProblemId]);
 
-  // Scroll Listener on Virtualizer container for real-time focus detection & URL Hash sync
+  // Scroll Listener for real-time focus detection & URL Hash sync
   useEffect(() => {
     const parent = parentRef.current;
     if (!parent || problems.length === 0) return;
 
     let debounceTimer: any = null;
     const handleScroll = () => {
-      // Ignore scroll events during initial page load jump
       if (isInitialScrollPendingRef.current) return;
 
       clearTimeout(debounceTimer);
@@ -283,7 +206,6 @@ export const StudyView: React.FC = () => {
         const virtualItems = rowVirtualizer.getVirtualItems();
         if (virtualItems.length === 0) return;
 
-        // Find the item closest to top viewport
         const scrollTop = parent.scrollTop;
         const currentItem = virtualItems.reduce((closest, item) => {
           const distance = Math.abs(item.start - scrollTop);
@@ -295,14 +217,9 @@ export const StudyView: React.FC = () => {
           const currentProblem = problems[currentItem.index];
           setActiveProblemId(currentProblem.id);
 
-          // Update URL Hash without adding duplicate history entries
           const newHash = `#problem-${currentProblem.id}`;
           if (window.location.hash !== newHash) {
-            window.history.replaceState(
-              null,
-              '',
-              `${window.location.pathname}${newHash}`
-            );
+            window.history.replaceState(null, '', `${window.location.pathname}${newHash}`);
           }
         }
       }, 50);
@@ -315,6 +232,9 @@ export const StudyView: React.FC = () => {
     };
   }, [problems, rowVirtualizer, setActiveProblemId]);
 
+  // ---------------------------------------------------------------------------
+  // Metadata modal handlers
+  // ---------------------------------------------------------------------------
   const handleOpenEditModal = (problem: Item) => {
     setEditingProblem(problem);
     setEditTopicId(problem.topic_id || '');
@@ -336,8 +256,6 @@ export const StudyView: React.FC = () => {
 
     try {
       await updateProblemMetadata(editingProblem.id, {
-        // Send null explicitly when clearing so COALESCE on the backend
-        // receives a real NULL value and overwrites the existing topic_id.
         topic_id: editTopicId || null,
         keywords: keywordsArray,
       });
@@ -359,7 +277,6 @@ export const StudyView: React.FC = () => {
     try {
       const res = await analyzeProblem(editingProblem.id);
       if (res && res.tagResult) {
-        // Coerce null to empty string so the controlled input doesn't get null
         setEditTopicId(res.tagResult.topic_id ?? '');
         const kwList = Array.isArray(res.tagResult.keywords) ? res.tagResult.keywords : [];
         setEditKeywordsStr(kwList.join(', '));
@@ -463,13 +380,10 @@ export const StudyView: React.FC = () => {
         )}
       </section>
 
-      {/* Floating UI Layer (UI_DESIGN01_0804 Section 4) */}
-      {/* 1. Top-Right Floating Pen Palette */}
+      {/* Floating UI Layer */}
       <FloatingPenToolbar />
-
-      {/* 2. Left-Bottom Spring Eraser FAB */}
       {/* <EraserFAB /> */}
-      
+
       {/* Medium Screen (iPad) Sidebar Trigger FAB */}
       <div className="hidden md:flex lg:hidden fixed bottom-6 left-6 z-40">
         <button
@@ -481,7 +395,6 @@ export const StudyView: React.FC = () => {
         </button>
       </div>
 
-      {/* 3. Right-Bottom Floating Smart CTA */}
       <SmartCTA onStatusResolved={handleStatusResolved} />
 
       {/* Metadata Edit Modal */}
