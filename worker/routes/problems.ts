@@ -496,6 +496,30 @@ problemsRouter.get('/:id', authMiddleware, async (c) => {
   return c.json({ item });
 });
 
+// 3.5 Get Single Problem Text
+problemsRouter.get('/:id/text', authMiddleware, async (c) => {
+  const userId = c.get('userId');
+  const problemId = c.req.param('id');
+
+  const item = await c.env.DB.prepare('SELECT user_id FROM items WHERE id = ?')
+    .bind(problemId)
+    .first<{ user_id: string }>();
+
+  if (!item) {
+    return c.json({ error: { code: 'NOT_FOUND', message: '題目不存在' } }, 404);
+  }
+
+  if (item.user_id !== userId) {
+    return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問' } }, 403);
+  }
+
+  const fts = await c.env.DB.prepare('SELECT problem_text FROM items_fts WHERE id = ?')
+    .bind(problemId)
+    .first<{ problem_text: string }>();
+
+  return c.json({ text: fts?.problem_text || '' });
+});
+
 // 4. Stream Problem Image directly from R2
 problemsRouter.get('/:id/image', optionalAuthMiddleware, async (c) => {
   const userId = c.get('userId');

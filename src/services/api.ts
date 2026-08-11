@@ -196,6 +196,14 @@ export async function fetchProblemById(id: string): Promise<Item> {
   return res.json();
 }
 
+export async function fetchProblemText(id: string): Promise<{ text: string }> {
+  const res = await fetch(`${API_BASE}/problems/${id}/text`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('Failed to fetch problem text');
+  return res.json();
+}
+
 export function getProblemImageUrl(id: string): string {
   const token = getAuthToken();
   return token ? `${API_BASE}/problems/${id}/image?auth=${encodeURIComponent(token)}` : `${API_BASE}/problems/${id}/image`;

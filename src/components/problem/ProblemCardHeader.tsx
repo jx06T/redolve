@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   RotateCw,
   Eye,
@@ -6,9 +6,14 @@ import {
   Download,
   Share2,
   Trash2,
+  Copy,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { Item } from '../../types';
 import { StatusBadge } from '../StatusBadge';
+import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
+import { fetchProblemText } from '../../services/api';
 
 interface ProblemCardHeaderProps {
   problem: Item;
@@ -41,6 +46,24 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onOpenDeleteModal,
   onEditMetadata,
 }) => {
+  const [isFetchingText, setIsFetchingText] = useState(false);
+  const { isCopied, copy } = useCopyToClipboard();
+
+  const handleCopyText = async () => {
+    if (isFetchingText) return;
+    setIsFetchingText(true);
+    try {
+      const res = await fetchProblemText(problem.id);
+      if (res.text) {
+        await copy(res.text);
+      }
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    } finally {
+      setIsFetchingText(false);
+    }
+  };
+
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-border-subtle gap-2 min-w-0">
       {/* Left Badges */}
@@ -64,6 +87,24 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
 
       {/* Right Toolbar Actions */}
       <div className="flex items-center gap-1 flex-wrap ">
+        {/* Copy Text Button */}
+        <button
+          type="button"
+          onClick={handleCopyText}
+          disabled={isFetchingText}
+          aria-label="複製題目文字"
+          className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
+          title="複製題目文字"
+        >
+          {isFetchingText ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+          ) : isCopied ? (
+            <Check className="w-4 h-4 text-green-500" />
+          ) : (
+            <Copy className="w-4 h-4" />
+          )}
+        </button>
+
         {/* Manual Reload Button */}
         <button
           type="button"
