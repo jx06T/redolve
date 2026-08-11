@@ -13,8 +13,9 @@ import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 // import { EraserFAB } from '../components/EraserFAB';
 import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
-import { isTopicUnderSubject } from '../components/StatusBadge';
+import { isTopicUnderSubject, getRootSubjectId } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
@@ -35,7 +36,10 @@ export const StudyView: React.FC = () => {
     taxonomies,
     showToast,
     setMobileDrawerOpen,
+    currentUser,
   } = useStore();
+
+  const isGuest = !currentUser || currentUser.id === 'dev_user_default';
 
   const activeTaxonomies = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
 
@@ -117,6 +121,29 @@ export const StudyView: React.FC = () => {
         } catch (err) {
           console.warn('Could not fetch target problem by ID:', err);
         }
+      }
+
+      if (isGuest && !nextCursor) {
+        const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
+        const filteredOffline = offlineItems.filter((item) => {
+          if (effectiveSubject && effectiveSubject !== 'all') {
+            if (effectiveSubject === 'unclassified') {
+               if (item.topic_id) return false;
+            } else {
+               const root = getRootSubjectId(item.topic_id || '', activeTaxonomies);
+               if (root !== effectiveSubject) return false;
+            }
+          }
+          if (effectiveTopic && effectiveTopic !== 'all') {
+            if (item.topic_id !== effectiveTopic) return false;
+          }
+          if (selectedStatus && selectedStatus !== 'all') {
+            if (item.status !== selectedStatus) return false;
+          }
+          return true;
+        });
+        const offlineIds = new Set(filteredOffline.map(o => o.id));
+        finalItems = [...filteredOffline, ...finalItems.filter(api => !offlineIds.has(api.id))];
       }
 
       setProblems(finalItems, res.nextCursor);

@@ -13,10 +13,10 @@ import {
 } from 'lucide-react';
 import { fetchDashboard } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
-import { DashboardData } from '../types';
 import { useStore } from '../store/useStore';
 import { getRootSubjectId } from '../components/StatusBadge';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
+import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -31,7 +31,42 @@ export const DashboardView: React.FC = () => {
 
   useEffect(() => {
     fetchDashboard()
-      .then((res) => setData(res))
+      .then(async (res) => {
+        const isGuest = !useStore.getState().currentUser || useStore.getState().currentUser?.id === 'dev_user_default';
+        if (isGuest) {
+          const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
+          
+          if (offlineItems.length > 0) {
+            // Merge offline items into summary
+            res.summary.total += offlineItems.length;
+            res.summary.resolved += offlineItems.filter(i => i.status === 'resolved').length;
+            res.summary.unsolved += offlineItems.filter(i => i.status !== 'resolved' && i.status !== 'archived').length;
+            res.summary.unclassified = (res.summary.unclassified || 0) + offlineItems.filter(i => !i.topic_id).length;
+
+            // Merge subjects
+            const subMap = new Map<string, { subject_id: string; subject_label: string; total: number; resolved: number }>();
+            res.subjects.forEach(s => subMap.set(s.subject_id, { ...s }));
+
+            offlineItems.forEach(i => {
+              if (!i.topic_id) return;
+              const root = getRootSubjectId(i.topic_id, useStore.getState().taxonomies);
+              
+              if (!subMap.has(root)) {
+                // Find label from taxonomies
+                const taxonomy = useStore.getState().taxonomies.find(t => t.id === root);
+                subMap.set(root, { subject_id: root, subject_label: taxonomy?.label || root, total: 0, resolved: 0 });
+              }
+              const s = subMap.get(root)!;
+              s.total += 1;
+              if (i.status === 'resolved') s.resolved += 1;
+            });
+            res.subjects = Array.from(subMap.values());
+            
+            // Simplified top_unsolved_topics merge (optional, just sort subMap roughly)
+          }
+        }
+        setData(res);
+      })
       .catch((err) => console.error('Dashboard fetch failed:', err))
       .finally(() => setLoading(false));
   }, []);
