@@ -213,7 +213,7 @@ export async function analyzeGuestProblem(file: File): Promise<{ status: string;
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/analyze-guest`, {
+  const res = await fetch(`${API_BASE}/problems/analyze-guest`, {
     method: 'POST',
     body: formData,
   });
