@@ -14,6 +14,7 @@ import { Item } from '../../types';
 import { StatusBadge } from '../StatusBadge';
 import { useCopyToClipboard } from '../../hooks/useCopyToClipboard';
 import { fetchProblemText } from '../../services/api';
+import { useStore } from '../../store/useStore';
 
 interface ProblemCardHeaderProps {
   problem: Item;
@@ -48,17 +49,26 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
 }) => {
   const [isFetchingText, setIsFetchingText] = useState(false);
   const { isCopied, copy } = useCopyToClipboard();
+  const { showToast } = useStore();
 
   const handleCopyText = async () => {
     if (isFetchingText) return;
     setIsFetchingText(true);
     try {
       const res = await fetchProblemText(problem.id);
-      if (res.text) {
-        await copy(res.text);
+      if (res.text && res.text.trim().length > 0) {
+        const success = await copy(res.text);
+        if (success) {
+          showToast('已複製題目文字', 'success', 2000);
+        } else {
+          showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
+        }
+      } else {
+        showToast('這題目前沒有擷取到文字可以複製', 'warning', 3000);
       }
     } catch (err) {
       console.error('Failed to copy text:', err);
+      showToast('取得題目文字失敗，請稍後再試', 'error', 3000);
     } finally {
       setIsFetchingText(false);
     }
