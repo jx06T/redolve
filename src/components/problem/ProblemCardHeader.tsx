@@ -54,21 +54,28 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   const handleCopyText = async () => {
     if (isFetchingText) return;
     setIsFetchingText(true);
-    try {
-      const res = await fetchProblemText(problem.id);
-      if (res.text && res.text.trim().length > 0) {
-        const success = await copy(res.text);
-        if (success) {
-          showToast('已複製題目文字', 'success', 2000);
-        } else {
-          showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
-        }
-      } else {
-        showToast('這題目前沒有擷取到文字可以複製', 'info', 3000);
+
+    const textPromise = fetchProblemText(problem.id).then(res => {
+      if (!res.text || res.text.trim().length === 0) {
+        throw new Error('EMPTY_TEXT');
       }
-    } catch (err) {
-      console.error('Failed to copy text:', err);
-      showToast('取得題目文字失敗，請稍後再試', 'error', 3000);
+      return res.text;
+    });
+
+    try {
+      const success = await copy(textPromise);
+      if (success) {
+        showToast('已複製題目文字', 'success', 2000);
+      } else {
+        showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
+      }
+    } catch (err: any) {
+      if (err.message === 'EMPTY_TEXT') {
+        showToast('這題目前沒有擷取到文字可以複製', 'info', 3000);
+      } else {
+        console.error('Failed to fetch/copy text:', err);
+        showToast('取得題目文字失敗，請稍後再試', 'error', 3000);
+      }
     } finally {
       setIsFetchingText(false);
     }

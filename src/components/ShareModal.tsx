@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Share2, Copy, Check, Link2Off, Eye, FileText, Send } from 'lucide-react';
 import { createShareLink, revokeShareLink } from '../services/api';
 import { useStore } from '../store/useStore';
+import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
 
 interface ShareModalProps {
   isOpen: boolean;
@@ -17,14 +18,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
-  const [isCopied, setIsCopied] = useState<boolean>(false);
+  
+  const { isCopied, copy } = useCopyToClipboard(2500);
 
   // 當開啟新題目的 Share Modal 時，重置狀態
   useEffect(() => {
     if (isOpen) {
       setShareUrl(null);
       setShareToken(null);
-      setIsCopied(false);
     }
   }, [isOpen, problemId]);
 
@@ -48,15 +49,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClo
     }
   };
 
-  // 2. 複製網址到剪貼簿 (點擊按鈕直接同步觸發，手機 100% 成功)
+  // 2. 複製網址到剪貼簿
   const handleCopyShareUrl = async () => {
     if (!shareUrl) return;
-    try {
-      await navigator.clipboard.writeText(shareUrl);
-      setIsCopied(true);
+    const success = await copy(shareUrl);
+    if (success) {
       showToast('已成功複製分享連結至剪貼簿', 'success', 2000);
-      setTimeout(() => setIsCopied(false), 2500);
-    } catch {
+    } else {
       showToast('複製失敗，請手動選取網址複製', 'error');
     }
   };
