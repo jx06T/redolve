@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { fetchDashboard } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
+import { DashboardData } from '../types';
 import { useStore } from '../store/useStore';
 import { getRootSubjectId } from '../components/StatusBadge';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
@@ -25,14 +26,14 @@ export const DashboardView: React.FC = () => {
   });
 
   const navigate = useNavigate();
-  const { taxonomies, setSelectedSubjectId, setSelectedTopicId } = useStore();
+  const { taxonomies, setSelectedSubjectId, setSelectedTopicId, currentUser } = useStore();
+  const isGuest = !currentUser;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     fetchDashboard()
       .then(async (res) => {
-        const isGuest = !useStore.getState().currentUser || useStore.getState().currentUser?.id === 'dev_user_default';
         if (isGuest) {
           const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
           

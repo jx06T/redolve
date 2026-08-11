@@ -68,7 +68,7 @@ export class OfflineSyncManager {
         source: p.source,
         image_url: url,
         draw_data: null,
-        status: 'unsolved', // Offline problems are mostly unsolved initially, or processing if still analyzing
+        status: 'unsolved' as const,
         review_count: 0,
         vector_clock: null,
         updated_at: new Date(p.timestamp).toISOString(),

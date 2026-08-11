@@ -97,6 +97,11 @@ export const StudyView: React.FC = () => {
     }
   }, [subject, topic, selectedSubjectId, selectedTopicId, isValidTopic, setSelectedSubjectId, setSelectedTopicId]);
 
+  const isGuestRef = React.useRef(isGuest);
+  React.useEffect(() => { isGuestRef.current = isGuest; }, [isGuest]);
+  const activeTaxonomiesRef = React.useRef(activeTaxonomies);
+  React.useEffect(() => { activeTaxonomiesRef.current = activeTaxonomies; }, [activeTaxonomies]);
+
   const loadInitialProblems = useCallback(async () => {
     setIsLoading(true);
     hasPerformedInitialScrollRef.current = false;
@@ -123,15 +128,16 @@ export const StudyView: React.FC = () => {
         }
       }
 
-      if (isGuest && !nextCursor) {
+      if (isGuestRef.current) {
+        const localTaxonomies = activeTaxonomiesRef.current;
         const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
         const filteredOffline = offlineItems.filter((item) => {
           if (effectiveSubject && effectiveSubject !== 'all') {
             if (effectiveSubject === 'unclassified') {
-               if (item.topic_id) return false;
+              if (item.topic_id) return false;
             } else {
-               const root = getRootSubjectId(item.topic_id || '', activeTaxonomies);
-               if (root !== effectiveSubject) return false;
+              const root = getRootSubjectId(item.topic_id || '', localTaxonomies);
+              if (root !== effectiveSubject) return false;
             }
           }
           if (effectiveTopic && effectiveTopic !== 'all') {
@@ -142,8 +148,8 @@ export const StudyView: React.FC = () => {
           }
           return true;
         });
-        const offlineIds = new Set(filteredOffline.map(o => o.id));
-        finalItems = [...filteredOffline, ...finalItems.filter(api => !offlineIds.has(api.id))];
+        const existingIds = new Set(finalItems.map(i => i.id));
+        finalItems = [...filteredOffline.filter(o => !existingIds.has(o.id)), ...finalItems];
       }
 
       setProblems(finalItems, res.nextCursor);

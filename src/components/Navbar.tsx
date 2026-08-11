@@ -451,8 +451,14 @@ export const Navbar: React.FC = () => {
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onUploadSuccess={() => {
-          setProblems([], null);
-          navigate(`/study/${selectedSubjectId || 'math'}`);
+          const isGuest = !currentUser;
+          if (!isGuest) {
+            // For logged-in users, clear store and navigate to trigger a fresh fetch
+            setProblems([], null);
+            navigate(`/study/${selectedSubjectId || 'math'}`);
+          }
+          // For guests: optimistic items + IndexedDB are already in place.
+          // StudyView will include offline items on next load; no navigation needed.
         }}
       />
 
