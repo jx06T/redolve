@@ -3,9 +3,9 @@ import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, Layers } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { updateProblemMetadata, analyzeProblem } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { useProblems } from '../hooks/useProblems';
+import { useProblemActions } from '../hooks/useProblemActions';
 import { ProblemCard } from '../components/ProblemCard';
 import { ProblemMetadataModal } from '../components/problem/ProblemMetadataModal';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
@@ -27,7 +27,6 @@ export const StudyView: React.FC = () => {
     setSelectedSubjectId,
     setSelectedTopicId,
     isLoading,
-    updateProblemInStore,
     setActiveProblemId,
     taxonomies,
     showToast,
@@ -105,6 +104,8 @@ export const StudyView: React.FC = () => {
     status: selectedStatus,
     targetProblemId: problemId || targetHashProblemIdRef.current,
   });
+
+  const { saveMetadata, analyzeItem } = useProblemActions();
 
   useEffect(() => {
     load();
@@ -255,19 +256,14 @@ export const StudyView: React.FC = () => {
       .filter(Boolean);
 
     try {
-      await updateProblemMetadata(editingProblem.id, {
+      await saveMetadata(editingProblem, {
         topic_id: editTopicId || null,
         keywords: keywordsArray,
       });
-
-      updateProblemInStore(editingProblem.id, {
-        topic_id: editTopicId || null,
-        keywords: JSON.stringify(keywordsArray),
-      });
-
       setEditingProblem(null);
     } catch (err) {
       console.error('Failed to save metadata:', err);
+      showToast('儲存失敗，請稍後重試', 'error');
     }
   };
 
@@ -275,21 +271,21 @@ export const StudyView: React.FC = () => {
     if (!editingProblem) return;
     setIsAnalyzing(true);
     try {
-      const res = await analyzeProblem(editingProblem.id);
+      const res = await analyzeItem(editingProblem);
       if (res && res.tagResult) {
         setEditTopicId(res.tagResult.topic_id ?? '');
         const kwList = Array.isArray(res.tagResult.keywords) ? res.tagResult.keywords : [];
         setEditKeywordsStr(kwList.join(', '));
-        updateProblemInStore(editingProblem.id, {
+        
+        await saveMetadata(editingProblem, {
           topic_id: res.tagResult.topic_id,
-          keywords: JSON.stringify(kwList),
-          keyword_tokens: res.tagResult.keyword_tokens ? res.tagResult.keyword_tokens.join(' ') : '',
+          keywords: kwList,
         });
         showToast('AI 課綱辨識完成！已自動套用標籤');
       }
     } catch (err: any) {
       console.error('AI Analysis failed:', err);
-      showToast(err.message || 'AI 辨識失敗，請確認 API 金鑰');
+      showToast(err.message || 'AI 辨識失敗，請確認 API 金鑰', 'error');
     } finally {
       setIsAnalyzing(false);
     }

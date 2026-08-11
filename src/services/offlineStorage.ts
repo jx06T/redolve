@@ -58,6 +58,11 @@ export async function queueOfflineDraw(problemId: string, drawData: any, seq: nu
   });
 }
 
+export async function getOfflineProblem(id: string): Promise<OfflineProblem | undefined> {
+  const db = await getOfflineDB();
+  return db.get(OFFLINE_PROBS_STORE, id);
+}
+
 export async function getQueuedDraws(): Promise<SyncQueueItem[]> {
   const db = await getOfflineDB();
   return db.getAll(SYNC_STORE_NAME);

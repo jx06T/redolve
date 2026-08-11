@@ -122,4 +122,16 @@ export class OfflineSyncManager {
     this.objectUrlCache.forEach((url) => URL.revokeObjectURL(url));
     this.objectUrlCache.clear();
   }
+
+  /**
+   * Revoke the cached object URL for a single offline item (e.g. on delete).
+   */
+  static revokeObjectUrl(id: string): void {
+    const url = this.objectUrlCache.get(id);
+    if (url) {
+      URL.revokeObjectURL(url);
+      this.objectUrlCache.delete(id);
+    }
+  }
 }
+

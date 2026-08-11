@@ -1,16 +1,16 @@
 import React from 'react';
 import { CheckCircle2, ArrowDown } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { updateProblemStatus } from '../services/api';
+import { useProblemActions } from '../hooks/useProblemActions';
 
 interface SmartCTAProps {
   onStatusResolved?: (problemId: string) => void;
 }
 
 export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
-  const { activeProblemId, problems, updateProblemInStore } = useStore();
+  const { activeProblemId, problems } = useStore();
+  const { toggleStatus } = useProblemActions();
 
-  // Find currently locked problem or first unsolved problem
   const targetProblem =
     problems.find((p) => p.id === activeProblemId) || problems.find((p) => p.status === 'unsolved') || problems[0];
 
@@ -20,24 +20,12 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved }) => {
 
   const handleSmartResolve = async () => {
     if (isResolved) {
-      if (onStatusResolved) {
-        onStatusResolved(targetProblem.id);
-      }
+      if (onStatusResolved) onStatusResolved(targetProblem.id);
       return;
     }
-    const nextStatus = 'resolved';
-    try {
-      await updateProblemStatus(targetProblem.id, nextStatus);
-      updateProblemInStore(targetProblem.id, {
-        status: nextStatus,
-        review_count: targetProblem.review_count + 1,
-      });
-
-      if (onStatusResolved) {
-        onStatusResolved(targetProblem.id);
-      }
-    } catch (err) {
-      console.error('Failed to mark resolved via Smart CTA:', err);
+    const nextStatus = await toggleStatus(targetProblem);
+    if (nextStatus === 'resolved' && onStatusResolved) {
+      onStatusResolved(targetProblem.id);
     }
   };
 

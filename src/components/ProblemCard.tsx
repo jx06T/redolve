@@ -13,12 +13,9 @@ import { ProblemCardFooter } from './problem/ProblemCardFooter';
 import {
   getProblemImageUrl,
   fetchProblemById,
-  updateProblemStatus,
-  updateProblemDrawData,
-  updateProblemMetadata,
-  deleteProblem,
 } from '../services/api';
 import { useStore } from '../store/useStore';
+import { useProblemActions } from '../hooks/useProblemActions';
 import { exportProblemAsImage } from '../utils/exportImage';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 
@@ -43,7 +40,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     penWidth,
     eraserActive,
     updateProblemInStore,
-    removeProblemFromStore,
     showToast,
     activeProblemId,
     taxonomies,
@@ -53,6 +49,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     inPageMatches,
     inPageCurrentIndex,
   } = useStore();
+
+  const { toggleStatus, toggleArchive, saveDrawData, saveTypedNotes, deleteItem } = useProblemActions();
 
   const isActive = activeProblemId === problem.id;
 
@@ -194,41 +192,17 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   }, [problem.id]);
 
   const handleToggleStatus = async () => {
-    const nextStatus = isResolved ? 'unsolved' : 'resolved';
-    const optimisticResolved = !isResolved;
-    setIsResolved(optimisticResolved);
-    updateProblemInStore(problem.id, {
-      status: nextStatus,
-      review_count: optimisticResolved ? problem.review_count + 1 : problem.review_count,
-    });
-
-    if (optimisticResolved && onStatusResolved) {
+    const nextStatus = await toggleStatus(problem);
+    setIsResolved(nextStatus === 'resolved');
+    if (nextStatus === 'resolved' && onStatusResolved) {
       onStatusResolved(problem.id);
-    }
-
-    try {
-      await updateProblemStatus(problem.id, nextStatus);
-    } catch (err) {
-      console.error('Failed to update status:', err);
-      setIsResolved(!optimisticResolved);
-      updateProblemInStore(problem.id, { status: problem.status, review_count: problem.review_count });
     }
   };
 
   const handleToggleArchive = async () => {
-    const isArchived = problem.status === 'archived';
-    const nextStatus = isArchived ? (isResolved ? 'resolved' : 'unsolved') : 'archived';
-    updateProblemInStore(problem.id, { status: nextStatus });
-    if (nextStatus === 'archived') {
-      setIsResolved(false);
-    }
-
-    try {
-      await updateProblemStatus(problem.id, nextStatus);
-    } catch (err) {
-      console.error('Failed to update archive status:', err);
-      updateProblemInStore(problem.id, { status: problem.status });
-    }
+    const wasArchived = problem.status === 'archived';
+    if (!wasArchived) setIsResolved(false);
+    await toggleArchive(problem);
   };
 
   const handleTypedNotesChange = (text: string) => {
@@ -242,9 +216,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
     saveNotesTimerRef.current = setTimeout(async () => {
       try {
-        await updateProblemMetadata(problem.id, { typed_notes: text });
-      } catch (err) {
-        console.error('Failed to save typed notes:', err);
+        await saveTypedNotes(problem, text);
       } finally {
         setIsSavingNotes(false);
       }
@@ -256,28 +228,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       const activeHeight = typeof explicitHeight === 'number' ? explicitHeight : calcSpaceHeightRef.current;
       const nextSeq = vectorSeq + 1;
       setVectorSeq(nextSeq);
-      const dataWithHeight: DrawData = {
-        ...drawData,
-        calcSpaceHeight: activeHeight,
-      };
-      updateProblemInStore(problem.id, {
-        draw_data: JSON.stringify(dataWithHeight),
-        vector_clock: JSON.stringify({ node: 'client', seq: nextSeq }),
-      });
+      const dataWithHeight: DrawData = { ...drawData, calcSpaceHeight: activeHeight };
 
-      if (saveDrawTimerRef.current) {
-        clearTimeout(saveDrawTimerRef.current);
-      }
+      if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
 
       saveDrawTimerRef.current = setTimeout(async () => {
-        try {
-          await updateProblemDrawData(problem.id, dataWithHeight, nextSeq);
-        } catch (err) {
-          console.error('Failed to save draw:', err);
-        }
+        await saveDrawData(problem, dataWithHeight, nextSeq);
       }, 400);
     },
-    [problem.id, vectorSeq, updateProblemInStore]
+    [problem, vectorSeq, saveDrawData]
   );
 
   const updateCalcHeight = (newHeight: number | ((prev: number) => number)) => {
@@ -301,17 +260,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const confirmDelete = async () => {
     try {
       setIsDeleting(true);
-      await deleteProblem(problem.id);
-      removeProblemFromStore(problem.id);
-      showToast('已刪除錯題', 'success', 2000);
-    } catch (err) {
-      console.error('Failed to delete:', err);
-      showToast('刪除失敗，請稍後重試', 'error', 3000);
+      await deleteItem(problem);
+    } catch {
+      // toast already shown by deleteItem
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
     }
   };
+
 
   const handleExport = async () => {
     try {
