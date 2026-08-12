@@ -87,22 +87,63 @@ export class OfflineSyncManager {
     }
 
     const db = await getOfflineDB();
+    
+    // Dynamically import to avoid circular dependency
+    const { useStore } = await import('../store/useStore');
+    const { updateProblemDrawData, updateProblemStatus, updateProblemMetadata } = await import('./api');
+    
+    const storeProblems = useStore.getState().problems;
     let successCount = 0;
     let failedCount = 0;
 
     for (const prob of problems) {
       try {
+        // 1. Upload base image and metadata
         const file = new File([prob.fileData], `offline_${prob.id}.jpg`, { type: prob.fileData.type || 'image/jpeg' });
-        // Upload to backend, passing along the pre-analyzed tagResult if available
-        await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
+        const res = await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
+        const newCloudId = res.id;
         
-        // Remove from IndexedDB on success
+        // 2. Apply any in-memory modifications (drawings, status, notes)
+        const storeProblem = storeProblems.find(p => p.id === prob.id);
+        if (storeProblem) {
+          // Sync drawings if any
+          if (storeProblem.draw_data && storeProblem.vector_clock) {
+            let seq = 1;
+            try {
+              const vc = typeof storeProblem.vector_clock === 'string' 
+                ? JSON.parse(storeProblem.vector_clock) 
+                : storeProblem.vector_clock;
+              seq = vc.seq || 1;
+            } catch (e) {}
+            
+            const drawData = typeof storeProblem.draw_data === 'string' 
+              ? JSON.parse(storeProblem.draw_data) 
+              : storeProblem.draw_data;
+            await updateProblemDrawData(newCloudId, drawData, seq);
+          }
+          
+          // Sync status if changed
+          if (storeProblem.status && storeProblem.status !== 'unsolved') {
+            await updateProblemStatus(newCloudId, storeProblem.status as 'unsolved' | 'resolved' | 'archived');
+          }
+          
+          // Sync typed notes if added
+          if (storeProblem.typed_notes) {
+            await updateProblemMetadata(newCloudId, { typed_notes: storeProblem.typed_notes });
+          }
+        }
+        
+        // 3. Remove from IndexedDB on success
         await db.delete(OFFLINE_PROBS_STORE, prob.id);
         const cachedUrl = this.objectUrlCache.get(prob.id);
         if (cachedUrl) {
           URL.revokeObjectURL(cachedUrl);
           this.objectUrlCache.delete(prob.id);
         }
+        
+        // 4. Remove the temporary offline item from store to prevent duplicates
+        useStore.getState().removeProblemFromStore(prob.id);
+        
         successCount++;
       } catch (err) {
         console.error(`Failed to sync offline problem ${prob.id}`, err);
