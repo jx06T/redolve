@@ -84,6 +84,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
           activeWidth={penWidth}
           isEraserActive={eraserActive}
           readOnly={readOnly || !inkVisible}
+          inkVisible={inkVisible}
         />
       </div>
     </div>
