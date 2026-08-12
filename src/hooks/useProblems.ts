@@ -106,7 +106,11 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
       let finalItems = res.items;
 
       // Pull in a specific problem by ID if it wasn't in the page results
-      if (targetProblemId && !finalItems.some((p) => p.id === targetProblemId)) {
+      if (
+        targetProblemId && 
+        !targetProblemId.startsWith('temp_') && 
+        !finalItems.some((p) => p.id === targetProblemId)
+      ) {
         try {
           const target = await fetchProblemById(targetProblemId);
           if (target) finalItems = [target, ...finalItems];

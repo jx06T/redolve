@@ -289,6 +289,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     if (isReloading) return;
     setIsReloading(true);
     try {
+      if (problem.id.startsWith('temp_')) {
+        setIsReloading(false);
+        return;
+      }
       const freshProblem = await fetchProblemById(problem.id);
       updateProblemInStore(problem.id, freshProblem);
       setIsResolved(freshProblem.status === 'resolved');
