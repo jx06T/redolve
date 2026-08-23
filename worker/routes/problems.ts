@@ -796,7 +796,7 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE items
-     SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved', updated_at = CURRENT_TIMESTAMP
+     SET topic_id = ?, keywords = ?, keyword_tokens = ?, updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND user_id = ?`
   )
     .bind(validTopicId, keywordsJson, keywordTokensStr, problemId, userId)

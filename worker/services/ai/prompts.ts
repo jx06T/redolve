@@ -114,7 +114,7 @@ export function buildSdkResponseSchema(taxonomyTree: TaxonomyNode[]) {
       keywords: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: '3至5個核心概念關鍵字 (例如數學: ["貝氏定理"], 英文: ["superb"], 國文: ["改錯字", "文章名稱", "古文難字"])',
+        description: '3至5個核心概念關鍵字 (例如數學: ["貝氏定理"], 英文: ["superb"], 國文: ["字形", "(參)天", "搖(曳)"])',
       },
       keyword_tokens: {
         type: Type.ARRAY,
