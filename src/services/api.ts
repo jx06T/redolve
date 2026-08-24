@@ -193,7 +193,8 @@ export async function fetchProblemById(id: string): Promise<Item> {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Problem not found');
-  return res.json();
+  const data = await res.json();
+  return data.item;
 }
 
 export async function fetchProblemText(id: string): Promise<{ text: string }> {
