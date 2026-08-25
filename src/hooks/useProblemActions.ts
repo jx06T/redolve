@@ -84,6 +84,10 @@ export function useProblemActions() {
    */
   const toggleStatus = useCallback(
     async (problem: Item): Promise<'resolved' | 'unsolved' | 'archived'> => {
+      // Bug 2 fix: archived problems must not be toggled via this action.
+      // The archive button is the only way to change their status.
+      if (problem.status === 'archived') return 'archived';
+
       const nextStatus = problem.status === 'resolved' ? 'unsolved' : 'resolved';
 
       // Optimistic update
@@ -114,27 +118,52 @@ export function useProblemActions() {
   );
 
   /**
-   * Toggle archived ↔ previous status.
+   * Toggle archived ↔ unsolved.
+   *
+   * Bug 1 fix: After a successful API call, the item is removed from the
+   * store whenever it would be invisible under the current filter:
+   *   - Archiving   → item is excluded from every non-archived feed.
+   *   - Unarchiving → item leaves the archived-only feed.
+   *
+   * Bug 5 fix: taxonomy counts are refreshed so the Sidebar updates immediately.
    */
   const toggleArchive = useCallback(
     async (problem: Item) => {
       const isArchived = problem.status === 'archived';
-      const nextStatus: Item['status'] = isArchived
-        ? 'unsolved'
-        : 'archived';
+      const nextStatus: Item['status'] = isArchived ? 'unsolved' : 'archived';
 
+      // Optimistic: show the new status immediately so the UI feels instant.
       updateProblemInStore(problem.id, { status: nextStatus });
 
       if (!isOfflineProblemId(problem.id)) {
         try {
           await updateProblemStatus(problem.id, nextStatus);
+
+          // Bug 1: remove card from the current list when it no longer belongs
+          // to the active filter view.
+          const currentSelectedStatus = useStore.getState().selectedStatus;
+          const shouldRemove =
+            nextStatus === 'archived' ||
+            (isArchived && currentSelectedStatus === 'archived');
+          if (shouldRemove) {
+            removeProblemFromStore(problem.id);
+          }
+
+          // Bug 5: refresh sidebar topic counts asynchronously.
+          useStore.getState().loadTaxonomies();
         } catch (err) {
           console.error('[useProblemActions] toggleArchive failed:', err);
+          // Roll back optimistic update.
           updateProblemInStore(problem.id, { status: problem.status });
+        }
+      } else {
+        // Offline items: remove from store when archiving.
+        if (nextStatus === 'archived') {
+          removeProblemFromStore(problem.id);
         }
       }
     },
-    [updateProblemInStore]
+    [updateProblemInStore, removeProblemFromStore]
   );
 
   /**

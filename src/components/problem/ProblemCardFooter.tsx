@@ -64,11 +64,16 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
         <button
           type="button"
           onClick={onToggleStatus}
+          disabled={problem.status === 'archived'}
           aria-label={isResolved ? '已訂正完畢' : '完成訂正'}
-          className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${isResolved
-              ? 'bg-status-resolved text-white hover:bg-status-resolved/90'
-              : 'bg-neutral-100 text-text-main hover:bg-neutral-200'
-            }`}
+          className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
+            problem.status === 'archived'
+              ? 'bg-neutral-100 text-text-muted opacity-40 cursor-not-allowed'
+              : isResolved
+                ? 'bg-status-resolved text-white hover:bg-status-resolved/90'
+                : 'bg-neutral-100 text-text-main hover:bg-neutral-200'
+          }`}
+          title={problem.status === 'archived' ? '請先解除封存再操作' : undefined}
         >
           <CheckCircle className="w-4 h-4" />
           <span>{isResolved ? '已訂正完畢' : '完成訂正'}</span>

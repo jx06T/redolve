@@ -200,9 +200,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleToggleArchive = async () => {
-    const wasArchived = problem.status === 'archived';
-    if (!wasArchived) setIsResolved(false);
     await toggleArchive(problem);
+    // Bug 3 fix: the resulting status is always either 'archived' or 'unsolved',
+    // never 'resolved'. Sync local state unconditionally to prevent stale isResolved.
+    setIsResolved(false);
   };
 
   const handleTypedNotesChange = (text: string) => {
