@@ -22,8 +22,14 @@ import {
   deleteProblem,
   analyzeProblem,
   analyzeGuestProblem,
-} from '../services/api';
-import { getOfflineDB, getOfflineProblem } from '../services/offlineStorage';
+import {
+  getOfflineDB,
+  getOfflineProblem,
+  updateOfflineProblemStatus,
+  updateOfflineProblemDraw,
+  updateOfflineProblemNotes,
+  updateOfflineProblemMetadata,
+} from '../services/offlineStorage';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { DrawData, Item } from '../types';
 
@@ -37,32 +43,6 @@ export function isOfflineProblemId(id: string): boolean {
 // ---------------------------------------------------------------------------
 // Offline helpers — direct IndexedDB mutations
 // ---------------------------------------------------------------------------
-
-async function updateOfflineMetadata(
-  id: string,
-  patch: { topic_id?: string | null; keywords?: string[]; typed_notes?: string }
-) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
-  if (!existing) return;
-
-  const updatedTagResult = {
-    ...(existing.tagResult ?? { topic_id: existing.topicId, keywords: [] }),
-  };
-
-  if (patch.topic_id !== undefined) {
-    updatedTagResult.topic_id = patch.topic_id ?? existing.topicId;
-  }
-  if (patch.keywords !== undefined) {
-    updatedTagResult.keywords = patch.keywords;
-  }
-
-  await db.put(OFFLINE_PROBS_STORE, {
-    ...existing,
-    topicId: patch.topic_id ?? existing.topicId,
-    tagResult: updatedTagResult as typeof existing.tagResult,
-  });
-}
 
 async function deleteOfflineProblem(id: string) {
   const db = await getOfflineDB();
@@ -84,21 +64,23 @@ export function useProblemActions() {
    */
   const toggleStatus = useCallback(
     async (problem: Item): Promise<'resolved' | 'unsolved' | 'archived'> => {
-      // Bug 2 fix: archived problems must not be toggled via this action.
-      // The archive button is the only way to change their status.
+      // Archived problems must not be toggled via this action.
       if (problem.status === 'archived') return 'archived';
 
       const nextStatus = problem.status === 'resolved' ? 'unsolved' : 'resolved';
+      const nextReviewCount = nextStatus === 'resolved' ? problem.review_count + 1 : problem.review_count;
 
       // Optimistic update
       updateProblemInStore(problem.id, {
         status: nextStatus,
-        review_count: nextStatus === 'resolved' ? problem.review_count + 1 : problem.review_count,
+        review_count: nextReviewCount,
       });
 
       if (!isOfflineProblemId(problem.id)) {
         try {
           await updateProblemStatus(problem.id, nextStatus);
+          // Refresh sidebar topic counts asynchronously
+          useStore.getState().loadTaxonomies();
         } catch (err) {
           console.error('[useProblemActions] toggleStatus failed:', err);
           // Roll back
@@ -107,10 +89,10 @@ export function useProblemActions() {
             review_count: problem.review_count,
           });
         }
+      } else {
+        // Persist offline status into IndexedDB so it survives page reloads
+        await updateOfflineProblemStatus(problem.id, nextStatus, nextReviewCount);
       }
-      // Offline items: status lives only in the store (IndexedDB doesn't track
-      // status separately; it'll be 'unsolved' on next load, which is fine since
-      // offline problems are short-lived).
 
       return nextStatus;
     },
@@ -119,13 +101,6 @@ export function useProblemActions() {
 
   /**
    * Toggle archived ↔ unsolved.
-   *
-   * Bug 1 fix: After a successful API call, the item is removed from the
-   * store whenever it would be invisible under the current filter:
-   *   - Archiving   → item is excluded from every non-archived feed.
-   *   - Unarchiving → item leaves the archived-only feed.
-   *
-   * Bug 5 fix: taxonomy counts are refreshed so the Sidebar updates immediately.
    */
   const toggleArchive = useCallback(
     async (problem: Item) => {
@@ -139,8 +114,6 @@ export function useProblemActions() {
         try {
           await updateProblemStatus(problem.id, nextStatus);
 
-          // Bug 1: remove card from the current list when it no longer belongs
-          // to the active filter view.
           const currentSelectedStatus = useStore.getState().selectedStatus;
           const shouldRemove =
             nextStatus === 'archived' ||
@@ -149,7 +122,7 @@ export function useProblemActions() {
             removeProblemFromStore(problem.id);
           }
 
-          // Bug 5: refresh sidebar topic counts asynchronously.
+          // Refresh sidebar topic counts asynchronously.
           useStore.getState().loadTaxonomies();
         } catch (err) {
           console.error('[useProblemActions] toggleArchive failed:', err);
@@ -157,7 +130,8 @@ export function useProblemActions() {
           updateProblemInStore(problem.id, { status: problem.status });
         }
       } else {
-        // Offline items: remove from store when archiving.
+        // Offline items: update status in IndexedDB and remove from active list when archiving.
+        await updateOfflineProblemStatus(problem.id, nextStatus);
         if (nextStatus === 'archived') {
           removeProblemFromStore(problem.id);
         }
@@ -168,9 +142,6 @@ export function useProblemActions() {
 
   /**
    * Save ink/draw data.
-   * For offline items, we skip the API; the drawing is stored in the in-memory
-   * store and reflected via `problem.draw_data`.  (Full persistence of draw data
-   * for offline items is a future enhancement.)
    */
   const saveDrawData = useCallback(
     async (problem: Item, drawData: DrawData, seq: number) => {
@@ -185,6 +156,9 @@ export function useProblemActions() {
         } catch (err) {
           console.error('[useProblemActions] saveDrawData failed:', err);
         }
+      } else {
+        // Persist offline stroke data in IndexedDB
+        await updateOfflineProblemDraw(problem.id, drawData, seq);
       }
     },
     [updateProblemInStore]
@@ -195,15 +169,16 @@ export function useProblemActions() {
    */
   const saveTypedNotes = useCallback(
     async (problem: Item, text: string) => {
-      // Store update is already handled by caller; this just persists to backend.
       if (!isOfflineProblemId(problem.id)) {
         try {
           await updateProblemMetadata(problem.id, { typed_notes: text });
         } catch (err) {
           console.error('[useProblemActions] saveTypedNotes failed:', err);
         }
+      } else {
+        // Persist typed notes in IndexedDB for offline items
+        await updateOfflineProblemNotes(problem.id, text);
       }
-      // Offline: in-memory store is the source of truth for now.
     },
     []
   );
@@ -224,7 +199,7 @@ export function useProblemActions() {
       });
 
       if (isOfflineProblemId(problem.id)) {
-        await updateOfflineMetadata(problem.id, patch);
+        await updateOfflineProblemMetadata(problem.id, patch);
       } else {
         try {
           await updateProblemMetadata(problem.id, patch);

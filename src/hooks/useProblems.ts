@@ -5,14 +5,63 @@ import {
   fetchProblemById,
 } from '../services/api';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
-import { getRootSubjectId } from '../components/StatusBadge';
+import { findNodeAndLineage, getRootSubjectId } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { Item, TaxonomyNode } from '../types';
 
 export interface UseProblemsOptions {
   subject: string;
   topic?: string;
   status?: string;
   targetProblemId?: string | null;
+}
+
+/**
+ * Checks whether an item strictly satisfies current subject, topic, and status filters.
+ */
+export function doesItemMatchFilters(
+  item: Item,
+  filters: { subject?: string; topic?: string; status?: string },
+  taxonomies: TaxonomyNode[]
+): boolean {
+  const { subject, topic, status } = filters;
+
+  // 1. Status Filter Check
+  if (status && status !== 'all') {
+    if (item.status !== status) return false;
+  } else {
+    // Default 'all' view strictly excludes archived items
+    if (item.status === 'archived') return false;
+  }
+
+  // 2. Subject Filter Check
+  if (subject && subject !== 'all') {
+    if (subject === 'unclassified') {
+      if (item.topic_id) return false;
+    } else {
+      const root = getRootSubjectId(item.topic_id || '', taxonomies);
+      if (root !== subject) return false;
+    }
+  }
+
+  // 3. Topic Filter Check
+  if (topic && topic !== 'all') {
+    if (topic === 'unclassified') {
+      if (item.topic_id) return false;
+    } else {
+      if (item.topic_id !== topic) {
+        // Also allow if item's topic_id is a child/descendant of the selected topic
+        const lineage =
+          findNodeAndLineage(taxonomies, item.topic_id || '') ||
+          findNodeAndLineage(TAXONOMY_SEED_DATA, item.topic_id || '');
+        if (!lineage || !lineage.some((n) => n.id === topic)) {
+          return false;
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 /**
@@ -61,28 +110,9 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
     const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
     const localTaxonomies = taxonomiesRef.current;
 
-    const filtered = offlineItems.filter((item) => {
-      const { subject: subjectFilter, topic: topicFilter, status: statusFilter } = filters;
-
-      if (subjectFilter && subjectFilter !== 'all') {
-        if (subjectFilter === 'unclassified') {
-          if (item.topic_id) return false;
-        } else {
-          const root = getRootSubjectId(item.topic_id || '', localTaxonomies);
-          if (root !== subjectFilter) return false;
-        }
-      }
-
-      if (topicFilter && topicFilter !== 'all') {
-        if (item.topic_id !== topicFilter) return false;
-      }
-
-      if (statusFilter && statusFilter !== 'all') {
-        if (item.status !== statusFilter) return false;
-      }
-
-      return true;
-    });
+    const filtered = offlineItems.filter((item) =>
+      doesItemMatchFilters(item, filters, localTaxonomies)
+    );
 
     const existingIds = new Set(cloudItems.map((i) => i.id));
     // Offline items always go first so they are immediately visible
@@ -105,7 +135,7 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
 
       let finalItems = res.items;
 
-      // Pull in a specific problem by ID if it wasn't in the page results
+      // Pull in a specific problem by ID only if it was requested AND matches active filters
       if (
         targetProblemId && 
         !targetProblemId.startsWith('temp_') && 
@@ -113,7 +143,12 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
       ) {
         try {
           const target = await fetchProblemById(targetProblemId);
-          if (target) finalItems = [target, ...finalItems];
+          if (
+            target &&
+            doesItemMatchFilters(target, { subject, topic, status }, taxonomiesRef.current)
+          ) {
+            finalItems = [target, ...finalItems];
+          }
         } catch {
           // Not fatal; the item simply won't be pre-fetched
         }

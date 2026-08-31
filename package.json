@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "worker:dev": "wrangler dev",
-    "worker:deploy": "wrangler deploy",
+    "deploy": "npm run build && wrangler deploy",
+    "worker:deploy": "npm run build && wrangler deploy",
     "d1:init": "wrangler d1 execute redolve-db --local --file=./worker/schema.sql"
   },
   "dependencies": {

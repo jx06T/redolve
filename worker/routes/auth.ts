@@ -16,6 +16,7 @@ function isValidFrontendOrigin(urlStr: string): boolean {
     // 3. Trusted Production & Preview Domains
     if (host === 'redolve.pages.dev' || host.endsWith('.redolve.pages.dev')) return true;
     if (host === 'jx06t.com' || host.endsWith('.jx06t.com')) return true;
+    if (host.endsWith('.workers.dev')) return true;
   } catch {}
   return false;
 }
@@ -117,7 +118,7 @@ authRouter.get('/callback/google', async (c) => {
   const isLocal = c.req.url.includes('127.0.0.1') ||
     c.req.url.includes('localhost') ||
     /http:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+)/.test(c.req.url);
-  const frontendUrl = stateFrontendUrl || (isLocal ? (c.req.header('referer') && isValidFrontendOrigin(c.req.header('referer')!) ? new URL(c.req.header('referer')!).origin : 'http://localhost:3000') : (c.env.FRONTEND_URL || 'https://redolve.pages.dev'));
+  const frontendUrl = stateFrontendUrl || (isLocal ? (c.req.header('referer') && isValidFrontendOrigin(c.req.header('referer')!) ? new URL(c.req.header('referer')!).origin : 'http://localhost:3000') : (c.env.FRONTEND_URL || new URL(c.req.url).origin));
 
   if (error || !code) {
     return c.redirect(`${frontendUrl}/?auth_error=${encodeURIComponent(error || '授權已取消')}`);

@@ -1,31 +1,7 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 
-const isLocalDomain = typeof window !== 'undefined' && (
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1' ||
-  window.location.hostname.endsWith('.local') ||
-  /^127\./.test(window.location.hostname) ||
-  /^192\.168\./.test(window.location.hostname) ||
-  /^10\./.test(window.location.hostname) ||
-  /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(window.location.hostname)
-);
-
-const isProductionDomain = typeof window !== 'undefined' && !isLocalDomain && (
-  window.location.hostname.includes('pages.dev') ||
-  window.location.hostname.includes('jx06t.com')
-);
-
-export const API_BASE = (import.meta as any).env?.VITE_API_URL || (
-  isProductionDomain
-    ? 'https://redolve-api.50313tjx06.workers.dev/api'
-    : '/api'
-);
-
-export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || (
-  isProductionDomain
-    ? 'https://redolve-api.50313tjx06.workers.dev'
-    : ''
-);
+export const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
+export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || '';
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;

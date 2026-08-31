@@ -4,6 +4,7 @@ export interface Bindings {
   DB: D1Database;
   STORAGE: R2Bucket;
   KV: KVNamespace;
+  ASSETS?: Fetcher;
   GEMINI_API_KEY?: string;
   BETTER_AUTH_SECRET?: string;
   JWT_SECRET?: string;

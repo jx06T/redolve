@@ -98,6 +98,12 @@ sharesRouter.delete('/api/problems/:id/share/:token', authMiddleware, async (c) 
 
 // 3. Public Read-Only Metadata (Public Route)
 sharesRouter.get('/share/:token', async (c) => {
+  // If the request comes from a browser navigation (Accept: text/html), serve the SPA entry
+  const acceptHeader = c.req.header('accept') || '';
+  if (acceptHeader.includes('text/html') && c.env.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+
   const token = c.req.param('token');
 
   const share = await c.env.DB.prepare('SELECT * FROM shares WHERE token = ?').bind(token).first<ShareRow & { allow_notes?: number }>();
@@ -118,7 +124,7 @@ sharesRouter.get('/share/:token', async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '分享的題目已遭刪除' } }, 404);
   }
 
-  // 💡 權限控管：如果不允許筆跡或筆記，回傳 null 隱藏欄位！
+  // 權限控管：如果不允許筆跡或筆記，回傳 null 隱藏欄位
   const shouldShowInk = Boolean(share.allow_ink);
   const shouldShowNotes = share.allow_notes !== undefined ? Boolean(share.allow_notes) : true;
 

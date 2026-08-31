@@ -66,7 +66,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
 
     if (hasServerData) {
       // 💯 Server 已經幫我們做完完美的 Bottom-Up Rollup 了！
-      // 這裡絕對不可以再跑 for-loop 或遞迴去加 children，否則就會發生您剛才遇到的「越加越多」Double Counting 災難。
       const rawCount = taxonomyCounts[node.id] as any;
       if (!rawCount) return 0;
 
@@ -79,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
       // 🛟 如果 Server 還沒回傳資料，前端乖乖自己算 (一樣不遞迴，攤平比對最安全)
       const validIds = getAllDescendantIds(node);
       return problems.filter((p) => {
-        const isStatusMatch = selectedStatus === 'all' || p.status === selectedStatus;
+        const isStatusMatch = selectedStatus === 'all' ? p.status !== 'archived' : p.status === selectedStatus;
         const isTopicMatch = validIds.includes(p.topic_id || '');
         return isStatusMatch && isTopicMatch;
       }).length;
@@ -89,7 +88,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   // --- 3. 科目總數
   const subjectTotalCount = activeSubject
     ? computeCountForNode(activeSubject)
-    : problems.filter(p => selectedStatus === 'all' || p.status === selectedStatus).length;
+    : problems.filter(p => selectedStatus === 'all' ? p.status !== 'archived' : p.status === selectedStatus).length;
+
+  const unclassifiedCount = problems.filter((p) => {
+    const isStatusMatch = selectedStatus === 'all' ? p.status !== 'archived' : p.status === selectedStatus;
+    return isStatusMatch && (!p.topic_id || p.topic_id === 'unclassified');
+  }).length;
   const handleSelectTopic = (tId: string | null) => {
     setSelectedTopicId(tId);
     setMobileDrawerOpen(false);
@@ -171,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             >
               <span>全部未分類題目</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-neutral-200/70 text-neutral-500">
-                {problems.length}
+                {unclassifiedCount}
               </span>
             </button>
             <p className="px-3 pt-2 text-[10px] text-text-muted leading-relaxed">
@@ -193,7 +197,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 ? 'bg-primary/20 text-primary'
                 : 'bg-neutral-200/70 text-neutral-500'
                 }`}>
-                {subjectTotalCount > 0 ? subjectTotalCount : problems.length}
+                {subjectTotalCount}
               </span>
             </button>
 

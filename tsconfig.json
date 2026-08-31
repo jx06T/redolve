@@ -27,5 +27,5 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "worker", "functions"]
+  "include": ["src", "worker"]
 }

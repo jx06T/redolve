@@ -43,4 +43,12 @@ app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
 app.route('/', sharesRouter);
 
+// Static Assets Fallback for non-API routes
+app.notFound(async (c) => {
+  if (c.env.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw);
+  }
+  return c.text('Not Found', 404);
+});
+
 export default app;

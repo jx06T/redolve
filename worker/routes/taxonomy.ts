@@ -109,8 +109,8 @@ taxonomyRouter.get('/', optionalAuthMiddleware, async (c) => {
       try {
         const { results: countResults } = await c.env.DB.prepare(
           `SELECT topic_id, 
-                  COUNT(id) as total,
-                  SUM(CASE WHEN status = 'unsolved' THEN 1 ELSE 0 END) as unsolved,
+                  SUM(CASE WHEN status != 'archived' THEN 1 ELSE 0 END) as total,
+                  SUM(CASE WHEN status IN ('unsolved', 'processing') THEN 1 ELSE 0 END) as unsolved,
                   SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
                   SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) as archived
            FROM items
@@ -122,7 +122,7 @@ taxonomyRouter.get('/', optionalAuthMiddleware, async (c) => {
           for (const row of countResults) {
             if (row.topic_id) {
               countsMap[row.topic_id] = {
-                total: row.total,
+                total: row.total || 0,
                 unsolved: row.unsolved || 0,
                 resolved: row.resolved || 0,
                 archived: row.archived || 0
