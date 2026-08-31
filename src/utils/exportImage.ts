@@ -1,5 +1,6 @@
 import getStroke from 'perfect-freehand';
 import { DrawData, Stroke } from '../types';
+import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 
 function getSvgPathFromStroke(strokePoints: number[][]): string {
   if (!strokePoints || strokePoints.length === 0) return '';
@@ -40,10 +41,10 @@ export async function exportProblemAsImage(
 
   const width = img.naturalWidth || 1200;
   const imgHeight = img.naturalHeight || 800;
-  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? 140;
+  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? DEFAULT_CALC_SPACE_HEIGHT;
 
   // Determine base coordinate space width
-  const baseWidth = parsedDrawData?.baseWidth || 800;
+  const baseWidth = parsedDrawData?.baseWidth || DEFAULT_BASE_WIDTH;
   const scale = width / baseWidth;
 
   const totalHeight = Math.round(imgHeight + (calcSpaceHeight * scale));

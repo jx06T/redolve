@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import getStroke from 'perfect-freehand';
 import { DrawData, Stroke, EraserMask } from '../types';
 import { useStore } from '../store/useStore';
-import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
+import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -42,12 +42,15 @@ function parseDrawData(raw: DrawData | string | null | undefined): {
   if (!raw) return { strokes: [], eraserMasks: [] };
   try {
     const parsed: DrawData = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const strokes = Array.isArray(parsed?.strokes) ? parsed.strokes : [];
+    const eraserMasks = Array.isArray(parsed?.eraserMasks) ? parsed.eraserMasks : [];
+    const legacyBaseWidth = strokes.length > 0 || eraserMasks.length > 0 ? DEFAULT_BASE_WIDTH : undefined;
     return {
-      strokes: Array.isArray(parsed?.strokes) ? parsed.strokes : [],
-      eraserMasks: Array.isArray(parsed?.eraserMasks) ? parsed.eraserMasks : [],
+      strokes,
+      eraserMasks,
       calcSpaceHeight: typeof parsed?.calcSpaceHeight === 'number' ? parsed.calcSpaceHeight : undefined,
-      baseWidth: typeof parsed?.baseWidth === 'number' ? parsed.baseWidth : undefined,
-      baseHeight: typeof parsed?.baseHeight === 'number' ? parsed.baseHeight : undefined,
+      baseWidth: typeof parsed?.baseWidth === 'number' && parsed.baseWidth > 0 ? parsed.baseWidth : legacyBaseWidth,
+      baseHeight: typeof parsed?.baseHeight === 'number' && parsed.baseHeight > 0 ? parsed.baseHeight : undefined,
     };
   } catch {
     return { strokes: [], eraserMasks: [] };
@@ -169,8 +172,14 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       const parsed = parseDrawData(initialDrawData);
       setStrokes(parsed.strokes);
       setEraserMasks(parsed.eraserMasks);
-      if (parsed.baseWidth) setBaseWidth(parsed.baseWidth);
-      if (parsed.baseHeight) setBaseHeight(parsed.baseHeight);
+      if (parsed.baseWidth) {
+        baseWidthRef.current = parsed.baseWidth;
+        setBaseWidth(parsed.baseWidth);
+      }
+      if (parsed.baseHeight) {
+        baseHeightRef.current = parsed.baseHeight;
+        setBaseHeight(parsed.baseHeight);
+      }
     }
   }, [initialDrawData]);
 
@@ -221,15 +230,16 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       currentHeight: number = canvasHeightRef.current,
       currentWidth: number = canvasWidthRef.current
     ) => {
-      const activeBaseW = baseWidthRef.current || currentWidth || 800;
+      const activeBaseW = baseWidthRef.current || currentWidth || DEFAULT_BASE_WIDTH;
       const activeBaseH = baseHeightRef.current || currentHeight || 600;
+      const fallbackCalcHeight = typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : DEFAULT_CALC_SPACE_HEIGHT;
       const payload: DrawData = {
         strokes: updatedStrokes,
         eraserMasks: updatedErasers,
         baseWidth: activeBaseW,
         baseHeight: activeBaseH,
-        calcSpaceHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 140,
-        expansions: [{ addedHeight: typeof calcSpaceHeightRef.current === 'number' ? calcSpaceHeightRef.current : 140, atY: currentHeight }],
+        calcSpaceHeight: fallbackCalcHeight,
+        expansions: [{ addedHeight: fallbackCalcHeight, atY: currentHeight }],
       };
       lastSavedDataJsonRef.current = JSON.stringify(payload);
       if (onSaveDrawData) {
@@ -559,6 +569,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     // Initialize baseWidth if first time drawing
     if (!baseWidthRef.current) {
+      baseWidthRef.current = canvasWidth;
+      baseHeightRef.current = canvasHeight;
       setBaseWidth(canvasWidth);
       setBaseHeight(canvasHeight);
     }

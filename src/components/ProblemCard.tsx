@@ -118,16 +118,23 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   }, []);
 
   const baseWidth = (() => {
-    if (!problem.draw_data) return DEFAULT_BASE_WIDTH;
+    if (!problem.draw_data) return containerWidth > 0 ? containerWidth : DEFAULT_BASE_WIDTH;
     try {
       const parsed = typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data;
-      return typeof parsed.baseWidth === 'number' && parsed.baseWidth > 0 ? parsed.baseWidth : DEFAULT_BASE_WIDTH;
+      if (typeof parsed?.baseWidth === 'number' && parsed.baseWidth > 0) {
+        return parsed.baseWidth;
+      }
+      // If legacy strokes exist without baseWidth, fallback to DEFAULT_BASE_WIDTH for scale consistency
+      if (Array.isArray(parsed?.strokes) && parsed.strokes.length > 0) {
+        return DEFAULT_BASE_WIDTH;
+      }
+      return containerWidth > 0 ? containerWidth : DEFAULT_BASE_WIDTH;
     } catch {
-      return DEFAULT_BASE_WIDTH;
+      return containerWidth > 0 ? containerWidth : DEFAULT_BASE_WIDTH;
     }
   })();
 
-  const responsiveScale = containerWidth > 0 ? containerWidth / baseWidth : 1.0;
+  const responsiveScale = containerWidth > 0 && baseWidth > 0 ? containerWidth / baseWidth : 1.0;
   const renderedCalcSpaceHeight = Math.round(calcSpaceHeight * responsiveScale);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);

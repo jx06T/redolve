@@ -8,6 +8,8 @@ import { StatusBadge } from '../components/StatusBadge';
 import { exportProblemAsImage } from '../utils/exportImage';
 import { Item, DrawData } from '../types';
 
+import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
+
 export const ShareView: React.FC = () => {
   const { token } = useParams<{ token: string }>();
 
@@ -31,9 +33,9 @@ export const ShareView: React.FC = () => {
     }
   }, [token]);
 
-  // Compute calculation workspace height from draw_data (matching ProblemCard 140px baseline)
+  // Compute calculation workspace height from draw_data (matching ProblemCard baseline)
   const calcSpaceHeight = useMemo(() => {
-    if (!data?.item?.draw_data) return 140;
+    if (!data?.item?.draw_data) return DEFAULT_CALC_SPACE_HEIGHT;
     try {
       const parsed: DrawData =
         typeof data.item.draw_data === 'string'
@@ -51,7 +53,7 @@ export const ShareView: React.FC = () => {
     } catch {
       // safe fallback
     }
-    return 140;
+    return DEFAULT_CALC_SPACE_HEIGHT;
   }, [data]);
 
   const keywordsArray = useMemo(() => {
