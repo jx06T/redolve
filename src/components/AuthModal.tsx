@@ -9,7 +9,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { fetchCurrentUser, logoutUser, fetchProblems, getGoogleAuthUrl } from '../services/api';
+import { fetchCurrentUser, logoutUser, getGoogleAuthUrl } from '../services/api';
 
 export const AuthModal: React.FC = () => {
   const {
