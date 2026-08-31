@@ -92,17 +92,16 @@ export const StudyView: React.FC = () => {
   // ---------------------------------------------------------------------------
   // Data loading via useProblems (handles both cloud and offline sources)
   // ---------------------------------------------------------------------------
-  const targetHashProblemIdRef = useRef<string | null>(
-    typeof window !== 'undefined'
-      ? window.location.hash.replace(/^#problem-/, '').replace(/^#/, '') || null
-      : null
-  );
+  const [initialTargetProblemId] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return problemId || window.location.hash.replace(/^#problem-/, '').replace(/^#/, '') || null;
+  });
 
   const { load, loadMore, nextCursor } = useProblems({
     subject: effectiveSubject,
     topic: effectiveTopic,
     status: selectedStatus,
-    targetProblemId: problemId || targetHashProblemIdRef.current,
+    targetProblemId: problemId || initialTargetProblemId,
   });
 
   const { saveMetadata, analyzeItem } = useProblemActions();
@@ -110,6 +109,12 @@ export const StudyView: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Reset scroll focus tracker whenever active filters change
+  useEffect(() => {
+    hasPerformedInitialScrollRef.current = false;
+    isInitialScrollPendingRef.current = true;
+  }, [effectiveSubject, effectiveTopic, selectedStatus]);
 
   // Silent refetch on tab focus (only for logged-in users; guests read IndexedDB locally)
   useEffect(() => {
@@ -166,7 +171,7 @@ export const StudyView: React.FC = () => {
   useEffect(() => {
     if (problems.length > 0 && !hasPerformedInitialScrollRef.current) {
       hasPerformedInitialScrollRef.current = true;
-      const targetId = problemId || targetHashProblemIdRef.current;
+      const targetId = problemId || initialTargetProblemId;
 
       if (targetId) {
         const index = problems.findIndex((p) => p.id === targetId);
@@ -189,7 +194,7 @@ export const StudyView: React.FC = () => {
       window.history.replaceState(null, '', `${window.location.pathname}#problem-${firstProblem.id}`);
       isInitialScrollPendingRef.current = false;
     }
-  }, [problemId, problems, rowVirtualizer, setActiveProblemId]);
+  }, [problemId, initialTargetProblemId, problems, rowVirtualizer, setActiveProblemId]);
 
   // Scroll Listener for real-time focus detection & URL Hash sync
   useEffect(() => {

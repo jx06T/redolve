@@ -49,10 +49,7 @@ export const AuthModal: React.FC = () => {
       logout();
       showToast('已登出並切換至本機訪客模式', 'info', 2000);
 
-      // Reload default problems
-      const problemsRes = await fetchProblems({ limit: 50 });
-      setProblems(problemsRes.items, problemsRes.nextCursor);
-
+      setProblems([], null);
       setAuthModalOpen(false);
     } catch (err) {
       console.error('Logout error:', err);
