@@ -2,8 +2,11 @@ import { openDB, DBSchema } from 'idb';
 
 interface SyncQueueItem {
   id: string; // problem id
-  drawData: any;
-  seq: number;
+  drawData?: any;
+  seq?: number;
+  status?: 'unsolved' | 'resolved' | 'archived';
+  typed_notes?: string;
+  metadata_patch?: { topic_id?: string | null; keywords?: string[] };
   timestamp: number;
 }
 
@@ -53,14 +56,22 @@ export async function getOfflineDB() {
   });
 }
 
-export async function queueOfflineDraw(problemId: string, drawData: any, seq: number) {
+export async function queueOfflineMutation(
+  problemId: string,
+  mutation: Partial<Omit<SyncQueueItem, 'id' | 'timestamp'>>
+) {
   const db = await getOfflineDB();
-  await db.put(SYNC_STORE_NAME, {
-    id: problemId,
-    drawData,
-    seq,
+  const tx = db.transaction(SYNC_STORE_NAME, 'readwrite');
+  const store = tx.objectStore(SYNC_STORE_NAME);
+
+  const existing = await store.get(problemId) || { id: problemId, timestamp: Date.now() };
+
+  await store.put({
+    ...existing,
+    ...mutation,
     timestamp: Date.now(),
   });
+  await tx.done;
 }
 
 export async function getOfflineProblem(id: string): Promise<OfflineProblem | undefined> {
@@ -146,8 +157,8 @@ export async function updateOfflineProblemMetadata(
 
 // Online Auto-Sync Handler
 export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<boolean>) {
-  window.addEventListener('online', async () => {
-    console.log('[PWA Sync] Online detected. Syncing offline draw queue...');
+  const syncAll = async () => {
+    console.log('[PWA Sync] Syncing offline queue...');
     const items = await getQueuedDraws();
     for (const item of items) {
       try {
@@ -159,5 +170,12 @@ export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<bo
         console.error(`[PWA Sync] Failed to sync item ${item.id}`, err);
       }
     }
-  });
+  };
+
+  window.addEventListener('online', syncAll);
+
+  // Sync immediately if currently online
+  if (navigator.onLine) {
+    syncAll();
+  }
 }

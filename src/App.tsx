@@ -11,7 +11,7 @@ import { ShareView } from './views/ShareView';
 import { SettingsView } from './views/SettingsView';
 import { registerServiceWorker } from './services/swRegister';
 import { initOnlineSync } from './services/offlineStorage';
-import { updateProblemDrawData } from './services/api';
+import { updateProblemDrawData, updateProblemStatus, updateProblemMetadata } from './services/api';
 import { useStore } from './store/useStore';
 
 import { BottomNav } from './components/BottomNav';
@@ -66,9 +66,22 @@ export default function App() {
     // Register Online Auto-Sync Handler
     initOnlineSync(async (item) => {
       try {
-        const res = await updateProblemDrawData(item.id, item.drawData, item.seq);
-        return res.status === 'ok';
-      } catch {
+        let allSuccess = true;
+        if (item.drawData && item.seq !== undefined) {
+          const res = await updateProblemDrawData(item.id, item.drawData, item.seq);
+          if (res.status !== 'ok') allSuccess = false;
+        }
+        if (item.status) {
+          await updateProblemStatus(item.id, item.status);
+        }
+        if (item.typed_notes !== undefined) {
+          await updateProblemMetadata(item.id, { typed_notes: item.typed_notes });
+        }
+        if (item.metadata_patch) {
+          await updateProblemMetadata(item.id, item.metadata_patch);
+        }
+        return allSuccess;
+      } catch (err) {
         return false;
       }
     });
