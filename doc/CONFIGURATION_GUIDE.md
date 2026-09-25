@@ -1,161 +1,53 @@
-# Redolve 系統配置與部署指南 (Configuration & Deployment Guide)
+# Redolve 設定與部署指南
 
-本文件集中整理 Redolve 專案上線前需統一配置的所有 Cloudflare 資源、密鑰 Secrets、OAuth 設定與初始化指令。
+Redolve 以同一個 Cloudflare Worker 提供前端靜態資源與 `/api`。正式網址為 `https://redolve.jx06t.com`；瀏覽器登入使用同站的 HttpOnly session cookie。
 
----
+## 既有資源與設定
 
-## 1. Cloudflare 資源建立 (CLI 指令)
+`wrangler.jsonc` 已設定 D1 `DB`、R2 `STORAGE`、KV `KV`、靜態資源 `ASSETS`，以及訪客 AI 與上傳的速率限制 binding。新環境部署時，先建立對應資源，再更新各 binding 的 ID。速率限制對各 Cloudflare 資料中心分別生效，不應視為全球單一配額。
 
-請在終端機中執行以下指令建立邊緣資源：
-
-```powershell
-# 1. 登入 Cloudflare 帳號
-wrangler login
-
-# 2. 建立 D1 資料庫 (請複製回傳的 database_id)
-wrangler d1 create redolve-db
-
-# 3. 建立 R2 儲存桶
-wrangler r2 bucket create redolve-images
-
-# 4. 建立 KV 命名空間 (請複製回傳的 id)
-wrangler kv namespace create REDOLVE_KV
-```
-
-
-√ Select an account » 50313tjx06@gmail.com's Account
-✅ Successfully created DB 'redolve-db' in region APAC
-Created your new D1 database.
-
-{
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "redolve-db",
-      "database_id": "966ad241-9a03-4719-99d6-c18314d7bf94"
-    }
-  ]
-}
-
-✅ Created bucket 'redolve-images' with default storage class of Standard.
-
-Configure your Worker to write objects to this bucket:
-
-{
-  "r2_buckets": [
-    {
-      "bucket_name": "redolve-images",
-      "binding": "redolve_images"
-    }
-  ]
-}
-
-
-🌀 Creating namespace with title "redolve-api-REDOLVE_KV"
-✨ Success!
-Add the following to your configuration file in your kv_namespaces array:
-{
-  "kv_namespaces": [
-    {
-      "binding": "REDOLVE_KV",
-      "id": "b09131c5f54446f6bff12e368190572a"
-    }
-  ]
-}
-
----
-
-## 2. Secrets 金鑰注入
-
-請執行以下指令將環境密鑰注入 Cloudflare Workers 生產環境：
+Worker 必需的秘密值：
 
 ```powershell
-# Google Gemini API 金鑰
+wrangler secret put JWT_SECRET
+wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put GEMINI_API_KEY
-
-# better-auth Session 簽名密鑰 (可使用 openssl rand -hex 32 生成)
-wrangler secret put BETTER_AUTH_SECRET
-
-# 管理者 Google 帳號白名單（逗號分隔多個 email）
-# 取代原來的 ADMIN_SECRET，讓 Seed 操作綁定到 Google 帳號而非靜態 token
 wrangler secret put ADMIN_EMAILS
-
-# (選用) AI 供應商指定，預設為 gemini
-wrangler secret put AI_PROVIDER
 ```
 
----
+`JWT_SECRET` 應使用密碼學安全的隨機值（至少 32 bytes）。`GOOGLE_CLIENT_ID` 目前在 `wrangler.jsonc` 的 `vars` 中。`FRONTEND_URL` 預設使用正式同站網址；如使用其他前端來源，須在 Worker 環境設定中加入精確 origin，並確認 cookie 同站規則。參考 [`.env.example`](../.env.example)。勿提交 `.dev.vars` 或真實秘密值。
 
-## 3. `wrangler.jsonc` 綁定設定
+## 資料庫
 
-建立完資源後，請將獲得的 ID 填入 `wrangler.jsonc`：
+新建的本地 D1 可用完整 schema 初始化：
 
-```jsonc
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "redolve-api",
-  "main": "worker/index.ts",
-  "compatibility_date": "2024-10-22",
-  "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "redolve-db",
-      "database_id": "<填入你的 D1_DATABASE_ID>"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "STORAGE",
-      "bucket_name": "redolve-images"
-    }
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "KV",
-      "id": "<填入你的 KV_NAMESPACE_ID>"
-    }
-  ]
-}
+```powershell
+wrangler d1 execute redolve-db --local --file=./worker/schema.sql
 ```
 
----
+既有正式資料庫在部署這版 Worker **之前**，先備份 D1，然後執行新增 session 表的遷移：
 
-## 4. Google OAuth 2.0 憑證設定
-
-供更好的網頁端登入體驗（better-auth 整合）：
-
-1. 前往 [Google Cloud Console](https://console.cloud.google.com/)。
-2. 建立 OAuth 2.0 轉發憑證（Web Application）。
-3. 設定授權轉向 URI：
-   - 本地開發：`http://localhost:5173/api/auth/callback/google`
-   - 生產環境：`https://<YOUR_WORKER_DOMAIN>/api/auth/callback/google`
-4. 將 Client ID 與 Client Secret 填入系統設定或 Secret。
-
----
-
-## 5. 課綱分類樹初始化 (Seed)
-
-Worker 部署完成後，以**管理者 Google 帳號登入** PWA ，們進「設定」頁面的「自訂科目與單元分類」標籤頁。
-
-頁面底部會顯示「系統管理（管理者專區）」區塊（對非管理者帳號不顯示）。
-點擊「執行課綱 Seed」按鈕即可全量寫入 D1 + KV，頁面上會顯示植入節點數量。
-
-> 管理者帳號由 `ADMIN_EMAILS` secret 控制（逗號分隔多個 email）。
-> 課綱改版時點擊一次即可全量更新。
-
-預期回應（顯示於頁面）：
-```
-上次執行結果：成功植入 48 個節點
+```powershell
+wrangler d1 execute redolve-db --remote --file=./worker/migrations/0001_auth_sessions.sql
 ```
 
----
+遷移採 `IF NOT EXISTS`，可重複執行。既有 `shares.allow_notes` 欄位由分享路由的相容處理補建；完整 schema 已包含此欄位，不需另行執行 `ALTER TABLE`。部署後舊 JWT 因沒有可撤銷 session 記錄而失效，使用者須重新登入。
 
-## 6. CORS 網域白名單
+## Google OAuth
 
-在 `worker/middleware/cors.ts` 或環境變數中，確認允許存取的 PWA 前端網域：
-- 本地開發：`http://localhost:5173`
-- 生產環境：`https://<YOUR_PWA_DOMAIN>.pages.dev`
+在 Google Cloud Console 建立 Web OAuth 用戶端，將以下 URI 加入「已授權的重新導向 URI」：
 
+- 正式：`https://redolve.jx06t.com/api/auth/callback/google`
+- 本地開發：`http://localhost:3000/api/auth/callback/google`
 
-wrangler secret put ADMIN_EMAILS
+本地 Vite 預設在 `http://localhost:3000`，將 `/api` 轉送到本地 Worker `http://127.0.0.1:8787`。以 `localhost:3000` 開啟網頁可讓 OAuth state 與 session cookie 留在同一個瀏覽器來源。Google 登入完成後只在 URL 帶回 `auth=success`，憑證由 HttpOnly cookie 傳送。
+
+## 驗收順序
+
+1. 套用 D1 遷移，確認 Worker 的秘密值與 Google redirect URI。
+2. 執行 `npm run build`，再部署 Worker 與靜態資源。
+3. 驗證 Google 登入、重新整理後的登入狀態、登出後 `/api/auth/me` 為訪客。
+4. 使用兩個帳號確認題目及圖片不能互相讀取；確認舊的 `?auth=` 圖片網址無法作為授權。
+5. 驗證訪客離線收題、連線後分析、登入後同步、分享連結期限及撤銷立即生效。
+
+正式環境部署及實體 iPad／iPhone 驗收需在可用的 Cloudflare、Google 帳號和裝置上完成。

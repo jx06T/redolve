@@ -9,7 +9,6 @@ import { AuthModal } from './AuthModal';
 import { CustomSelect } from './CustomSelect';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
-import { fetchCurrentUser } from '../services/api';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -32,7 +31,6 @@ export const Navbar: React.FC = () => {
     selectedSubjectId,
     setSelectedSubjectId,
     currentUser,
-    setCurrentUser,
     setAuthModalOpen,
     taxonomies,
     loadTaxonomies,
@@ -52,14 +50,7 @@ export const Navbar: React.FC = () => {
 
   useEffect(() => {
     loadTaxonomies();
-    if (!currentUser) {
-      fetchCurrentUser()
-        .then((res) => {
-          if (res?.user) setCurrentUser(res.user);
-        })
-        .catch((err) => console.error('Failed to load initial user:', err));
-    }
-  }, [currentUser, setCurrentUser, loadTaxonomies]);
+  }, [loadTaxonomies]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -455,10 +446,9 @@ export const Navbar: React.FC = () => {
           if (!isGuest) {
             // For logged-in users, clear store and navigate to trigger a fresh fetch
             setProblems([], null);
-            navigate(`/study/${selectedSubjectId || 'math'}`);
           }
-          // For guests: optimistic items + IndexedDB are already in place.
-          // StudyView will include offline items on next load; no navigation needed.
+          // Open the saved questions immediately for both local and cloud uploads.
+          navigate(`/study/${selectedSubjectId || 'math'}`);
         }}
       />
 

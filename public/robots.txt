@@ -1,9 +1,9 @@
-# Robots.txt for Redolve (https://redolve.pages.dev)
+# Public landing page may be indexed. Share pages respond with X-Robots-Tag: noindex.
 User-agent: *
 Allow: /
-Allow: /study
-Allow: /share/
 Disallow: /api/
 Disallow: /settings
+Disallow: /search
+Disallow: /study
 
-Sitemap: https://redolve.pages.dev/sitemap.xml
+Sitemap: https://redolve.jx06t.com/sitemap.xml

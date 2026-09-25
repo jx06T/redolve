@@ -1,11 +1,12 @@
-import { getOfflineDB, OfflineProblem } from './offlineStorage';
-import { uploadProblem } from './api';
+import { getOfflineDB, OfflineProblem, updateOfflineProblemAnalysis } from './offlineStorage';
+import { uploadProblem, analyzeGuestProblem, updateProblemDrawData, updateProblemStatus, updateProblemMetadata } from './api';
 import { Item } from '../types';
 
 const OFFLINE_PROBS_STORE = 'offlineProblems';
 
 export class OfflineSyncManager {
   private static objectUrlCache = new Map<string, string>();
+  private static pendingAnalysis: Promise<void> | null = null;
 
   /**
    * Save a problem to IndexedDB for offline users.
@@ -24,6 +25,7 @@ export class OfflineSyncManager {
       source,
       topicId,
       timestamp: Date.now(),
+      status: tagResult ? 'unsolved' : 'processing',
       tagResult,
     });
   }
@@ -34,6 +36,27 @@ export class OfflineSyncManager {
   static async getOfflineProblems(): Promise<OfflineProblem[]> {
     const db = await getOfflineDB();
     return db.getAll(OFFLINE_PROBS_STORE);
+  }
+
+  static analyzePendingGuestProblems(onAnalyzed?: (id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) => void): Promise<void> {
+    if (this.pendingAnalysis) return this.pendingAnalysis;
+    this.pendingAnalysis = this.runPendingGuestAnalysis(onAnalyzed).finally(() => { this.pendingAnalysis = null; });
+    return this.pendingAnalysis;
+  }
+
+  private static async runPendingGuestAnalysis(onAnalyzed?: (id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) => void): Promise<void> {
+    const pending = (await this.getOfflineProblems()).filter((problem) => !problem.tagResult && !problem.cloudId);
+    for (const problem of pending) {
+      if (!navigator.onLine) break;
+      try {
+        const file = new File([problem.fileData], 'problem.jpg', { type: problem.fileData.type || 'image/jpeg' });
+        const result = await analyzeGuestProblem(file);
+        await updateOfflineProblemAnalysis(problem.id, result.tagResult);
+        onAnalyzed?.(problem.id, result.tagResult);
+      } catch (error) {
+        console.warn('Guest analysis remains pending:', error);
+      }
+    }
   }
 
   /**
@@ -68,7 +91,7 @@ export class OfflineSyncManager {
         source: p.source,
         image_url: url,
         draw_data: p.draw_data ? (typeof p.draw_data === 'string' ? p.draw_data : JSON.stringify(p.draw_data)) : null,
-        status: (p.status || 'unsolved') as 'unsolved' | 'resolved' | 'archived',
+        status: (p.status || (p.tagResult ? 'unsolved' : 'processing')) as Item['status'],
         review_count: p.review_count || 0,
         typed_notes: p.typed_notes || '',
         vector_clock: p.vector_clock ? (typeof p.vector_clock === 'string' ? p.vector_clock : JSON.stringify(p.vector_clock)) : null,
@@ -78,10 +101,23 @@ export class OfflineSyncManager {
     }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }
 
+  static async searchOfflineProblems(query: string): Promise<Item[]> {
+    const normalized = query.trim().toLocaleLowerCase();
+    if (!normalized) return [];
+    const problems = await this.getOfflineProblems();
+    const matchingIds = new Set(problems.filter((problem) => [
+      problem.source,
+      problem.typed_notes || '',
+      problem.tagResult?.ocr_text || '',
+      ...(problem.tagResult?.keywords || []),
+    ].some((value) => value.toLocaleLowerCase().includes(normalized))).map((problem) => problem.id));
+    return (await this.getOfflineProblemsAsItems()).filter((item) => matchingIds.has(item.id));
+  }
+
   /**
    * Sync all offline problems to the cloud.
    */
-  static async syncToCloud(): Promise<{ success: number; failed: number }> {
+  static async syncToCloud(getCurrentUserId: () => string | null, onSynced: (id: string) => void): Promise<{ success: number; failed: number }> {
     const problems = await this.getOfflineProblems();
     if (problems.length === 0) {
       return { success: 0, failed: 0 };
@@ -89,48 +125,46 @@ export class OfflineSyncManager {
 
     const db = await getOfflineDB();
     
-    // Dynamically import to avoid circular dependency
-    const { useStore } = await import('../store/useStore');
-    const { updateProblemDrawData, updateProblemStatus, updateProblemMetadata } = await import('./api');
-    
-    const storeProblems = useStore.getState().problems;
+    const syncingUserId = getCurrentUserId();
+    if (!syncingUserId) return { success: 0, failed: problems.length };
     let successCount = 0;
     let failedCount = 0;
 
     for (const prob of problems) {
       try {
+        if (getCurrentUserId() !== syncingUserId) break;
+        if (prob.cloudOwnerId && prob.cloudOwnerId !== syncingUserId) {
+          failedCount++;
+          continue;
+        }
         // 1. Upload base image and metadata
-        const file = new File([prob.fileData], `offline_${prob.id}.jpg`, { type: prob.fileData.type || 'image/jpeg' });
-        const res = await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
-        const newCloudId = res.id;
+        let newCloudId = prob.cloudId;
+        if (!newCloudId) {
+          const file = new File([prob.fileData], `offline_${prob.id}.jpg`, { type: prob.fileData.type || 'image/jpeg' });
+          const res = await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
+          newCloudId = res.id;
+          await db.put(OFFLINE_PROBS_STORE, { ...prob, cloudId: newCloudId, cloudOwnerId: syncingUserId });
+        }
         
-        // 2. Apply any in-memory modifications (drawings, status, notes)
-        const storeProblem = storeProblems.find(p => p.id === prob.id);
-        if (storeProblem) {
-          // Sync drawings if any
-          if (storeProblem.draw_data && storeProblem.vector_clock) {
+        // 2. Replay persisted edits, including those made before a page reload.
+        {
+          if (prob.draw_data && prob.vector_clock) {
             let seq = 1;
             try {
-              const vc = typeof storeProblem.vector_clock === 'string' 
-                ? JSON.parse(storeProblem.vector_clock) 
-                : storeProblem.vector_clock;
+              const vc = typeof prob.vector_clock === 'string' ? JSON.parse(prob.vector_clock) : prob.vector_clock;
               seq = vc.seq || 1;
             } catch (e) {}
             
-            const drawData = typeof storeProblem.draw_data === 'string' 
-              ? JSON.parse(storeProblem.draw_data) 
-              : storeProblem.draw_data;
+            const drawData = typeof prob.draw_data === 'string' ? JSON.parse(prob.draw_data) : prob.draw_data;
             await updateProblemDrawData(newCloudId, drawData, seq);
           }
           
-          // Sync status if changed
-          if (storeProblem.status && storeProblem.status !== 'unsolved') {
-            await updateProblemStatus(newCloudId, storeProblem.status as 'unsolved' | 'resolved' | 'archived');
+          if (prob.status && prob.status !== 'unsolved' && prob.status !== 'processing') {
+            await updateProblemStatus(newCloudId, prob.status);
           }
           
-          // Sync typed notes if added
-          if (storeProblem.typed_notes) {
-            await updateProblemMetadata(newCloudId, { typed_notes: storeProblem.typed_notes });
+          if (prob.typed_notes) {
+            await updateProblemMetadata(newCloudId, { typed_notes: prob.typed_notes });
           }
         }
         
@@ -143,7 +177,7 @@ export class OfflineSyncManager {
         }
         
         // 4. Remove the temporary offline item from store to prevent duplicates
-        useStore.getState().removeProblemFromStore(prob.id);
+        onSynced(prob.id);
         
         successCount++;
       } catch (err) {
@@ -153,16 +187,6 @@ export class OfflineSyncManager {
     }
 
     return { success: successCount, failed: failedCount };
-  }
-
-  /**
-   * Clear all offline data (e.g. on logout)
-   */
-  static async clearOfflineData(): Promise<void> {
-    const db = await getOfflineDB();
-    await db.clear(OFFLINE_PROBS_STORE);
-    this.objectUrlCache.forEach((url) => URL.revokeObjectURL(url));
-    this.objectUrlCache.clear();
   }
 
   /**
@@ -176,4 +200,3 @@ export class OfflineSyncManager {
     }
   }
 }
-

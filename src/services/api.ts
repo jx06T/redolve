@@ -3,50 +3,25 @@ import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || '';
 
-export function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  let token = localStorage.getItem('redolve_auth_token');
-  if (token === 'dev_user_default') {
-    localStorage.removeItem('redolve_auth_token');
-    token = null;
-  }
-  return token;
-}
-
-export function setAuthToken(token: string | null) {
-  if (token) {
-    localStorage.setItem('redolve_auth_token', token);
-  } else {
-    localStorage.removeItem('redolve_auth_token');
-  }
+function requestApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return globalThis.fetch(input, { credentials: 'include', cache: 'no-store', ...init });
 }
 
 function getAuthHeaders(includeContentType = true): HeadersInit {
-  const token = getAuthToken();
   const headers: Record<string, string> = {};
   if (includeContentType) {
     headers['Content-Type'] = 'application/json';
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }
 
 // User Authentication Endpoints
 export async function fetchCurrentUser(): Promise<{ user: User | null; isGuest: boolean }> {
-  const token = getAuthToken();
-  if (!token) {
-    return { user: null, isGuest: true };
-  }
   try {
-    const res = await fetch(`${API_BASE}/auth/me`, {
+    const res = await requestApi(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders(false),
     });
-    if (!res.ok) {
-      setAuthToken(null);
-      return { user: null, isGuest: true };
-    }
+    if (!res.ok) return { user: null, isGuest: true };
     const data = (await res.json()) as { user?: User; isGuest?: boolean };
     return { user: data.user || null, isGuest: !data.user || !!data.isGuest };
   } catch {
@@ -55,34 +30,19 @@ export async function fetchCurrentUser(): Promise<{ user: User | null; isGuest: 
 }
 
 export async function logoutUser(): Promise<void> {
-  try {
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
-  } finally {
-    setAuthToken(null);
-  }
+  const res = await requestApi(`${API_BASE}/auth/logout`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error('登出失敗，請確認網路連線後重試');
 }
 
 export async function getGoogleAuthUrl(): Promise<{ configured: boolean; url?: string; message?: string }> {
-  const res = await fetch(`${API_BASE}/auth/google/url`, {
+  const res = await requestApi(`${API_BASE}/auth/google/url`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to get Google Auth URL');
   return res.json();
-}
-
-export async function loginWithGoogleCredential(credential: string): Promise<{ token: string; user: User }> {
-  const res = await fetch(`${API_BASE}/auth/google/credential`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential }),
-  });
-  if (!res.ok) throw new Error('Google authentication failed');
-  const data = (await res.json()) as { token: string; user: User };
-  setAuthToken(data.token);
-  return data;
 }
 
 // Taxonomy Sync Endpoints
@@ -91,7 +51,7 @@ export async function fetchTaxonomyTree(): Promise<{
   customNodes: TaxonomyNode[];
   counts?: Record<string, number>;
 }> {
-  const res = await fetch(`${API_BASE}/taxonomy`, {
+  const res = await requestApi(`${API_BASE}/taxonomy`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch taxonomy tree');
@@ -99,7 +59,7 @@ export async function fetchTaxonomyTree(): Promise<{
 }
 
 export async function createCustomTaxonomy(data: { label: string; parent_id?: string | null; is_official?: boolean }): Promise<{ node: TaxonomyNode }> {
-  const res = await fetch(`${API_BASE}/taxonomy`, {
+  const res = await requestApi(`${API_BASE}/taxonomy`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -109,7 +69,7 @@ export async function createCustomTaxonomy(data: { label: string; parent_id?: st
 }
 
 export async function updateCustomTaxonomy(id: string, label: string): Promise<{ node: TaxonomyNode }> {
-  const res = await fetch(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
+  const res = await requestApi(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify({ label }),
@@ -122,7 +82,7 @@ export async function updateCustomTaxonomy(id: string, label: string): Promise<{
 }
 
 export async function deleteCustomTaxonomy(id: string): Promise<{ status: string; message: string }> {
-  const res = await fetch(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
+  const res = await requestApi(`${API_BASE}/taxonomy/${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: getAuthHeaders(false),
   });
@@ -131,12 +91,12 @@ export async function deleteCustomTaxonomy(id: string): Promise<{ status: string
 }
 
 export async function fetchHealth() {
-  const res = await fetch(`${API_BASE}/health`);
+  const res = await requestApi(`${API_BASE}/health`);
   return res.json();
 }
 
 export async function fetchDashboard(): Promise<DashboardData> {
-  const res = await fetch(`${API_BASE}/dashboard`, {
+  const res = await requestApi(`${API_BASE}/dashboard`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch dashboard data');
@@ -157,7 +117,7 @@ export async function fetchProblems(params?: {
   if (params?.cursor) query.append('cursor', params.cursor);
   if (params?.limit) query.append('limit', params.limit.toString());
 
-  const res = await fetch(`${API_BASE}/problems?${query.toString()}`, {
+  const res = await requestApi(`${API_BASE}/problems?${query.toString()}`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch problems');
@@ -165,7 +125,7 @@ export async function fetchProblems(params?: {
 }
 
 export async function fetchProblemById(id: string): Promise<Item> {
-  const res = await fetch(`${API_BASE}/problems/${id}`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Problem not found');
@@ -174,7 +134,7 @@ export async function fetchProblemById(id: string): Promise<Item> {
 }
 
 export async function fetchProblemText(id: string): Promise<{ text: string }> {
-  const res = await fetch(`${API_BASE}/problems/${id}/text`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}/text`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch problem text');
@@ -182,15 +142,14 @@ export async function fetchProblemText(id: string): Promise<{ text: string }> {
 }
 
 export function getProblemImageUrl(id: string): string {
-  const token = getAuthToken();
-  return token ? `${API_BASE}/problems/${id}/image?auth=${encodeURIComponent(token)}` : `${API_BASE}/problems/${id}/image`;
+  return `${API_BASE}/problems/${encodeURIComponent(id)}/image`;
 }
 
 export async function analyzeGuestProblem(file: File): Promise<{ status: string; tagResult: { topic_id: string; keywords: string[]; ocr_text?: string } }> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/problems/analyze-guest`, {
+  const res = await requestApi(`${API_BASE}/problems/analyze-guest`, {
     method: 'POST',
     body: formData,
   });
@@ -214,15 +173,8 @@ export async function uploadProblem(
   if (topicId) formData.append('topic_id', topicId);
   if (tagResult) formData.append('tag_result', JSON.stringify(tagResult));
 
-  const headers: Record<string, string> = {};
-  const token = getAuthToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  const res = await fetch(`${API_BASE}/problems`, {
+  const res = await requestApi(`${API_BASE}/problems`, {
     method: 'POST',
-    headers,
     body: formData,
   });
 
@@ -231,7 +183,7 @@ export async function uploadProblem(
 }
 
 export async function analyzeProblem(id: string): Promise<{ status: string; tagResult: any; item: Item }> {
-  const res = await fetch(`${API_BASE}/problems/${id}/analyze`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}/analyze`, {
     method: 'POST',
     headers: getAuthHeaders(),
   });
@@ -252,7 +204,7 @@ export async function updateProblemDrawData(
   const clientId = localStorage.getItem('rdv_client_id') || crypto.randomUUID();
   localStorage.setItem('rdv_client_id', clientId);
 
-  const res = await fetch(`${API_BASE}/problems/${id}/draw`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}/draw`, {
     method: 'PATCH',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -266,7 +218,7 @@ export async function updateProblemDrawData(
 }
 
 export async function updateProblemStatus(id: string, status: 'unsolved' | 'resolved' | 'archived') {
-  const res = await fetch(`${API_BASE}/problems/${id}/status`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}/status`, {
     method: 'PATCH',
     headers: getAuthHeaders(),
     body: JSON.stringify({ status }),
@@ -279,7 +231,7 @@ export async function updateProblemMetadata(
   id: string,
   data: { topic_id?: string | null; keywords?: string[]; source?: string; typed_notes?: string }
 ) {
-  const res = await fetch(`${API_BASE}/problems/${id}`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -289,7 +241,7 @@ export async function updateProblemMetadata(
 }
 
 export async function deleteProblem(id: string) {
-  const res = await fetch(`${API_BASE}/problems/${id}`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}`, {
     method: 'DELETE',
     headers: getAuthHeaders(false),
   });
@@ -298,7 +250,7 @@ export async function deleteProblem(id: string) {
 }
 
 export async function searchProblems(query: string): Promise<{ items: Item[] }> {
-  const res = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
+  const res = await requestApi(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Search failed');
@@ -306,7 +258,7 @@ export async function searchProblems(query: string): Promise<{ items: Item[] }> 
 }
 
 export async function fetchApiKeys(): Promise<{ keys: ApiKeyItem[] }> {
-  const res = await fetch(`${API_BASE}/keys`, {
+  const res = await requestApi(`${API_BASE}/keys`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to fetch API keys');
@@ -314,7 +266,7 @@ export async function fetchApiKeys(): Promise<{ keys: ApiKeyItem[] }> {
 }
 
 export async function createApiKey(description?: string): Promise<{ key: string; key_prefix: string }> {
-  const res = await fetch(`${API_BASE}/keys`, {
+  const res = await requestApi(`${API_BASE}/keys`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({ description }),
@@ -324,7 +276,7 @@ export async function createApiKey(description?: string): Promise<{ key: string;
 }
 
 export async function deleteApiKey(keyPrefix: string) {
-  const res = await fetch(`${API_BASE}/keys/${encodeURIComponent(keyPrefix)}`, {
+  const res = await requestApi(`${API_BASE}/keys/${encodeURIComponent(keyPrefix)}`, {
     method: 'DELETE',
     headers: getAuthHeaders(false),
   });
@@ -335,22 +287,40 @@ export async function deleteApiKey(keyPrefix: string) {
 export async function createShareLink(
   id: string,
   allowInk = true,
-  allowNotes = true
+  allowNotes = true,
+  expiresAt: string | null = null
 ): Promise<{ token: string }> {
-  const res = await fetch(`${API_BASE}/problems/${id}/share`, {
+  const res = await requestApi(`${API_BASE}/problems/${id}/share`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
       allow_ink: allowInk,
       allow_notes: allowNotes,
+      expires_at: expiresAt,
     }),
   });
   if (!res.ok) throw new Error('產生分享連結失敗');
   return res.json();
 }
 
+export interface ShareLink {
+  token: string;
+  allow_ink: number;
+  allow_notes: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+export async function listShareLinks(problemId: string): Promise<{ shares: ShareLink[] }> {
+  const res = await requestApi(`${API_BASE}/problems/${encodeURIComponent(problemId)}/shares`, {
+    headers: getAuthHeaders(false),
+  });
+  if (!res.ok) throw new Error('無法載入現有分享連結');
+  return res.json();
+}
+
 export async function revokeShareLink(problemId: string, token: string): Promise<{ status: string }> {
-  const res = await fetch(`${API_BASE}/problems/${problemId}/share/${token}`, {
+  const res = await requestApi(`${API_BASE}/problems/${problemId}/share/${token}`, {
     method: 'DELETE',
     headers: getAuthHeaders(false),
   });
@@ -360,7 +330,7 @@ export async function revokeShareLink(problemId: string, token: string): Promise
 
 export async function fetchSharedProblem(token: string): Promise<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } }> {
   const base = WORKER_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
-  const res = await fetch(`${base}/share/${token}`);
+  const res = await requestApi(`${base}/share/${token}`);
   if (!res.ok) throw new Error('Shared link expired or invalid');
   return res.json();
 }
@@ -371,7 +341,7 @@ export function getSharedImageUrl(token: string): string {
 }
 
 export async function seedAdminTaxonomy(): Promise<{ status: string; count: number }> {
-  const res = await fetch(`${API_BASE}/admin/taxonomy/seed`, {
+  const res = await requestApi(`${API_BASE}/admin/taxonomy/seed`, {
     method: 'POST',
     headers: getAuthHeaders(),
     credentials: 'include',
@@ -380,7 +350,7 @@ export async function seedAdminTaxonomy(): Promise<{ status: string; count: numb
 }
 
 export async function syncSeedTaxonomiesApi(): Promise<{ status: string; message: string; count: number }> {
-  const res = await fetch(`${API_BASE}/taxonomy/sync-seed`, {
+  const res = await requestApi(`${API_BASE}/taxonomy/sync-seed`, {
     method: 'POST',
     headers: getAuthHeaders(),
     credentials: 'include',
@@ -391,7 +361,7 @@ export async function syncSeedTaxonomiesApi(): Promise<{ status: string; message
 
 export async function fetchAdminMe(): Promise<{ isAdmin: boolean }> {
   try {
-    const res = await fetch(`${API_BASE}/admin/me`, {
+    const res = await requestApi(`${API_BASE}/admin/me`, {
       headers: getAuthHeaders(false),
       credentials: 'include',
     });
@@ -401,5 +371,3 @@ export async function fetchAdminMe(): Promise<{ isAdmin: boolean }> {
     return { isAdmin: false };
   }
 }
-
-

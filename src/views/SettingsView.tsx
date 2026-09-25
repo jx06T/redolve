@@ -28,7 +28,7 @@ export const SettingsView: React.FC = () => {
     description: '管理 iPad / iPhone 捷徑傳輸金鑰、自訂題庫科目與單元分類、手寫筆觸自訂顏色與偏好設定。',
   });
 
-  const { currentUser, setTaxonomies, taxonomyCounts } = useStore();
+  const { currentUser, setTaxonomies, taxonomyCounts, setAuthModalOpen } = useStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialTab);
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
@@ -66,7 +66,8 @@ export const SettingsView: React.FC = () => {
   };
 
   useEffect(() => {
-    loadKeys();
+    if (currentUser) void loadKeys();
+    else { setKeys([]); setLoadingKeys(false); }
     loadTaxonomyData();
   }, [currentUser]);
 
@@ -144,11 +145,14 @@ export const SettingsView: React.FC = () => {
 
       {/* Tab 2: Custom Taxonomy Tree Management */}
       {activeTab === 'taxonomy' && (
-        <TaxonomySettingsSection
+        currentUser ? <TaxonomySettingsSection
           customTaxonomies={customTaxonomies}
           countsMap={countsMap}
           loadTaxonomyData={loadTaxonomyData}
-        />
+        /> : <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-3 text-sm text-text-muted">
+          <p>自訂科目與單元需要登入後才能跨裝置保存；訪客仍可在刷題頁使用既有課綱分類。</p>
+          <button type="button" onClick={() => setAuthModalOpen(true)} className="px-4 py-2 rounded-xl bg-primary text-white">登入以自訂課綱</button>
+        </div>
       )}
 
       {/* Tab 3: API Keys */}

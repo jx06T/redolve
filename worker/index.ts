@@ -20,6 +20,9 @@ app.use('*', async (c, next) => {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'SAMEORIGIN');
   c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/share/')) {
+    c.header('Cache-Control', 'no-store');
+  }
 });
 app.onError(errorHandler);
 

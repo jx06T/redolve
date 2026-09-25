@@ -4,6 +4,7 @@ import { Item, TaxonomyNode, User } from '../types';
 import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { fetchTaxonomyTree } from '../services/api';
+import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 export interface ToastNotice {
   id: string;
@@ -18,7 +19,6 @@ interface StoreState {
 
   // User Authentication State
   currentUser: User | null;
-  authToken: string | null;
   authModalOpen: boolean;
 
   // Navigation & Filter State
@@ -64,7 +64,7 @@ interface StoreState {
   setAuthModalOpen: (open: boolean) => void;
   setUploadModalOpen: (open: boolean) => void;
   setMobileDrawerOpen: (open: boolean) => void;
-  setCurrentUser: (user: User | null, token?: string | null) => void;
+  setCurrentUser: (user: User | null) => void;
   logout: () => void;
   setSelectedSubjectId: (subjectId: string | null) => void;
   setSelectedTopicId: (topicId: string | null) => void;
@@ -113,9 +113,7 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       toast: null,
 
-      // 只有 Token 保留手動 localStorage，方便 API Client 在外部攔截器讀取
       currentUser: null,
-      authToken: typeof window !== 'undefined' ? localStorage.getItem('redolve_auth_token') : null,
       authModalOpen: false,
 
       selectedSubjectId: 'math',
@@ -164,39 +162,32 @@ export const useStore = create<StoreState>()(
       setAuthModalOpen: (authModalOpen) => set({ authModalOpen }),
       setUploadModalOpen: (uploadModalOpen) => set({ uploadModalOpen }),
       setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
-      setCurrentUser: (user, token) => {
+      setCurrentUser: (user) => {
         const wasGuest = !get().currentUser || get().currentUser?.id === 'dev_user_default';
         const isNowLoggedIn = user && user.id !== 'dev_user_default';
 
-        if (token !== undefined) {
-          if (token) {
-            localStorage.setItem('redolve_auth_token', token);
-          } else {
-            localStorage.removeItem('redolve_auth_token');
-          }
-          set({ currentUser: user, authToken: token });
-        } else {
-          set({ currentUser: user });
-        }
+        set({ currentUser: user });
 
         // Trigger offline sync if transitioning from guest to logged in
         if (wasGuest && isNowLoggedIn) {
-          import('../services/OfflineSyncManager').then(({ OfflineSyncManager }) => {
-            OfflineSyncManager.syncToCloud().then((result) => {
+            OfflineSyncManager.syncToCloud(() => get().currentUser?.id || null, (id) => get().removeProblemFromStore(id)).then((result) => {
               if (result.success > 0) {
                 get().showToast(`已成功將 ${result.success} 張本機錯題同步至雲端並自動解析！請重新整理頁面。`, 'success', 8000);
                 // Note: user may need to refresh to fetch the newly uploaded items and cloud IDs.
               }
             }).catch(err => console.error("Sync error:", err));
-          });
         }
       },
       logout: () => {
         localStorage.removeItem('redolve_auth_token');
-        set({ currentUser: null, authToken: null });
-        import('../services/OfflineSyncManager').then(({ OfflineSyncManager }) => {
-          OfflineSyncManager.clearOfflineData().catch(err => console.error("Clear error:", err));
-        });
+        set({ currentUser: null });
+        // Keep guest drafts and pending edits in IndexedDB. They may not be synced yet.
+        navigator.serviceWorker?.controller?.postMessage('CLEAR_PRIVATE_CACHES');
+        if ('caches' in window) {
+          caches.keys().then((keys) => Promise.all(keys
+            .filter((key) => key.startsWith('rdv-api-') || key.startsWith('rdv-images-'))
+            .map((key) => caches.delete(key)))).catch(console.error);
+        }
       },
 
       setSelectedSubjectId: (subjectId) =>

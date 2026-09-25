@@ -16,6 +16,7 @@ import { SmartCTA } from '../components/SmartCTA';
 import { Item } from '../types';
 import { isTopicUnderSubject } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
+import { fetchProblems } from '../services/api';
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
@@ -29,6 +30,7 @@ export const StudyView: React.FC = () => {
     isLoading,
     setActiveProblemId,
     taxonomies,
+    currentUser,
     showToast,
     setMobileDrawerOpen,
   } = useStore();
@@ -119,9 +121,8 @@ export const StudyView: React.FC = () => {
   // Silent refetch on tab focus (only for logged-in users; guests read IndexedDB locally)
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && !isLoading) {
+      if (document.visibilityState === 'visible' && currentUser && !isLoading) {
         try {
-          const { fetchProblems } = await import('../services/api');
           const res = await fetchProblems({
             subject_id: effectiveSubject,
             topic_id: effectiveTopic ?? undefined,
@@ -152,7 +153,7 @@ export const StudyView: React.FC = () => {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [effectiveSubject, effectiveTopic, selectedStatus, problems, isLoading, showToast, load]);
+  }, [effectiveSubject, effectiveTopic, selectedStatus, problems, currentUser, isLoading, showToast, load]);
 
   // ---------------------------------------------------------------------------
   // Virtualizer + scroll tracking

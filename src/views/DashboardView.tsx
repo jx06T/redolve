@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { fetchDashboard } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
-import { DashboardData } from '../types';
+import { DashboardData, TaxonomyNode } from '../types';
 import { useStore } from '../store/useStore';
 import { getRootSubjectId } from '../components/StatusBadge';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
@@ -26,51 +26,62 @@ export const DashboardView: React.FC = () => {
   });
 
   const navigate = useNavigate();
-  const { taxonomies, setSelectedSubjectId, setSelectedTopicId, currentUser } = useStore();
+  const { taxonomies, setSelectedSubjectId, setSelectedTopicId, setUploadModalOpen, currentUser } = useStore();
   const isGuest = !currentUser;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<boolean>(false);
 
   useEffect(() => {
-    fetchDashboard()
-      .then(async (res) => {
-        if (isGuest) {
-          const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
-          
-          if (offlineItems.length > 0) {
-            // Merge offline items into summary
-            res.summary.total += offlineItems.length;
-            res.summary.resolved += offlineItems.filter(i => i.status === 'resolved').length;
-            res.summary.unsolved += offlineItems.filter(i => i.status !== 'resolved' && i.status !== 'archived').length;
-            res.summary.unclassified = (res.summary.unclassified || 0) + offlineItems.filter(i => !i.topic_id).length;
-
-            // Merge subjects
-            const subMap = new Map<string, { subject_id: string; subject_label: string; total: number; resolved: number }>();
-            res.subjects.forEach(s => subMap.set(s.subject_id, { ...s }));
-
-            offlineItems.forEach(i => {
-              if (!i.topic_id) return;
-              const root = getRootSubjectId(i.topic_id, useStore.getState().taxonomies);
-              
-              if (!subMap.has(root)) {
-                // Find label from taxonomies
-                const taxonomy = useStore.getState().taxonomies.find(t => t.id === root);
-                subMap.set(root, { subject_id: root, subject_label: taxonomy?.label || root, total: 0, resolved: 0 });
-              }
-              const s = subMap.get(root)!;
-              s.total += 1;
-              if (i.status === 'resolved') s.resolved += 1;
-            });
-            res.subjects = Array.from(subMap.values());
-            
-            // Simplified top_unsolved_topics merge (optional, just sort subMap roughly)
-          }
+    let active = true;
+    setData(null);
+    setLoading(true);
+    setLoadError(false);
+    const loadDashboard = async () => {
+      if (!isGuest) return fetchDashboard();
+      const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
+      const subjects = new Map<string, DashboardData['subjects'][number]>();
+      const topicCounts = new Map<string, number>();
+      const topicLabels = new Map<string, string>();
+      const collectLabels = (nodes: TaxonomyNode[]) => {
+        for (const node of nodes) {
+          topicLabels.set(node.id, node.label);
+          if (node.children) collectLabels(node.children);
         }
-        setData(res);
-      })
-      .catch((err) => console.error('Dashboard fetch failed:', err))
-      .finally(() => setLoading(false));
-  }, []);
+      };
+      collectLabels(taxonomies);
+      for (const item of offlineItems) {
+        if (!item.topic_id) continue;
+        const root = getRootSubjectId(item.topic_id, taxonomies);
+        const label = topicLabels.get(root) || root;
+        const subject = subjects.get(root) || { subject_id: root, subject_label: label, total: 0, resolved: 0 };
+        subject.total += 1;
+        if (item.status === 'resolved' || item.status === 'archived') subject.resolved += 1;
+        subjects.set(root, subject);
+        if (item.status === 'unsolved') topicCounts.set(item.topic_id, (topicCounts.get(item.topic_id) || 0) + 1);
+      }
+      return {
+        summary: {
+          total: offlineItems.length,
+          resolved: offlineItems.filter((item) => item.status === 'resolved' || item.status === 'archived').length,
+          unsolved: offlineItems.filter((item) => item.status === 'unsolved').length,
+          processing: offlineItems.filter((item) => item.status === 'processing').length,
+          unclassified: offlineItems.filter((item) => !item.topic_id).length,
+        },
+        subjects: [...subjects.values()],
+        top_unsolved_topics: [...topicCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([topicId, count]) => ({
+          topic_id: topicId,
+          topic_label: topicLabels.get(topicId) || topicId,
+          unsolved_count: count,
+        })),
+      } satisfies DashboardData;
+    };
+    loadDashboard()
+      .then((result) => { if (active) setData(result); })
+      .catch((err) => { if (active) { setLoadError(true); console.error('Dashboard fetch failed:', err); } })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [isGuest, currentUser?.id, taxonomies]);
 
   if (loading) {
     return (
@@ -78,6 +89,10 @@ export const DashboardView: React.FC = () => {
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
+  }
+
+  if (loadError) {
+    return <div className="rounded-3xl border border-border-subtle bg-surface p-8 text-sm text-text-muted">進度暫時無法載入，請確認連線後重新整理。</div>;
   }
 
   const summary = data?.summary || { total: 0, resolved: 0, unsolved: 0, processing: 0, unclassified: 0 };
@@ -109,6 +124,18 @@ export const DashboardView: React.FC = () => {
   return (
     <div className="space-y-6">
       <GuestNoticeBanner />
+
+      {summary.total === 0 && (
+        <section className="rounded-3xl border border-primary-200/60 bg-primary-50/60 p-5 sm:p-6" aria-label="開始使用 Redolve">
+          <h2 className="text-base font-semibold text-text-main">三步開始整理錯題</h2>
+          <ol className="mt-3 grid gap-3 text-xs text-text-main sm:grid-cols-3">
+            <li><strong className="text-primary">1. 收題</strong><p className="mt-1 text-text-muted">上傳或拍攝考題，訪客也能先存到此瀏覽器。</p></li>
+            <li><strong className="text-primary">2. 訂正</strong><p className="mt-1 text-text-muted">在題目上手寫、加筆記，完成後標記已解決。</p></li>
+            <li><strong className="text-primary">3. 複習</strong><p className="mt-1 text-text-muted">依科目與單元找回錯題，登入後可跨裝置同步。</p></li>
+          </ol>
+          <button type="button" onClick={() => setUploadModalOpen(true)} className="mt-4 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white hover:bg-primary-hover">上傳第一張錯題</button>
+        </section>
+      )}
 
       {/* Header Banner */}
       <div className="bg-surface border border-border-subtle rounded-3xl p-6 relative overflow-hidden">

@@ -7,12 +7,13 @@ import { ProblemCard } from '../components/ProblemCard';
 import { StatusBadge, formatProblemCode, getRootSubjectId } from '../components/StatusBadge';
 import { useStore } from '../store/useStore';
 import { Item } from '../types';
+import { OfflineSyncManager } from '../services/OfflineSyncManager';
 
 export const SearchView: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const query = searchParams.get('q') || '';
-  const { taxonomies, setActiveProblemId, setSelectedSubjectId, setSelectedTopicId } = useStore();
+  const { taxonomies, currentUser, setActiveProblemId, setSelectedSubjectId, setSelectedTopicId } = useStore();
 
   useSEO({
     title: query ? `搜尋「${query}」` : '全域錯題搜尋',
@@ -23,6 +24,7 @@ export const SearchView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
   const [localQuery, setLocalQuery] = useState<string>(query);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalQuery(query);
@@ -36,14 +38,22 @@ export const SearchView: React.FC = () => {
   };
 
   useEffect(() => {
-    if (query) {
-      setLoading(true);
-      searchProblems(query)
-        .then((res) => setResults(res.items))
-        .catch((err) => console.error('Search failed:', err))
-        .finally(() => setLoading(false));
+    if (!query) {
+      setResults([]);
+      setSearchError(null);
+      return;
     }
-  }, [query]);
+    let active = true;
+    setLoading(true);
+    setSearchError(null);
+    const search = currentUser
+      ? searchProblems(query).then((res) => res.items)
+      : OfflineSyncManager.searchOfflineProblems(query);
+    search.then((items) => { if (active) setResults(items); })
+      .catch(() => { if (active) setSearchError('搜尋暫時無法使用，請稍後重試。'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [query, currentUser]);
 
   const handleNavigateToProblem = (item: Item) => {
     setActiveProblemId(item.id);
@@ -81,7 +91,7 @@ export const SearchView: React.FC = () => {
       <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-sm font-bold text-text-main flex items-center space-x-2">
-            <span>FTS5 中文檢索結果</span>
+            <span>{currentUser ? '雲端錯題搜尋結果' : '本機錯題搜尋結果'}</span>
             {query && (
               <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-lg border border-primary/20">
                 "{query}"
@@ -124,6 +134,8 @@ export const SearchView: React.FC = () => {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      ) : searchError ? (
+        <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-rose-500">{searchError}</div>
       ) : results.length === 0 ? (
         <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-text-muted shadow-xs">
           沒有找到符合 "{query}" 的錯題。請嘗試關鍵字拆解或簡化搜尋詞。
@@ -171,7 +183,7 @@ export const SearchView: React.FC = () => {
                     onClick={() => handleNavigateToProblem(item)}
                   >
                     <img
-                      src={getProblemImageUrl(item.id)}
+                      src={item.image_url?.startsWith('blob:') ? item.image_url : getProblemImageUrl(item.id)}
                       alt="題目預覽"
                       className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-200 select-none"
                     />

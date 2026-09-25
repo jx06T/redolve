@@ -32,6 +32,10 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
   const allowInk = body.allow_ink === false ? 0 : 1;
   const allowNotes = body.allow_notes === false ? 0 : 1;
   const expiresAt = body.expires_at || null;
+  if (expiresAt && (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)) ||
+    Date.parse(expiresAt) <= Date.now() || Date.parse(expiresAt) > Date.now() + 366 * 24 * 60 * 60 * 1000)) {
+    return c.json({ error: { code: 'INVALID_EXPIRY', message: '分享期限必須介於現在與一年之間' } }, 400);
+  }
 
   // 💡 安全的重複網址檢查邏輯
   let existingShare: ShareRow | null = null;
@@ -86,12 +90,27 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
   });
 });
 
+// List all active links so a user can revoke links after closing the dialog.
+sharesRouter.get('/api/problems/:id/shares', authMiddleware, async (c) => {
+  const userId = c.get('userId');
+  const problemId = c.req.param('id');
+  const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
+    .bind(problemId, userId).first();
+  if (!item) return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
+  await ensureAllowNotesColumn(c.env.DB);
+  const { results } = await c.env.DB.prepare(
+    'SELECT token, allow_ink, allow_notes, expires_at, created_at FROM shares WHERE item_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC'
+  ).bind(problemId, userId, new Date().toISOString()).all();
+  return c.json({ shares: results || [] });
+});
+
 // 2. Revoke Share Token (Protected)
 sharesRouter.delete('/api/problems/:id/share/:token', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const token = c.req.param('token');
 
-  await c.env.DB.prepare('DELETE FROM shares WHERE token = ? AND user_id = ?').bind(token, userId).run();
+  await c.env.DB.prepare('DELETE FROM shares WHERE token = ? AND item_id = ? AND user_id = ?')
+    .bind(token, c.req.param('id'), userId).run();
 
   return c.json({ status: 'revoked' });
 });
@@ -101,7 +120,12 @@ sharesRouter.get('/share/:token', async (c) => {
   // If the request comes from a browser navigation (Accept: text/html), serve the SPA entry
   const acceptHeader = c.req.header('accept') || '';
   if (acceptHeader.includes('text/html') && c.env.ASSETS) {
-    return c.env.ASSETS.fetch(c.req.raw);
+    const asset = await c.env.ASSETS.fetch(c.req.raw);
+    const headers = new Headers(asset.headers);
+    headers.set('X-Robots-Tag', 'noindex, nofollow');
+    headers.set('Referrer-Policy', 'no-referrer');
+    headers.set('Cache-Control', 'no-store');
+    return new Response(asset.body, { status: asset.status, headers });
   }
 
   const token = c.req.param('token');
@@ -128,6 +152,9 @@ sharesRouter.get('/share/:token', async (c) => {
   const shouldShowInk = Boolean(share.allow_ink);
   const shouldShowNotes = share.allow_notes !== undefined ? Boolean(share.allow_notes) : true;
 
+  c.header('X-Robots-Tag', 'noindex, nofollow');
+  c.header('Cache-Control', 'no-store');
+  c.header('Referrer-Policy', 'no-referrer');
   return c.json({
     item: {
       ...item,
@@ -170,7 +197,9 @@ sharesRouter.get('/share/:token/image', async (c) => {
   return new Response(object.body, {
     headers: {
       'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'no-referrer',
     },
   });
 });

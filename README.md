@@ -11,6 +11,7 @@
 
 - **Gemini AI 自動化分類**  
   自動依據學測/分科測驗課綱 Taxonomy 辨識「科目」、「單元」與動態「關鍵字」，擺脫手動整理與打標籤的繁瑣摩擦。
+  訪客選擇 AI 分析時，題目圖片會傳至 Redolve 後端及 Google Gemini；題目與筆跡先保存在此瀏覽器，登入後才會同步至雲端。
 
 - **雙手協同與 Apple Pencil 繪圖引擎**  
   - **PointerType 掌壓防誤觸**：攔截觸控事件，手掌貼在螢幕上計算時頁面不亂跳。
@@ -38,8 +39,8 @@
 | **繪圖引擎 (Canvas)** | 原生 HTML5 `<canvas>` + `perfect-freehand` | 向量點位與向量筆跡 Masking 局部擦除 |
 | **後端 API (Backend)** | Cloudflare Workers, Hono Framework | Edge Runtime 邊緣運算 API |
 | **資料庫與儲存** | Cloudflare D1 (SQLite) + Cloudflare R2 | 多租戶資料隔離、FTS5 中文全文檢索與影像儲存 |
-| **AI 視覺辨識** | Google Gemini 2.5 / 3.5 Flash API | Structured Outputs 課綱自動分類 |
-| **身分驗證 (Auth)** | better-auth (Google OAuth) + 自建 API Key | PWA Web 端與 iOS 捷徑雙軌驗證 |
+| **AI 視覺辨識** | Google Gemini 3.1 Flash Lite（含 3.5／latest 備援） | Structured Outputs 課綱自動分類 |
+| **身分驗證 (Auth)** | Google OAuth、可撤銷 HttpOnly session、自建 API Key | PWA Web 端與 iOS 捷徑雙軌驗證 |
 
 ---
 
@@ -51,11 +52,10 @@ redolve/
 │   ├── PRD01_0803.md       # 產品需求規格書 (PRD)
 │   └── TDD01_0803.md       # 技術設計文件 (TDD)
 ├── src/                    # 前端 React SPA 原始碼
-│   ├── assets/             # 靜態資源
 │   ├── components/         # React 組件 (Canvas, Cards, Auth, Dashboard)
 │   ├── hooks/              # 自訂 Hooks (Pointer, Touch, Offline Sync)
-│   ├── lib/                # 工具函式與 IndexedDB 客戶端
-│   ├── pages/              # 頁面路由 (Dashboard, StudyListView, Search)
+│   ├── services/           # API、IndexedDB 與同步
+│   ├── views/              # 頁面路由 (Dashboard, Study, Search)
 │   ├── store/              # Zustand 全域狀態
 │   ├── App.tsx             # 應用程式進入點
 │   └── index.css           # Tailwind CSS & 低對比設計 Token
@@ -66,7 +66,6 @@ redolve/
 ├── package.json            # 專案套件設定
 ├── tsconfig.json           # TypeScript 配置
 ├── vite.config.ts          # Vite 打包配置
-├── tailwind.config.js      # Tailwind CSS 主題 Token 配置
 └── wrangler.jsonc          # Cloudflare Worker, D1 & R2 綁定配置
 ```
 
@@ -109,11 +108,13 @@ npm run build
 
 ## 相關文檔 (Documentation)
 
-- [產品需求規格書 (PRD)](file:///d:/Document_J/redolve/doc/PRD01_0803.md)
-- [技術設計文件 (TDD)](file:///d:/Document_J/redolve/doc/TDD01_0803.md)
+- [產品需求規格書 (PRD)](doc/PRD01_0803.md)
+- [技術設計文件 (TDD)](doc/TDD01_0803.md)
+- [設定與部署指南](doc/CONFIGURATION_GUIDE.md)
+- [健檢問題處理紀錄](doc/HEALTH_CHECK_FIXES_2026-09-25.md)
 
 ---
 
 ## 授權條款 (License)
 
-Private Repository - Redolve Project.
+此公開原始碼庫供閱讀與檢視，目前未提供開源授權；著作權及使用權均由專案作者保留。`package.json` 的 `private` 僅限制 npm 發佈，不代表開源授權。

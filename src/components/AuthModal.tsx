@@ -53,6 +53,7 @@ export const AuthModal: React.FC = () => {
       setAuthModalOpen(false);
     } catch (err) {
       console.error('Logout error:', err);
+      showToast('登出失敗，請確認網路連線後重試', 'error');
     } finally {
       setIsLoading(false);
     }

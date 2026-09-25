@@ -4,16 +4,21 @@ import bcrypt from 'bcryptjs';
 import { Bindings, Variables, ApiKeyRow, UserRow } from '../types';
 
 export function getJwtSecret(env: Bindings): string {
-  return env.JWT_SECRET || env.BETTER_AUTH_SECRET || 'redolve_dev_jwt_secret_change_in_prod';
+  const secret = env.JWT_SECRET || env.BETTER_AUTH_SECRET;
+  if (!secret) throw new Error('JWT_SECRET is required');
+  return secret;
 }
 
 export async function createAuthJwt(
   user: { id: string; email?: string | null; name?: string | null },
   env: Bindings,
-  expiresInSeconds = 60 * 60 * 24 * 30 // 30 days
+  expiresInSeconds = 60 * 60 * 24 * 7
 ): Promise<string> {
   const secret = getJwtSecret(env);
   const now = Math.floor(Date.now() / 1000);
+  const sessionId = crypto.randomUUID();
+  await env.DB.prepare('INSERT INTO auth_sessions (id, user_id, expires_at) VALUES (?, ?, ?)')
+    .bind(sessionId, user.id, now + expiresInSeconds).run();
   return sign(
     {
       sub: user.id,
@@ -21,6 +26,7 @@ export async function createAuthJwt(
       name: user.name || '',
       iat: now,
       exp: now + expiresInSeconds,
+      sid: sessionId,
     },
     secret
   );
@@ -29,14 +35,19 @@ export async function createAuthJwt(
 export async function verifyAuthJwt(
   token: string,
   env: Bindings
-): Promise<{ userId: string; email?: string } | null> {
+): Promise<{ userId: string; email?: string; sessionId: string } | null> {
   const secret = getJwtSecret(env);
   try {
     const payload = await verify(token, secret, 'HS256');
-    if (payload && payload.sub && typeof payload.sub === 'string') {
+    if (payload && typeof payload.sub === 'string' && typeof payload.sid === 'string') {
+      const session = await env.DB.prepare(
+        'SELECT id FROM auth_sessions WHERE id = ? AND user_id = ? AND expires_at > ?'
+      ).bind(payload.sid, payload.sub, Math.floor(Date.now() / 1000)).first();
+      if (!session) return null;
       return {
         userId: payload.sub,
         email: typeof payload.email === 'string' ? payload.email : undefined,
+        sessionId: payload.sid,
       };
     }
   } catch {
@@ -47,12 +58,13 @@ export async function verifyAuthJwt(
 
 export async function resolveAuthCredentials(
   c: Context<{ Bindings: Bindings; Variables: Variables }>
-): Promise<{ userId: string | null; userEmail: string | null }> {
+): Promise<{ userId: string | null; userEmail: string | null; viaCookie: boolean }> {
   const authHeader = c.req.header('Authorization');
   const sessionCookie = c.req.header('Cookie');
 
   let userId: string | null = null;
   let userEmail: string | null = null;
+  let viaCookie = false;
 
   // 1. API Key Authentication (Bearer rdv_...)
   if (authHeader && authHeader.startsWith('Bearer rdv_')) {
@@ -88,15 +100,8 @@ export async function resolveAuthCredentials(
       if (verified) {
         userId = verified.userId;
         userEmail = verified.email ?? null;
+        viaCookie = true;
       }
-    }
-  } else if (c.req.query('auth')) {
-    // 4. Query param fallback for <img> tags and media streams
-    const authQuery = c.req.query('auth')!.trim();
-    const verified = await verifyAuthJwt(authQuery, c.env);
-    if (verified) {
-      userId = verified.userId;
-      userEmail = verified.email ?? null;
     }
   }
 
@@ -112,14 +117,14 @@ export async function resolveAuthCredentials(
     }
   }
 
-  return { userId, userEmail };
+  return { userId, userEmail, viaCookie };
 }
 
 export async function authMiddleware(
   c: Context<{ Bindings: Bindings; Variables: Variables }>,
   next: Next
 ) {
-  const { userId, userEmail } = await resolveAuthCredentials(c);
+  const { userId, userEmail, viaCookie } = await resolveAuthCredentials(c);
 
   // Reject unauthenticated requests with HTTP 401 Unauthorized
   if (!userId) {
@@ -128,6 +133,18 @@ export async function authMiddleware(
       error: 'Unauthorized',
       message: '未提供有效之授權憑證或 Token 已過期！請重新登入或提供正確的 Bearer Token / API Key',
     }, 401);
+  }
+
+  if (viaCookie && !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+    const origin = c.req.header('Origin');
+    const allowed = [new URL(c.req.url).origin, 'https://redolve.jx06t.com', 'https://redolve.pages.dev', c.env.FRONTEND_URL, ...(c.env.ALLOWED_ORIGINS?.split(',') || [])]
+      .filter(Boolean).map((value) => value!.trim());
+    if (['localhost', '127.0.0.1'].includes(new URL(c.req.url).hostname)) {
+      allowed.push('http://localhost:3000', 'http://localhost:5173');
+    }
+    if (!origin || !allowed.includes(origin)) {
+      return c.json({ error: { code: 'INVALID_ORIGIN', message: '請求來源不受信任' } }, 403);
+    }
   }
 
   c.set('userId', userId);

@@ -19,3 +19,7 @@
 # 其他所有打包後的靜態資源 (Vite 產生的帶有 Hash 的檔案)，可以盡情進行長期快取 (1年)
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-jteI4RCTLynf3JYPdIpZBB/a8mKsuIJ8YmOLN2Ux+Jk='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' blob: data: https://redolve-api.50313tjx06.workers.dev; connect-src 'self' https://redolve-api.50313tjx06.workers.dev; worker-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

@@ -5,6 +5,7 @@ import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
+import { updateOfflineProblemAnalysis } from '../services/offlineStorage';
 
 const compressImage = (file: File): Promise<File> => {
   return new Promise((resolve) => {
@@ -14,10 +15,11 @@ const compressImage = (file: File): Promise<File> => {
       const canvas = document.createElement('canvas');
       let targetWidth = img.width;
       let targetHeight = img.height;
-      if (targetWidth > 1920) {
-        const scale = 1920 / targetWidth;
-        targetWidth = 1920;
-        targetHeight = Math.round(img.height * scale);
+      const longestSide = Math.max(targetWidth, targetHeight);
+      if (longestSide > 1920) {
+        const scale = 1920 / longestSide;
+        targetWidth = Math.round(targetWidth * scale);
+        targetHeight = Math.round(targetHeight * scale);
       }
       canvas.width = targetWidth;
       canvas.height = targetHeight;
@@ -100,7 +102,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const newItems = files.map((file) => ({
-      id: Math.random().toString(36).substring(2, 9),
+      id: crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
     }));
@@ -113,7 +115,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const files = Array.from(e.dataTransfer.files || []).filter((f) => f.type.startsWith('image/'));
     if (files.length > 0) {
       const newItems = files.map((file) => ({
-        id: Math.random().toString(36).substring(2, 9),
+        id: crypto.randomUUID(),
         file,
         previewUrl: URL.createObjectURL(file),
       }));
@@ -143,10 +145,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     try {
       let completedCount = 0;
-      const results = await Promise.allSettled(
-        selectedFiles.map(async (item) => {
+      let pendingAnalysisCount = 0;
+      const results: PromiseSettledResult<{ id: string }>[] = [];
+      // Limit simultaneous canvas allocations and AI calls on iPad.
+      for (let batchStart = 0; batchStart < selectedFiles.length; batchStart += 3) {
+        const batchResults = await Promise.allSettled(selectedFiles.slice(batchStart, batchStart + 3).map(async (item) => {
           const compressedFile = await compressImage(item.file);
-          const tempId = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+          const tempId = `temp_${crypto.randomUUID()}`;
 
           const tempItem: Item = {
             id: tempId,
@@ -169,22 +174,27 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
           try {
             if (isGuest) {
-              const analyzeRes = await analyzeGuestProblem(compressedFile);
+              // Save before contacting the AI so a failed request never discards a photo.
               await OfflineSyncManager.saveOfflineProblem(
-                tempId, 
-                compressedFile, 
-                sourceInput, 
-                analyzeRes.tagResult.topic_id,
-                analyzeRes.tagResult
+                tempId,
+                compressedFile,
+                sourceInput,
+                selectedSubjectId || 'math'
               );
-              
-              updateProblemInStore(tempId, {
-                status: 'unsolved',
-                topic_id: analyzeRes.tagResult.topic_id,
-                keywords: JSON.stringify(analyzeRes.tagResult.keywords),
-                keyword_tokens: analyzeRes.tagResult.keywords.join(' '),
-                updated_at: new Date().toISOString(),
-              });
+              try {
+                const analyzeRes = await analyzeGuestProblem(compressedFile);
+                await updateOfflineProblemAnalysis(tempId, analyzeRes.tagResult);
+                updateProblemInStore(tempId, {
+                  status: 'unsolved',
+                  topic_id: analyzeRes.tagResult.topic_id,
+                  keywords: JSON.stringify(analyzeRes.tagResult.keywords),
+                  keyword_tokens: analyzeRes.tagResult.keywords.join(' '),
+                  updated_at: new Date().toISOString(),
+                });
+              } catch (analysisError) {
+                pendingAnalysisCount += 1;
+                console.warn('Guest analysis pending; local photo is safe:', analysisError);
+              }
 
               completedCount += 1;
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
@@ -199,15 +209,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             removeProblemFromStore(tempId);
             throw new Error(err.message || String(err));
           }
-        })
-      );
+        }));
+        results.push(...batchResults);
+      }
 
       const fulfilledCount = results.filter((r) => r.status === 'fulfilled').length;
       const rejectedCount = results.filter((r) => r.status === 'rejected').length;
 
       if (rejectedCount === 0) {
         if (isGuest) {
-          showToast(`成功儲存 ${fulfilledCount} 張錯題至本機！登入後將自動備份並進行 AI 解析。`, 'success', 5000);
+          showToast(`已儲存 ${fulfilledCount} 張錯題至本機${pendingAnalysisCount ? `，${pendingAnalysisCount} 張待連線後分析` : ''}。`, 'success', 5000);
         } else {
           showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
         }
@@ -278,7 +289,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             <div className="p-3 rounded-2xl bg-primary-50/80 border border-primary-200/60 flex items-center justify-between text-xs text-text-muted">
               <div className="flex items-center space-x-2">
                 <Cloud className="w-4 h-4 text-primary shrink-0" />
-                <span>訪客上傳之錯題僅暫存於此瀏覽器。登入 Google 帳號可自動備份至雲端。</span>
+                <span>訪客題目與筆跡儲存在此瀏覽器；選擇 AI 分析時，圖片會傳至後端與 Google Gemini。登入後可同步題目。</span>
               </div>
               <button
                 type="button"
@@ -371,7 +382,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
             <span className="text-xs font-bold text-text-main">
               {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
             </span>
-            <span className="text-[10px] text-text-muted mt-0.5">自動進行前端壓縮 (支援 JPG, PNG, WEBP)</span>
+            <span className="text-[10px] text-text-muted mt-0.5">支援 JPG、PNG、WebP；iPhone 上亦可選用 HEIC／HEIF。可解碼的圖片會自動壓縮。</span>
             <input
               type="file"
               multiple

@@ -30,6 +30,7 @@ import {
   updateOfflineProblemDraw,
   updateOfflineProblemNotes,
   updateOfflineProblemMetadata,
+  updateOfflineProblemAnalysis,
   queueOfflineMutation,
 } from '../services/offlineStorage';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
@@ -85,7 +86,7 @@ export function useProblemActions() {
           useStore.getState().loadTaxonomies();
         } catch (err) {
           console.error('[useProblemActions] toggleStatus failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { status: nextStatus });
+          await queueOfflineMutation(problem.id, { status: nextStatus }, problem.user_id);
         }
       } else {
         // Persist offline status into IndexedDB so it survives page reloads
@@ -124,7 +125,7 @@ export function useProblemActions() {
           useStore.getState().loadTaxonomies();
         } catch (err) {
           console.error('[useProblemActions] toggleArchive failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { status: nextStatus });
+          await queueOfflineMutation(problem.id, { status: nextStatus }, problem.user_id);
         }
       } else {
         // Offline items: update status in IndexedDB and remove from active list when archiving.
@@ -152,7 +153,7 @@ export function useProblemActions() {
           await updateProblemDrawData(problem.id, drawData, seq);
         } catch (err) {
           console.error('[useProblemActions] saveDrawData failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { drawData, seq });
+          await queueOfflineMutation(problem.id, { drawData, seq }, problem.user_id);
         }
       } else {
         // Persist offline stroke data in IndexedDB
@@ -172,7 +173,7 @@ export function useProblemActions() {
           await updateProblemMetadata(problem.id, { typed_notes: text });
         } catch (err) {
           console.error('[useProblemActions] saveTypedNotes failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { typed_notes: text });
+          await queueOfflineMutation(problem.id, { typed_notes: text }, problem.user_id);
         }
       } else {
         // Persist typed notes in IndexedDB for offline items
@@ -204,7 +205,7 @@ export function useProblemActions() {
           await updateProblemMetadata(problem.id, patch);
         } catch (err) {
           console.error('[useProblemActions] saveMetadata failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { metadata_patch: patch });
+          await queueOfflineMutation(problem.id, { metadata_patch: patch }, problem.user_id);
         }
       }
     },
@@ -246,7 +247,9 @@ export function useProblemActions() {
         const offlineData = await getOfflineProblem(problem.id);
         if (!offlineData) throw new Error('找不到本機錯題圖檔');
         const file = new File([offlineData.fileData], 'problem.png', { type: offlineData.fileData.type });
-        return await analyzeGuestProblem(file);
+        const result = await analyzeGuestProblem(file);
+        await updateOfflineProblemAnalysis(problem.id, result.tagResult);
+        return result;
       } else {
         return await analyzeProblem(problem.id);
       }
@@ -265,4 +268,3 @@ export function useProblemActions() {
     isOffline: isOfflineProblemId,
   };
 }
-

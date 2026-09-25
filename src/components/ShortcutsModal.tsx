@@ -36,6 +36,7 @@ export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose 
       items: [
         { key: 'Cmd / Ctrl + Enter', desc: '標記當前題目為完成訂正並推進下一題', icon: CheckCircle2 },
         { key: '雙指輕觸畫布', desc: '復原上一步筆跡 (Undo Gesture)', icon: Command },
+        { key: '三指輕觸畫布', desc: '重做上一步筆跡 (Redo Gesture)', icon: Command },
         { key: '左下角長按 FAB', desc: '彈簧橡皮擦 (放開即刻切回鋼筆)', icon: Eraser },
       ],
     },

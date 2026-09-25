@@ -2,9 +2,10 @@ import { openDB, DBSchema } from 'idb';
 
 interface SyncQueueItem {
   id: string; // problem id
+  ownerId?: string; // account that created the queued mutation
   drawData?: any;
   seq?: number;
-  status?: 'unsolved' | 'resolved' | 'archived';
+  status?: 'unsolved' | 'resolved' | 'archived' | 'processing';
   typed_notes?: string;
   metadata_patch?: { topic_id?: string | null; keywords?: string[] };
   timestamp: number;
@@ -16,7 +17,9 @@ export interface OfflineProblem {
   source: string;
   topicId: string;
   timestamp: number;
-  status?: 'unsolved' | 'resolved' | 'archived';
+  cloudId?: string;
+  cloudOwnerId?: string;
+  status?: 'unsolved' | 'resolved' | 'archived' | 'processing';
   draw_data?: any;
   typed_notes?: string;
   review_count?: number;
@@ -58,7 +61,8 @@ export async function getOfflineDB() {
 
 export async function queueOfflineMutation(
   problemId: string,
-  mutation: Partial<Omit<SyncQueueItem, 'id' | 'timestamp'>>
+  mutation: Partial<Omit<SyncQueueItem, 'id' | 'timestamp' | 'ownerId'>>,
+  ownerId: string
 ) {
   const db = await getOfflineDB();
   const tx = db.transaction(SYNC_STORE_NAME, 'readwrite');
@@ -69,6 +73,7 @@ export async function queueOfflineMutation(
   await store.put({
     ...existing,
     ...mutation,
+    ownerId,
     timestamp: Date.now(),
   });
   await tx.done;
@@ -91,7 +96,7 @@ export async function removeQueuedDraw(problemId: string) {
 
 export async function updateOfflineProblemStatus(
   id: string,
-  status: 'unsolved' | 'resolved' | 'archived',
+  status: 'unsolved' | 'resolved' | 'archived' | 'processing',
   reviewCount?: number
 ) {
   const db = await getOfflineDB();
@@ -103,6 +108,13 @@ export async function updateOfflineProblemStatus(
     status,
     review_count: typeof reviewCount === 'number' ? reviewCount : existing.review_count,
   });
+}
+
+export async function updateOfflineProblemAnalysis(id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) {
+  const db = await getOfflineDB();
+  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  if (!existing) return;
+  await db.put(OFFLINE_PROBS_STORE, { ...existing, topicId: tagResult.topic_id, tagResult, status: 'unsolved' });
 }
 
 export async function updateOfflineProblemDraw(id: string, drawData: any, seq: number) {
@@ -156,26 +168,41 @@ export async function updateOfflineProblemMetadata(
 }
 
 // Online Auto-Sync Handler
-export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<boolean>) {
+export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<boolean>, getCurrentUserId: () => string | null) {
+  let running = false;
   const syncAll = async () => {
+    if (running || !getCurrentUserId()) return;
+    running = true;
     console.log('[PWA Sync] Syncing offline queue...');
-    const items = await getQueuedDraws();
-    for (const item of items) {
-      try {
-        const success = await syncCallback(item);
-        if (success) {
-          await removeQueuedDraw(item.id);
+    try {
+      const items = await getQueuedDraws();
+      for (const item of items) {
+        const currentUserId = getCurrentUserId();
+        if (!currentUserId) break;
+        if (item.ownerId && item.ownerId !== currentUserId) continue;
+        try {
+          const success = await syncCallback(item);
+          if (success && getCurrentUserId() === currentUserId) {
+            await removeQueuedDraw(item.id);
+          }
+        } catch (err) {
+          console.error(`[PWA Sync] Failed to sync item ${item.id}`, err);
         }
-      } catch (err) {
-        console.error(`[PWA Sync] Failed to sync item ${item.id}`, err);
       }
+    } finally {
+      running = false;
     }
   };
 
   window.addEventListener('online', syncAll);
+  window.addEventListener('redolve:auth-ready', syncAll);
 
   // Sync immediately if currently online
   if (navigator.onLine) {
-    syncAll();
+    void syncAll();
   }
+  return () => {
+    window.removeEventListener('online', syncAll);
+    window.removeEventListener('redolve:auth-ready', syncAll);
+  };
 }

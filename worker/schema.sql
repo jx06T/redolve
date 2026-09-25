@@ -8,6 +8,16 @@ CREATE TABLE IF NOT EXISTS users (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Revocable browser sessions; older JWTs without a matching session are rejected.
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(user_id);
+
 -- API 授權金鑰表 (供 iOS 捷徑使用，使用 bcrypt hash 儲存)
 CREATE TABLE IF NOT EXISTS api_keys (
     key_hash TEXT PRIMARY KEY,
@@ -56,6 +66,7 @@ CREATE TABLE IF NOT EXISTS shares (
     item_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     allow_ink INTEGER DEFAULT 1,
+    allow_notes INTEGER DEFAULT 1,
     expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(item_id) REFERENCES items(id) ON DELETE CASCADE

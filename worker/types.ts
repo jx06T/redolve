@@ -4,6 +4,8 @@ export interface Bindings {
   DB: D1Database;
   STORAGE: R2Bucket;
   KV: KVNamespace;
+  GUEST_AI_LIMITER: RateLimit;
+  UPLOAD_LIMITER: RateLimit;
   ASSETS?: Fetcher;
   GEMINI_API_KEY?: string;
   BETTER_AUTH_SECRET?: string;

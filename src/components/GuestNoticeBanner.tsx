@@ -41,7 +41,7 @@ export const GuestNoticeBanner: React.FC = () => {
             </span>
           </div>
           <p className="text-text-muted leading-relaxed">
-            手寫筆跡與刷題紀錄僅暫存於本機。登入 Google 帳號即可免費啟用 iPad / Mac 跨裝置雲端同步與 iOS 截圖一鍵傳送。
+            題目與筆跡保存在此瀏覽器；使用 AI 分析時，題目圖片會傳至後端與 Google Gemini。登入後可啟用跨裝置同步。
           </p>
         </div>
       </div>

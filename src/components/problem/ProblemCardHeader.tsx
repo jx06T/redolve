@@ -160,7 +160,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
         </button>
 
         {/* Share Button */}
-        <button
+        {!readOnly && <button
           type="button"
           onClick={onOpenShareModal}
           aria-label="開啟公開分享設定"
@@ -168,7 +168,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           title="分享題目"
         >
           <Share2 className="w-4 h-4" />
-        </button>
+        </button>}
 
         {/* Delete Button */}
         {!readOnly && (

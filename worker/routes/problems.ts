@@ -135,13 +135,6 @@ async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNo
   return TAXONOMY_SEED_DATA;
 }
 
-// Isolate-level in-memory rate limiter (Fixed Window)
-const uploadRateLimits = new Map<string, { count: number; resetAt: number }>();
-const guestRateLimits = new Map<string, { count: number; resetAt: number }>();
-const UPLOAD_RATE_LIMIT = 60; // Max 60 uploads per minute
-const GUEST_RATE_LIMIT = 20; // Max 20 guest analysis per minute
-const RATE_LIMIT_WINDOW = 60 * 1000;
-
 // 0. Guest Analysis Endpoint (Synchronous AI Tagging without Storage)
 problemsRouter.post(
   '/analyze-guest',
@@ -151,17 +144,10 @@ problemsRouter.post(
     onError: (c) => c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '請求 payload 過大，單檔上限為 15MB' } }, 413),
   }),
   async (c) => {
-    // IP-based Rate Limiting for Guests
-    const ip = c.req.header('CF-Connecting-IP') || c.req.header('X-Forwarded-For') || 'unknown-ip';
-    const nowMs = Date.now();
-    const limit = guestRateLimits.get(ip);
-    if (!limit || nowMs > limit.resetAt) {
-      guestRateLimits.set(ip, { count: 1, resetAt: nowMs + RATE_LIMIT_WINDOW });
-    } else {
-      if (limit.count >= GUEST_RATE_LIMIT) {
-        return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '訪客分析頻率過高，請稍後再試' } }, 429);
-      }
-      limit.count += 1;
+    const ip = c.req.header('CF-Connecting-IP') || 'local-development';
+    const guestLimit = await c.env.GUEST_AI_LIMITER.limit({ key: `guest-ai:${ip}` });
+    if (!guestLimit.success) {
+      return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '訪客分析頻率過高，請稍後再試' } }, 429);
     }
 
     const body = await c.req.parseBody();
@@ -210,18 +196,10 @@ problemsRouter.post(
   async (c) => {
     const userId = c.get('userId');
 
-    // --- Rate Limiting Logic ---
-    const nowMs = Date.now();
-    const userLimit = uploadRateLimits.get(userId);
-    if (!userLimit || nowMs > userLimit.resetAt) {
-      uploadRateLimits.set(userId, { count: 1, resetAt: nowMs + RATE_LIMIT_WINDOW });
-    } else {
-      if (userLimit.count >= UPLOAD_RATE_LIMIT) {
-        return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '上傳頻率過高，請稍後再試' } }, 429);
-      }
-      userLimit.count += 1;
+    const uploadLimit = await c.env.UPLOAD_LIMITER.limit({ key: `upload:${userId}` });
+    if (!uploadLimit.success) {
+      return c.json({ error: { code: 'TOO_MANY_REQUESTS', message: '上傳頻率過高，請稍後再試' } }, 429);
     }
-    // ---------------------------
 
     const body = await c.req.parseBody();
 
@@ -481,16 +459,7 @@ problemsRouter.get('/:id', authMiddleware, async (c) => {
   }
 
   if (item.user_id !== userId) {
-    try {
-      const share = await c.env.DB.prepare(
-        'SELECT id FROM problem_shares WHERE item_id = ? AND receiver_id = ?'
-      ).bind(problemId, userId).first();
-      if (!share) {
-        return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此題目' } }, 403);
-      }
-    } catch {
-      return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此題目' } }, 403);
-    }
+    return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此題目' } }, 403);
   }
 
   return c.json({ item });
@@ -521,7 +490,7 @@ problemsRouter.get('/:id/text', authMiddleware, async (c) => {
 });
 
 // 4. Stream Problem Image directly from R2
-problemsRouter.get('/:id/image', optionalAuthMiddleware, async (c) => {
+problemsRouter.get('/:id/image', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 
@@ -533,18 +502,8 @@ problemsRouter.get('/:id/image', optionalAuthMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '題目或圖片不存在' } }, 404);
   }
 
-  // Access check: Allow owner or shared recipient
   if (item.user_id !== userId) {
-    try {
-      const share = await c.env.DB.prepare(
-        'SELECT id FROM problem_shares WHERE item_id = ? AND receiver_id = ?'
-      ).bind(problemId, userId).first();
-      if (!share) {
-        return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此圖片' } }, 403);
-      }
-    } catch {
-      // Proceed if problem_shares table not yet migrated
-    }
+    return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此圖片' } }, 403);
   }
 
   const object = await c.env.STORAGE.get(item.image_url);
@@ -555,7 +514,7 @@ problemsRouter.get('/:id/image', optionalAuthMiddleware, async (c) => {
   return new Response(object.body, {
     headers: {
       'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, no-store',
     },
   });
 });
@@ -666,28 +625,12 @@ problemsRouter.patch('/:id/draw', authMiddleware, async (c) => {
 
   const { draw_data, vector_clock } = body;
 
-  // 1. Verify Problem Ownership
-  let current = await c.env.DB.prepare(
+  // Public share links are read-only; only the owner may change drawing data.
+  const current = await c.env.DB.prepare(
     'SELECT draw_data, vector_clock FROM items WHERE id = ? AND user_id = ?'
   )
     .bind(problemId, userId)
     .first<ItemRow>();
-
-  // 2. If not direct owner, check if user has active collaborative share with allow_ink = 1
-  if (!current) {
-    const share = await c.env.DB.prepare(
-      `SELECT item_id FROM shares 
-       WHERE item_id = ? AND allow_ink = 1 AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`
-    ).bind(problemId).first();
-
-    if (share) {
-      current = await c.env.DB.prepare(
-        'SELECT draw_data, vector_clock FROM items WHERE id = ?'
-      )
-        .bind(problemId)
-        .first<ItemRow>();
-    }
-  }
 
   if (!current) {
     return c.json({ error: { code: 'FORBIDDEN', message: '找不到題目或無權限修改此筆記' } }, 403);
@@ -828,4 +771,3 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
     item: updatedItem,
   });
 });
-
