@@ -9,6 +9,7 @@ import { AuthModal } from './AuthModal';
 import { CustomSelect } from './CustomSelect';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { NAV_LINKS } from '../config/constants';
+import { isGuestUser } from '../utils/guest';
 
 export const Navbar: React.FC = () => {
   const navigate = useNavigate();
@@ -442,7 +443,7 @@ export const Navbar: React.FC = () => {
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onUploadSuccess={() => {
-          const isGuest = !currentUser;
+          const isGuest = isGuestUser(currentUser);
           if (!isGuest) {
             // For logged-in users, clear store and navigate to trigger a fresh fetch
             setProblems([], null);

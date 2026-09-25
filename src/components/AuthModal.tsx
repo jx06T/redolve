@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { fetchCurrentUser, logoutUser, getGoogleAuthUrl } from '../services/api';
+import { isGuestUser } from '../utils/guest';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -78,7 +79,7 @@ export const AuthModal: React.FC = () => {
 
   if (!authModalOpen) return null;
 
-  const isGuest = !currentUser || !currentUser.id;
+  const isGuest = isGuestUser(currentUser);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 animate-in fade-in duration-150">

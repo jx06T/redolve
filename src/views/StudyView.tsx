@@ -9,6 +9,7 @@ import { useProblemActions } from '../hooks/useProblemActions';
 import { ProblemCard } from '../components/ProblemCard';
 import { ProblemMetadataModal } from '../components/problem/ProblemMetadataModal';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
+import { isGuestUser } from '../utils/guest';
 import { Sidebar } from '../components/Sidebar';
 import { FloatingPenToolbar } from '../components/FloatingPenToolbar';
 // import { EraserFAB } from '../components/EraserFAB';
@@ -121,7 +122,7 @@ export const StudyView: React.FC = () => {
   // Silent refetch on tab focus (only for logged-in users; guests read IndexedDB locally)
   useEffect(() => {
     const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && currentUser && !isLoading) {
+      if (document.visibilityState === 'visible' && !isGuestUser(currentUser) && !isLoading) {
         try {
           const res = await fetchProblems({
             subject_id: effectiveSubject,

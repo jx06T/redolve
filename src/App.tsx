@@ -49,7 +49,8 @@ export default function App() {
     urlParams.delete('auth_email');
     const cleanSearch = urlParams.toString();
     window.history.replaceState(null, '', `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`);
-    localStorage.removeItem('redolve_auth_token');
+    try { localStorage.removeItem('redolve_auth_token'); }
+    catch { /* Authentication is cookie-based; blocked storage is harmless. */ }
 
     fetchCurrentUser().then(({ user }) => {
       setCurrentUser(user);
@@ -58,7 +59,7 @@ export default function App() {
         useStore.getState().updateProblemInStore(id, {
           status: 'unsolved', topic_id: tag.topic_id,
           keywords: JSON.stringify(tag.keywords), keyword_tokens: tag.keywords.join(' '),
-        }));
+        })).catch((error) => console.warn('Guest analysis unavailable:', error));
       if (authSuccess && user) showToast(`已登入為「${user.name || user.email}」`, 'success', 3500);
     }).catch(() => setCurrentUser(null));
   }, [setCurrentUser, showToast]);
@@ -100,7 +101,7 @@ export default function App() {
         useStore.getState().updateProblemInStore(id, {
           status: 'unsolved', topic_id: tag.topic_id,
           keywords: JSON.stringify(tag.keywords), keyword_tokens: tag.keywords.join(' '),
-        }));
+        })).catch((error) => console.warn('Guest analysis unavailable:', error));
     };
     window.addEventListener('online', retryGuestAnalysis);
     return () => window.removeEventListener('online', retryGuestAnalysis);

@@ -6,41 +6,55 @@ import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { updateOfflineProblemAnalysis } from '../services/offlineStorage';
+import { createClientId } from '../utils/clientId';
+import { isGuestUser } from '../utils/guest';
+
+const supportedImage = (file: File) => {
+  const type = file.type.toLowerCase();
+  return type
+    ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(type)
+    : /\.(?:jpe?g|png|webp|heic|heif)$/i.test(file.name);
+};
 
 const compressImage = (file: File): Promise<File> => {
   return new Promise((resolve) => {
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(img.src);
-      const canvas = document.createElement('canvas');
-      let targetWidth = img.width;
-      let targetHeight = img.height;
-      const longestSide = Math.max(targetWidth, targetHeight);
-      if (longestSide > 1920) {
-        const scale = 1920 / longestSide;
-        targetWidth = Math.round(targetWidth * scale);
-        targetHeight = Math.round(targetHeight * scale);
-      }
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve(file);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return resolve(file);
-          const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
-            type: 'image/jpeg',
-            lastModified: Date.now(),
-          });
-          resolve(compressed);
-        },
-        'image/jpeg',
-        0.8
-      );
+    const imageUrl = URL.createObjectURL(file);
+    const finish = (result: File) => {
+      URL.revokeObjectURL(imageUrl);
+      resolve(result);
     };
-    img.onerror = () => resolve(file);
-    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        let targetWidth = img.width;
+        let targetHeight = img.height;
+        const longestSide = Math.max(targetWidth, targetHeight);
+        if (longestSide > 1920) {
+          const scale = 1920 / longestSide;
+          targetWidth = Math.round(targetWidth * scale);
+          targetHeight = Math.round(targetHeight * scale);
+        }
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return finish(file);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(
+          (blob) => finish(blob
+            ? new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+              type: 'image/jpeg', lastModified: Date.now(),
+            })
+            : file),
+          'image/jpeg',
+          0.8
+        );
+      } catch {
+        finish(file);
+      }
+    };
+    img.onerror = () => finish(file);
+    img.src = imageUrl;
   });
 };
 
@@ -62,14 +76,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setAuthModalOpen,
   } = useStore();
 
-  const isGuest = !currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV);
+  const isGuest = isGuestUser(currentUser);
 
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>('113年');
   const [selectedType, setSelectedType] = useState<string>('全模');
   const [sourceInput, setSourceInput] = useState<string>(() => {
-    return sessionStorage.getItem('redolve_last_source') || '113年 全模';
+    try { return sessionStorage.getItem('redolve_last_source') || '113年 全模'; }
+    catch { return '113年 全模'; }
   });
   const [selectedFiles, setSelectedFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
@@ -99,28 +114,34 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   if (!isOpen) return null;
 
+  const addFiles = (files: File[]) => {
+    if (isUploading) return;
+    const accepted = files.filter((file) => file.size > 0 && supportedImage(file));
+    if (accepted.length !== files.length) {
+      showToast('部分檔案不是可用的 JPG、PNG、WebP 或 HEIC 圖片，或檔案內容為空。', 'error');
+    }
+    const newItems: typeof selectedFiles = [];
+    try {
+      for (const file of accepted) {
+        newItems.push({ id: createClientId(), file, previewUrl: URL.createObjectURL(file) });
+      }
+      setSelectedFiles((prev) => [...prev, ...newItems]);
+    } catch (error) {
+      newItems.forEach((item) => URL.revokeObjectURL(item.previewUrl));
+      console.error('Unable to prepare selected images:', error);
+      showToast('無法讀取選取的圖片，請重選或重新開啟應用程式。', 'error');
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const newItems = files.map((file) => ({
-      id: crypto.randomUUID(),
-      file,
-      previewUrl: URL.createObjectURL(file),
-    }));
-    setSelectedFiles((prev) => [...prev, ...newItems]);
+    addFiles(Array.from(e.target.files || []));
+    e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     setIsDraggingOver(false);
-    const files = Array.from(e.dataTransfer.files || []).filter((f) => f.type.startsWith('image/'));
-    if (files.length > 0) {
-      const newItems = files.map((file) => ({
-        id: crypto.randomUUID(),
-        file,
-        previewUrl: URL.createObjectURL(file),
-      }));
-      setSelectedFiles((prev) => [...prev, ...newItems]);
-    }
+    addFiles(Array.from(e.dataTransfer.files || []));
   };
 
   const handleRemoveFile = (id: string) => {
@@ -141,7 +162,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     setIsUploading(true);
     setIsLoading(true);
     setUploadProgress({ current: 0, total: selectedFiles.length });
-    sessionStorage.setItem('redolve_last_source', sourceInput);
+    try { sessionStorage.setItem('redolve_last_source', sourceInput); }
+    catch { /* Storage restrictions must not block an upload. */ }
 
     try {
       let completedCount = 0;
@@ -151,7 +173,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       for (let batchStart = 0; batchStart < selectedFiles.length; batchStart += 3) {
         const batchResults = await Promise.allSettled(selectedFiles.slice(batchStart, batchStart + 3).map(async (item) => {
           const compressedFile = await compressImage(item.file);
-          const tempId = `temp_${crypto.randomUUID()}`;
+          const tempId = `temp_${createClientId()}`;
 
           const tempItem: Item = {
             id: tempId,
@@ -230,14 +252,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         showToast(`錯題處理失敗！錯誤: ${firstError?.message || '未知'}`, 'error', 8000);
       }
 
-      // Cleanup
-      selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
-      setSelectedFiles([]);
-      onClose();
-
-      if (onUploadSuccess) {
-        onUploadSuccess();
-      }
+      // Keep failed selections available for retry; only release successful previews.
+      const failedFiles = selectedFiles.filter((_, index) => results[index]?.status === 'rejected');
+      selectedFiles.forEach((item, index) => {
+        if (results[index]?.status === 'fulfilled') URL.revokeObjectURL(item.previewUrl);
+      });
+      setSelectedFiles(failedFiles);
+      if (rejectedCount === 0) onClose();
+      if (fulfilledCount > 0) onUploadSuccess?.();
     } catch (err) {
       console.error('Batch upload failed:', err);
       showToast('上傳過程發生未知錯誤，請稍後再試！', 'error', 6000);
@@ -293,6 +315,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               </div>
               <button
                 type="button"
+                disabled={isUploading}
                 onClick={() => {
                   onClose();
                   setAuthModalOpen(true);
@@ -418,8 +441,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                   <div
                     key={item.id}
                     className="relative w-14 h-14 rounded-xl overflow-hidden border border-border-subtle shrink-0 group"
+                    title={item.file.name}
                   >
-                    <img src={item.previewUrl} alt="預覽" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-text-muted">
+                      <ImageIcon className="w-5 h-5" aria-hidden="true" />
+                      <span className="text-[8px]">無預覽</span>
+                    </div>
+                    <img
+                      src={item.previewUrl}
+                      alt={`${item.file.name} 預覽`}
+                      title={item.file.name}
+                      className="relative w-full h-full object-cover"
+                      onError={(event) => { event.currentTarget.style.display = 'none'; }}
+                    />
                     {!isUploading && (
                       <button
                         type="button"

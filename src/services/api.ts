@@ -1,4 +1,5 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
+import { createClientId } from '../utils/clientId';
 
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || '';
@@ -178,7 +179,10 @@ export async function uploadProblem(
     body: formData,
   });
 
-  if (!res.ok) throw new Error('Failed to upload problem');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null) as { error?: { message?: string }; message?: string } | null;
+    throw new Error(errorData?.error?.message || errorData?.message || `上傳失敗 (HTTP ${res.status})`);
+  }
   return res.json();
 }
 
@@ -201,8 +205,11 @@ export async function updateProblemDrawData(
   drawData: any,
   seq: number
 ): Promise<{ status: string; current?: any }> {
-  const clientId = localStorage.getItem('rdv_client_id') || crypto.randomUUID();
-  localStorage.setItem('rdv_client_id', clientId);
+  let clientId = createClientId();
+  try {
+    clientId = localStorage.getItem('rdv_client_id') || clientId;
+    localStorage.setItem('rdv_client_id', clientId);
+  } catch { /* Storage restrictions must not block a drawing update. */ }
 
   const res = await requestApi(`${API_BASE}/problems/${id}/draw`, {
     method: 'PATCH',

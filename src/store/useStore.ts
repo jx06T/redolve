@@ -179,7 +179,8 @@ export const useStore = create<StoreState>()(
         }
       },
       logout: () => {
-        localStorage.removeItem('redolve_auth_token');
+        try { localStorage.removeItem('redolve_auth_token'); }
+        catch { /* Keep logout usable when browser storage is restricted. */ }
         set({ currentUser: null });
         // Keep guest drafts and pending edits in IndexedDB. They may not be synced yet.
         navigator.serviceWorker?.controller?.postMessage('CLEAR_PRIVATE_CACHES');

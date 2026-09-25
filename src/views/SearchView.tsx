@@ -8,6 +8,7 @@ import { StatusBadge, formatProblemCode, getRootSubjectId } from '../components/
 import { useStore } from '../store/useStore';
 import { Item } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
+import { isGuestUser } from '../utils/guest';
 
 export const SearchView: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -46,9 +47,9 @@ export const SearchView: React.FC = () => {
     let active = true;
     setLoading(true);
     setSearchError(null);
-    const search = currentUser
-      ? searchProblems(query).then((res) => res.items)
-      : OfflineSyncManager.searchOfflineProblems(query);
+    const search = isGuestUser(currentUser)
+      ? OfflineSyncManager.searchOfflineProblems(query)
+      : searchProblems(query).then((res) => res.items);
     search.then((items) => { if (active) setResults(items); })
       .catch(() => { if (active) setSearchError('搜尋暫時無法使用，請稍後重試。'); })
       .finally(() => { if (active) setLoading(false); });
@@ -91,7 +92,7 @@ export const SearchView: React.FC = () => {
       <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-sm font-bold text-text-main flex items-center space-x-2">
-            <span>{currentUser ? '雲端錯題搜尋結果' : '本機錯題搜尋結果'}</span>
+            <span>{isGuestUser(currentUser) ? '本機錯題搜尋結果' : '雲端錯題搜尋結果'}</span>
             {query && (
               <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-lg border border-primary/20">
                 "{query}"

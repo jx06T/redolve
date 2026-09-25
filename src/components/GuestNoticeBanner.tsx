@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, ArrowRight, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { isGuestUser } from '../utils/guest';
 
 export const GuestNoticeBanner: React.FC = () => {
   const { currentUser, setAuthModalOpen } = useStore();
@@ -9,20 +10,21 @@ export const GuestNoticeBanner: React.FC = () => {
   // Check session storage for dismissed status
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isDismissed = sessionStorage.getItem('redolve_guest_banner_dismissed') === 'true';
-      setDismissed(isDismissed);
+      try { setDismissed(sessionStorage.getItem('redolve_guest_banner_dismissed') === 'true'); }
+      catch { setDismissed(false); }
     }
   }, []);
 
   // Is user currently a guest / unauthenticated
-  const isGuest = !currentUser || !currentUser.id;
+  const isGuest = isGuestUser(currentUser);
 
   if (!isGuest || dismissed) return null;
 
   const handleDismiss = () => {
     setDismissed(true);
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('redolve_guest_banner_dismissed', 'true');
+      try { sessionStorage.setItem('redolve_guest_banner_dismissed', 'true'); }
+      catch { /* The banner can still be dismissed for this page. */ }
     }
   };
 

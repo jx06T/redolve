@@ -18,6 +18,7 @@ import { useStore } from '../store/useStore';
 import { getRootSubjectId } from '../components/StatusBadge';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
+import { isGuestUser } from '../utils/guest';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -27,7 +28,7 @@ export const DashboardView: React.FC = () => {
 
   const navigate = useNavigate();
   const { taxonomies, setSelectedSubjectId, setSelectedTopicId, setUploadModalOpen, currentUser } = useStore();
-  const isGuest = !currentUser;
+  const isGuest = isGuestUser(currentUser);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<boolean>(false);

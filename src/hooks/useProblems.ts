@@ -8,6 +8,7 @@ import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { findNodeAndLineage, getRootSubjectId } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { Item, TaxonomyNode } from '../types';
+import { isGuestUser } from '../utils/guest';
 
 export interface UseProblemsOptions {
   subject: string;
@@ -68,8 +69,7 @@ export function doesItemMatchFilters(
  * Unified data-source hook for problem lists.
  *
  * - Logged-in users: fetches from the remote API (cloud).
- * - Guest users: merges local IndexedDB items with any remote API results
- *   (the API returns empty for guests, but the merge logic is safe either way).
+ * - Guest users: read IndexedDB directly, including when the network is unavailable.
  *
  * Consumers (Views) only call `load()` / `loadMore()` and subscribe to
  * `problems`, `nextCursor`, and `isLoading` from the store — they never need
@@ -87,36 +87,19 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
     taxonomies,
   } = useStore();
 
-  const isGuest = !currentUser;
-
-  // Use refs so the async callback always reads the latest values without
-  // being forced to re-create itself (which would cause unwanted reloads).
-  const isGuestRef = useRef(isGuest);
-  useEffect(() => { isGuestRef.current = isGuest; }, [isGuest]);
+  const isGuest = isGuestUser(currentUser);
 
   const taxonomiesRef = useRef(taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA);
   useEffect(() => {
     taxonomiesRef.current = taxonomies && taxonomies.length > 0 ? taxonomies : TAXONOMY_SEED_DATA;
   }, [taxonomies]);
 
-  /**
-   * Merge offline items into a cloud result list.
-   * Offline items that already have a matching id in cloudItems are skipped.
-   */
-  const mergeOfflineItems = useCallback(async (
-    cloudItems: ReturnType<typeof useStore.getState>['problems'],
-    filters: { subject: string; topic?: string; status?: string }
-  ) => {
+  const loadOfflineItems = useCallback(async (filters: { subject: string; topic?: string; status?: string }) => {
     const offlineItems = await OfflineSyncManager.getOfflineProblemsAsItems();
     const localTaxonomies = taxonomiesRef.current;
-
-    const filtered = offlineItems.filter((item) =>
+    return offlineItems.filter((item) =>
       doesItemMatchFilters(item, filters, localTaxonomies)
     );
-
-    const existingIds = new Set(cloudItems.map((i) => i.id));
-    // Offline items always go first so they are immediately visible
-    return [...filtered.filter((o) => !existingIds.has(o.id)), ...cloudItems];
   }, []);
 
   /**
@@ -126,6 +109,11 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
+      if (isGuest) {
+        const localItems = await loadOfflineItems({ subject, topic, status });
+        setProblems(localItems, null);
+        return;
+      }
       const res = await fetchProblems({
         subject_id: subject,
         topic_id: topic ?? undefined,
@@ -154,24 +142,20 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
         }
       }
 
-      if (isGuestRef.current) {
-        finalItems = await mergeOfflineItems(finalItems, { subject, topic, status });
-      }
-
       setProblems(finalItems, res.nextCursor);
     } catch (err) {
       console.error('[useProblems] load failed:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [subject, topic, status, targetProblemId, setProblems, setIsLoading, mergeOfflineItems]);
+  }, [subject, topic, status, targetProblemId, isGuest, setProblems, setIsLoading, loadOfflineItems]);
 
   /**
    * Append the next page of cloud problems (pagination).
    * Offline items are already loaded on the first page; they are not paginated.
    */
   const loadMore = useCallback(async () => {
-    if (!nextCursor || isLoading) return;
+    if (isGuest || !nextCursor || isLoading) return;
     setIsLoading(true);
     try {
       const res = await fetchProblems({
@@ -187,7 +171,7 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
     } finally {
       setIsLoading(false);
     }
-  }, [subject, topic, status, nextCursor, isLoading, appendProblems, setIsLoading]);
+  }, [subject, topic, status, nextCursor, isLoading, isGuest, appendProblems, setIsLoading]);
 
   return { problems, nextCursor, isLoading, load, loadMore };
 }

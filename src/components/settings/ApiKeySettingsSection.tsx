@@ -4,6 +4,7 @@ import { ApiKeyItem } from '../../types';
 import { useStore } from '../../store/useStore';
 import { createApiKey, deleteApiKey } from '../../services/api';
 import { ConfirmModal } from '../ConfirmModal';
+import { isGuestUser } from '../../utils/guest';
 
 interface ApiKeySettingsSectionProps {
   keys: ApiKeyItem[];
@@ -22,7 +23,7 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [revokeKeyTarget, setRevokeKeyTarget] = useState<string | null>(null);
 
-  const isGuest = !currentUser || (currentUser.id === 'dev_user_default' && !import.meta.env.DEV);
+  const isGuest = isGuestUser(currentUser);
 
   const handleCreateKey = async (e: React.FormEvent) => {
     e.preventDefault();
