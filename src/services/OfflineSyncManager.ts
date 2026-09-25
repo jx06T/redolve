@@ -7,6 +7,8 @@ const OFFLINE_PROBS_STORE = 'offlineProblems';
 export class OfflineSyncManager {
   private static objectUrlCache = new Map<string, string>();
   private static pendingAnalysis: Promise<void> | null = null;
+  private static analysisRequestedAgain = false;
+  private static analysisCallbacks = new Set<(id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) => void>();
 
   /**
    * Save a problem to IndexedDB for offline users.
@@ -39,8 +41,22 @@ export class OfflineSyncManager {
   }
 
   static analyzePendingGuestProblems(onAnalyzed?: (id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) => void): Promise<void> {
-    if (this.pendingAnalysis) return this.pendingAnalysis;
-    this.pendingAnalysis = this.runPendingGuestAnalysis(onAnalyzed).finally(() => { this.pendingAnalysis = null; });
+    if (onAnalyzed) this.analysisCallbacks.add(onAnalyzed);
+    if (this.pendingAnalysis) {
+      this.analysisRequestedAgain = true;
+      return this.pendingAnalysis;
+    }
+    this.pendingAnalysis = (async () => {
+      do {
+        this.analysisRequestedAgain = false;
+        await this.runPendingGuestAnalysis((id, tagResult) => {
+          this.analysisCallbacks.forEach((callback) => callback(id, tagResult));
+        });
+      } while (this.analysisRequestedAgain);
+    })().finally(() => {
+      this.pendingAnalysis = null;
+      this.analysisCallbacks.clear();
+    });
     return this.pendingAnalysis;
   }
 

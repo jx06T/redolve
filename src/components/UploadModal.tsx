@@ -1,20 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { X, Upload, Trash2, Loader2, Image as ImageIcon, Cloud } from 'lucide-react';
-import { uploadProblem, analyzeGuestProblem } from '../services/api';
+import { uploadProblem } from '../services/api';
 import { useStore } from '../store/useStore';
 import { EXAM_YEARS, EXAM_TYPES } from '../config/constants';
 import { Item } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
-import { updateOfflineProblemAnalysis } from '../services/offlineStorage';
 import { createClientId } from '../utils/clientId';
 import { isGuestUser } from '../utils/guest';
 
-const supportedImage = (file: File) => {
-  const type = file.type.toLowerCase();
-  return type
-    ? ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif'].includes(type)
-    : /\.(?:jpe?g|png|webp|heic|heif)$/i.test(file.name);
+const ImageViewerModal = lazy(() => import('./ImageViewerModal').then((module) => ({ default: module.ImageViewerModal })));
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
+  heic: 'image/heic', heif: 'image/heif',
 };
+
+function normalizeImage(file: File): File | null {
+  const type = file.type.toLowerCase();
+  const extension = file.name.split('.').pop()?.toLowerCase() || '';
+  const normalizedType = type === 'image/jpg' ? 'image/jpeg' : type;
+  const supportedType = Object.values(MIME_BY_EXTENSION).includes(normalizedType);
+  const mime = supportedType ? normalizedType : MIME_BY_EXTENSION[extension];
+  if (!file.size || !mime) return null;
+  return mime === type ? file : new File([file], file.name, { type: mime, lastModified: file.lastModified });
+}
+
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent)
+  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 const compressImage = (file: File): Promise<File> => {
   return new Promise((resolve) => {
@@ -87,19 +99,39 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     catch { return '113年 全模'; }
   });
   const [selectedFiles, setSelectedFiles] = useState<{ id: string; file: File; previewUrl: string }[]>([]);
+  const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [previewErrors, setPreviewErrors] = useState<string[]>([]);
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pickerMessageTimer = useRef<number | null>(null);
+  const singlePickOnIOS = isIOS();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const input = fileInputRef.current;
+    const handleCancel = () => {
+      if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
+      setSelectionMessage('尚未取得圖片。若已選取截圖，請重試或改用「選擇檔案」。');
+    };
+    input?.addEventListener('cancel', handleCancel);
+    return () => {
+      input?.removeEventListener('cancel', handleCancel);
+      if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
+    };
+  }, [isOpen]);
 
   // Close modal on Escape key press
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isUploading) {
+      if (e.key === 'Escape' && !isUploading && !previewFileId) {
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose, isUploading]);
+  }, [isOpen, onClose, isUploading, previewFileId]);
 
   // Sync year and type selection into sourceInput
   const handleSelectYear = (year: string) => {
@@ -113,13 +145,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   if (!isOpen) return null;
+  const activePreview = selectedFiles.find((item) => item.id === previewFileId);
 
   const addFiles = (files: File[]) => {
     if (isUploading) return;
-    const accepted = files.filter((file) => file.size > 0 && supportedImage(file));
-    if (accepted.length !== files.length) {
-      showToast('部分檔案不是可用的 JPG、PNG、WebP 或 HEIC 圖片，或檔案內容為空。', 'error');
-    }
+    if (!files.length) return;
+    const accepted = files.map(normalizeImage).filter((file): file is File => Boolean(file));
+    setSelectionMessage(accepted.length === files.length ? null
+      : `有 ${files.length - accepted.length} 個檔案無法加入。請選擇非空白的 JPG、PNG、WebP、HEIC 或 HEIF 圖片。`);
     const newItems: typeof selectedFiles = [];
     try {
       for (const file of accepted) {
@@ -129,16 +162,20 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     } catch (error) {
       newItems.forEach((item) => URL.revokeObjectURL(item.previewUrl));
       console.error('Unable to prepare selected images:', error);
-      showToast('無法讀取選取的圖片，請重選或重新開啟應用程式。', 'error');
+      setSelectionMessage('無法讀取選取的圖片，請重新選擇；若問題持續，請從「選擇檔案」加入。');
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
-    e.target.value = '';
+  const handleFileChange = (e: React.FormEvent<HTMLInputElement>) => {
+    if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
+    const input = e.currentTarget;
+    const files = Array.from(input.files || []);
+    if (files.length) addFiles(files);
+    else if (singlePickOnIOS) setSelectionMessage('尚未取得圖片。若已選取截圖，請稍等相簿準備完成，或改用「選擇檔案」。');
+    input.value = '';
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDraggingOver(false);
     addFiles(Array.from(e.dataTransfer.files || []));
@@ -146,6 +183,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   const handleRemoveFile = (id: string) => {
     if (isUploading) return;
+    if (previewFileId === id) setPreviewFileId(null);
+    setPreviewErrors((previous) => previous.filter((item) => item !== id));
     setSelectedFiles((prev) => {
       const target = prev.find((item) => item.id === id);
       if (target) URL.revokeObjectURL(target.previewUrl);
@@ -167,9 +206,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     try {
       let completedCount = 0;
-      let pendingAnalysisCount = 0;
       const results: PromiseSettledResult<{ id: string }>[] = [];
-      // Limit simultaneous canvas allocations and AI calls on iPad.
+      // Limit simultaneous canvas allocations and cloud uploads on iPad.
       for (let batchStart = 0; batchStart < selectedFiles.length; batchStart += 3) {
         const batchResults = await Promise.allSettled(selectedFiles.slice(batchStart, batchStart + 3).map(async (item) => {
           const compressedFile = await compressImage(item.file);
@@ -196,31 +234,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
           try {
             if (isGuest) {
-              // Save before contacting the AI so a failed request never discards a photo.
+              // Saving locally is the completion point. AI runs after the modal closes.
               await OfflineSyncManager.saveOfflineProblem(
                 tempId,
                 compressedFile,
                 sourceInput,
                 selectedSubjectId || 'math'
               );
-              try {
-                const analyzeRes = await analyzeGuestProblem(compressedFile);
-                await updateOfflineProblemAnalysis(tempId, analyzeRes.tagResult);
-                updateProblemInStore(tempId, {
-                  status: 'unsolved',
-                  topic_id: analyzeRes.tagResult.topic_id,
-                  keywords: JSON.stringify(analyzeRes.tagResult.keywords),
-                  keyword_tokens: analyzeRes.tagResult.keywords.join(' '),
-                  updated_at: new Date().toISOString(),
-                });
-              } catch (analysisError) {
-                pendingAnalysisCount += 1;
-                console.warn('Guest analysis pending; local photo is safe:', analysisError);
-              }
-
               completedCount += 1;
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
-              return { id: tempId }; // Mock success
+              return { id: tempId };
             } else {
               const res = await uploadProblem(compressedFile, sourceInput, selectedSubjectId || 'math');
               completedCount += 1;
@@ -240,7 +263,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       if (rejectedCount === 0) {
         if (isGuest) {
-          showToast(`已儲存 ${fulfilledCount} 張錯題至本機${pendingAnalysisCount ? `，${pendingAnalysisCount} 張待連線後分析` : ''}。`, 'success', 5000);
+          showToast(`已儲存 ${fulfilledCount} 張錯題至本機，AI 將於背景分析。`, 'success', 5000);
         } else {
           showToast(`成功批次上傳 ${fulfilledCount} 張錯題！AI 正在背景自動打標中...`, 'success');
         }
@@ -260,6 +283,15 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
       setSelectedFiles(failedFiles);
       if (rejectedCount === 0) onClose();
       if (fulfilledCount > 0) onUploadSuccess?.();
+      if (isGuest && fulfilledCount > 0 && navigator.onLine) {
+        void OfflineSyncManager.analyzePendingGuestProblems((id, tag) => {
+          updateProblemInStore(id, {
+            status: 'unsolved', topic_id: tag.topic_id,
+            keywords: JSON.stringify(tag.keywords), keyword_tokens: tag.keywords.join(' '),
+            updated_at: new Date().toISOString(),
+          });
+        }).catch((error) => console.warn('Guest analysis remains pending:', error));
+      }
     } catch (err) {
       console.error('Batch upload failed:', err);
       showToast('上傳過程發生未知錯誤，請稍後再試！', 'error', 6000);
@@ -389,32 +421,42 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           </div>
 
           {/* File Drag & Drop Box */}
-          <label
+          <div
             onDragOver={(e) => {
               e.preventDefault();
               setIsDraggingOver(true);
             }}
             onDragLeave={() => setIsDraggingOver(false)}
             onDrop={handleDrop}
-            className={`flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all ${isDraggingOver
+            className={`relative flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-6 cursor-pointer transition-all focus-within:ring-2 focus-within:ring-primary/40 ${isDraggingOver
               ? 'border-primary bg-primary/10 scale-[1.01]'
               : 'border-border-subtle hover:bg-neutral-50'
               }`}
           >
             <ImageIcon className="w-8 h-8 text-primary mb-1.5" />
             <span className="text-xs font-bold text-text-main">
-              {isDraggingOver ? '放開以加入待上傳清單' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
+              {isDraggingOver ? '放開以加入待上傳清單' : singlePickOnIOS ? '點擊選擇截圖（可重複加入）' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
             </span>
             <span className="text-[10px] text-text-muted mt-0.5">支援 JPG、PNG、WebP；iPhone 上亦可選用 HEIC／HEIF。可解碼的圖片會自動壓縮。</span>
             <input
+              ref={fileInputRef}
               type="file"
-              multiple
-              accept="image/*"
+              multiple={!singlePickOnIOS}
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
               disabled={isUploading}
+              aria-label="選擇考卷圖片"
+              onClick={() => {
+                if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
+                if (singlePickOnIOS) pickerMessageTimer.current = window.setTimeout(() => {
+                  setSelectionMessage('正在等待 iPhone 準備圖片；若返回後沒有出現，請重試或改用「選擇檔案」。');
+                }, 1200);
+              }}
+              onInput={handleFileChange}
               onChange={handleFileChange}
-              className="hidden"
+              className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
             />
-          </label>
+          </div>
+          {selectionMessage && <p role="alert" className={`text-xs ${selectionMessage.startsWith('正在') ? 'text-text-muted' : 'text-rose-600'}`}>{selectionMessage}</p>}
 
           {/* Thumbnail Preview Queue */}
           {selectedFiles.length > 0 && (
@@ -429,6 +471,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     onClick={() => {
                       selectedFiles.forEach((item) => URL.revokeObjectURL(item.previewUrl));
                       setSelectedFiles([]);
+                      setPreviewFileId(null);
+                      setPreviewErrors([]);
                     }}
                     className="text-[11px] text-rose-500 hover:underline"
                   >
@@ -438,29 +482,36 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               </div>
               <div className="flex items-center space-x-2 overflow-x-auto pb-1">
                 {selectedFiles.map((item) => (
-                  <div
-                    key={item.id}
-                    className="relative w-14 h-14 rounded-xl overflow-hidden border border-border-subtle shrink-0 group"
-                    title={item.file.name}
-                  >
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-text-muted">
-                      <ImageIcon className="w-5 h-5" aria-hidden="true" />
-                      <span className="text-[8px]">無預覽</span>
-                    </div>
-                    <img
-                      src={item.previewUrl}
-                      alt={`${item.file.name} 預覽`}
-                      title={item.file.name}
-                      className="relative w-full h-full object-cover"
-                      onError={(event) => { event.currentTarget.style.display = 'none'; }}
-                    />
+                  <div key={item.id} className="relative w-20 h-20 shrink-0" title={item.file.name}>
+                    <button
+                      type="button"
+                      aria-label={`預覽 ${item.file.name}`}
+                      onClick={() => {
+                        if (previewErrors.includes(item.id)) showToast('此裝置無法顯示這張圖片的預覽；圖片仍在待上傳清單。', 'info');
+                        else setPreviewFileId(item.id);
+                      }}
+                      className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl border border-border-subtle bg-surface text-text-muted"
+                    >
+                      {previewErrors.includes(item.id) ? (
+                        <span className="flex flex-col items-center text-[9px]"><ImageIcon className="w-5 h-5" aria-hidden="true" />無預覽</span>
+                      ) : (
+                        <img
+                          src={item.previewUrl}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          onError={() => setPreviewErrors((previous) => previous.includes(item.id) ? previous : [...previous, item.id])}
+                        />
+                      )}
+                    </button>
                     {!isUploading && (
                       <button
                         type="button"
+                        aria-label={`移除 ${item.file.name}`}
+                        title={`移除 ${item.file.name}`}
                         onClick={() => handleRemoveFile(item.id)}
-                        className="absolute inset-0 bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute right-1 top-1 flex h-8 w-8 items-center justify-center rounded-xl border border-border-subtle bg-surface/95 text-rose-600 shadow-sm"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -505,6 +556,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           </button>
         </div>
       </div>
+      {activePreview && (
+        <Suspense fallback={null}>
+          <ImageViewerModal
+            imageUrl={activePreview.previewUrl}
+            isOpen
+            onClose={() => setPreviewFileId(null)}
+            title={activePreview.file.name}
+          />
+        </Suspense>
+      )}
     </div>
   );
 };
