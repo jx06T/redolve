@@ -112,7 +112,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
     const input = fileInputRef.current;
     const handleCancel = () => {
       if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
-      setSelectionMessage('尚未取得圖片。若已選取截圖，請重試或改用「選擇檔案」。');
+      setSelectionMessage((message) => message?.startsWith('正在') ? null : message);
     };
     input?.addEventListener('cancel', handleCancel);
     return () => {
@@ -167,11 +167,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   };
 
   const handleFileChange = (e: React.FormEvent<HTMLInputElement>) => {
-    if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
     const input = e.currentTarget;
     const files = Array.from(input.files || []);
-    if (files.length) addFiles(files);
-    else if (singlePickOnIOS) setSelectionMessage('尚未取得圖片。若已選取截圖，請稍等相簿準備完成，或改用「選擇檔案」。');
+    if (files.length) {
+      if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
+      addFiles(files);
+    }
     input.value = '';
   };
 

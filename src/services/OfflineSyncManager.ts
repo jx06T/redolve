@@ -1,4 +1,4 @@
-import { getOfflineDB, OfflineProblem, updateOfflineProblemAnalysis } from './offlineStorage';
+import { getOfflineDB, getOfflineProblems, OfflineProblem, putOfflineProblem, updateOfflineProblemAnalysis } from './offlineStorage';
 import { uploadProblem, analyzeGuestProblem, updateProblemDrawData, updateProblemStatus, updateProblemMetadata } from './api';
 import { Item } from '../types';
 
@@ -20,8 +20,7 @@ export class OfflineSyncManager {
     topicId: string,
     tagResult?: OfflineProblem['tagResult']
   ): Promise<void> {
-    const db = await getOfflineDB();
-    await db.put(OFFLINE_PROBS_STORE, {
+    await putOfflineProblem({
       id,
       fileData: file,
       source,
@@ -36,8 +35,7 @@ export class OfflineSyncManager {
    * Retrieve all pending offline problems.
    */
   static async getOfflineProblems(): Promise<OfflineProblem[]> {
-    const db = await getOfflineDB();
-    return db.getAll(OFFLINE_PROBS_STORE);
+    return getOfflineProblems();
   }
 
   static analyzePendingGuestProblems(onAnalyzed?: (id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) => void): Promise<void> {
@@ -159,7 +157,7 @@ export class OfflineSyncManager {
           const file = new File([prob.fileData], `offline_${prob.id}.jpg`, { type: prob.fileData.type || 'image/jpeg' });
           const res = await uploadProblem(file, prob.source, prob.topicId, prob.tagResult);
           newCloudId = res.id;
-          await db.put(OFFLINE_PROBS_STORE, { ...prob, cloudId: newCloudId, cloudOwnerId: syncingUserId });
+          await putOfflineProblem({ ...prob, cloudId: newCloudId, cloudOwnerId: syncingUserId });
         }
         
         // 2. Replay persisted edits, including those made before a page reload.

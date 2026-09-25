@@ -31,6 +31,34 @@ export interface OfflineProblem {
   };
 }
 
+// WebKit can reject Blob/File values in IndexedDB, especially in private browsing.
+// Keep bytes in the object store and expose a Blob to the rest of the app.
+type StoredOfflineProblem = Omit<OfflineProblem, 'fileData'> & {
+  fileData: ArrayBuffer | Blob;
+  fileType?: string;
+};
+
+function restoreOfflineProblem(problem: StoredOfflineProblem): OfflineProblem {
+  const { fileType, ...rest } = problem;
+  if (problem.fileData instanceof Blob) return { ...rest, fileData: problem.fileData };
+  return { ...rest, fileData: new Blob([problem.fileData], { type: fileType || 'image/jpeg' }) };
+}
+
+export async function putOfflineProblem(problem: OfflineProblem): Promise<void> {
+  const bytes = await problem.fileData.arrayBuffer();
+  const db = await getOfflineDB();
+  await db.put(OFFLINE_PROBS_STORE, {
+    ...problem,
+    fileData: bytes,
+    fileType: problem.fileData.type || 'image/jpeg',
+  });
+}
+
+export async function getOfflineProblems(): Promise<OfflineProblem[]> {
+  const db = await getOfflineDB();
+  return (await db.getAll(OFFLINE_PROBS_STORE)).map(restoreOfflineProblem);
+}
+
 export interface RedolveDB extends DBSchema {
   syncQueue: {
     key: string;
@@ -38,7 +66,7 @@ export interface RedolveDB extends DBSchema {
   };
   offlineProblems: {
     key: string;
-    value: OfflineProblem;
+    value: StoredOfflineProblem;
   };
 }
 
@@ -81,7 +109,8 @@ export async function queueOfflineMutation(
 
 export async function getOfflineProblem(id: string): Promise<OfflineProblem | undefined> {
   const db = await getOfflineDB();
-  return db.get(OFFLINE_PROBS_STORE, id);
+  const problem = await db.get(OFFLINE_PROBS_STORE, id);
+  return problem ? restoreOfflineProblem(problem) : undefined;
 }
 
 export async function getQueuedDraws(): Promise<SyncQueueItem[]> {
@@ -99,11 +128,10 @@ export async function updateOfflineProblemStatus(
   status: 'unsolved' | 'resolved' | 'archived' | 'processing',
   reviewCount?: number
 ) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  const existing = await getOfflineProblem(id);
   if (!existing) return;
 
-  await db.put(OFFLINE_PROBS_STORE, {
+  await putOfflineProblem({
     ...existing,
     status,
     review_count: typeof reviewCount === 'number' ? reviewCount : existing.review_count,
@@ -111,18 +139,16 @@ export async function updateOfflineProblemStatus(
 }
 
 export async function updateOfflineProblemAnalysis(id: string, tagResult: NonNullable<OfflineProblem['tagResult']>) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  const existing = await getOfflineProblem(id);
   if (!existing) return;
-  await db.put(OFFLINE_PROBS_STORE, { ...existing, topicId: tagResult.topic_id, tagResult, status: 'unsolved' });
+  await putOfflineProblem({ ...existing, topicId: tagResult.topic_id, tagResult, status: 'unsolved' });
 }
 
 export async function updateOfflineProblemDraw(id: string, drawData: any, seq: number) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  const existing = await getOfflineProblem(id);
   if (!existing) return;
 
-  await db.put(OFFLINE_PROBS_STORE, {
+  await putOfflineProblem({
     ...existing,
     draw_data: drawData,
     vector_clock: { node: 'client', seq },
@@ -130,11 +156,10 @@ export async function updateOfflineProblemDraw(id: string, drawData: any, seq: n
 }
 
 export async function updateOfflineProblemNotes(id: string, typedNotes: string) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  const existing = await getOfflineProblem(id);
   if (!existing) return;
 
-  await db.put(OFFLINE_PROBS_STORE, {
+  await putOfflineProblem({
     ...existing,
     typed_notes: typedNotes,
   });
@@ -144,8 +169,7 @@ export async function updateOfflineProblemMetadata(
   id: string,
   patch: { topic_id?: string | null; keywords?: string[]; typed_notes?: string }
 ) {
-  const db = await getOfflineDB();
-  const existing = await db.get(OFFLINE_PROBS_STORE, id);
+  const existing = await getOfflineProblem(id);
   if (!existing) return;
 
   const updatedTagResult = {
@@ -159,7 +183,7 @@ export async function updateOfflineProblemMetadata(
     updatedTagResult.keywords = patch.keywords;
   }
 
-  await db.put(OFFLINE_PROBS_STORE, {
+  await putOfflineProblem({
     ...existing,
     topicId: patch.topic_id ?? existing.topicId,
     typed_notes: patch.typed_notes !== undefined ? patch.typed_notes : existing.typed_notes,
