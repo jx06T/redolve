@@ -46,6 +46,30 @@ app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
 app.route('/', sharesRouter);
 
+// SPA fallback returns index.html with HTTP 200 even for a removed CSS/JS hash.
+// Route hashed assets through the Worker so HTML can never masquerade as CSS.
+app.get('/assets/*', async (c) => {
+  if (!c.env.ASSETS) return c.text('Static assets unavailable', 404);
+  const asset = await c.env.ASSETS.fetch(c.req.raw);
+  const path = c.req.path;
+  const type = asset.headers.get('Content-Type') || '';
+  const validType = path.endsWith('.css')
+    ? /^text\/css\b/i.test(type)
+    : path.endsWith('.js')
+      ? /(?:java|ecma)script/i.test(type)
+      : !/^text\/html\b/i.test(type);
+  if (!asset.ok || !validType) {
+    return new Response('Static asset not found', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' },
+    });
+  }
+  const headers = new Headers(asset.headers);
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return new Response(asset.body, { status: asset.status, headers });
+});
+
 // Static Assets Fallback for non-API routes
 app.notFound(async (c) => {
   if (c.env.ASSETS) {

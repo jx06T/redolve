@@ -9,6 +9,7 @@ import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
 
 import { BottomNav } from './components/BottomNav';
+import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
 const StudyView = lazy(() => import('./views/StudyView').then((module) => ({ default: module.StudyView })));
@@ -110,6 +111,7 @@ export default function App() {
       <BrowserRouter>
         <div className="h-full bg-page-bg text-text-main transition-colors duration-200 flex flex-col font-sans overflow-hidden">
           <Toast />
+          <PwaUpdateBanner />
           <Suspense fallback={<div className="flex-1 flex items-center justify-center text-sm text-text-muted">正在載入頁面…</div>}>
           <Routes>
             {/* Public Share Route without main layout header */}

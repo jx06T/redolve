@@ -10,6 +10,12 @@
   Pragma: no-cache
   Expires: 0
 
+/
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/pwa-recover.js
+  Cache-Control: no-cache, no-store, must-revalidate
+
 # PWA 應用程式清單也不建議長期快取，以便隨時更新圖示或名稱
 /manifest.json
   Cache-Control: no-cache, no-store, must-revalidate

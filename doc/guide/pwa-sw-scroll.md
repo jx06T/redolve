@@ -19,6 +19,8 @@ triggers:
 
 # PWA Service Worker 配置與防滾動實作指引
 
+> PWA 部分的程式碼範例保留作歷史參考，現行發版與快取流程請參閱 [PWA 發版與靜態檔案一致性](./pwa-release-integrity.md)。此文件的 iPad 捲動與 viewport 設計仍適用，不需修改。
+
 ---
 
 ## 核心設計決策
