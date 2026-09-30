@@ -7,6 +7,11 @@ import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 
 export const problemsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
+const expectedSeedNodeCount = (nodes: TaxonomyNode[]): number =>
+  nodes.reduce((count, node) => count + 1 + expectedSeedNodeCount(node.children ?? []), 0);
+
+const seedNodeCount = expectedSeedNodeCount(TAXONOMY_SEED_DATA);
+
 // Helper for Base64 Cursor Encoding/Decoding
 function encodeCursor(created_at: string, id: string): string {
   return btoa(JSON.stringify({ created_at, id }));
@@ -61,7 +66,7 @@ export async function ensureSeedTaxonomies(db: D1Database): Promise<void> {
     const row = await db
       .prepare('SELECT COUNT(*) as count FROM taxonomies WHERE user_id IS NULL')
       .first<{ count: number }>();
-    if (row && row.count >= 40) {
+    if (row && row.count >= seedNodeCount) {
       return;
     }
     await syncSeedTaxonomies(db);
@@ -96,6 +101,7 @@ async function validateAndEnsureTopicId(db: any, topicId: string | null | undefi
  */
 async function loadFullTaxonomyTree(db: any, userId: string): Promise<TaxonomyNode[]> {
   try {
+    await ensureSeedTaxonomies(db);
     const res = await db.prepare(
       `SELECT id, user_id, parent_id, label, level
        FROM taxonomies

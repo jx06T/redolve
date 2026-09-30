@@ -7,6 +7,9 @@ import {
   chemistryTaxonomy,
   biologyTaxonomy,
   earthTaxonomy,
+  geographyTaxonomy,
+  historyTaxonomy,
+  civicsTaxonomy,
 } from './taxonomy';
 
 export {
@@ -17,6 +20,9 @@ export {
   chemistryTaxonomy,
   biologyTaxonomy,
   earthTaxonomy,
+  geographyTaxonomy,
+  historyTaxonomy,
+  civicsTaxonomy,
 };
 
 export const TAXONOMY_SEED_DATA: TaxonomyNode[] = [
@@ -27,4 +33,7 @@ export const TAXONOMY_SEED_DATA: TaxonomyNode[] = [
   chemistryTaxonomy,
   biologyTaxonomy,
   earthTaxonomy,
+  geographyTaxonomy,
+  historyTaxonomy,
+  civicsTaxonomy,
 ];

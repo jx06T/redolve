@@ -5,3 +5,6 @@ export * from './physics';
 export * from './chemistry';
 export * from './biology';
 export * from './earth';
+export * from './geography';
+export * from './history';
+export * from './civics';
