@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Navbar } from './components/Navbar';
 import { Toast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { fetchCurrentUser, fetchProblemById, updateProblemDrawData, updateProblemStatus, updateProblemMetadata } from './services/api';
+import { fetchCurrentUser, fetchProblemById, updateProblemDrawData, updateProblemStatus, updateProblemMetadata, mutateProblemTag } from './services/api';
 import { initOnlineSync } from './services/offlineStorage';
 import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
@@ -17,6 +17,15 @@ const ProblemDetailView = lazy(() => import('./views/ProblemDetailView').then((m
 const SearchView = lazy(() => import('./views/SearchView').then((module) => ({ default: module.SearchView })));
 const ShareView = lazy(() => import('./views/ShareView').then((module) => ({ default: module.ShareView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
+const CollectionsHubView = lazy(() => import('./views/CollectionsHubView').then(m=>({default:m.CollectionsHubView})));
+const AdminSharingView = lazy(() => import('./views/AdminSharingView').then(m=>({default:m.AdminSharingView})));
+const CollectionDetailView = lazy(() => import('./views/CollectionDetailView').then(m=>({default:m.CollectionDetailView})));
+const CollectionItemView = lazy(() => import('./views/CollectionItemView').then(m=>({default:m.CollectionItemView})));
+const SubscriptionsView = lazy(() => import('./views/SubscriptionsView').then(m=>({default:m.SubscriptionsView})));
+const SavedHubView = lazy(() => import('./views/SavedHubView').then(m=>({default:m.SavedHubView})));
+const NotebookView = lazy(() => import('./views/NotebookView').then(m=>({default:m.NotebookView})));
+const SavedDetailView = lazy(() => import('./views/SavedDetailView').then(m=>({default:m.SavedDetailView})));
+const AccessClaimView = lazy(() => import('./views/AccessClaimView').then(m=>({default:m.AccessClaimView})));
 
 export default function App() {
   const { setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
@@ -83,10 +92,16 @@ export default function App() {
           await updateProblemStatus(item.id, item.status);
         }
         if (item.typed_notes !== undefined) {
-          await updateProblemMetadata(item.id, { typed_notes: item.typed_notes });
+          if (item.notesSeq === undefined) return false;
+          await updateProblemMetadata(item.id, { typed_notes: item.typed_notes,
+            expected_notes_seq: item.notesSeq });
         }
+        if (item.tag_ops) for (const op of item.tag_ops)
+          await mutateProblemTag(item.id, op.op, op.tag);
         if (item.metadata_patch) {
-          await updateProblemMetadata(item.id, item.metadata_patch);
+          if (item.metadata_patch.keywords) return false;
+          if (item.metadata_patch.topic_id !== undefined)
+            await updateProblemMetadata(item.id, { topic_id: item.metadata_patch.topic_id });
         }
         return allSuccess;
       } catch (err) {
@@ -134,6 +149,17 @@ export default function App() {
                       <Route path="/problem/:id" element={<ProblemDetailView />} />
                       <Route path="/search" element={<SearchView />} />
                       <Route path="/settings" element={<SettingsView />} />
+                      <Route path="/my/collections" element={<CollectionsHubView />} />
+                      <Route path="/admin/sharing" element={<AdminSharingView />} />
+                      <Route path="/collections/:id" element={<CollectionDetailView />} />
+                      <Route path="/collections/:id/items/:entryId" element={<CollectionItemView />} />
+                      <Route path="/subscriptions" element={<SubscriptionsView />} />
+                      <Route path="/subscriptions/manage" element={<SubscriptionsView />} />
+                      <Route path="/saved" element={<SavedHubView />} />
+                      <Route path="/my/notebook" element={<NotebookView />} />
+                      <Route path="/saved/:id" element={<SavedDetailView />} />
+                      <Route path="/invite/:token" element={<AccessClaimView kind="invite" />} />
+                      <Route path="/collection-link/:token" element={<AccessClaimView kind="link" />} />
                     </Routes>
                   </main>
                   <BottomNav />

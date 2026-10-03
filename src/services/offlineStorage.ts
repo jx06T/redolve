@@ -5,9 +5,12 @@ interface SyncQueueItem {
   ownerId?: string; // account that created the queued mutation
   drawData?: any;
   seq?: number;
+  notesSeq?: number;
+  blockedReason?: string;
   status?: 'unsolved' | 'resolved' | 'archived' | 'processing';
   typed_notes?: string;
   metadata_patch?: { topic_id?: string | null; keywords?: string[] };
+  tag_ops?: { op: 'add' | 'remove'; tag: string }[];
   timestamp: number;
 }
 
@@ -201,6 +204,7 @@ export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<bo
     try {
       const items = await getQueuedDraws();
       for (const item of items) {
+        if (item.blockedReason) continue;
         const currentUserId = getCurrentUserId();
         if (!currentUserId) break;
         if (item.ownerId && item.ownerId !== currentUserId) continue;

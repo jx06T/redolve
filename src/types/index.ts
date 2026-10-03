@@ -43,6 +43,9 @@ export interface Item {
   status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   review_count: number;
   vector_clock: string | null;
+  content_seq?: number;
+  draw_seq?: number;
+  notes_seq?: number;
   updated_at: string;
   created_at: string;
 }

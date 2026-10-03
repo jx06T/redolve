@@ -10,6 +10,9 @@ import { searchRouter } from './routes/search';
 import { dashboardRouter } from './routes/dashboard';
 import { authRouter } from './routes/auth';
 import { taxonomyRouter } from './routes/taxonomy';
+import { collectionsRouter } from './routes/collections';
+import { subscriptionsRouter } from './routes/subscriptions';
+import { savedRouter } from './routes/saved';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -44,6 +47,9 @@ app.route('/api/problems', problemsRouter);
 app.route('/api/keys', keysRouter);
 app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
+app.route('/api', collectionsRouter);
+app.route('/api/subscriptions', subscriptionsRouter);
+app.route('/api', savedRouter);
 app.route('/', sharesRouter);
 
 // SPA fallback returns index.html with HTTP 200 even for a removed CSS/JS hash.
@@ -72,10 +78,15 @@ app.get('/assets/*', async (c) => {
 
 // Static Assets Fallback for non-API routes
 app.notFound(async (c) => {
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ error: { code: 'NOT_FOUND', message: 'API route not found' } }, 404);
+  }
   if (c.env.ASSETS) {
     return c.env.ASSETS.fetch(c.req.raw);
   }
   return c.text('Not Found', 404);
 });
 
-export default app;
+export default {
+  fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),
+} satisfies ExportedHandler<Bindings>;

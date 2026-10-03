@@ -4,15 +4,6 @@ import { authMiddleware } from '../middleware/auth';
 
 export const sharesRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// 自動為舊資料庫補上 allow_notes 欄位 (自動 Migration)
-async function ensureAllowNotesColumn(db: D1Database) {
-  try {
-    await db.prepare('ALTER TABLE shares ADD COLUMN allow_notes INTEGER DEFAULT 1').run();
-  } catch {
-    // 欄位若已存在會拋出錯誤，直接忽略即可
-  }
-}
-
 // 1. Create Share Token (Protected & Idempotent)
 sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
   const userId = c.get('userId');
@@ -27,7 +18,6 @@ sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
-  await ensureAllowNotesColumn(c.env.DB);
 
   const allowInk = body.allow_ink === false ? 0 : 1;
   const allowNotes = body.allow_notes === false ? 0 : 1;
@@ -97,7 +87,6 @@ sharesRouter.get('/api/problems/:id/shares', authMiddleware, async (c) => {
   const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
     .bind(problemId, userId).first();
   if (!item) return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
-  await ensureAllowNotesColumn(c.env.DB);
   const { results } = await c.env.DB.prepare(
     'SELECT token, allow_ink, allow_notes, expires_at, created_at FROM shares WHERE item_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC'
   ).bind(problemId, userId, new Date().toISOString()).all();
@@ -140,7 +129,7 @@ sharesRouter.get('/share/:token', async (c) => {
     return c.json({ error: { code: 'SHARE_EXPIRED', message: '此分享連結已過期' } }, 410);
   }
 
-  const item = await c.env.DB.prepare('SELECT id, type, topic_id, keywords, source, draw_data, typed_notes, status, created_at FROM items WHERE id = ?')
+  const item = await c.env.DB.prepare('SELECT id, type, topic_id, keywords, source, draw_data, typed_notes, created_at FROM items WHERE id = ?')
     .bind(share.item_id)
     .first<Partial<ItemRow>>();
 

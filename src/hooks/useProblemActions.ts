@@ -19,6 +19,7 @@ import {
   updateProblemStatus,
   updateProblemDrawData,
   updateProblemMetadata,
+  mutateProblemTag,
   deleteProblem,
   analyzeProblem,
   analyzeGuestProblem,
@@ -153,14 +154,17 @@ export function useProblemActions() {
           await updateProblemDrawData(problem.id, drawData, seq);
         } catch (err) {
           console.error('[useProblemActions] saveDrawData failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { drawData, seq }, problem.user_id);
+          const conflict=err instanceof Error&&err.message.startsWith('CONFLICT:');
+          await queueOfflineMutation(problem.id, { drawData, seq,
+            blockedReason:conflict?'筆跡版本衝突':undefined }, problem.user_id);
+          if(conflict) showToast('筆跡與另一裝置衝突，本機草稿已保留，請重新載入並手動處理。','error',8000);
         }
       } else {
         // Persist offline stroke data in IndexedDB
         await updateOfflineProblemDraw(problem.id, drawData, seq);
       }
     },
-    [updateProblemInStore]
+    [updateProblemInStore, showToast]
   );
 
   /**
@@ -170,17 +174,23 @@ export function useProblemActions() {
     async (problem: Item, text: string) => {
       if (!isOfflineProblemId(problem.id)) {
         try {
-          await updateProblemMetadata(problem.id, { typed_notes: text });
+          const res=await updateProblemMetadata(problem.id, {
+            typed_notes: text, expected_notes_seq: problem.notes_seq ?? 0,
+          });
+          updateProblemInStore(problem.id,{notes_seq:res.notes_seq});
         } catch (err) {
           console.error('[useProblemActions] saveTypedNotes failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { typed_notes: text }, problem.user_id);
+          const conflict=err instanceof Error&&err.message.startsWith('CONFLICT:');
+          await queueOfflineMutation(problem.id, { typed_notes: text, notesSeq:problem.notes_seq ?? 0,
+            blockedReason:conflict?'筆記版本衝突':undefined }, problem.user_id);
+          if(conflict) showToast('筆記與另一裝置衝突，本機草稿已保留，請重新載入並手動處理。','error',8000);
         }
       } else {
         // Persist typed notes in IndexedDB for offline items
         await updateOfflineProblemNotes(problem.id, text);
       }
     },
-    []
+    [updateProblemInStore, showToast]
   );
 
   /**
@@ -202,14 +212,33 @@ export function useProblemActions() {
         await updateOfflineProblemMetadata(problem.id, patch);
       } else {
         try {
-          await updateProblemMetadata(problem.id, patch);
+          if(patch.keywords){
+            let old:string[]=[];
+            try{const parsed=JSON.parse(problem.keywords||'[]');if(Array.isArray(parsed))old=parsed;}
+            catch{old=[];}
+            for(const tag of patch.keywords.filter(x=>!old.includes(x)))
+              await mutateProblemTag(problem.id,'add',tag);
+            for(const tag of old.filter(x=>!patch.keywords!.includes(x)))
+              await mutateProblemTag(problem.id,'remove',tag);
+          }
+          if(patch.topic_id!==undefined) await updateProblemMetadata(problem.id,{topic_id:patch.topic_id});
         } catch (err) {
           console.error('[useProblemActions] saveMetadata failed, queueing for offline sync:', err);
-          await queueOfflineMutation(problem.id, { metadata_patch: patch }, problem.user_id);
+          let old:string[]=[];
+          try{const parsed=JSON.parse(problem.keywords||'[]');if(Array.isArray(parsed))old=parsed;}
+          catch{old=[];}
+          const tag_ops=patch.keywords?[
+            ...patch.keywords.filter(x=>!old.includes(x)).map(tag=>({op:'add' as const,tag})),
+            ...old.filter(x=>!patch.keywords!.includes(x)).map(tag=>({op:'remove' as const,tag})),
+          ]:undefined;
+          const conflict=err instanceof Error&&err.message.startsWith('CONFLICT:');
+          await queueOfflineMutation(problem.id, { metadata_patch:{topic_id:patch.topic_id},
+            tag_ops,blockedReason:conflict?'分類版本衝突':undefined }, problem.user_id);
+          if(conflict) showToast('分類更新衝突，本機修改已保留，請重新載入。','error',8000);
         }
       }
     },
-    [updateProblemInStore]
+    [updateProblemInStore, showToast]
   );
 
   /**

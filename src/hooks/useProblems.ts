@@ -15,6 +15,7 @@ export interface UseProblemsOptions {
   topic?: string;
   status?: string;
   targetProblemId?: string | null;
+  collectionId?: string;
 }
 
 /**
@@ -75,7 +76,7 @@ export function doesItemMatchFilters(
  * `problems`, `nextCursor`, and `isLoading` from the store — they never need
  * to know whether data comes from IndexedDB or the network.
  */
-export function useProblems({ subject, topic, status, targetProblemId }: UseProblemsOptions) {
+export function useProblems({ subject, topic, status, targetProblemId, collectionId }: UseProblemsOptions) {
   const {
     problems,
     setProblems,
@@ -119,13 +120,14 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
         topic_id: topic ?? undefined,
         status: status === 'all' ? undefined : status,
         limit: 15,
+        collection_id: collectionId,
       });
 
       let finalItems = res.items;
 
       // Pull in a specific problem by ID only if it was requested AND matches active filters
       if (
-        targetProblemId && 
+        targetProblemId && !collectionId &&
         !targetProblemId.startsWith('temp_') && 
         !finalItems.some((p) => p.id === targetProblemId)
       ) {
@@ -148,7 +150,7 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
     } finally {
       setIsLoading(false);
     }
-  }, [subject, topic, status, targetProblemId, isGuest, setProblems, setIsLoading, loadOfflineItems]);
+  }, [subject, topic, status, targetProblemId, collectionId, isGuest, setProblems, setIsLoading, loadOfflineItems]);
 
   /**
    * Append the next page of cloud problems (pagination).
@@ -164,6 +166,7 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
         status: status === 'all' ? undefined : status,
         cursor: nextCursor,
         limit: 15,
+        collection_id: collectionId,
       });
       appendProblems(res.items, res.nextCursor);
     } catch (err) {
@@ -171,7 +174,7 @@ export function useProblems({ subject, topic, status, targetProblemId }: UseProb
     } finally {
       setIsLoading(false);
     }
-  }, [subject, topic, status, nextCursor, isLoading, isGuest, appendProblems, setIsLoading]);
+  }, [subject, topic, status, collectionId, nextCursor, isLoading, isGuest, appendProblems, setIsLoading]);
 
   return { problems, nextCursor, isLoading, load, loadMore };
 }

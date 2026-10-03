@@ -4,6 +4,7 @@ import { Bindings, Variables, ItemRow, TaxonomyNode } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { createAIService } from '../services/ai';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
+import { addOwnedItem } from './collections';
 
 export const problemsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -256,24 +257,24 @@ problemsRouter.post(
   const initialKeywords = preAnalyzedResult && preAnalyzedResult.keywords ? JSON.stringify(preAnalyzedResult.keywords) : null;
   const initialKeywordTokens = preAnalyzedResult && preAnalyzedResult.keyword_tokens ? preAnalyzedResult.keyword_tokens.join(' ') : null;
 
-  // Insert D1 item record
-  await c.env.DB.prepare(
-    `INSERT INTO items (id, user_id, type, topic_id, keywords, keyword_tokens, source, image_url, draw_data, status, review_count, vector_clock, updated_at, created_at)
-     VALUES (?, ?, 'problem', ?, ?, ?, ?, ?, NULL, ?, 0, NULL, ?, ?)`
-  )
-    .bind(
-      problemId,
-      userId,
-      initialTopicId,
-      initialKeywords,
-      initialKeywordTokens,
-      (body['source'] as string) || 'iOS Shortcut',
-      imageKey,
-      initialStatus,
-      now,
-      now
-    )
-    .run();
+  // Keep the private item and its reusable asset reference in one D1 transaction.
+  try {
+    await c.env.DB.batch([
+      c.env.DB.prepare('INSERT INTO assets (id, storage_key, mime_type) VALUES (?, ?, ?)')
+        .bind(imageKey, imageKey, fileType || 'image/jpeg'),
+      c.env.DB.prepare(
+        `INSERT INTO items (id, user_id, type, topic_id, keywords, keyword_tokens, source, image_url, draw_data, status, review_count, vector_clock, updated_at, created_at)
+         VALUES (?, ?, 'problem', ?, ?, ?, ?, ?, NULL, ?, 0, NULL, ?, ?)`
+      ).bind(problemId, userId, initialTopicId, initialKeywords, initialKeywordTokens,
+        (body['source'] as string) || 'iOS Shortcut', imageKey, initialStatus, now, now),
+      c.env.DB.prepare('INSERT INTO asset_refs (id, asset_id, item_id, role) VALUES (?, ?, ?, ?)')
+        .bind(`item:${problemId}`, imageKey, problemId, 'source_image'),
+    ]);
+  } catch (error) {
+    // The object has no D1 owner if the transaction rolled back.
+    await c.env.STORAGE.delete(imageKey).catch(() => undefined);
+    throw error;
+  }
 
   if (preAnalyzedResult) {
     // Sync FTS5 Index synchronously for pre-analyzed result
@@ -310,7 +311,8 @@ problemsRouter.post(
 
           await c.env.DB.prepare(
             `UPDATE items
-             SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved', updated_at = CURRENT_TIMESTAMP
+             SET topic_id = ?, keywords = ?, keyword_tokens = ?, status = 'unsolved',
+                 content_seq = content_seq + 1, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`
           )
             .bind(validTopicId, keywordsJson, keywordTokensStr, problemId)
@@ -359,7 +361,16 @@ problemsRouter.post(
   );
   }
 
-  return c.json({ id: problemId, status: 'processing' }, 200);
+  const requestedDestination = typeof body['collection_id'] === 'string' ? body['collection_id'] : undefined;
+  const usePrivateOnly = body['collection_id'] === 'private';
+  const preference = requestedDestination || usePrivateOnly ? null : await c.env.DB.prepare(
+    'SELECT default_collection_id FROM user_upload_preferences WHERE user_id=?'
+  ).bind(userId).first<{ default_collection_id: string | null }>();
+  const destination = usePrivateOnly ? null : requestedDestination || preference?.default_collection_id || null;
+  const join = destination ? await addOwnedItem(c.env,destination,problemId,userId) : null;
+  return c.json({ id: problemId, status: 'processing',
+    destination: destination ? {collection_id:destination,join} : {collection_id:null,join:null},
+  }, 200);
 });
 
 // 2. Cursor-based Pagination List
@@ -374,6 +385,7 @@ problemsRouter.get('/', optionalAuthMiddleware, async (c) => {
   const topicId = c.req.query('topic_id');
   const subjectId = c.req.query('subject_id');
   const status = c.req.query('status');
+  const collectionId = c.req.query('collection_id');
 
   const decodedCursor = cursorParam ? decodeCursor(cursorParam) : null;
 
@@ -381,6 +393,11 @@ problemsRouter.get('/', optionalAuthMiddleware, async (c) => {
 
   let query = 'SELECT * FROM items WHERE user_id = ?';
   const bindings: any[] = [userId];
+  if (collectionId) {
+    query += ` AND EXISTS(SELECT 1 FROM collection_items ci WHERE ci.source_item_id=items.id
+      AND ci.collection_id=? AND ci.state='included')`;
+    bindings.push(collectionId);
+  }
 
   if (topicId && topicId !== 'all') {
     if (topicId === 'unclassified') {
@@ -526,78 +543,96 @@ problemsRouter.get('/:id/image', authMiddleware, async (c) => {
 });
 
 // 5. Update Metadata / Status / Taxonomy
+problemsRouter.patch('/:id/tags', authMiddleware, async c => {
+  const body=await c.req.json().catch(()=>({}));
+  const op=body.op;
+  const tag=typeof body.tag==='string'?body.tag.trim():'';
+  if(!['add','remove'].includes(op)||!tag||tag.length>80)
+    return c.json({error:{code:'INVALID_REQUEST',message:'標籤操作無效'}},400);
+  const uid=c.get('userId'),id=c.req.param('id');
+  for(let attempt=0;attempt<5;attempt++){
+    const row=await c.env.DB.prepare('SELECT keywords,content_seq FROM items WHERE id=? AND user_id=?')
+      .bind(id,uid).first<{keywords:string|null;content_seq:number}>();
+    if(!row) return c.json({error:{code:'NOT_FOUND',message:'找不到題目'}},404);
+    let tags:string[]=[];
+    try{ const parsed=JSON.parse(row.keywords||'[]');if(Array.isArray(parsed))tags=parsed.filter(x=>typeof x==='string'); }
+    catch{tags=[];}
+    const next=new Set(tags);
+    if(op==='add')next.add(tag);else next.delete(tag);
+    if(next.size>100) return c.json({error:{code:'LIMIT_REACHED',message:'標籤數量已達上限'}},413);
+    const list=[...next];
+    const batch=await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE items SET keywords=?,keyword_tokens=?,content_seq=content_seq+1,
+        updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND content_seq=?`)
+        .bind(JSON.stringify(list),list.join(' '),id,uid,row.content_seq),
+      c.env.DB.prepare(`INSERT OR REPLACE INTO items_fts
+        (id,user_id,source,keyword_tokens,typed_notes,problem_text)
+        SELECT i.id,i.user_id,COALESCE(i.source,''),COALESCE(i.keyword_tokens,''),
+          COALESCE(i.typed_notes,''),COALESCE(f.problem_text,'')
+        FROM items i LEFT JOIN items_fts f ON f.id=i.id WHERE i.id=? AND i.user_id=?`)
+        .bind(id,uid),
+    ]);
+    if(batch[0].meta.changes) return c.json({status:'ok',keywords:list,content_seq:row.content_seq+1});
+  }
+  return c.json({error:{code:'CONFLICT',message:'標籤更新衝突，請重新載入'}},409);
+});
 problemsRouter.put('/:id', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
-  const body = await c.req.json();
-
-  const { keywords, source, typed_notes } = body;
-  // topic_id is handled explicitly: if the key is present in the request body
-  // (even as null), we write it directly so the user can clear a classification.
-  // Other fields use COALESCE to avoid overwriting with undefined values.
-  const topicIdProvided = 'topic_id' in body;
-  const topicIdValue = topicIdProvided ? (body.topic_id ?? null) : undefined;
-
-  const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
-    .bind(problemId, userId)
-    .first();
-
-  if (!item) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
+  const body = await c.req.json().catch(() => ({}));
+  if ('image_url' in body || 'image_asset_id' in body || 'draw_data' in body)
+    return c.json({ error: { code: 'IMMUTABLE_IMAGE', message: '既有題目不能換圖或裁切' } }, 400);
+  const fields: string[] = [];
+  const values: (string | number | null)[] = [];
+  let publicChanged = false;
+  if ('source' in body) {
+    if (typeof body.source !== 'string' || body.source.length > 2000)
+      return c.json({ error: { code: 'INVALID_REQUEST', message: '來源文字無效' } }, 400);
+    fields.push('source=?'); values.push(body.source); publicChanged = true;
   }
-
-  const keywordsStr = Array.isArray(keywords) ? JSON.stringify(keywords) : (keywords !== undefined ? keywords : null);
-  const keywordTokensStr = Array.isArray(keywords) ? keywords.join(' ') : (keywords || '');
-
-  // Build the update query dynamically based on what fields are provided
-  if (topicIdProvided) {
-    await c.env.DB.prepare(
-      `UPDATE items
-       SET topic_id = ?,
-           keywords = COALESCE(?, keywords),
-           keyword_tokens = COALESCE(?, keyword_tokens),
-           source = COALESCE(?, source),
-           typed_notes = COALESCE(?, typed_notes),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND user_id = ?`
-    )
-      .bind(topicIdValue, keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
-      .run();
-  } else {
-    await c.env.DB.prepare(
-      `UPDATE items
-       SET keywords = COALESCE(?, keywords),
-           keyword_tokens = COALESCE(?, keyword_tokens),
-           source = COALESCE(?, source),
-           typed_notes = COALESCE(?, typed_notes),
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND user_id = ?`
-    )
-      .bind(keywordsStr, keywordTokensStr || null, source ?? null, typed_notes !== undefined ? typed_notes : null, problemId, userId)
-      .run();
+  if ('topic_id' in body) {
+    const topic = body.topic_id === null ? null : await validateAndEnsureTopicId(c.env.DB, body.topic_id);
+    if (body.topic_id !== null && !topic)
+      return c.json({ error: { code: 'INVALID_TOPIC', message: '分類無效' } }, 400);
+    fields.push('topic_id=?'); values.push(topic); publicChanged = true;
   }
-
-  // Sync FTS5 Index if keywords, source, or typed_notes updated
-  if (keywordsStr !== null || source !== null || typed_notes !== undefined) {
-    const currentFts = await c.env.DB.prepare('SELECT source, keyword_tokens, typed_notes, problem_text FROM items_fts WHERE id = ?')
-      .bind(problemId)
-      .first<{ source: string; keyword_tokens: string; typed_notes: string; problem_text: string }>();
-
-    await c.env.DB.prepare(
-      `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        problemId,
-        userId,
-        currentFts?.source || source || '網頁編輯',
-        currentFts?.keyword_tokens || keywordTokensStr || '',
-        typed_notes !== undefined ? typed_notes : (currentFts?.typed_notes || ''),
-        currentFts?.problem_text || '' // ? 6 保留舊的 OCR 文字
-      )
-      .run();
+  if ('keywords' in body) {
+    if (!Array.isArray(body.keywords) || body.keywords.some((x:unknown)=>typeof x!=='string') ||
+      !Number.isSafeInteger(body.expected_content_seq))
+      return c.json({ error: { code: 'PRECONDITION_REQUIRED', message: '標籤更新需要來源版本，建議使用增刪操作' } }, 428);
+    const tags=[...new Set(body.keywords.map((x:string)=>x.trim()).filter(Boolean))].slice(0,100);
+    fields.push('keywords=?','keyword_tokens=?');
+    values.push(JSON.stringify(tags),tags.join(' ')); publicChanged = true;
   }
-
-  return c.json({ status: 'ok' });
+  if ('typed_notes' in body) {
+    if (typeof body.typed_notes !== 'string' ||
+      new TextEncoder().encode(body.typed_notes).byteLength > 65536 ||
+      !Number.isSafeInteger(body.expected_notes_seq))
+      return c.json({ error: { code: 'PRECONDITION_REQUIRED', message: '筆記更新需要目前版本' } }, 428);
+    fields.push('typed_notes=?','notes_seq=notes_seq+1'); values.push(body.typed_notes);
+  }
+  if (!fields.length) return c.json({ error: { code: 'INVALID_REQUEST', message: '沒有可更新欄位' } }, 400);
+  if (publicChanged) fields.push('content_seq=content_seq+1');
+  fields.push('updated_at=CURRENT_TIMESTAMP');
+  const where=['id=?','user_id=?'];
+  values.push(problemId || '',userId);
+  if ('typed_notes' in body) { where.push('notes_seq=?'); values.push(body.expected_notes_seq); }
+  if ('keywords' in body) { where.push('content_seq=?'); values.push(body.expected_content_seq); }
+  const result=await c.env.DB.prepare(`UPDATE items SET ${fields.join(',')} WHERE ${where.join(' AND ')}`)
+    .bind(...values).run();
+  if (!result.meta.changes)
+    return c.json({ error: { code: 'CONFLICT', message: '題目已由其他裝置更新，請保留本機內容' } }, 409);
+  const updated=await c.env.DB.prepare('SELECT * FROM items WHERE id=? AND user_id=?')
+    .bind(problemId,userId).first<ItemRow>();
+  if (updated) {
+    const old=await c.env.DB.prepare('SELECT problem_text FROM items_fts WHERE id=?')
+      .bind(problemId).first<{problem_text:string}>();
+    await c.env.DB.prepare(`INSERT OR REPLACE INTO items_fts
+      (id,user_id,source,keyword_tokens,typed_notes,problem_text) VALUES(?,?,?,?,?,?)`)
+      .bind(problemId,userId,updated.source||'',updated.keyword_tokens||'',
+        updated.typed_notes||'',old?.problem_text||'').run();
+  }
+  return c.json({ status: 'ok', content_seq: updated?.content_seq, notes_seq: updated?.notes_seq });
 });
 
 // 6. Delete Problem
@@ -613,8 +648,15 @@ problemsRouter.delete('/:id', authMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
-  await c.env.STORAGE.delete(item.image_url);
+  // R2 bytes stay while any publication or personal download still owns them.
+  // A separate reference-aware GC pass removes unreferenced objects.
   await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE collection_items SET state='removed',latest_add_event_seq=NULL
+      WHERE source_item_id=? AND state='included'`).bind(problemId),
+    c.env.DB.prepare(`UPDATE shared_layers SET state='detached' WHERE entry_id IN
+      (SELECT id FROM collection_items WHERE source_item_id=?)`).bind(problemId),
+    c.env.DB.prepare('DELETE FROM asset_refs WHERE asset_id = ? AND item_id = ?')
+      .bind(item.image_url, problemId),
     c.env.DB.prepare('DELETE FROM items WHERE id = ? AND user_id = ?').bind(problemId, userId),
     c.env.DB.prepare('DELETE FROM items_fts WHERE id = ?').bind(problemId),
     c.env.DB.prepare('DELETE FROM shares WHERE item_id = ?').bind(problemId),
@@ -633,45 +675,29 @@ problemsRouter.patch('/:id/draw', authMiddleware, async (c) => {
 
   // Public share links are read-only; only the owner may change drawing data.
   const current = await c.env.DB.prepare(
-    'SELECT draw_data, vector_clock FROM items WHERE id = ? AND user_id = ?'
+    'SELECT draw_seq FROM items WHERE id = ? AND user_id = ?'
   )
     .bind(problemId, userId)
-    .first<ItemRow>();
+    .first<{ draw_seq: number }>();
 
   if (!current) {
     return c.json({ error: { code: 'FORBIDDEN', message: '找不到題目或無權限修改此筆記' } }, 403);
   }
 
-  let incomingSeq = 0;
-  let currentSeq = 0;
-
-  try {
-    if (vector_clock) {
-      const vc = typeof vector_clock === 'string' ? JSON.parse(vector_clock) : vector_clock;
-      incomingSeq = vc.seq ?? 0;
-    }
-    if (current.vector_clock) {
-      const cvc = JSON.parse(current.vector_clock);
-      currentSeq = cvc.seq ?? 0;
-    }
-  } catch {
-    // fallback seq comparison
-  }
-
+  const incomingSeq = Number(vector_clock?.seq);
+  if (!Number.isSafeInteger(incomingSeq) || incomingSeq < 1 || draw_data == null)
+    return c.json({ error: { code: 'INVALID_REQUEST', message: '筆跡或版本無效' } }, 400);
   const drawDataStr = typeof draw_data === 'string' ? draw_data : JSON.stringify(draw_data);
-  const finalSeq = Math.max(incomingSeq, currentSeq + 1);
-  const vcObj = typeof vector_clock === 'object' && vector_clock !== null
-    ? { ...vector_clock, seq: finalSeq }
-    : { node: 'client', seq: finalSeq };
-  const vcStr = JSON.stringify(vcObj);
-
-  await c.env.DB.prepare(
-    `UPDATE items SET draw_data = ?, vector_clock = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-  )
-    .bind(drawDataStr, vcStr, problemId)
-    .run();
-
-  return c.json({ status: 'ok', seq: finalSeq }, 200);
+  if (new TextEncoder().encode(drawDataStr).byteLength > 2 * 1024 * 1024)
+    return c.json({ error: { code: 'PAYLOAD_TOO_LARGE', message: '筆跡超過 2 MiB' } }, 413);
+  const result = await c.env.DB.prepare(
+    `UPDATE items SET draw_data=?,vector_clock=?,draw_seq=draw_seq+1,updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND user_id=? AND draw_seq=?`
+  ).bind(drawDataStr, JSON.stringify({ clientId: vector_clock?.clientId || 'client', seq: incomingSeq }),
+    problemId, userId, incomingSeq - 1).run();
+  if (!result.meta.changes) return c.json({ error: { code: 'CONFLICT', message: '筆跡已由另一裝置更新，請保留本機草稿' },
+    current_seq: current.draw_seq }, 409);
+  return c.json({ status: 'ok', seq: incomingSeq }, 200);
 });
 
 // 8. Quick Status Toggle (unsolved <-> resolved / archived)
@@ -745,7 +771,8 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE items
-     SET topic_id = ?, keywords = ?, keyword_tokens = ?, updated_at = CURRENT_TIMESTAMP
+     SET topic_id = ?, keywords = ?, keyword_tokens = ?, content_seq = content_seq + 1,
+         updated_at = CURRENT_TIMESTAMP
      WHERE id = ? AND user_id = ?`
   )
     .bind(validTopicId, keywordsJson, keywordTokensStr, problemId, userId)

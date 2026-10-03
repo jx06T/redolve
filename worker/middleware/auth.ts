@@ -105,15 +105,17 @@ export async function resolveAuthCredentials(
     }
   }
 
-  // Resolve user email from DB if not already embedded in token
-  if (userId && !userEmail) {
+  // Email-based grants and admin access must use the current account email.
+  // A previously issued JWT may carry an email that has since changed.
+  if (userId) {
+    userEmail = null;
     try {
       const userRow = await c.env.DB.prepare(
         'SELECT email FROM users WHERE id = ?'
       ).bind(userId).first<Pick<UserRow, 'email'>>();
       userEmail = userRow?.email ?? null;
     } catch {
-      // Non-critical
+      // Fail closed for email-based authorization when the account row is unavailable.
     }
   }
 

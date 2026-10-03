@@ -27,7 +27,8 @@
     {
       "binding": "DB",
       "database_name": "redolve-db",
-      "database_id": "966ad241-9a03-4719-99d6-c18314d7bf94"
+      "database_id": "966ad241-9a03-4719-99d6-c18314d7bf94",
+      "migrations_dir": "worker/migrations"
     }
   ],
   "r2_buckets": [

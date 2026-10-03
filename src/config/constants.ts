@@ -1,9 +1,11 @@
-import { LayoutDashboard, BookOpen, Settings } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, BookCopy, Rss } from 'lucide-react';
 
 // Navigation Links Configuration
 export const NAV_LINKS = [
   { path: '/', label: '總覽 Dashboard', icon: LayoutDashboard },
   { path: '/study/math', label: '刷題 Study', icon: BookOpen },
+  { path: '/my/collections', label: '題目集', icon: BookCopy },
+  { path: '/subscriptions', label: '訂閱', icon: Rss },
   { path: '/settings', label: '設定 Settings', icon: Settings },
 ];
 

@@ -32,9 +32,10 @@ dashboardRouter.get('/', async (c) => {
        SUM(CASE WHEN status = 'archived' THEN 1 ELSE 0 END) AS archived,
        SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) AS processing,
        SUM(CASE WHEN topic_id IS NULL OR topic_id = '' OR topic_id = 'unclassified' THEN 1 ELSE 0 END) AS unclassified
-     FROM items WHERE user_id = ?`
+     FROM (SELECT id,status,topic_id FROM items WHERE user_id=?
+       UNION ALL SELECT id,status,personal_topic_id AS topic_id FROM saved_refs WHERE user_id=?)`
   )
-    .bind(userId)
+    .bind(userId,userId)
     .first<{ total: number; resolved: number; unsolved: number; archived: number; processing: number; unclassified: number }>();
 
 
@@ -57,13 +58,13 @@ dashboardRouter.get('/', async (c) => {
          t_root.label AS subject_label,
          COUNT(i.id)  AS total,
          SUM(CASE WHEN i.status IN ('resolved', 'archived') THEN 1 ELSE 0 END) AS resolved
-       FROM items i
+       FROM (SELECT id,topic_id,status FROM items WHERE user_id=?
+         UNION ALL SELECT id,personal_topic_id AS topic_id,status FROM saved_refs WHERE user_id=?) i
        JOIN ancestors a ON i.topic_id = a.id
        JOIN taxonomies t_root ON a.root_id = t_root.id AND t_root.parent_id IS NULL
-       WHERE i.user_id = ?
        GROUP BY t_root.id, t_root.label`
     )
-      .bind(userId)
+      .bind(userId,userId)
       .all();
 
     subjectStats = results || [];
@@ -79,14 +80,15 @@ dashboardRouter.get('/', async (c) => {
          t.id          AS topic_id,
          t.label       AS topic_label,
          COUNT(i.id)   AS unsolved_count
-       FROM items i
+       FROM (SELECT id,topic_id,status FROM items WHERE user_id=?
+         UNION ALL SELECT id,personal_topic_id AS topic_id,status FROM saved_refs WHERE user_id=?) i
        JOIN taxonomies t ON i.topic_id = t.id
-       WHERE i.user_id = ? AND i.status = 'unsolved'
+       WHERE i.status = 'unsolved'
        GROUP BY t.id, t.label
        ORDER BY unsolved_count DESC
        LIMIT 3`
     )
-      .bind(userId)
+      .bind(userId,userId)
       .all();
 
     topUnsolved = results || [];

@@ -110,6 +110,7 @@ export async function fetchProblems(params?: {
   status?: string;
   cursor?: string;
   limit?: number;
+  collection_id?: string;
 }): Promise<{ items: Item[]; nextCursor: string | null }> {
   const query = new URLSearchParams();
   if (params?.subject_id) query.append('subject_id', params.subject_id);
@@ -117,6 +118,7 @@ export async function fetchProblems(params?: {
   if (params?.status) query.append('status', params.status);
   if (params?.cursor) query.append('cursor', params.cursor);
   if (params?.limit) query.append('limit', params.limit.toString());
+  if (params?.collection_id) query.append('collection_id',params.collection_id);
 
   const res = await requestApi(`${API_BASE}/problems?${query.toString()}`, {
     headers: getAuthHeaders(false),
@@ -166,13 +168,15 @@ export async function uploadProblem(
   file: File, 
   source?: string, 
   topicId?: string,
-  tagResult?: any
-): Promise<{ id: string }> {
+  tagResult?: any,
+  collectionId?: string | null,
+): Promise<{ id: string; destination?: {collection_id:string|null;join:{error?:string;status?:string}|null} }> {
   const formData = new FormData();
   formData.append('file', file);
   if (source) formData.append('source', source);
   if (topicId) formData.append('topic_id', topicId);
   if (tagResult) formData.append('tag_result', JSON.stringify(tagResult));
+  if (collectionId !== undefined) formData.append('collection_id', collectionId || 'private');
 
   const res = await requestApi(`${API_BASE}/problems`, {
     method: 'POST',
@@ -220,7 +224,8 @@ export async function updateProblemDrawData(
     }),
   });
 
-  if (!res.ok && res.status !== 409) throw new Error('Failed to save draw data');
+  if (res.status === 409) throw new Error('CONFLICT: 筆跡已由其他裝置更新');
+  if (!res.ok) throw new Error('Failed to save draw data');
   return res.json();
 }
 
@@ -236,15 +241,25 @@ export async function updateProblemStatus(id: string, status: 'unsolved' | 'reso
 
 export async function updateProblemMetadata(
   id: string,
-  data: { topic_id?: string | null; keywords?: string[]; source?: string; typed_notes?: string }
+  data: { topic_id?: string | null; keywords?: string[]; source?: string; typed_notes?: string;
+    expected_notes_seq?: number; expected_content_seq?: number }
 ) {
   const res = await requestApi(`${API_BASE}/problems/${id}`, {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
   });
+  if (res.status === 409) throw new Error('CONFLICT: 題目已由其他裝置更新');
   if (!res.ok) throw new Error('Failed to update metadata');
-  return res.json();
+  return res.json() as Promise<{ status:string; content_seq?:number; notes_seq?:number }>;
+}
+
+export async function mutateProblemTag(id:string,op:'add'|'remove',tag:string) {
+  const res=await requestApi(`${API_BASE}/problems/${id}/tags`,{
+    method:'PATCH',headers:getAuthHeaders(),body:JSON.stringify({op,tag}),
+  });
+  if(!res.ok) throw new Error(res.status===409?'CONFLICT: 標籤已變動':'標籤更新失敗');
+  return res.json() as Promise<{keywords:string[];content_seq:number}>;
 }
 
 export async function deleteProblem(id: string) {

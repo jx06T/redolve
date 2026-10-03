@@ -7,6 +7,7 @@ import { Item } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { createClientId } from '../utils/clientId';
 import { isGuestUser } from '../utils/guest';
+import { sharingApi, type Collection } from '../services/sharingApi';
 
 const ImageViewerModal = lazy(() => import('./ImageViewerModal').then((module) => ({ default: module.ImageViewerModal })));
 
@@ -91,6 +92,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const isGuest = isGuestUser(currentUser);
 
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [destinations,setDestinations]=useState<Collection[]>([]);
+  const [destination,setDestination]=useState('private');
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [selectedYear, setSelectedYear] = useState<string>('113年');
   const [selectedType, setSelectedType] = useState<string>('全模');
@@ -106,6 +109,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickerMessageTimer = useRef<number | null>(null);
   const singlePickOnIOS = isIOS();
+
+  useEffect(()=>{
+    if(!isOpen||isGuest){setDestination('private');return;}
+    void Promise.all([
+      sharingApi<{collections:Collection[]}>('/my/collections'),
+      sharingApi<{default_collection_id:string|null}>('/me/upload-preferences'),
+    ]).then(([sets,pref])=>{
+      setDestinations(sets.collections.filter(x=>x.role==='owner'||x.role==='contributor'));
+      setDestination(pref.default_collection_id||'private');
+    }).catch(()=>{setDestinations([]);setDestination('private');});
+  },[isOpen,isGuest,currentUser?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -207,7 +221,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
     try {
       let completedCount = 0;
-      const results: PromiseSettledResult<{ id: string }>[] = [];
+      const results: PromiseSettledResult<{ id: string; destination?: {
+        collection_id:string|null;join:{error?:string;status?:string}|null} }>[] = [];
       // Limit simultaneous canvas allocations and cloud uploads on iPad.
       for (let batchStart = 0; batchStart < selectedFiles.length; batchStart += 3) {
         const batchResults = await Promise.allSettled(selectedFiles.slice(batchStart, batchStart + 3).map(async (item) => {
@@ -246,7 +261,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
               return { id: tempId };
             } else {
-              const res = await uploadProblem(compressedFile, sourceInput, selectedSubjectId || 'math');
+              const res = await uploadProblem(compressedFile, sourceInput, selectedSubjectId || 'math',
+                undefined,destination==='private'?null:destination);
               completedCount += 1;
               setUploadProgress({ current: completedCount, total: selectedFiles.length });
               return res;
@@ -261,8 +277,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
       const fulfilledCount = results.filter((r) => r.status === 'fulfilled').length;
       const rejectedCount = results.filter((r) => r.status === 'rejected').length;
+      const joinFailed=results.filter((r): r is PromiseFulfilledResult<{
+        id:string;destination?:{collection_id:string|null;join:{error?:string;status?:string}|null}
+      }>=>r.status==='fulfilled').filter(r=>r.value.destination?.join?.error);
 
-      if (rejectedCount === 0) {
+      if (joinFailed.length) {
+        showToast(`已存入個人題庫 ${fulfilledCount} 題；其中 ${joinFailed.length} 題加入集合失敗。請到題目集重新加入，原圖不需重傳。`,
+          'error',10000);
+      } else if (rejectedCount === 0) {
         if (isGuest) {
           showToast(`已儲存 ${fulfilledCount} 張錯題至本機，AI 將於背景分析。`, 'success', 5000);
         } else {
@@ -359,6 +381,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               </button>
             </div>
           )}
+          {!isGuest&&<div className="rounded-2xl border border-border-subtle bg-[#EAF1EC] dark:bg-[#26362F] p-3">
+            <label htmlFor="upload-destination" className="block text-xs font-medium">這次上傳後加入</label>
+            <select id="upload-destination" value={destination} onChange={e=>setDestination(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm">
+              <option value="private">只存我的題庫</option>
+              {destinations.map(set=><option key={set.id} value={set.id}>{set.title}・
+                {set.lifecycle==='active'?set.visibility==='public'?'公開中':set.visibility==='link'?'連結可看':'指定對象可看':'尚未對讀者開放'}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-text-muted">本次選擇不修改預設目的地；可在題目集管理中設定。</p>
+          </div>}
 
           {/* 1. Separated Year & Exam Type Selector */}
           <div className="space-y-3 p-3.5 bg-neutral-50 rounded-2xl border border-border-subtle">

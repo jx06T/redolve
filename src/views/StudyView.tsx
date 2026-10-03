@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Loader2, Layers } from 'lucide-react';
 import { useStore } from '../store/useStore';
@@ -18,9 +18,17 @@ import { Item } from '../types';
 import { isTopicUnderSubject } from '../components/StatusBadge';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { fetchProblems } from '../services/api';
+import { sharingApi, type Collection } from '../services/sharingApi';
+
+type Membership={entry_id:string;collection_id:string;title:string;state:string;
+  lifecycle:string;visibility:string};
 
 export const StudyView: React.FC = () => {
   const { subject, topic, problemId } = useParams<{ subject?: string; topic?: string; problemId?: string }>();
+  const [searchParams,setSearchParams]=useSearchParams();
+  const collectionId=searchParams.get('collection_id')||undefined;
+  const [eligibleCollections,setEligibleCollections]=useState<Collection[]>([]);
+  const [memberships,setMemberships]=useState<Record<string,Membership[]>>({});
   const {
     problems,
     selectedSubjectId,
@@ -105,7 +113,22 @@ export const StudyView: React.FC = () => {
     topic: effectiveTopic,
     status: selectedStatus,
     targetProblemId: problemId || initialTargetProblemId,
+    collectionId,
   });
+
+  useEffect(()=>{
+    if(isGuestUser(currentUser)){setEligibleCollections([]);return;}
+    void sharingApi<{collections:Collection[]}>('/my/collections')
+      .then(r=>setEligibleCollections(r.collections)).catch(()=>setEligibleCollections([]));
+  },[currentUser?.id]);
+  useEffect(()=>{
+    if(isGuestUser(currentUser)||!problems.length){setMemberships({});return;}
+    const ids=problems.filter(p=>!p.id.startsWith('temp_')).map(p=>p.id).slice(0,100);
+    if(!ids.length)return;
+    void sharingApi<{memberships:Record<string,Membership[]>}>(
+      `/my/collections/membership?item_ids=${ids.join(',')}`)
+      .then(r=>setMemberships(r.memberships)).catch(()=>setMemberships({}));
+  },[currentUser?.id,problems]);
 
   const { saveMetadata, analyzeItem } = useProblemActions();
 
@@ -329,6 +352,20 @@ export const StudyView: React.FC = () => {
 
         <div className="pl-3 sm:pl-6 lg:pl-9 pr-2 sm:pr-4 lg:pr-5 pt-2 md:pt-0">
           <GuestNoticeBanner />
+          {!isGuestUser(currentUser)&&<div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-text-muted">我的題庫：我上傳的原題</span>
+            <Link to="/my/notebook" className="rounded-xl bg-surface px-3 py-1.5 text-primary">全部個人題庫</Link>
+            <Link to="/saved" className="rounded-xl bg-primary/10 px-3 py-1.5 text-primary">我存入的題目</Link>
+            <label htmlFor="owned-collection-filter" className="sr-only">依題目集篩選自己的題目</label>
+            <select id="owned-collection-filter" value={collectionId||''}
+              onChange={e=>{const next=new URLSearchParams(searchParams);
+                if(e.target.value)next.set('collection_id',e.target.value);else next.delete('collection_id');
+                setSearchParams(next);}}
+              className="rounded-xl border border-border-subtle bg-surface px-3 py-1.5">
+              <option value="">所有我上傳的原題</option>
+              {eligibleCollections.map(co=><option key={co.id} value={co.id}>{co.title}</option>)}
+            </select>
+          </div>}
         </div>
         {isLoading && problems.length === 0 ? (
           <div className="flex items-center justify-center py-20">
@@ -358,6 +395,7 @@ export const StudyView: React.FC = () => {
                   >
                     <ProblemCard
                       problem={problem}
+                      memberships={memberships[problem.id]||[]}
                       problemIndex={virtualRow.index}
                       onEditMetadata={handleOpenEditModal}
                       onStatusResolved={handleStatusResolved}
