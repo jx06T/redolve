@@ -1,5 +1,6 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 import { createClientId } from '../utils/clientId';
+import type { SearchPage } from '../types/search';
 
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || '';
@@ -271,11 +272,18 @@ export async function deleteProblem(id: string) {
   return res.json();
 }
 
-export async function searchProblems(query: string): Promise<{ items: Item[] }> {
-  const res = await requestApi(`${API_BASE}/search?q=${encodeURIComponent(query)}`, {
+export async function searchProblems(query: string, options: URLSearchParams = new URLSearchParams(),
+  signal?: AbortSignal): Promise<SearchPage> {
+  const params = new URLSearchParams(options);
+  params.set('q', query);
+  const res = await requestApi(`${API_BASE}/search?${params}`, {
     headers: getAuthHeaders(false),
+    signal,
   });
-  if (!res.ok) throw new Error('Search failed');
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as {error?: {message?: string}};
+    throw new Error(data.error?.message || (res.status === 401 ? '登入已失效，請重新登入。' : '搜尋暫時無法使用，請稍後重試。'));
+  }
   return res.json();
 }
 

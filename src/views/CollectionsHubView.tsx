@@ -74,6 +74,7 @@ export function CollectionsHubView(){
       <div className="mt-4 flex flex-wrap gap-2 text-sm">
         <Link className="px-4 py-2 rounded-xl bg-[#EAF1EC] text-[#376654]" to="/subscriptions">訂閱中心</Link>
         <Link className="px-4 py-2 rounded-xl bg-primary/10 text-primary" to="/saved">我存入的題目</Link>
+        <Link className="px-4 py-2 rounded-xl bg-[#EAF1EC] text-[#376654]" to="/search?scope=public">搜尋公開集合與題目</Link>
         {isAdmin&&<Link className="px-4 py-2 rounded-xl bg-primary/10 text-primary" to="/admin/sharing">分享內容管理</Link>}
       </div>
     </header>

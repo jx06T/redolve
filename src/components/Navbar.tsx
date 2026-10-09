@@ -87,7 +87,18 @@ export const Navbar: React.FC = () => {
   const handleGlobalSearch = () => {
     if (inPageSearchQuery.trim()) {
       setSearchQuery(inPageSearchQuery.trim());
-      navigate(`/search?q=${encodeURIComponent(inPageSearchQuery.trim())}`);
+      const params = location.pathname === '/search'
+        ? new URLSearchParams(location.search) : new URLSearchParams();
+      const collection = location.pathname.match(/^\/collections\/([^/]+)/);
+      if (collection) { params.set('scope', 'shared'); params.set('collection_id', collection[1]); }
+      else if (location.pathname.startsWith('/subscriptions')) {
+        params.set('scope', 'shared'); params.set('subscribed', 'yes');
+      } else if (location.pathname.startsWith('/saved')) {
+        params.set('scope', 'mine'); params.set('origin', 'saved');
+      }
+      params.set('q', inPageSearchQuery.trim());
+      params.delete('offset');
+      navigate(`/search?${params}`);
       setMobileSearchOpen(false);
     }
   };

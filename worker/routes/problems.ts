@@ -5,6 +5,7 @@ import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { createAIService } from '../services/ai';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 import { addOwnedItem } from './collections';
+import { itemSearchIndexStatements } from '../services/itemSearchIndex';
 
 export const problemsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -280,18 +281,7 @@ problemsRouter.post(
     // Sync FTS5 Index synchronously for pre-analyzed result
     try {
       const ocrText = preAnalyzedResult.ocr_text || '';
-      await c.env.DB.prepare(
-        `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
-      )
-        .bind(
-          problemId,
-          userId,
-          (body['source'] as string) || 'iOS Shortcut',
-          initialKeywordTokens || '',
-          '',
-          ocrText
-        )
-        .run();
+      await c.env.DB.batch(itemSearchIndexStatements(c.env.DB, problemId, userId, ocrText));
     } catch (ftsErr) {
       console.warn('[FTS Sync Warning]', ftsErr);
     }
@@ -322,18 +312,7 @@ problemsRouter.post(
           try {
             const ocrText = tagResult.ocr_text || '';
 
-            await c.env.DB.prepare(
-              `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) VALUES (?, ?, ?, ?, ?, ?)`
-            )
-              .bind(
-                problemId,
-                userId,
-                (body['source'] as string) || 'iOS Shortcut',
-                keywordTokensStr,
-                '',
-                ocrText
-              )
-              .run();
+            await c.env.DB.batch(itemSearchIndexStatements(c.env.DB, problemId, userId, ocrText));
           } catch (ftsErr) {
             console.warn('[FTS Sync Warning]', ftsErr);
           }
@@ -505,7 +484,7 @@ problemsRouter.get('/:id/text', authMiddleware, async (c) => {
     return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問' } }, 403);
   }
 
-  const fts = await c.env.DB.prepare('SELECT problem_text FROM items_fts WHERE id = ?')
+  const fts = await c.env.DB.prepare('SELECT problem_text FROM items_fts WHERE id = ? ORDER BY rowid DESC LIMIT 1')
     .bind(problemId)
     .first<{ problem_text: string }>();
 
@@ -565,12 +544,7 @@ problemsRouter.patch('/:id/tags', authMiddleware, async c => {
       c.env.DB.prepare(`UPDATE items SET keywords=?,keyword_tokens=?,content_seq=content_seq+1,
         updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND content_seq=?`)
         .bind(JSON.stringify(list),list.join(' '),id,uid,row.content_seq),
-      c.env.DB.prepare(`INSERT OR REPLACE INTO items_fts
-        (id,user_id,source,keyword_tokens,typed_notes,problem_text)
-        SELECT i.id,i.user_id,COALESCE(i.source,''),COALESCE(i.keyword_tokens,''),
-          COALESCE(i.typed_notes,''),COALESCE(f.problem_text,'')
-        FROM items i LEFT JOIN items_fts f ON f.id=i.id WHERE i.id=? AND i.user_id=?`)
-        .bind(id,uid),
+      ...itemSearchIndexStatements(c.env.DB,id,uid),
     ]);
     if(batch[0].meta.changes) return c.json({status:'ok',keywords:list,content_seq:row.content_seq+1});
   }
@@ -618,20 +592,14 @@ problemsRouter.put('/:id', authMiddleware, async (c) => {
   values.push(problemId || '',userId);
   if ('typed_notes' in body) { where.push('notes_seq=?'); values.push(body.expected_notes_seq); }
   if ('keywords' in body) { where.push('content_seq=?'); values.push(body.expected_content_seq); }
-  const result=await c.env.DB.prepare(`UPDATE items SET ${fields.join(',')} WHERE ${where.join(' AND ')}`)
-    .bind(...values).run();
+  const [result]=await c.env.DB.batch([
+    c.env.DB.prepare(`UPDATE items SET ${fields.join(',')} WHERE ${where.join(' AND ')}`).bind(...values),
+    ...itemSearchIndexStatements(c.env.DB,problemId,userId),
+  ]);
   if (!result.meta.changes)
     return c.json({ error: { code: 'CONFLICT', message: '題目已由其他裝置更新，請保留本機內容' } }, 409);
   const updated=await c.env.DB.prepare('SELECT * FROM items WHERE id=? AND user_id=?')
     .bind(problemId,userId).first<ItemRow>();
-  if (updated) {
-    const old=await c.env.DB.prepare('SELECT problem_text FROM items_fts WHERE id=?')
-      .bind(problemId).first<{problem_text:string}>();
-    await c.env.DB.prepare(`INSERT OR REPLACE INTO items_fts
-      (id,user_id,source,keyword_tokens,typed_notes,problem_text) VALUES(?,?,?,?,?,?)`)
-      .bind(problemId,userId,updated.source||'',updated.keyword_tokens||'',
-        updated.typed_notes||'',old?.problem_text||'').run();
-  }
   return c.json({ status: 'ok', content_seq: updated?.content_seq, notes_seq: updated?.notes_seq });
 });
 
@@ -779,20 +747,7 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
     .run();
 
   // Sync FTS5
-  await c.env.DB.prepare(
-    // 💡 修正 1：SQL 語句必須包含 problem_text 欄位，且 VALUES 裡面必須有 6 個問號 (?)
-    `INSERT OR REPLACE INTO items_fts (id, user_id, source, keyword_tokens, typed_notes, problem_text) 
-     VALUES (?, ?, COALESCE(?, 'AI 分析'), ?, ?, ?)`
-  )
-    .bind(
-      problemId,
-      userId,
-      item.source || null,
-      keywordTokensStr,
-      item.typed_notes || '',
-      ocrText
-    )
-    .run();
+  await c.env.DB.batch(itemSearchIndexStatements(c.env.DB, problemId, userId, ocrText));
 
   const updatedItem = await c.env.DB.prepare('SELECT * FROM items WHERE id = ? AND user_id = ?')
     .bind(problemId, userId)

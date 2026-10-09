@@ -119,7 +119,7 @@ export class OfflineSyncManager {
     const normalized = query.trim().toLocaleLowerCase();
     if (!normalized) return [];
     const problems = await this.getOfflineProblems();
-    const matchingIds = new Set(problems.filter((problem) => [
+    const matchingIds = new Set(problems.filter((problem) => !problem.cloudOwnerId && !problem.cloudId && [
       problem.source,
       problem.typed_notes || '',
       problem.tagResult?.ocr_text || '',

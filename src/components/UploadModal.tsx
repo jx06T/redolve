@@ -108,7 +108,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
   const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pickerMessageTimer = useRef<number | null>(null);
-  const singlePickOnIOS = isIOS();
+  const isIOSDevice = isIOS();
 
   useEffect(()=>{
     if(!isOpen||isGuest){setDestination('private');return;}
@@ -468,19 +468,19 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
           >
             <ImageIcon className="w-8 h-8 text-primary mb-1.5" />
             <span className="text-xs font-bold text-text-main">
-              {isDraggingOver ? '放開以加入待上傳清單' : singlePickOnIOS ? '點擊選擇截圖（可重複加入）' : '點擊或拖曳選擇考卷圖檔 (可多選)'}
+              {isDraggingOver ? '放開以加入待上傳清單' : '點擊選擇圖片（可一次多選，也可繼續加入）'}
             </span>
             <span className="text-[10px] text-text-muted mt-0.5">支援 JPG、PNG、WebP；iPhone 上亦可選用 HEIC／HEIF。可解碼的圖片會自動壓縮。</span>
             <input
               ref={fileInputRef}
               type="file"
-              multiple={!singlePickOnIOS}
+              multiple
               accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
               disabled={isUploading}
               aria-label="選擇考卷圖片"
               onClick={() => {
                 if (pickerMessageTimer.current !== null) window.clearTimeout(pickerMessageTimer.current);
-                if (singlePickOnIOS) pickerMessageTimer.current = window.setTimeout(() => {
+                if (isIOSDevice) pickerMessageTimer.current = window.setTimeout(() => {
                   setSelectionMessage('正在等待 iPhone 準備圖片；若返回後沒有出現，請重試或改用「選擇檔案」。');
                 }, 1200);
               }}

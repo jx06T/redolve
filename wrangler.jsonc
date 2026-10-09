@@ -6,6 +6,10 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  // 2026-10-07: Gemini 地區拒絕已由此 placement 配置排除（使用者驗證）。
+  "placement": {
+    "region": "gcp:asia-east1"
+  },
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -42,5 +46,14 @@
       "binding": "KV",
       "id": "b09131c5f54446f6bff12e368190572a"
     }
-  ]
+  ],
+   "observability": {
+    "logs": {
+      "enabled": false,
+      "invocation_logs": true
+    },
+    "traces": {
+      "enabled": false
+    }
+  }
 }

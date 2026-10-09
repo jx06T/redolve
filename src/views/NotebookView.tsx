@@ -70,6 +70,7 @@ export function NotebookView(){
       <div className="mt-4 flex flex-wrap gap-2 text-sm">
         <Link to={`/study/${selectedSubjectId||'math'}`} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">進入刷題</Link>
         <Link to="/subscriptions" className="rounded-xl bg-[#EAF1EC] px-4 py-2 text-[#376654]">訂閱中心</Link>
+        <Link to="/search?scope=mine" className="rounded-xl bg-primary/10 px-4 py-2 text-primary">搜尋我的題庫</Link>
       </div>
     </header>
     {!currentUser?<button type="button" onClick={()=>setAuthModalOpen(true)}

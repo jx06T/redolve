@@ -11,12 +11,16 @@ import { DEFAULT_CALC_SPACE_HEIGHT, CALC_SPACE_STEP } from '../../config/constan
 
 interface ProblemCardScratchpadControlsProps {
   calcSpaceHeight: number;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
   isSavingNotes: boolean;
   onUpdateCalcHeight: (newHeight: number | ((prev: number) => number)) => void;
 }
 
 export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadControlsProps> = ({
   calcSpaceHeight,
+  isCollapsed,
+  onToggleCollapse,
   isSavingNotes,
   onUpdateCalcHeight,
 }) => {
@@ -30,12 +34,13 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
       </div>
 
       <div className="flex items-center space-x-1.5">
-        {calcSpaceHeight > 0 ? (
+        {!isCollapsed ? (
           <button
             type="button"
-            onClick={() => onUpdateCalcHeight(0)}
+            onClick={onToggleCollapse}
+            aria-expanded={true}
             className="px-2 py-1 text-xs rounded-lg bg-neutral-100 hover:bg-neutral-200 text-text-main transition-all flex items-center space-x-1 active:scale-95"
-            title="完全收合推導區 (0px)"
+            title="收合推導區（保留高度與筆跡）"
           >
             <ChevronUp className="w-3 h-3" />
             <span className="hidden sm:inline">收合</span>
@@ -43,9 +48,10 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
         ) : (
           <button
             type="button"
-            onClick={() => onUpdateCalcHeight(DEFAULT_CALC_SPACE_HEIGHT)}
+            onClick={onToggleCollapse}
+            aria-expanded={false}
             className="px-2 py-1 text-xs rounded-lg bg-primary-50 border border-primary-200/50 text-primary hover:bg-primary-100 transition-all flex items-center space-x-1 active:scale-95"
-            title={`展開推導區 (預設 ${DEFAULT_CALC_SPACE_HEIGHT}px)`}
+            title={`展開推導區 (${calcSpaceHeight || DEFAULT_CALC_SPACE_HEIGHT}px)`}
           >
             <ChevronDown className="w-3 h-3 text-primary" />
             <span className="hidden sm:inline">展開</span>
@@ -55,7 +61,7 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
         <button
           type="button"
           onClick={() => onUpdateCalcHeight(DEFAULT_CALC_SPACE_HEIGHT)}
-          disabled={calcSpaceHeight === DEFAULT_CALC_SPACE_HEIGHT}
+          disabled={!isCollapsed && calcSpaceHeight === DEFAULT_CALC_SPACE_HEIGHT}
           className="px-2 py-1 text-xs rounded-lg bg-neutral-100 hover:bg-neutral-200 disabled:opacity-40 text-text-main transition-all flex items-center space-x-1 active:scale-95"
           title={`重設草稿高度至預設值 (${DEFAULT_CALC_SPACE_HEIGHT}px)`}
         >

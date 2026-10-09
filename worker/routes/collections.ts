@@ -443,7 +443,7 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
            AND g.user_id=sl.user_id AND g.revoked_at IS NULL
            AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP))))
      AND (sl.user_id=? OR ?=1 OR
-       ((?=1 OR sl.draw_asset_id IS NULL) AND (?=1 OR sl.typed_notes='')))
+       (?=1 AND sl.draw_asset_id IS NOT NULL) OR (?=1 AND sl.typed_notes!=''))
     ORDER BY sl.updated_at,sl.id`).bind(entry.id,entry.generation,co!.id,c.get('userId')||'',
       canWrite?1:0,co!.show_shared_ink,co!.show_shared_notes).all<Record<string,unknown>>();
   const layers=(results||[]).map(row=>({...row,

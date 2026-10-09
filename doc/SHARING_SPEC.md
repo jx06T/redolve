@@ -304,6 +304,14 @@ API 共通：列表預設30、上限100、穩定游標；名稱80字、簡介2,0
 - 初次 migration／回填後先 dry-run 對帳，驗證原題、layers、snapshots、workspaces、封面完整，再啟用物理 GC。需記 missing/orphan 與工作積壓，提供重試及管理狀態。
 - 公開 search 僅 public+listed+active＋有效 entry/source/provider；每次結果重驗，背景索引落後不能洩漏已撤權摘要／圖。中文 FTS／標準分類與私人索引分開，公開文案不含私人 OCR 或作業。
 - 私人 saved 搜尋用已存快照＋自己筆記，不 join live source 恢復已失權內容；來源失效後仍可搜已取得內容。
+- 現階段搜尋沿用 D1 加權關鍵字／LIKE＋原題 OCR FTS5，不接 AI Search。入口 `/search` 預設 `scope=mine`（本人原題＋已存）；`scope=shared` 搜尋建立、接受授權、持有效觀看連結及訂閱的集合；`scope=public` 是 public＋listed＋active 探索，集合優先。
+- `scope=shared&subscribed=yes` 只查本人訂閱，包含訂閱前已存在的題目；訂閱紀錄不是授權。指定 `collection_id` 時可搜尋目前可讀集合，匿名者須有 public 可讀來源或該集合的有效 link cookie。
+- mine 可用 `origin=all|owned|saved`、`status`、`topic_id`（含子單元）、`tag`、`collection_id`；共用／公開只使用標準課綱、來源標籤，不公開私人課綱。saved 的集合篩選只比對已存 entry 的來源集合，不依賴 live 觀看權。
+- 原題搜尋用目前 metadata／私人文字與最新 OCR 索引列；saved 搜尋 current snapshot 的來源標籤、標題、已取得文字層、本人標籤／分類／筆記。saved 不搜尋尚未明確更新的來源新內容，也不從 live 原題讀 OCR。
+- 共用題只搜尋目前 source 白名單 metadata 與當前 generation、有效貢獻者的可讀 shared notes；公開探索只搜尋集合標題／說明／公開名稱、題目來源／標籤／標準單元／貢獻者公開名稱，排除私人 OCR 與任何筆記。
+- 回傳有明確 `origin`、collection provenance、本人 `saved_id`；同一原題在不同集合保留各自結果。筆跡不作文字搜尋。預覽只讀；原題的完整模式可訂正，saved／shared 透過各自詳情頁操作。
+- 每頁預設 30、最多 50，以 `offset`／`next_offset` 載入；排序為公開集合優先、相關度、時間、種類及 ID。搜尋期間有新增／編輯／撤權可能改變排序，重新搜尋刷新；每頁重新驗權，前端去除重複結果，不宣稱已載入筆數是全庫總數。
+- FTS5 的 UNINDEXED id 不具 UNIQUE：禁止靠 INSERT OR REPLACE 視為依 id 更新；同一 mutation batch 合併重複列、保留最新 OCR 並同步目前 metadata。訪客本機搜尋排除已有 cloudOwnerId／cloudId 的帳號草稿。切換帳號／範圍立即隱藏舊结果並取消舊請求。
 - API／共用 metadata／圖片／筆記 `private, no-store`，SW 不持久快取；R2 bucket 私有；內部 byte cache 命中前仍須驗權。頁面 noindex，站內探索不等於 SEO。
 - 帳號刪除：先撤 session 與 grants；owner 需先轉交集合或刪集合；移出作為 contributor 的題目與共用層；清理本人私人根及本人 saved；其他人的 snapshots 及題圖保留，來源身分匿名化。
 - user ID 重用不得恢復舊授權：account_instance_id、刪除中狀態及離線隊列一起檢查；匿名 tombstone 不保留 Google sub 或 email。

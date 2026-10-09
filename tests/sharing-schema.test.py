@@ -13,6 +13,19 @@ LATE_UPLOAD_BACKFILL = (Path(__file__).resolve().parents[1] / "scripts" / "shari
 ASSET_AUDIT = (Path(__file__).resolve().parents[1] / "scripts" / "sharing-asset-audit.sql").read_text(encoding="utf-8-sig")
 
 
+def asset_audit_metrics(db):
+    metrics = {}
+    statement = ""
+    for line in ASSET_AUDIT.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            metrics.update(db.execute(statement).fetchall())
+            statement = ""
+    if statement.strip():
+        raise ValueError("Incomplete asset audit statement")
+    return metrics
+
+
 def database():
     db = sqlite3.connect(":memory:")
     db.execute("PRAGMA foreign_keys=ON")
@@ -34,10 +47,13 @@ def database():
 class SharingSchemaTest(unittest.TestCase):
     def test_asset_audit_detects_missing_source_root(self):
         db = database()
-        metrics = dict(db.execute(ASSET_AUDIT).fetchall())
+        # Simulate a strict compound SELECT cap; do not assume desktop SQLite's default.
+        db.setlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT, 3)
+        metrics = asset_audit_metrics(db)
+        self.assertEqual(len(metrics), 7)
         self.assertTrue(all(count == 0 for count in metrics.values()), metrics)
         db.execute("DELETE FROM asset_refs WHERE id='root'")
-        metrics = dict(db.execute(ASSET_AUDIT).fetchall())
+        metrics = asset_audit_metrics(db)
         self.assertEqual(metrics["missing_source_asset_or_ref"], 1)
         self.assertEqual(metrics["unreferenced_ready_assets"], 1)
         db.close()

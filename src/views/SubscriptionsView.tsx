@@ -80,6 +80,7 @@ export function SubscriptionsView(){
       <div className="mt-3 flex flex-wrap gap-2">
         <Link to="/my/collections" className="inline-block rounded-xl bg-surface/70 px-4 py-2 text-sm">探索題目集</Link>
         <Link to="/subscriptions/manage#collections" className="inline-block rounded-xl bg-surface/70 px-4 py-2 text-sm">管理我的訂閱</Link>
+        <Link to="/search?scope=shared&subscribed=yes" className="inline-block rounded-xl bg-surface/70 px-4 py-2 text-sm">搜尋所有訂閱題目</Link>
       </div>
     </header>
     {!currentUser?<button onClick={()=>setAuthModalOpen(true)}

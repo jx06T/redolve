@@ -104,6 +104,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const calcSpaceHeightRef = useRef<number>(getInitialCalcSpaceHeight());
   const [calcSpaceHeight, setCalcSpaceHeight] = useState<number>(() => calcSpaceHeightRef.current);
+  // Folding is a view operation: keep the saved coordinate space and ink intact.
+  const [isScratchpadCollapsed, setIsScratchpadCollapsed] = useState(false);
+  const latestDrawDataRef = useRef<DrawData | null>(null);
 
   const workspaceRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState<number>(0);
@@ -188,6 +191,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   // Sync external draw_data changes on problem switch
   useEffect(() => {
+    latestDrawDataRef.current = null;
+    setIsScratchpadCollapsed(false);
     if (problem.draw_data) {
       try {
         const parsed: DrawData =
@@ -241,6 +246,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       const nextSeq = vectorSeq + 1;
       setVectorSeq(nextSeq);
       const dataWithHeight: DrawData = { ...drawData, calcSpaceHeight: activeHeight };
+      latestDrawDataRef.current = dataWithHeight;
 
       if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
 
@@ -256,14 +262,16 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     const clamped = Math.max(0, Math.min(3000, next));
     calcSpaceHeightRef.current = clamped;
     setCalcSpaceHeight(clamped);
+    if (clamped > 0) setIsScratchpadCollapsed(false);
 
     try {
-      const parsed: DrawData = problem.draw_data
+      const parsed: DrawData = latestDrawDataRef.current ?? (problem.draw_data
         ? (typeof problem.draw_data === 'string' ? JSON.parse(problem.draw_data) : problem.draw_data)
-        : { strokes: [], eraserMasks: [] };
-      parsed.calcSpaceHeight = clamped;
-      parsed.expansions = [{ addedHeight: clamped, atY: clamped }];
-      handleSaveDraw(parsed, clamped);
+        : { strokes: [], eraserMasks: [] });
+      handleSaveDraw({ ...parsed, calcSpaceHeight: clamped,
+        baseWidth: parsed.baseWidth || baseWidth,
+        expansions: [{ addedHeight: clamped, atY: clamped }],
+      }, clamped);
     } catch (err) {
       console.error('Failed to update calc height:', err);
     }
@@ -306,6 +314,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         return;
       }
       const freshProblem = await fetchProblemById(problem.id);
+      latestDrawDataRef.current = null;
       updateProblemInStore(problem.id, freshProblem);
       setIsResolved(freshProblem.status === 'resolved');
       setTypedNotes(freshProblem.typed_notes || '');
@@ -428,7 +437,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           imageUrl={imageUrl}
           drawData={problem.draw_data}
           calcSpaceHeight={calcSpaceHeight}
-          renderedCalcSpaceHeight={renderedCalcSpaceHeight}
+          renderedCalcSpaceHeight={isScratchpadCollapsed ? 0 : renderedCalcSpaceHeight}
           workspaceRef={workspaceRef}
           tool={tool}
           penColor={penColor}
@@ -444,6 +453,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {!readOnly && (
           <ProblemCardScratchpadControls
             calcSpaceHeight={calcSpaceHeight}
+            isCollapsed={isScratchpadCollapsed || calcSpaceHeight === 0}
+            onToggleCollapse={() => {
+              if (calcSpaceHeight === 0) updateCalcHeight(DEFAULT_CALC_SPACE_HEIGHT);
+              else setIsScratchpadCollapsed((previous) => !previous);
+            }}
             isSavingNotes={isSavingNotes}
             onUpdateCalcHeight={updateCalcHeight}
           />

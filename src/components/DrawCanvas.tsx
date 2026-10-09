@@ -3,6 +3,7 @@ import getStroke from 'perfect-freehand';
 import { DrawData, Stroke, EraserMask } from '../types';
 import { useStore } from '../store/useStore';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
+import { getStrokeOptions } from '../utils/strokeOptions';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -59,29 +60,6 @@ function parseDrawData(raw: DrawData | string | null | undefined): {
 
 function getEraserRadius(width: number): number {
   return width <= 1 ? 6 : width <= 2 ? 11 : 25;
-}
-
-function getStrokeOptions(tool: 'pen' | 'highlighter' | 'eraser', width: number) {
-  if (tool === 'highlighter') {
-    // Highlighter: broad, translucent, consistent band
-    const size = width <= 1 ? 14 : width <= 2 ? 18 : 30;
-    return {
-      size,
-      thinning: 0.02,
-      smoothing: 0.6,
-      streamline: 0.6,
-      opacity: 0.32,
-    };
-  }
-  // Pen: natural pressure-sensitive ink
-  const size = width <= 1 ? 1.5 : width <= 2 ? 2.5 : 6;
-  return {
-    size,
-    thinning: 0.5,
-    smoothing: 0.5,
-    streamline: 0.5,
-    opacity: 1.0,
-  };
 }
 
 function computeScale(strokesList: Stroke[], currentWidth: number, storedBaseWidth?: number): number {

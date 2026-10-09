@@ -1,244 +1,252 @@
-import React, { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Loader2, LayoutGrid, List, ArrowUpRight, CheckCircle2, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Search, Loader2, LayoutGrid, List, ArrowUpRight, BookOpen, FileText } from 'lucide-react';
 import { searchProblems, getProblemImageUrl } from '../services/api';
+import { imageUrl, savedImageUrl } from '../services/sharingApi';
 import { useSEO } from '../hooks/useSEO';
 import { ProblemCard } from '../components/ProblemCard';
-import { StatusBadge, formatProblemCode, getRootSubjectId } from '../components/StatusBadge';
+import { getTaxonomyPath, formatProblemCode } from '../components/StatusBadge';
 import { useStore } from '../store/useStore';
-import { Item } from '../types';
+import type { SearchHit, SearchPage, SearchScope } from '../types/search';
+import type { TaxonomyNode } from '../types';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { isGuestUser } from '../utils/guest';
 
-export const SearchView: React.FC = () => {
-  const [searchParams] = useSearchParams();
+const labels: Record<SearchScope, string> = { mine: '我的題庫', shared: '共用與訂閱', public: '公開探索' };
+const flattenTopics = (nodes: TaxonomyNode[], personal: boolean, depth = 0): { id: string; label: string }[] =>
+  nodes.flatMap(node => !personal && node.user_id ? [] : [
+    { id: node.id, label: `${'　'.repeat(depth)}${node.label}` },
+    ...flattenTopics(node.children || [], personal, depth + 1),
+  ]);
+function parseTags(value: string | null): string[] {
+  try { const tags: unknown = JSON.parse(value || '[]');
+    return Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [];
+  } catch { return []; }
+}
+const destination = (hit: SearchHit) => hit.origin === 'owned' ? `/problem/${hit.id}`
+  : hit.origin === 'saved' ? `/saved/${hit.id}` : hit.origin === 'collection'
+    ? `/collections/${hit.id}` : `/collections/${hit.collection_id}/items/${hit.id}`;
+
+export function SearchView() {
+  const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
-  const query = searchParams.get('q') || '';
-  const { taxonomies, currentUser, setActiveProblemId, setSelectedSubjectId, setSelectedTopicId } = useStore();
-
-  useSEO({
-    title: query ? `搜尋「${query}」` : '全域錯題搜尋',
-    description: query ? `搜尋關鍵字「${query}」的錯題與解析。` : '透過 FTS5 中文全文檢索快速找到錯題。',
-  });
-
-  const [results, setResults] = useState<Item[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const { taxonomies, currentUser, setAuthModalOpen } = useStore();
+  const guest = isGuestUser(currentUser);
+  const query = params.get('q') || '';
+  const scope: SearchScope = params.get('scope') === 'shared' ? 'shared'
+    : params.get('scope') === 'public' ? 'public' : 'mine';
+  const origin = params.get('origin') || 'all';
+  const collectionId = params.get('collection_id') || '';
+  const topic = params.get('topic_id') || '';
+  const status = params.get('status') || '';
+  const tag = params.get('tag') || '';
+  const subscribed = params.get('subscribed') === 'yes';
+  const [localQuery, setLocalQuery] = useState(query);
   const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
-  const [localQuery, setLocalQuery] = useState<string>(query);
-  const [searchError, setSearchError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLocalQuery(query);
-  }, [query]);
-
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (localQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(localQuery.trim())}`);
+  const [state, setState] = useState<{ key: string; page: SearchPage | null; error: string }>({
+    key: '', page: null, error: '',
+  });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [retry, setRetry] = useState(0);
+  // Old results never render under a new scope/account while its request is pending.
+  const key = JSON.stringify([currentUser?.id, query, scope, origin, collectionId, topic, status, tag, subscribed, retry]);
+  const ready = state.key === key;
+  const results = ready ? state.page?.items || [] : [];
+  const error = ready ? state.error : '';
+  const loading = Boolean(query.trim() && !ready);
+  const needsLogin = guest && scope === 'shared' && !collectionId;
+  const requestParams = () => {
+    const result = new URLSearchParams({ scope, limit: '30' });
+    for (const name of ['origin', 'collection_id', 'topic_id', 'status', 'tag', 'subscribed']) {
+      const value = params.get(name);
+      if (value) result.set(name, value);
     }
+    return result;
   };
-
+  const update = (name: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set(name, value); else next.delete(name);
+    next.delete('offset');
+    setParams(next);
+  };
+  const switchScope = (next: SearchScope) => setParams(new URLSearchParams({
+    scope: next, ...(query ? { q: query } : {}),
+  }));
+  useSEO({ title: query ? `搜尋「${query}」` : '題目搜尋',
+    description: '搜尋個人題庫、已存題目、共用與訂閱題目集，以及公開集合。' });
+  useEffect(() => { setLocalQuery(query); }, [query]);
   useEffect(() => {
-    if (!query) {
-      setResults([]);
-      setSearchError(null);
+    const controller = new AbortController();
+    let active = true;
+    setLoadingMore(false);
+    if (!query.trim() || needsLogin) {
+      setState({ key, page: { items: [], next_offset: null, scope }, error: '' });
       return;
     }
-    let active = true;
-    setLoading(true);
-    setSearchError(null);
-    const search = isGuestUser(currentUser)
-      ? OfflineSyncManager.searchOfflineProblems(query)
-      : searchProblems(query).then((res) => res.items);
-    search.then((items) => { if (active) setResults(items); })
-      .catch(() => { if (active) setSearchError('搜尋暫時無法使用，請稍後重試。'); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [query, currentUser]);
+    const run = async (): Promise<SearchPage> => {
+      if (guest && scope === 'mine') {
+        let items = await OfflineSyncManager.searchOfflineProblems(query);
+        const allowedTopics = new Set<string>();
+        const gather = (nodes: TaxonomyNode[], selected = false) => {
+          for (const node of nodes) {
+            const included = selected || node.id === topic;
+            if (included) allowedTopics.add(node.id);
+            gather(node.children || [], included);
+          }
+        };
+        if (topic) gather(taxonomies);
+        items = origin === 'saved' || collectionId ? [] : items.filter(item =>
+          (!topic || allowedTopics.has(item.topic_id || ''))
+          && (!status || item.status === status) && (!tag || parseTags(item.keywords).includes(tag)));
+        return { items: items.map(item => ({
+          origin: 'owned', id: item.id, title: item.source, topic_id: item.topic_id,
+          topic_label: null, keywords: item.keywords, typed_notes: item.typed_notes || null,
+          status: item.status, review_count: item.review_count, created_at: item.created_at,
+          collection_id: null, collection_title: null, provider_name: null, saved_id: null,
+          relevance_score: 0, problem: item,
+        })), next_offset: null, scope };
+      }
+      return searchProblems(query, requestParams(), controller.signal);
+    };
+    void run().then(page => { if (active) setState({ key, page, error: '' }); })
+      .catch(e => { if (active) setState({ key, page: null,
+        error: e instanceof Error ? e.message : '搜尋暫時無法使用，請稍後重試。' }); });
+    return () => { active = false; controller.abort(); };
+  }, [key, guest, needsLogin, taxonomies]);
 
-  const handleNavigateToProblem = (item: Item) => {
-    setActiveProblemId(item.id);
-    const targetSubject = getRootSubjectId(item.topic_id, taxonomies);
-    setSelectedSubjectId(targetSubject);
-    setSelectedTopicId(item.topic_id || null);
-    navigate(`/study/${targetSubject}/${item.topic_id || 'all'}/${item.id}#problem-${item.id}`);
+  const loadMore = async () => {
+    if (!ready || state.page?.next_offset == null || loadingMore) return;
+    const requestKey = key;
+    const next = requestParams();
+    next.set('offset', String(state.page.next_offset));
+    setLoadingMore(true);
+    try {
+      const page = await searchProblems(query, next);
+      setState(previous => {
+        if (previous.key !== requestKey || !previous.page) return previous;
+        const seen = new Set(previous.page.items.map(hit => `${hit.origin}:${hit.id}`));
+        return { ...previous, error: '', page: { ...page, items: [
+          ...previous.page.items, ...page.items.filter(hit => !seen.has(`${hit.origin}:${hit.id}`)),
+        ] } };
+      });
+    } catch {
+      setState(previous => previous.key === requestKey
+        ? { ...previous, error: '載入更多結果失敗，請重試。' } : previous);
+    } finally { setLoadingMore(false); }
   };
-
-  return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Prominent Search Bar */}
-      <form onSubmit={handleSearchSubmit} className="w-full relative group">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-text-muted transition-colors" />
-        </div>
-        <input
-          type="text"
-          value={localQuery}
-          onChange={(e) => setLocalQuery(e.target.value)}
-          placeholder="輸入關鍵字、標籤或錯題來源..."
-          className="outline-none block w-full pl-11 pr-24 py-4 rounded-3xl bg-surface text-base text-text-main transition-all "
-        />
-        <div className="absolute inset-y-0 right-2 flex items-center">
-          <button
-            type="submit"
-            className="px-5 py-2 bg-primary text-white font-bold text-sm rounded-2xl hover:bg-primary-hover active:scale-95 transition-all"
-          >
-            搜尋
-          </button>
-        </div>
-      </form>
-
-      {/* Search Header Bar */}
-      <div className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-sm font-bold text-text-main flex items-center space-x-2">
-            <span>{isGuestUser(currentUser) ? '本機錯題搜尋結果' : '雲端錯題搜尋結果'}</span>
-            {query && (
-              <span className="text-xs font-semibold bg-primary/10 text-primary px-2 py-0.5 rounded-lg border border-primary/20">
-                "{query}"
-              </span>
-            )}
-          </h1>
-          <p className="text-[11px] text-text-muted mt-1">
-            共找到 <span className="font-semibold text-text-main">{results.length}</span> 題
-          </p>
-        </div>
-
-        {/* View Mode Switcher */}
-        <div className="flex items-center space-x-1 p-1 bg-neutral-100 rounded-2xl">
-          <button
-            type="button"
-            onClick={() => setViewMode('compact')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'compact'
-              ? 'bg-surface text-text-main shadow-2xs font-semibold'
-              : 'text-text-muted hover:text-text-main'
-              }`}
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-            <span>精簡預覽</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('full')}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${viewMode === 'full'
-              ? 'bg-surface text-text-main shadow-2xs font-semibold'
-              : 'text-text-muted hover:text-text-main'
-              }`}
-          >
-            <List className="w-3.5 h-3.5" />
-            <span>完整題目</span>
-          </button>
-        </div>
+  const preview = (hit: SearchHit) => {
+    const path = destination(hit);
+    const image = hit.origin === 'owned' ? (hit.problem?.image_url.startsWith('blob:')
+      ? hit.problem.image_url : getProblemImageUrl(hit.id)) : hit.origin === 'saved'
+        ? savedImageUrl(hit.id) : hit.origin === 'collection' ? null : imageUrl(hit.collection_id!, hit.id);
+    return <article key={`${hit.origin}:${hit.id}`}
+      className="rounded-3xl border border-border-subtle bg-surface p-5 space-y-3 shadow-xs">
+      <p className={`text-xs font-medium ${hit.origin === 'owned' ? 'text-primary' : 'text-[#47705C] dark:text-[#A9C7B6]'}`}>
+        {hit.origin === 'owned' ? '我上傳的原題' : hit.origin === 'saved' ? '已存入我的題庫'
+          : hit.origin === 'collection' ? '公開題目集' : scope === 'public' ? '公開題目' : '共用／訂閱題目'}
+      </p>
+      {hit.origin === 'owned' && hit.problem && <span className="text-xs text-text-muted">
+        {formatProblemCode(hit.problem, taxonomies)}</span>}
+      <h2 className="font-semibold text-text-main"><Link to={path}>{hit.title || '未命名題目'}</Link></h2>
+      {hit.origin !== 'collection' && <div className="text-xs text-text-muted">
+        {hit.status ? <span>{getTaxonomyPath(hit.topic_id, undefined, taxonomies).fullPath}・{
+          hit.status === 'processing' ? '辨識中' : hit.status === 'resolved' ? '已訂正'
+            : hit.status === 'archived' ? '已封存' : '待訂正'
+        }</span> : hit.topic_label || '未分類'}
+      </div>}
+      {hit.collection_title && hit.origin !== 'collection' && <p className="text-xs text-text-muted">
+        來源：{hit.collection_title}{hit.provider_name ? `・${hit.provider_name}` : ''}
+      </p>}
+      {image ? <Link to={path} aria-label={`開啟 ${hit.title || '題目'}`}
+        className="block h-44 rounded-2xl overflow-hidden bg-neutral-50 dark:bg-neutral-800 border border-border-subtle">
+        <img src={image} alt="題目預覽" loading="lazy" className="w-full h-full object-contain p-2" />
+      </Link> : <Link to={path} className="flex items-center gap-2 rounded-2xl bg-[#EAF1EC] dark:bg-[#26362F] p-5">
+        <BookOpen size={24} /><span>查看題目集</span></Link>}
+      {hit.typed_notes && <div className="flex items-start gap-2 rounded-xl bg-page-bg p-3 text-xs">
+        <FileText size={14} className="shrink-0 mt-0.5" /><p className="line-clamp-2 whitespace-pre-wrap">{hit.typed_notes}</p>
+      </div>}
+      <div className="flex flex-wrap gap-1">{parseTags(hit.keywords).slice(0, 6).map(keyword =>
+        <span key={keyword} className="rounded-lg bg-neutral-100 dark:bg-neutral-800 px-2 py-1 text-xs text-text-muted">#{keyword}</span>)}</div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-3 text-xs">
+        <Link to={path} className="inline-flex items-center gap-1 rounded-xl bg-primary px-4 py-2 text-white">
+          {hit.origin === 'collection' ? '開啟集合' : '前往此題目'}<ArrowUpRight size={14} /></Link>
+        {hit.saved_id && hit.origin !== 'saved' && <Link to={`/saved/${hit.saved_id}`}
+          className="text-[#47705C] dark:text-[#A9C7B6] underline">已存入・開啟我的版本</Link>}
       </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : searchError ? (
-        <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-rose-500">{searchError}</div>
-      ) : results.length === 0 ? (
-        <div className="bg-surface border border-border-subtle rounded-3xl p-12 text-center text-xs text-text-muted shadow-xs">
-          沒有找到符合 "{query}" 的錯題。請嘗試關鍵字拆解或簡化搜尋詞。
-        </div>
-      ) : viewMode === 'compact' ? (
-        /* Compact Card Grid */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {results.map((item) => {
-            const problemCode = formatProblemCode(item, taxonomies);
-            const keywordsArray = item.keywords
-              ? typeof item.keywords === 'string'
-                ? item.keywords.slice(1, -1).split(',').map((s) => s.trim().slice(1, -1)).filter(Boolean)
-                : item.keywords
-              : [];
-
-            return (
-              <div
-                key={item.id}
-                className="bg-surface border border-border-subtle rounded-3xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/60 transition-all shadow-xs"
-              >
-                <div className="space-y-3">
-                  {/* Top Badges */}
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="flex flex-col items-start gap-2 min-w-0 flex-1">
-                      <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-lg bg-primary-50 text-primary border border-primary-200/50 shrink-0">
-                        {problemCode}
-                      </span>
-                      <div className="min-w-0 max-w-full">
-                        <StatusBadge
-                          status={item.status}
-                          topicId={item.topic_id}
-                        />
-                      </div>
-                    </div>
-                    {item.status === 'resolved' && (
-                      <span className="text-[11px] font-medium text-status-resolved flex items-center space-x-1 bg-status-resolved/10 border border-status-resolved/20 px-2 py-0.5 rounded-lg shrink-0 ml-auto">
-                        <CheckCircle2 className="w-3 h-3 shrink-0" />
-                        <span className="shrink-0 whitespace-nowrap">已完成</span>
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Thumbnail Image */}
-                  <div className="w-full h-44 rounded-2xl overflow-hidden bg-neutral-50 border border-border-subtle relative group cursor-pointer"
-                    onClick={() => handleNavigateToProblem(item)}
-                  >
-                    <img
-                      src={item.image_url?.startsWith('blob:') ? item.image_url : getProblemImageUrl(item.id)}
-                      alt="題目預覽"
-                      className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-200 select-none"
-                    />
-                  </div>
-
-                  {/* Typed Notes Snippet */}
-                  {item.typed_notes && (
-                    <div className="p-2.5 rounded-xl bg-neutral-50 border border-border-subtle text-[11px] text-text-main flex items-start space-x-1.5">
-                      <FileText className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-                      <p className="line-clamp-2 leading-relaxed">{item.typed_notes}</p>
-                    </div>
-                  )}
-
-                  {/* Keywords */}
-                  {keywordsArray.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {keywordsArray.slice(0, 4).map((kw, kIdx) => (
-                        <span
-                          key={kIdx}
-                          className="px-2 py-0.5 text-[10px] rounded-lg bg-neutral-100 text-text-muted"
-                        >
-                          #{kw}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Direct Navigation Button */}
-                <div className="pt-2 border-t border-border-subtle flex items-center justify-between">
-                  <span className="text-[10px] text-text-muted">
-                    複習次數: {item.review_count} 次
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleNavigateToProblem(item)}
-                    className="inline-flex items-center space-x-1 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-primary text-white hover:bg-primary-hover active:scale-95 transition-all shadow-2xs"
-                  >
-                    <span>前往此題目</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* Full Interactive Mode */
-        <div className="space-y-6">
-          {results.map((item, idx) => (
-            <ProblemCard key={item.id} problem={item} problemIndex={idx} />
-          ))}
-        </div>
-      )}
+    </article>;
+  };
+  return <div className="max-w-4xl mx-auto space-y-5 pb-16">
+    <div className="flex flex-wrap gap-2" aria-label="搜尋範圍">{(['mine', 'shared', 'public'] as const).map(value =>
+      <button key={value} type="button" aria-pressed={scope === value} onClick={() => switchScope(value)}
+        className={`rounded-xl px-4 py-2 text-sm ${scope === value ? 'bg-primary text-white' : 'bg-surface border border-border-subtle'}`}>
+        {labels[value]}</button>)}</div>
+    <header className={`rounded-3xl border p-5 ${scope === 'mine' ? 'bg-surface border-border-subtle'
+      : 'border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F]'}`}>
+      <h1 className="font-semibold">{guest && scope === 'mine' ? '本機題庫搜尋' : labels[scope]}</h1>
+      <p className="mt-1 text-xs text-text-muted">{scope === 'mine'
+        ? '搜尋原題、已存版本與自己的筆記。' : scope === 'shared'
+          ? '搜尋我建立、獲准觀看與訂閱的題目集，包含訂閱前已存在的題目。' : '搜尋出現在公開探索的題目集與題目。'}</p>
+      {collectionId && <div className="mt-2 flex items-center gap-3 text-xs">
+        <span>限定目前題目集</span><button type="button" className="underline"
+          onClick={() => update('collection_id', '')}>搜尋此範圍所有題目集</button></div>}
+    </header>
+    <form onSubmit={e => { e.preventDefault(); update('q', localQuery.trim()); setRetry(value => value + 1); }} className="flex gap-2">
+      <label className="sr-only" htmlFor="question-search">搜尋關鍵字</label>
+      <div className="relative min-w-0 flex-1">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted" />
+        <input id="question-search" value={localQuery} onChange={e => setLocalQuery(e.target.value)}
+          maxLength={200} placeholder="輸入關鍵字、標籤或題目來源…"
+          className="w-full rounded-2xl border border-border-subtle bg-surface py-3 pl-11 pr-4 outline-none focus:border-primary" />
+      </div>
+      <button type="submit" className="rounded-2xl bg-primary px-5 py-3 text-sm text-white">搜尋</button>
+    </form>
+    <div className="flex flex-wrap gap-2">
+      {scope === 'mine' && <select aria-label="題目來源" value={origin} onChange={e => update('origin', e.target.value)}
+        className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm">
+        <option value="all">原題與已存題目</option><option value="owned">我上傳的原題</option><option value="saved">已存入的題目</option>
+      </select>}
+      <select aria-label="科目與單元" value={topic} onChange={e => update('topic_id', e.target.value)}
+        className="max-w-full rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm">
+        <option value="">所有科目與單元</option>{flattenTopics(taxonomies, scope === 'mine').map(node =>
+          <option key={node.id} value={node.id}>{node.label}</option>)}
+      </select>
+      {scope === 'mine' && <select aria-label="訂正狀態" value={status} onChange={e => update('status', e.target.value)}
+        className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm">
+        <option value="">所有狀態</option><option value="processing">辨識中</option><option value="unsolved">待訂正</option>
+        <option value="resolved">已訂正</option><option value="archived">已封存</option>
+      </select>}
+      <input aria-label="指定標籤" maxLength={80} value={tag} onChange={e => update('tag', e.target.value)}
+        placeholder="指定完整標籤" className="w-40 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm" />
+      {scope === 'shared' && <label className="flex items-center gap-2 text-sm px-2">
+        <input type="checkbox" checked={subscribed} onChange={e => update('subscribed', e.target.checked ? 'yes' : '')} />只看我訂閱的集合
+      </label>}
     </div>
-  );
-};
+    {needsLogin ? <button type="button" onClick={() => setAuthModalOpen(true)}
+      className="rounded-xl bg-primary px-4 py-2 text-white">登入以搜尋共用與訂閱題目</button> : <>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p aria-live="polite" className="text-xs text-text-muted">已載入 {results.length} 筆結果{state.page?.next_offset != null && ready ? '，可載入更多' : ''}</p>
+        {scope === 'mine' && <div className="flex gap-1 rounded-2xl bg-neutral-100 dark:bg-neutral-800 p-1">
+          {(['compact', 'full'] as const).map(mode => <button key={mode} type="button" aria-pressed={viewMode === mode}
+            onClick={() => setViewMode(mode)} className={`flex items-center gap-1 rounded-xl px-3 py-2 text-xs ${viewMode === mode ? 'bg-surface' : ''}`}>
+            {mode === 'compact' ? <LayoutGrid size={14} /> : <List size={14} />}
+            {mode === 'compact' ? '精簡預覽' : '完整原題'}
+          </button>)}
+        </div>}
+      </div>
+      {error && <p role="alert" className="text-sm text-rose-600">{error}</p>}
+      {loading ? <div role="status" className="flex items-center justify-center gap-2 py-12">
+        <Loader2 size={24} className="animate-spin text-primary" /><span className="text-sm">搜尋中…</span>
+      </div> : !results.length ? error ? null : <p className="rounded-3xl bg-surface border border-border-subtle p-8 text-sm text-text-muted">
+        {query.trim() ? '沒有符合目前範圍及條件的結果。可調整篩選或簡化關鍵字。' : '輸入關鍵字開始搜尋。'}
+      </p> : <div className={scope === 'mine' && viewMode === 'full' ? 'space-y-6' : 'grid gap-4 md:grid-cols-2'}>
+        {results.map((hit, index) => scope === 'mine' && viewMode === 'full' && hit.origin === 'owned' && hit.problem
+          ? <ProblemCard key={`owned:${hit.id}`} problem={hit.problem} problemIndex={index} /> : preview(hit))}
+      </div>}
+      {ready && state.page?.next_offset != null && <button type="button" disabled={loadingMore}
+        onClick={() => void loadMore()} className="rounded-xl border border-border-subtle bg-surface px-5 py-2 text-sm disabled:opacity-50">
+        {loadingMore ? '載入中…' : '載入更多結果'}
+      </button>}
+    </>}
+    <button type="button" onClick={() => navigate('/my/notebook')} className="text-xs text-text-muted underline">開啟我的題庫</button>
+  </div>;
+}

@@ -130,6 +130,8 @@ export function CollectionDetailView(){
           {subscribed?'取消訂閱':'訂閱題目集'}</button>}
         {!currentUser&&<button onClick={()=>setAuthModalOpen(true)} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">登入以訂閱及存入</button>}
         <Link to="/subscriptions" className="rounded-xl bg-surface/70 px-4 py-2 text-sm">訂閱中心</Link>
+        <Link to={`/search?scope=shared&collection_id=${encodeURIComponent(id)}`}
+          className="rounded-xl bg-surface/70 px-4 py-2 text-sm">搜尋此題目集</Link>
       </div>
     </div>
     {error&&<p role="alert" className="text-sm text-rose-600">{error}</p>}

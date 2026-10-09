@@ -118,3 +118,11 @@ npm run build
 ## 授權條款 (License)
 
 此公開原始碼庫供閱讀與檢視，目前未提供開源授權；著作權及使用權均由專案作者保留。`package.json` 的 `private` 僅限制 npm 發佈，不代表開源授權。
+
+
+## 共用／訂閱發布文件
+
+- [最終設計規格](doc/SHARING_SPEC.md)
+- [實作進度與待辦](doc/SHARING_IMPLEMENTATION_PROGRESS.md)
+- [本次部署後操作指南](doc/SHARING_RELEASE_RUNBOOK.md)
+- [2026-10-09 發布複核](doc/RELEASE_AUDIT_2026-10-09.md)

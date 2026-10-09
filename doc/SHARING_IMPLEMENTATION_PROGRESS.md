@@ -1,10 +1,27 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-10-04。規格唯一來源：[SHARING_SPEC.md](./SHARING_SPEC.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-10-09。規格唯一來源：[SHARING_SPEC.md](./SHARING_SPEC.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
 
-**本地 v2 功能已串接並通過主要多人整合測試；尚未部署、推送或執行遠端 0002 migration。**
+**本次發布候選已完成程式與文件複核，納入共用 v2、搜尋範圍、iOS 多選、草稿高度與畫筆匯出修復。2026-10-09 使用者提供的正式 D1 資產引用稽核七項皆為 0。提交／推送以 Git 紀錄為準；自動部署成功、正式 R2 掃描與實機驗收須依 [本次發布指南](SHARING_RELEASE_RUNBOOK.md) 確认。**
+
+### 2026-10-09 最終複核
+
+- 複核範圍與結論：[RELEASE_AUDIT_2026-10-09.md](RELEASE_AUDIT_2026-10-09.md)。包含原未推送提交 `2f44fe2` 及後續搜尋／Placement／SQL 稽核／畫笔與匯出等工作樹差異。
+- iOS 檔案 input 改為 multiple，支援一次多選及繼續加入；保留原生 input、縮圖預覽與右上角個別刪除。
+- 草稿收合僅隱藏畫面，不保存 0；展開保留原自訂高度。調整高度使用最近 draw data 並保存 baseWidth，保留待存筆跡及跨寬度比例。原先已存為 0 的舊資料無法推知先前高度，展開採預設值。
+- 原既存 DrawCanvas／exportImage／strokeOptions 修改已稽核並納入：繪圖與匯出共用同一筆寬／透明度／平滑參數。
+- TypeScript、分享／搜尋／離線／PWA 共 13 項測試、SQLite 6 項測試通過；production build、SW 41 個 hash 匹配資產、Worker dry-run（44 個靜態檔）通過。
+- 新增 `tests/upload-scratchpad.browser.mjs`：無頭 Edge＋production build＋合成 API，iPhone UA 一次多選／追加／預覽／刪除；非預設高度反覆收合、1024px → 390px 換算、儲存高度後重新整理及筆跡保留。Python Playwright 未安裝，使用內建 Node Playwright 與已安裝 Edge，沒有變更專案依賴。可於已安裝 Playwright 的環境執行 `PLAYWRIGHT_CHANNEL=msedge node --test tests/upload-scratchpad.browser.mjs`（PowerShell 先以 `$env:PLAYWRIGHT_CHANNEL='msedge'` 設定）。
+- 發布指南四段 PowerShell 語法解析通過；schema 查詢於隔離本機 D1 回傳 `sharing_tables=21`、`item_seq_columns=3`。正式 schema 的完整確認留在指南第 2 步。
+- 最新正式 D1 引用稽核已通過，不再重跑 0002；搜尋與本次 UI 修復沒有新 migration／secret。推送後先確認自動部署 commit，再回填晚到上傳、重跑七項稽核、管理端掃描 R2 及實機驗收。
+- 保留 Gemini `placement.region="gcp:asia-east1"`；沒有遠端 D1／R2 寫入、圖片刪除或 Time Travel restore；實體資產 GC 關閉。使用者提供的最新歷史 bookmark 已保存於發布指南。
+- 既有 iPad／手機刻意設計不需修改，本次未變更。
+
+### 歷史驗證紀錄（遠端狀態以本頁最新狀態為準）
+
+以下是 2026-10-04 及早期發布前的紀錄，不是本次要重新執行的 migration 指令。
 
 2026-10-04 再次以 Wrangler 唯讀查詢遠端 D1：`d1_migrations`、`collections`、`owner_transfers`、`assets` 全無，0002 仍未套用。這不是 migration 已執行的證據；正式套用前仍須重查狀態與取得當時的新 Time Travel bookmark。
 
@@ -21,6 +38,23 @@
 推送前再次檢查：TypeScript、分享 API 整合測試、schema 測試 5/5、Vite 建置、PWA 發版測試 4/4、`git diff --check` 均通過。`wrangler deploy --dry-run` 成功打包 Worker 與 42 個靜態檔。遠端 Worker 已有 `ADMIN_EMAILS`、`BETTER_AUTH_SECRET`、`GEMINI_API_KEY`、`GOOGLE_CLIENT_SECRET` 等 secret 名稱；`GOOGLE_CLIENT_ID` 在 `wrangler.jsonc`。secret list 不驗證值本身。因推送會觸發自動部署，0002 尚未遠端套用前不能直接推送新 Worker。
 
 ## 已實作
+
+### 2026-10-04 搜尋範圍補齊
+
+- 沿用 D1／加權 LIKE 與原題 OCR FTS5，沒有新增 AI Search 設定、付費服務或 migration；仍依賴原分享功能的 0002 schema。
+- `/search` 支援「我的題庫」（原題＋已存）、「共用與訂閱」、「公開探索」。共用範圍含建立、已接受觀看／貢獻授權、有效 link holder/cookie、可讀訂閱；「只看訂閱」包含訂閱前舊題。訂閱不能繞過撤權或暫停。
+- mine 支援原題／已存、狀態、個人課綱含子單元、完整標籤及來源集合；shared/public 僅標準課綱及來源標籤。集合頁、訂閱中心、題庫與探索新增搜尋入口；Navbar 搜尋保留集合／訂閱／saved 情境。
+- 已存搜尋 current snapshot、已取得文字參考層與自己的工作區，不依賴 live 來源；撤權、暫停及刪原題後仍可搜尋。來源更新不修改已存搜尋，須本人明確更新。
+- 共用搜尋僅當代有效 shared notes 並逐項依權限篩選；公開排除私人筆記、OCR、私人課綱和所有 shared notes。圖片仍走原授權 API。結果保留來源集合，已存题有「開啟我的版本」；共用頁綠色識別。
+- 修復 FTS alias MATCH 失效、無 FTS 列的原題被漏掉、重複索引與舊 metadata 造成錯誤命中；原題 mutation batch 合併 FTS 列並保留最新 OCR。LIKE 的百分比、底線及反斜線按字面搜尋。
+- 修復 shared layer 顯示條件：開放 notes／隱藏 ink 時仍可閱讀 notes，回傳 ink 為 null，與搜尋權限一致。
+- 訪客本機搜尋不顯示有 cloudOwnerId 或 cloudId 的帳號草稿；切換帳號／scope 隱藏舊結果，取消舊請求；分頁每次重新驗權且去重。
+- 驗證：新增 `tests/search.test.mjs` 的 5 組 Miniflare＋D1 案例，含短中文／FTS phrase、無索引原題、舊重複列、分頁、分類、wildcard、邀請、訂閱舊題、匿名 cookie、過期／多重 grant、共享欄位、generation、來源貢獻者撤權、圖片非 ready／移出及已存版本保留；`tests/search-offline.test.mjs` 驗證 guest 帳號隔離。
+- 瀏覽器：以獨立 localhost 合成 API 資料驗證實際 production build 的個人／共用／公開卡片、來源標示、已存入口、切換及分頁；390px 下 document 寬度與 scrollWidth 均為 390。合成資料 UI 驗證不等同真實帳號或實體 iPhone／iPad 驗收。
+- 本次修改尚未推送／部署；工作樹另有既存 DrawCanvas／exportImage／strokeOptions 修改，沒有覆寫或併入本次搜尋工作。
+- 最終驗證：TypeScript 通過；Vite production build／SW 41 個匹配資產通過；搜尋、guest 隔離、分享與 PWA 合計 13 項測試全部通過；Worker dry-run 打包成功（44 個靜態檔）。Wrangler 首次因無權存取使用者設定／log 目錄失敗，改以該命令程序的 XDG_CONFIG_HOME／WRANGLER_LOG_PATH 指向 workspace 的 .wrangler 後通過，未修改系統環境或登入設定。
+
+### 既有分享功能
 
 - v2 live 集合模型：建立、啟用、暫停、軟刪除、公開／連結／指定對象可見性；owner、具名 contributor／viewer、邀請、觀看連結、撤權、退出。
 - 建立者可邀請已接受的貢獻者接手；對方在集合頁主動接受前不生效。邀請七天過期、可撤銷，移除貢獻者或刪除集合會取消邀請。接手後原建立者轉為貢獻者，既有來源題仍可觀看；集合頁顯示彙總統計，不揭露個別訂閱者的閱讀紀錄。
@@ -48,13 +82,13 @@
 
 ## 尚未完成：上線門檻
 
-1. **遠端 migration 套用準備**：已確認目前版本 0002 尚未套用且未見局部表；純 schema 匯出被 FTS5 阻擋，已用唯讀 `sqlite_master` 取得建表定義，於隔離 D1 完成合成舊資料 migration，並完成遠端 `items` 資料品質統計。正式套用前更新 Time Travel bookmark；遷移後核對資產與引用筆數。Time Travel 還原會覆寫書籤之後的資料變更，不能當成不影響後續寫入的獨立備份。
+1. **正式部署與引用確認**：使用者正式 D1 七項資產引用稽核已全部為 0；依本次指南核對 schema，不重跑 0002。等待自動部署成功後，執行晚到上傳回填並確認 `missing_source_links=0`，再重新稽核。
 2. **權限與資料完整性覆蓋**：已有 viewer／link／匿名、過期 grant、接手邀請、私人分類、圖片撤權與來源刪除案例；仍需重新加入 generation、多次 snapshot 刷新、兩裝置同欄位競態、失效集合搜尋及多重 grant 撤一保另一的完整矩陣。
-3. **UI 完成度**：批次加題、訂閱管理搜尋與統計、集合統計、合併題庫入口已接上。仍需真實瀏覽器及實機驗證互動、空清單、載入及錯誤狀態；本機未安裝 Playwright，只有型別／建置與 API 整合驗證。
+3. **UI 完成度**：本機 production build 合成資料瀏覽器回歸已完成搜尋、多選圖片及高度收合案例；仍需正式帳號、實體 iPhone Chrome／iPad Safari／PWA 驗收與共用筆跡書寫。
 4. **生命週期**：owner 轉交已完成；帳號刪除時停止授權與來源清理、受理報告後的實際處置、公開搜尋索引／標準課綱版本化仍待實作。現階段公開搜尋使用即時 SQL `LIKE`，未建 FTS；目前產品沒有刪除帳號入口。
 5. **資產維護**：D1 引用與雙向 R2 物件存在性唯讀稽核已備妥；仍需於正式環境執行並處理異常、staging 隔離清單、寬限、可重試工作租約及正式 GC gate。不得在這些完成前啟用自動實體刪除。
 6. **實機／回歸**：實體 iPhone Chrome、iPad Safari/PWA 的圖片上傳、共用圖層書寫和來源更新；既有 guest 上傳、單題公開連結、CSS hash／PWA 404；Worker 與前端部署後健康檢查。
 
 ## 發布順序
 
-遠端狀態與 DDL 確認 → migration／回填隔離驗證 → API／前端建置及整合回歸 → 更新 Time Travel bookmark → 遠端 migration → 立即部署新版 Worker／前端 → 執行 `scripts/sharing-backfill-late-uploads.sql` 並確認 `missing_source_links=0` → 實機驗收。資產 GC 最後獨立開啟。目前不得把「本地測試通過」視為可直接推送部署。
+本次：提交並推送 → 確認自動部署 commit／健康檢查 → 唯讀 schema 核對 → 晚到上傳回填 `missing_source_links=0` → 七項 D1 稽核 → 管理端 D1/R2 全量掃描 → 正式帳號／實機驗收。本環境不重跑 0002；資產 GC 保持關閉。

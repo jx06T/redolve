@@ -1,6 +1,7 @@
 import getStroke from 'perfect-freehand';
 import { DrawData, Stroke } from '../types';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
+import { getStrokeOptions } from './strokeOptions';
 
 function getSvgPathFromStroke(strokePoints: number[][]): string {
   if (!strokePoints || strokePoints.length === 0) return '';
@@ -83,26 +84,24 @@ export async function exportProblemAsImage(
     parsedDrawData.strokes.forEach((stroke: Stroke) => {
       if (!stroke.points || stroke.points.length === 0) return;
       const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
-      const baseSize = toolType === 'highlighter'
-        ? (stroke.width <= 1 ? 16 : stroke.width <= 2 ? 24 : 36)
-        : (stroke.width <= 1 ? 2.5 : stroke.width <= 2 ? 4.5 : 7.5);
+      const opts = getStrokeOptions(toolType, stroke.width);
 
       const scaledPoints = scale === 1.0
         ? stroke.points
         : stroke.points.map(([px, py, pr]) => [px * scale, py * scale, pr] as [number, number, number]);
 
       const strokePoints = getStroke(scaledPoints, {
-        size: baseSize * scale,
-        thinning: toolType === 'highlighter' ? 0.02 : 0.5,
-        smoothing: toolType === 'highlighter' ? 0.6 : 0.5,
-        streamline: toolType === 'highlighter' ? 0.6 : 0.5,
+        size: opts.size * scale,
+        thinning: opts.thinning,
+        smoothing: opts.smoothing,
+        streamline: opts.streamline,
       });
 
       const pathData = getSvgPathFromStroke(strokePoints);
       if (pathData) {
         ctx.save();
         ctx.fillStyle = stroke.color;
-        ctx.globalAlpha = stroke.opacity ?? (toolType === 'highlighter' ? 0.32 : 1.0);
+        ctx.globalAlpha = stroke.opacity ?? opts.opacity;
         const path = new Path2D(pathData);
         ctx.fill(path);
         ctx.restore();
@@ -130,18 +129,16 @@ export function exportStrokesAsSvg(
     .map((stroke) => {
       if (!stroke.points || stroke.points.length === 0) return '';
       const toolType = stroke.tool === 'highlighter' ? 'highlighter' : 'pen';
-      const baseSize = toolType === 'highlighter'
-        ? (stroke.width <= 1 ? 16 : stroke.width <= 2 ? 24 : 36)
-        : (stroke.width <= 1 ? 2.5 : stroke.width <= 2 ? 4.5 : 7.5);
+      const opts = getStrokeOptions(toolType, stroke.width);
 
       const strokePoints = getStroke(stroke.points, {
-        size: baseSize,
-        thinning: toolType === 'highlighter' ? 0.02 : 0.5,
-        smoothing: toolType === 'highlighter' ? 0.6 : 0.5,
-        streamline: toolType === 'highlighter' ? 0.6 : 0.5,
+        size: opts.size,
+        thinning: opts.thinning,
+        smoothing: opts.smoothing,
+        streamline: opts.streamline,
       });
       const d = getSvgPathFromStroke(strokePoints);
-      const opacity = stroke.opacity ?? (toolType === 'highlighter' ? 0.32 : 1.0);
+      const opacity = stroke.opacity ?? opts.opacity;
       return `<path d="${d}" fill="${stroke.color}" opacity="${opacity}" />`;
     })
     .filter(Boolean)
