@@ -97,7 +97,7 @@ export function CollectionDetailView(){
   if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/settings#collections" className="text-primary">返回題目集</Link></div>;
   if(!co)return <p className="p-6 text-text-muted">載入題目集中…</p>;
   const canOrder=co.is_owner&&!topicFilter&&!tagFilter;
-  return <div className="max-w-5xl mx-auto space-y-5 pb-16">
+  return <div className="min-w-0 w-full max-w-5xl mx-auto space-y-5 pb-16">
     <BackButton fallback="/settings#collections"/>
     <div className="rounded-3xl border border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F] px-5 py-4">
       <p className="text-xs font-semibold text-[#47705C] dark:text-[#A9C7B6]">題目集・
@@ -119,15 +119,15 @@ export function CollectionDetailView(){
     </section>}
     <section className="rounded-3xl border border-border-subtle bg-surface p-5">
       <h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/>題目管理</h2>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <select value={topicFilter} onChange={e=>setTopicFilter(e.target.value)}
-          aria-label="依科目與課綱單元篩選" className="rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
+          aria-label="依科目與課綱單元篩選" className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
           <option value="">所有科目與單元</option>{standardTopics(taxonomies).map(t=>
             <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <input value={tagFilter} onChange={e=>setTagFilter(e.target.value)} list="collection-tags"
           placeholder="來源標籤" aria-label="依來源標籤篩選"
-          className="min-w-32 rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/>
+          className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/>
         <datalist id="collection-tags">{tagsFor(items).map(tag=><option key={tag} value={tag}/>)}</datalist>
       </div>
       {items.length?<div className="mt-3 space-y-2">{items.map((item,index)=>
@@ -186,7 +186,7 @@ export function CollectionDetailView(){
         <h3 className="flex items-center gap-2 font-medium"><UserPlus size={17}/>邀請指定對象</h3>
         <div className="mt-2 flex flex-wrap gap-2">
           <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-            placeholder="對方的 Google 帳號 email" className="min-w-48 flex-1 rounded-xl border border-border-subtle bg-page-bg px-3 py-2"/>
+            placeholder="對方的 Google 帳號 email" className="min-w-0 w-full flex-auto rounded-xl border border-border-subtle bg-page-bg px-3 py-2 sm:w-auto sm:flex-1"/>
           <select value={role} onChange={e=>setRole(e.target.value as typeof role)}
             className="rounded-xl border border-border-subtle bg-page-bg px-3 py-2">
             <option value="viewer">可觀看</option><option value="contributor">可貢獻與書寫</option></select>
@@ -226,7 +226,7 @@ export function CollectionDetailView(){
         <p className="mt-1 text-sm text-text-muted">只能轉交給已接受邀請的貢獻者；對方接受後才生效。你會保留貢獻者身分。</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <select value={transferTarget} onChange={e=>setTransferTarget(e.target.value)}
-            aria-label="選擇接手管理權的貢獻者" className="min-w-48 rounded-xl border border-border-subtle bg-page-bg px-3 py-2">
+            aria-label="選擇接手管理權的貢獻者" className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 sm:w-auto">
             <option value="">選擇貢獻者</option>
             {grants.filter(g=>!g.revoked_at&&g.role==='contributor').map(g=><option key={g.id} value={g.user_id}>
               {memberName(g)}</option>)}

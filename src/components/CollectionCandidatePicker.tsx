@@ -46,10 +46,10 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
   const hidden=Object.keys(selected).filter(id=>!rows.some(r=>r.id===id)).length;
   return <section className="rounded-3xl border border-border-subtle bg-surface p-5 space-y-3">
     <h2 className="font-semibold">加入我上傳的原題</h2><p className="text-sm text-text-muted">只列尚未加入的原題；按分類與標籤選題，切換條件保留選取。加入後原題仍保留在自己的題庫。</p>
-    <form onSubmit={e=>{e.preventDefault();setFilter({q:q.trim(),topic,tag:tag.trim()});}} className="grid gap-2 sm:grid-cols-2">
-      <input value={q} onChange={e=>setQ(e.target.value)} aria-label="搜尋可加入原題" placeholder="搜尋原題" className="rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
+    <form onSubmit={e=>{e.preventDefault();setFilter({q:q.trim(),topic,tag:tag.trim()});}} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <input value={q} onChange={e=>setQ(e.target.value)} aria-label="搜尋可加入原題" placeholder="搜尋原題" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
       <PersonalTopicSelect id="candidate-topic" emptyLabel="全部科目與單元" value={topic} onChange={setTopic}/>
-      <input value={tag} onChange={e=>setTag(e.target.value)} aria-label="篩選原題標籤" placeholder="標籤（完全符合）" className="rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
+      <input value={tag} onChange={e=>setTag(e.target.value)} aria-label="篩選原題標籤" placeholder="標籤（完全符合）" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
       <button disabled={busy} className="rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">套用搜尋與分類</button>
     </form>
     <div className="flex flex-wrap gap-3 text-xs"><button disabled={busy} onClick={()=>setSelected(p=>({...p,...Object.fromEntries(rows.map(i=>[i.id,i]))}))} className="underline text-primary">選取已載入候選</button><button disabled={busy} onClick={()=>void all()} className="underline text-primary">選取目前所有符合條件題目</button>
