@@ -11,7 +11,7 @@ import { CustomSelect } from './CustomSelect';
 interface SidebarProps {
   onSelectProblemOutline?: (problemId: string) => void;
   scope?: {subject:string;topic:string|null;status:string;problems:Item[];outline?:Item[];taxonomies:TaxonomyNode[];
-    onSubject:(id:string)=>void;onTopic:(id:string|null)=>void;onStatus:(status:string)=>void;loading?:boolean};
+    onSubject:(id:string)=>void;onTopic:(id:string|null)=>void;onStatus:(status:string)=>void;loading?:boolean;countsAvailable?:boolean};
   children?: React.ReactNode;
 }
 
@@ -43,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
   const problems=scope?.problems||storeProblems;
   const taxonomies=scope?.taxonomies||storeTaxonomies;
   const taxonomyCounts=scope?{}:storeCounts;
+  const countsAvailable=scope?.countsAvailable!==false;
   const [desktop,setDesktop]=useState(()=>window.matchMedia('(min-width:1024px)').matches);
   useEffect(()=>{const media=window.matchMedia('(min-width:1024px)');const update=()=>setDesktop(media.matches);media.addEventListener('change',update);return ()=>media.removeEventListener('change',update);},[]);
 
@@ -127,7 +128,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
     const open=expanded[node.id]??((currentSubjectId!=='all'&&depth===0)||getAllDescendantIds(node).includes(selectedTopicId||''));
     return <div key={node.id} className="space-y-0.5"><div className="flex items-center gap-1">
       {node.children?.length?<button type="button" aria-label={(open?'收合':'展開')+node.label} aria-expanded={open} onClick={()=>setExpanded(v=>({...v,[node.id]:!open}))} className="shrink-0 rounded-xl p-1 text-text-muted"><ChevronRight size={13} className={open?'rotate-90':''}/></button>:<span className="w-5 shrink-0"/>}
-      <button type="button" aria-label={'選擇分類'+node.label} aria-pressed={selected} onClick={()=>handleSelectTopic(node.id)} className={'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-left text-xs '+(selected?'bg-primary/10 font-semibold text-primary':'text-text-main hover:bg-neutral-100')}><span className="truncate">{node.label}{node.user_id?' · 自訂':''}</span><span className="shrink-0 text-[10px] text-text-muted">{count}</span></button>
+      <button type="button" aria-label={'選擇分類'+node.label} aria-pressed={selected} onClick={()=>handleSelectTopic(node.id)} className={'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-left text-xs '+(selected?'bg-primary/10 font-semibold text-primary':'text-text-main hover:bg-neutral-100')}><span className="truncate">{node.label}{node.user_id?' · 自訂':''}</span>{countsAvailable&&<span className="shrink-0 text-[10px] text-text-muted">{count}</span>}</button>
     </div>{open&&node.children?.length?<div className="ml-3 border-l border-border-subtle pl-2">{renderNodes(node.children,depth+1)}</div>:null}</div>;
   });
 
@@ -206,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
             >
               <span>全部未分類題目</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-neutral-200/70 text-neutral-500">
-                {unclassifiedCount}
+                {countsAvailable?unclassifiedCount:'—'}
               </span>
             </button>
             <p className="px-3 pt-2 text-[10px] text-text-muted leading-relaxed">
@@ -228,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
                 ? 'bg-primary/20 text-primary'
                 : 'bg-neutral-200/70 text-neutral-500'
                 }`}>
-                {subjectTotalCount}
+                {countsAvailable?subjectTotalCount:'—'}
               </span>
             </button>
 

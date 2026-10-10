@@ -101,6 +101,40 @@ test('search scopes enforce current access and retained download versions', asyn
     await db.prepare(`INSERT INTO shared_layers(id,entry_id,entry_generation,user_id,author_display,typed_notes)
       VALUES('layer',?,1,'c','Contributor','shared-secret')`).bind(subscribedEntry).run();
 
+    await t.test('empty browsing preserves filters, pagination and current access without relevance ordering', async () => {
+      assert.deepEqual(keys(await search('')), [], 'empty search needs explicit browse mode');
+      const first = await search('   ', 'mine', 'b', '&browse=1&origin=owned&limit=1&topic_id=math&tag=向量&status=unsolved');
+      const second = await search('', 'mine', 'b', '&browse=1&origin=owned&limit=1&offset=1&topic_id=math&tag=向量&status=unsolved');
+      assert.equal(first.next_offset, 1);
+      assert.equal(second.next_offset, null);
+      const ordered = (await db.prepare("SELECT id FROM items WHERE user_id='b' ORDER BY created_at DESC,id DESC").all()).results;
+      assert.deepEqual([...keys(first), ...keys(second)], ordered.map(row => `owned:${row.id}`));
+      assert.equal(first.items[0].relevance_score, 0);
+      assert.ok(first.items[0].problem);
+      const metadata = await search('', 'mine', 'b', '&browse=1&origin=owned&metadata_only=1');
+      assert.ok(metadata.items.every(hit => hit.typed_notes === null && hit.keywords === null && !hit.problem));
+      assert.deepEqual(keys(await search('', 'mine', 'b', '&browse=1&origin=owned&status=resolved')), []);
+      assert.deepEqual(keys(await search('', 'mine', 'b', '&browse=1&topic_id=a-private')), []);
+      assert.equal((await call('/search?browse=1', null)).status, 401);
+      const related = keys(await search('', 'shared', 'b', '&browse=1'));
+      assert.ok(related.includes(`shared:${subscribedEntry}`) && related.includes(`shared:${invitedEntry}`));
+      assert.ok(!related.includes(`shared:${unknownEntry}`));
+      assert.deepEqual(keys(await search('', 'shared', 'd', '&browse=1')), [], 'a subscription cannot grant private access');
+      assert.deepEqual(keys(await search('', 'shared', null, '&browse=1&collection_id=invited')), []);
+      assert.deepEqual(keys(await search('', 'shared', null, '&browse=1&collection_id=link',
+        `rdv_collection_link=${linkToken}`)), [`shared:${linkEntry}`]);
+      const viewer = await search('', 'shared', 'b', '&browse=1&collection_id=subscribed');
+      assert.equal(viewer.items[0].typed_notes, '', 'hidden shared notes remain hidden');
+      const writer = await search('', 'shared', 'c', '&browse=1&collection_id=subscribed&contributing=yes&status=unsolved');
+      assert.equal(writer.items[0].typed_notes, 'shared-secret');
+      const writerMetadata = await search('', 'shared', 'c', '&browse=1&collection_id=subscribed&contributing=yes&metadata_only=1');
+      assert.equal(writerMetadata.items[0].typed_notes, null);
+      assert.deepEqual(keys(await search('', 'shared', 'c', '&browse=1&collection_id=invited&contributing=yes')), []);
+      const publicKeys = keys(await search('', 'public', null, '&browse=1'));
+      assert.ok(publicKeys.includes(`public:${unknownEntry}`) && publicKeys.includes('collection:unknown'));
+      assert.ok(!publicKeys.includes(`public:${invitedEntry}`) && !publicKeys.includes(`public:${unlistedEntry}`));
+    });
+
     await t.test('own metadata without an index; latest OCR; safe literal search; pagination and filters', async () => {
       assert.deepEqual(keys(await search('電流')), ['owned:no-index']);
       assert.deepEqual(keys(await search('洛倫茲')), ['owned:own']);
@@ -143,6 +177,8 @@ test('search scopes enforce current access and retained download versions', asyn
       assert.deepEqual(keys(await search('向量', 'shared', null, '&collection_id=link',
         `rdv_collection_invited=${linkToken}`)), []);
       await db.prepare("UPDATE collection_grants SET expires_at='2000-01-01T00:00:00Z' WHERE id='link-grant'").run();
+      assert.deepEqual(keys(await search('', 'shared', null, '&browse=1&collection_id=link',
+        `rdv_collection_link=${linkToken}`)), [], 'browse checks current link expiry');
       assert.deepEqual(keys(await search('向量', 'shared', null, '&collection_id=link',
         `rdv_collection_link=${linkToken}`)), []);
       assert.ok(!keys(await search('向量', 'shared')).includes(`shared:${linkEntry}`));
@@ -204,6 +240,10 @@ test('search scopes enforce current access and retained download versions', asyn
       await db.prepare("UPDATE saved_refs SET personal_tags=? WHERE id=?").bind('["personal-tag"]',savedId).run();
       assert.deepEqual(keys(await search('personal-download-note')), [`saved:${savedId}`]);
       assert.deepEqual(keys(await search('shared-secret', 'mine', 'b', '&origin=saved')), [`saved:${savedId}`]);
+      const downloaded = await search('', 'mine', 'b', '&browse=1&origin=saved&topic_id=math&tag=personal-tag');
+      assert.deepEqual(keys(downloaded), [`saved:${savedId}`]);
+      assert.equal(downloaded.items[0].typed_notes, 'personal-download-note');
+      assert.equal(downloaded.items[0].relevance_score, 0);
       assert.deepEqual(keys(await search('向量', 'mine', 'b', '&origin=saved&topic_id=math&tag=personal-tag')), [`saved:${savedId}`]);
       await db.prepare("UPDATE items SET source='updated-live-source',keywords=? WHERE id='source-subscribed'")
         .bind('["updated-tag"]').run();
@@ -224,6 +264,8 @@ test('search scopes enforce current access and retained download versions', asyn
       assert.ok(!keys(await search('向量', 'shared')).includes(`shared:${invitedEntry}`));
       await db.prepare("DELETE FROM asset_refs WHERE item_id='source-subscribed'").run();
       await db.prepare("DELETE FROM items WHERE id='source-subscribed'").run();
+      assert.deepEqual(keys(await search('', 'mine', 'b', '&browse=1&origin=saved')), [`saved:${savedId}`]);
+      assert.deepEqual(keys(await search('', 'shared', 'b', '&browse=1&collection_id=subscribed')), []);
       assert.deepEqual(keys(await search('personal-download-note')), [`saved:${savedId}`]);
       assert.deepEqual(keys(await search('shared-secret', 'mine', 'd')), []);
     });

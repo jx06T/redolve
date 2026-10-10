@@ -1,11 +1,13 @@
 import { LoginNotice } from '../components/LoginNotice';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { StudyLibraryLayout, SearchLibraryLayout } from '../components/LibraryLayouts';
 import { QuestionStream } from '../components/QuestionStream';
 import { QuestionWorkCard } from '../components/QuestionWorkCard';
 import { ProblemCard } from '../components/ProblemCard';
 import { Sidebar } from '../components/Sidebar';
+import { findNodeAndLineage } from '../components/StatusBadge';
 import { SearchResultCard } from '../components/SearchResultCard';
 import { AddToCollectionDialog } from '../components/AddToCollectionDialog';
 import { useStore } from '../store/useStore';
@@ -34,8 +36,10 @@ export function QuestionLibraryView({search=false}:{search?:boolean}) {
   const collection=params.get('collection_id')||'';const query=params.get('q')||'';
   const selectedSubject=params.get('subject_id')||legacy.subject||'all';
   const topic=params.get('topic_id')||legacy.topic||(selectedSubject!=='all'?selectedSubject:'');
+  const outlineSubject=selectedSubject!=='all'?selectedSubject:topic==='unclassified'?topic:findNodeAndLineage(scopeTaxonomies,topic)?.[0].id||'';
   const status=params.get('status')||'';const tag=params.get('tag')||'';
-  const scopeKey=JSON.stringify([account,source,collection,query,topic,status,tag,search]);
+  const excludeArchived=(!search||params.get('exclude_archived')==='yes')&&(!status||status==='all');
+  const scopeKey=JSON.stringify([account,source,collection,query,topic,status,tag,search,excludeArchived]);
   const [data,setData]=useState<{key:string;items:SearchHit[];next:number|null;rebase?:boolean}>({key:'',items:[],next:null});
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [revision,setRevision]=useState(0);
   const [sets,setSets]=useState<Collection[]>([]);const [setsError,setSetsError]=useState('');
@@ -64,7 +68,7 @@ export function QuestionLibraryView({search=false}:{search?:boolean}) {
     abortRef.current?.abort();const abort=new AbortController();abortRef.current=abort;pending.current={key:scopeKey,offset};
     const key=scopeKey;setBusy(true);setError('');
     try {
-      const page=await questionService.search({source,collectionId:source==='contributing'?collection:undefined,query,topic,status:status==='all'?'':status,excludeArchived:!search&&(!status||status==='all'),tag,offset,
+      const page=await questionService.search({source,collectionId:source==='contributing'?collection:undefined,query,topic,status:status==='all'?'':status,excludeArchived,tag,offset,
         signal:abort.signal,guest:isGuestUser(currentUser),taxonomies});
       if(abort.signal.aborted||active.current!==key)return;
       setData(previous=>({key,items:(offset||append)&&previous.key===key?
@@ -101,20 +105,29 @@ export function QuestionLibraryView({search=false}:{search?:boolean}) {
     ids.forEach(store.registerInPageMatch);return ()=>ids.forEach(store.unregisterInPageMatch);
   },[items,find]);
   useEffect(()=>{
-    if(search)return;const abort=new AbortController();setOutline([]);setOutlineBusy(true);
-    void (async()=>{let offset=0;const all:SearchHit[]=[];do{const page=await questionService.search({source,collectionId:source==='contributing'?collection:undefined,query,status:status==='all'?'':status,excludeArchived:!status||status==='all',tag,offset,metadataOnly:true,guest:isGuestUser(currentUser),taxonomies,signal:abort.signal});if(abort.signal.aborted)return;all.push(...page.items);setOutline([...all]);if(page.next_offset===null)break;offset=page.next_offset;}while(!abort.signal.aborted);})().catch(()=>{if(!abort.signal.aborted)showToast('題目大綱載入失敗，可重新套用篩選重試','error');}).finally(()=>{if(!abort.signal.aborted)setOutlineBusy(false);});return ()=>abort.abort();
-  },[account,source,collection,query,status,tag,revision,search]);
+    setOutline([]);setOutlineBusy(false);
+    if(search||!outlineSubject)return;
+    const abort=new AbortController();setOutlineBusy(true);
+    void (async()=>{let offset=0;const all:SearchHit[]=[];do{const page=await questionService.search({source,collectionId:source==='contributing'?collection:undefined,query,topic:outlineSubject,status:status==='all'?'':status,excludeArchived,tag,offset,metadataOnly:true,guest:isGuestUser(currentUser),taxonomies,signal:abort.signal});if(abort.signal.aborted)return;all.push(...page.items);setOutline([...all]);if(page.next_offset===null)break;offset=page.next_offset;}while(!abort.signal.aborted);})().catch(()=>{if(!abort.signal.aborted)showToast('題目大綱載入失敗，可重新套用篩選重試','error');}).finally(()=>{if(!abort.signal.aborted)setOutlineBusy(false);});return ()=>abort.abort();
+  },[account,source,collection,query,outlineSubject,status,tag,revision,search,excludeArchived]);
   const filterFields=<div className="space-y-4">
     <label className="block text-sm">科目與單元<select aria-label="科目與單元" value={draft.topic} onChange={e=>setDraft(v=>({...v,topic:e.target.value}))} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3">
       <option value="">所有科目與單元</option><option value="unclassified">未分類</option>{topics(scopeTaxonomies).map(n=><option key={n.id} value={n.id}>{n.label}</option>)}</select></label>
     {<label className="block text-sm">訂正狀態<select aria-label="訂正狀態" value={draft.status} onChange={e=>setDraft(v=>({...v,status:e.target.value}))} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3">
       <option value="">全部狀態</option><option value="unsolved">待訂正</option><option value="resolved">已訂正</option><option value="archived">已封存</option></select></label>}
     <label className="block text-sm">標籤<input value={draft.tag} onChange={e=>setDraft(v=>({...v,tag:e.target.value}))} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"/></label>
-    <button onClick={()=>{patch({topic_id:draft.topic,subject_id:'',status:draft.status,tag:draft.tag});}} className="rounded-xl bg-primary px-4 py-3 text-white text-sm">套用篩選</button>
-    <button onClick={()=>{setDraft({topic:'',status:'',tag:'',collection:source==='owned'?'':collection});patch({topic_id:'',subject_id:'',status:'',tag:''});}} className="ml-2 text-sm text-text-muted underline">清除篩選</button>
+    <button onClick={()=>{patch({topic_id:draft.topic,subject_id:'',status:draft.status,tag:draft.tag,exclude_archived:''});}} className="rounded-xl bg-primary px-4 py-3 text-white text-sm">套用篩選</button>
+    <button onClick={()=>{setDraft({topic:'',status:'',tag:'',collection:source==='owned'?'':collection});patch({topic_id:'',subject_id:'',status:'',tag:'',exclude_archived:''});}} className="ml-2 text-sm text-text-muted underline">清除篩選</button>
   </div>;
   const collectionPicker=source==='contributing'&&<label className="block text-xs text-text-muted">共用集<select aria-label="選擇可貢獻的共用集" value={collection} onChange={e=>patch({collection_id:e.target.value,topic_id:'',subject_id:'',tag:'',status:''})} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"><option value="">請選擇一個共用集</option>{sets.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></label>;
   const queryForm=<form className="flex gap-2" onSubmit={e=>{e.preventDefault();patch({q:draftQuery.trim()});}}><input value={draftQuery} onChange={e=>setDraftQuery(e.target.value)} aria-label="搜尋目前題目來源" placeholder="搜尋題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/><button type="submit" className="rounded-xl bg-primary/10 px-3 py-2 text-primary text-sm">搜尋</button></form>;
+  const searchParams=new URLSearchParams(params);
+  searchParams.set('source',source);searchParams.delete('focus');searchParams.delete('view');
+  if(topic)searchParams.set('topic_id',topic);
+  if(selectedSubject!=='all')searchParams.set('subject_id',selectedSubject);
+  if(excludeArchived)searchParams.set('exclude_archived','yes');
+  if(source!=='contributing')searchParams.delete('collection_id');
+  const searchLink=<Link to={'/search?'+searchParams} className="flex items-center justify-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm text-text-main hover:bg-neutral-100"><Search size={15}/>前往搜尋</Link>;
   const asItem=(hit:SearchHit):Item=>hit.problem||({id:hit.id,user_id:account,type:'problem',topic_id:hit.topic_id,keywords:hit.keywords,keyword_tokens:null,source:hit.title,image_url:'',draw_data:null,status:hit.status||'unsolved',review_count:hit.review_count||0,vector_clock:null,created_at:hit.created_at,updated_at:hit.created_at});
   const topicIds=new Set<string>();const visit=(nodes:TaxonomyNode[],include=false)=>nodes.forEach(n=>{const yes=include||n.id===topic;if(yes)topicIds.add(n.id);visit(n.children||[],yes);});visit(scopeTaxonomies);
   const outlineItems=outline.filter(i=>!topic||(topic==='unclassified'?!i.topic_id:topicIds.has(i.topic_id||'')));
@@ -135,8 +148,8 @@ export function QuestionLibraryView({search=false}:{search?:boolean}) {
     <QuestionWorkCard kind={source==='saved'?'saved':'shared'} onNext={onNext} id={hit.id} collectionId={hit.collection_id||collection} onChanged={markChanged} onRemoved={()=>{markChanged();setData(d=>({...d,items:d.items.filter(i=>i.id!==hit.id)}));}}/>}/>;
   const needsLogin=isGuestUser(currentUser)&&source!=='owned';
   const login=<LoginNotice description="登入後可存入題目及參與共用。"/>;
-  const sidebar=      <Sidebar scope={{subject:selectedSubject,topic:params.get('topic_id')||legacy.topic||null,status:status||'all',problems:outline.map(asItem),outline:outlineItems.map(asItem),taxonomies:scopeTaxonomies,onSubject:id=>patch({subject_id:id,topic_id:''}),onTopic:id=>patch({topic_id:id||''}),onStatus:value=>patch({status:value==='all'?'':value}),loading:outlineBusy}} onSelectProblemOutline={id=>patch({focus:id})}>
-        {collectionPicker}{queryForm}<label className="block text-xs text-text-muted">標籤<input aria-label="篩選標籤" defaultValue={tag} key={tag} onKeyDown={e=>{if(e.key==='Enter')patch({tag:e.currentTarget.value.trim()});}} onBlur={e=>{if(e.currentTarget.value.trim()!==tag)patch({tag:e.currentTarget.value.trim()});}} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2"/></label>
+  const sidebar=      <Sidebar scope={{subject:outlineSubject||selectedSubject,topic:params.get('topic_id')||legacy.topic||null,status:status||'all',problems:outline.map(asItem),outline:outlineItems.map(asItem),taxonomies:scopeTaxonomies,onSubject:id=>patch({subject_id:id,topic_id:''}),onTopic:id=>patch({topic_id:id||''}),onStatus:value=>patch({status:value==='all'?'':value}),loading:outlineBusy,countsAvailable:!!outlineSubject}} onSelectProblemOutline={id=>patch({focus:id})}>
+        {collectionPicker}{searchLink}{!outlineSubject&&<p className="text-xs text-text-muted">選擇科目後載入題目大綱。</p>}<label className="block text-xs text-text-muted">標籤<input aria-label="篩選標籤" defaultValue={tag} key={tag} onKeyDown={e=>{if(e.key==='Enter')patch({tag:e.currentTarget.value.trim()});}} onBlur={e=>{if(e.currentTarget.value.trim()!==tag)patch({tag:e.currentTarget.value.trim()});}} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2"/></label>
       </Sidebar>;
   return <>
     {search?<SearchLibraryLayout query={queryForm} collection={collectionPicker} filters={filterFields} view={params.get('view')||'compact'} onView={view=>patch({view})} notices={needsLogin?null:notices}>{needsLogin?login:stream}</SearchLibraryLayout>:

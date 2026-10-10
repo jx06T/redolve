@@ -20,6 +20,7 @@ searchRouter.get('/', async c => {
   const scope = c.req.query('scope') || 'mine';
   const origin = c.req.query('origin') || 'all';
   const query = (c.req.query('q') || '').trim();
+  const metadataOnly = c.req.query('metadata_only') === '1';
   const collectionId = c.req.query('collection_id') || '';
   const topic = c.req.query('topic_id') || '';
   const status = c.req.query('status') || '';
@@ -51,9 +52,11 @@ searchRouter.get('/', async c => {
   const match = bind(`problem_text : "${query.replace(/"/g, '""')}"*`);
   const collection = bind(collectionId);
   const like = (field: string) => `COALESCE(${field},'') LIKE ${term} ESCAPE '\\'`;
-  const score = (fields: [string, number][]) => fields.map(([field, weight]) =>
-    `(CASE WHEN ${like(field)} THEN ${weight} ELSE 0 END)`).join('+');
+  const score = (fields: [string, number][]) => query ? fields.map(([field, weight]) =>
+    `(CASE WHEN ${like(field)} THEN ${weight} ELSE 0 END)`).join('+') : '0';
   const contains = (fields: string[]) => fields.map(like).join(' OR ');
+  const searchFilter = (fields: [string, number][]) => query
+    ? ` AND (${contains(fields.map(([field]) => field))})` : '';
   const validGrant = (alias: string) => `${alias}.revoked_at IS NULL AND
     (${alias}.expires_at IS NULL OR datetime(${alias}.expires_at)>CURRENT_TIMESTAMP)`;
   const contributor = (who: string) => `(co.owner_id=${who} OR EXISTS(
@@ -110,15 +113,15 @@ searchRouter.get('/', async c => {
     const fields: [string, number][] = [['i.keywords', 100], ['i.keyword_tokens', 100],
       ['i.source', 60], ['i.typed_notes', 40], ['f.problem_text', 10], ['t.label', 10]];
     parts.push(`SELECT 'owned' AS origin,i.id,i.source AS title,i.topic_id,t.label AS topic_label,
-      i.keywords,i.typed_notes,i.status,i.review_count,i.created_at,
+      i.keywords,${metadataOnly ? 'NULL' : 'i.typed_notes'} AS typed_notes,i.status,i.review_count,i.created_at,
       NULL AS collection_id,NULL AS collection_title,NULL AS provider_name,NULL AS saved_id,
-      (CASE WHEN ${like('i.keywords')} OR ${like('i.keyword_tokens')} THEN 100 ELSE 0 END)
-      +${score(fields.slice(2))}+CASE WHEN i.id IN (SELECT id FROM fts_hits) THEN 10 ELSE 0 END AS relevance_score,
+      ${query ? `(CASE WHEN ${like('i.keywords')} OR ${like('i.keyword_tokens')} THEN 100 ELSE 0 END)
+      +${score(fields.slice(2))}+CASE WHEN i.id IN (SELECT id FROM fts_hits) THEN 10 ELSE 0 END` : '0'} AS relevance_score,
       0 AS sort_priority FROM items i
-      LEFT JOIN items_fts f ON f.rowid=(SELECT MAX(rowid) FROM items_fts WHERE id=i.id AND user_id=${user})
+      ${query ? `LEFT JOIN items_fts f ON f.rowid=(SELECT MAX(rowid) FROM items_fts WHERE id=i.id AND user_id=${user})` : ''}
       LEFT JOIN taxonomies t ON t.id=i.topic_id AND (t.user_id IS NULL OR t.user_id=${user})
-      WHERE i.user_id=${user} AND (${contains(fields.map(([field]) => field))}
-        OR i.id IN (SELECT id FROM fts_hits))
+      WHERE i.user_id=${user}${query ? ` AND (${contains(fields.map(([field]) => field))}
+        OR i.id IN (SELECT id FROM fts_hits))` : ''}
       ${collectionId ? `AND EXISTS(SELECT 1 FROM collection_items ci JOIN collections co ON co.id=ci.collection_id
         WHERE ci.source_item_id=i.id AND ci.state='included' AND co.lifecycle!='deleted'
           AND co.id=${collection} AND ${contributor('ci.contributor_id')})` : ''}
@@ -135,13 +138,13 @@ searchRouter.get('/', async c => {
     fields.push([retainedNotes, 40]);
     parts.push(`SELECT 'saved' AS origin,sr.id,ss.source_title AS title,
       sr.personal_topic_id AS topic_id,t.label AS topic_label,ss.source_tags AS keywords,
-      pw.typed_notes,sr.status,sr.review_count,sr.downloaded_at AS created_at,
+      ${metadataOnly ? 'NULL' : 'pw.typed_notes'} AS typed_notes,sr.status,sr.review_count,sr.downloaded_at AS created_at,
       NULL AS collection_id,ss.collection_title,ss.provider_public_name AS provider_name,sr.id AS saved_id,
       ${score(fields)} AS relevance_score,0 AS sort_priority
       FROM saved_refs sr JOIN saved_snapshots ss ON ss.id=sr.current_snapshot_id AND ss.saved_ref_id=sr.id
       LEFT JOIN personal_workspaces pw ON pw.saved_ref_id=sr.id AND pw.user_id=${user}
       LEFT JOIN taxonomies t ON t.id=sr.personal_topic_id AND (t.user_id IS NULL OR t.user_id=${user})
-      WHERE sr.user_id=${user} AND (${contains(fields.map(([field]) => field))})
+      WHERE sr.user_id=${user}${searchFilter(fields)}
       ${collectionId ? `AND sr.entry_id IN (SELECT id FROM collection_items WHERE collection_id=${collection})` : ''}
       ${topicFilter('sr.personal_topic_id', true)}${tagFilter(['ss.source_tags', 'sr.personal_tags'])}
       ${status ? `AND sr.status=${bind(status)}` : ''}
@@ -156,7 +159,7 @@ searchRouter.get('/', async c => {
     if (scope === 'shared') fields.push([sharedNotes, 40]);
     parts.push(`SELECT '${scope}' AS origin,ci.id,COALESCE(i.source,'題目') AS title,
       t.id AS topic_id,t.label AS topic_label,i.keywords,
-      ${scope === 'shared' ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
+      ${scope === 'shared' && !metadataOnly ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
       ${contributing ? "COALESCE(cp.status,'unsolved')" : 'NULL'} AS status,${contributing ? 'COALESCE(cp.review_count,0)' : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
       co.title AS collection_title,COALESCE(p.display_name,co.public_name) AS provider_name,
       (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
@@ -169,7 +172,7 @@ searchRouter.get('/', async c => {
         ${scope === 'shared' && !collectionId ? `AND ${related}` : ''}
         ${subscribed ? `AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=${user})` : ''}
         ${collectionId ? `AND co.id=${collection}` : ''}
-        AND (${contains(fields.map(([field]) => field))})
+        ${searchFilter(fields)}
         ${topicFilter('t.id', false)}${tagFilter(['i.keywords'])}`);
     if (scope === 'public') {
       parts.push(`SELECT 'collection' AS origin,co.id,co.title,
@@ -179,7 +182,7 @@ searchRouter.get('/', async c => {
         ${score([['co.title', 100], ['co.description', 60], ['co.public_name', 20]])} AS relevance_score,
         1 AS sort_priority FROM collections co WHERE ${publicGate} AND co.kind!='personal'
         ${collectionId ? `AND co.id=${collection}` : ''}
-        AND (${contains(['co.title', 'co.description', 'co.public_name'])})
+        ${query ? `AND (${contains(['co.title', 'co.description', 'co.public_name'])})` : ''}
         AND EXISTS(SELECT 1 ${liveFrom.replace('JOIN collections co ON co.id=ci.collection_id', '')}
           WHERE ci.collection_id=co.id AND ${liveGate}
           ${topicFilter('t.id', false)}${tagFilter(['i.keywords'])})`);
@@ -190,9 +193,11 @@ searchRouter.get('/', async c => {
   const ownedFts = !!query && scope === 'mine' && origin !== 'saved';
   const ftsHits = ownedFts ? `SELECT id FROM items_fts WHERE items_fts MATCH ${match}
     AND user_id=${user} AND rowid IN (SELECT MAX(rowid) FROM items_fts WHERE user_id=${user} GROUP BY id)` : 'SELECT NULL AS id WHERE 0';
-  const sql = (withFts: boolean) => `WITH fts_hits AS (${withFts ? ftsHits : 'SELECT NULL AS id WHERE 0'}),
+  // Browsing has no OCR lookup or relevance work. A single origin also needs no
+  // constant origin sort term, allowing the created_at/id index to stop at LIMIT.
+  const sql = (withFts: boolean) => `WITH ${query ? `fts_hits AS (${withFts ? ftsHits : 'SELECT NULL AS id WHERE 0'}),` : ''}
     hits AS (${parts.join(' UNION ALL ')}) SELECT * FROM hits
-    ORDER BY ${query ? 'sort_priority DESC,relevance_score DESC,' : ''}created_at DESC,origin,id DESC LIMIT ${pageLimit} OFFSET ${pageOffset}`;
+    ORDER BY ${query ? 'sort_priority DESC,relevance_score DESC,' : ''}created_at DESC,${parts.length > 1 ? 'origin,' : ''}id DESC LIMIT ${pageLimit} OFFSET ${pageOffset}`;
   const execute = (withFts: boolean) => c.env.DB.prepare(sql(withFts)).bind(...values).all<Hit>();
   let rows: Hit[];
   try { rows = (await execute(ownedFts)).results || []; }
@@ -202,13 +207,13 @@ searchRouter.get('/', async c => {
     rows = (await execute(false)).results || [];
   }
   const page = rows.slice(0, limit);
-  const ownedIds = (c.req.query('metadata_only')==='1'?[]:page).filter(hit => hit.origin === 'owned').map(hit => hit.id);
+  const ownedIds = (metadataOnly?[]:page).filter(hit => hit.origin === 'owned').map(hit => hit.id);
   const problems = ownedIds.length ? (await c.env.DB.prepare(
     `SELECT * FROM items WHERE user_id=? AND id IN (${ownedIds.map(() => '?').join(',')})`)
     .bind(uid, ...ownedIds).all<ItemRow>()).results || [] : [];
   const byId = new Map(problems.map(item => [item.id, item]));
   return c.json({ items: page.map(hit => ({ ...hit,
-    ...(c.req.query('metadata_only')==='1'?{typed_notes:null,keywords:null}:{}),
+    ...(metadataOnly?{typed_notes:null,keywords:null}:{}),
     ...(hit.origin === 'owned' ? { problem: byId.get(hit.id) } : {}),
   })), next_offset: rows.length > limit ? offset + limit : null, scope });
 });
