@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, Settings, Search, Rss } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass } from 'lucide-react';
 
 // Navigation Links Configuration
 export const NAV_LINKS = [
@@ -7,6 +7,11 @@ export const NAV_LINKS = [
   { path: '/search', label: '搜尋', icon: Search },
   { path: '/settings', label: '設定', icon: Settings },
   { path: '/extended', label: '延伸題目', icon: Rss },
+];
+
+export const HEADER_NAV_LINKS = [
+  ...NAV_LINKS,
+  { path: '/explore', label: '探索', icon: Compass },
 ];
 
 // Separated Exam Years & Exam Types (年分與卷別獨立分離)

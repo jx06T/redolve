@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PenTool, Upload, Moon, Sun, Menu, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { isGuestUser } from '../utils/guest';
-import { NAV_LINKS } from '../config/constants';
+import { HEADER_NAV_LINKS } from '../config/constants';
 import { lastStudyUrl, searchUrl } from '../services/navigationState';
 import { UploadModal } from './UploadModal';
 import { AuthModal } from './AuthModal';
@@ -17,15 +17,15 @@ export function Navbar() {
   const study=location.pathname.startsWith('/study');const account=currentUser?.id||'guest';
   useKeyboardShortcuts({onToggleShortcutsModal:()=>setShortcuts(v=>!v)});
   useEffect(()=>{setMenu(false);clearInPageMatches();setInPageSearchQuery('');},[location.pathname,location.search,clearInPageMatches,setInPageSearchQuery]);
-  const links=<>{NAV_LINKS.map(l=>{const Icon=l.icon;const active=l.path==='/'?location.pathname==='/':location.pathname.startsWith(l.path);
+  const links=<>{HEADER_NAV_LINKS.map(l=>{const Icon=l.icon;const active=l.path==='/'?location.pathname==='/':location.pathname.startsWith(l.path);
     return <Link key={l.path} to={l.path==='/study'?lastStudyUrl(account):l.path==='/search'?searchUrl(account,study?location.search:undefined):l.path} aria-current={active?'page':undefined}
-      className={`flex items-center gap-1.5 rounded-xl px-3 py-3 text-xs ${active?'bg-primary/10 text-primary':'text-text-main'}`}><Icon size={16}/><span>{l.label}</span></Link>;})}</>;
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-3 text-xs md:px-2 lg:px-3 ${active?'bg-primary/10 text-primary':'text-text-main'}`}><Icon size={16}/><span>{l.label}</span></Link>;})}</>;
   return <>
     <header style={{paddingTop:'calc(env(safe-area-inset-top, 0px) + 0.5rem)'}} className="z-30 shrink-0 border-b border-border-subtle bg-surface px-3 pb-3">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-2">
         <div className="flex items-center gap-2"><button aria-label="開啟導覽選單" aria-expanded={menu} onClick={()=>setMenu(v=>!v)} className="md:hidden rounded-xl p-2"><Menu size={20}/></button>
           <span onClick={()=>setTimeout(()=>window.location.reload(),200)} onDoubleClick={()=>navigate(lastStudyUrl(account))}
-            title="重新整理 (雙擊前往刷題)" className="flex cursor-pointer select-none items-center gap-2 font-semibold"><span className="rounded-2xl bg-primary/10 p-2.5 text-primary"><PenTool size={20}/></span><span className="hidden sm:inline">Redolve</span></span></div>
+            title="重新整理 (雙擊前往刷題)" className="flex cursor-pointer select-none items-center gap-2 font-semibold"><span className="rounded-2xl bg-primary/10 p-2.5 text-primary"><PenTool size={20}/></span><span className="hidden sm:inline md:hidden lg:inline">Redolve</span></span></div>
         <nav aria-label="主要導覽" className="hidden md:flex gap-1">{links}</nav>
         <div className="flex items-center gap-2">
           <button onClick={()=>setShortcuts(true)} title="快捷鍵" className="hidden lg:block rounded-xl border border-border-subtle p-2"><Command size={16}/></button>
