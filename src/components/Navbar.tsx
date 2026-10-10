@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { PenTool, Upload, Moon, Sun, Menu, Command } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import { isGuestUser } from '../utils/guest';
 import { NAV_LINKS } from '../config/constants';
 import { lastStudyUrl, searchUrl } from '../services/navigationState';
 import { UploadModal } from './UploadModal';
@@ -30,7 +31,7 @@ export function Navbar() {
           <button onClick={()=>setShortcuts(true)} title="快捷鍵" className="hidden lg:block rounded-xl border border-border-subtle p-2"><Command size={16}/></button>
           <button onClick={()=>setUploadModalOpen(true)} title="上傳錯題" className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs text-white" aria-label="批次上傳題目"><Upload size={16}/><span className="hidden sm:inline">上傳</span></button>
           <button onClick={toggleDarkMode} title="切換深淺色模式" className="rounded-xl border border-border-subtle p-2">{darkMode?<Sun size={16}/>:<Moon size={16}/>}</button>
-          <button onClick={()=>setAuthModalOpen(true)} className="max-w-24 truncate rounded-xl border border-border-subtle px-3 py-2 text-xs">{currentUser?(currentUser.name||'帳號'):'登入 / 訪客'}</button>
+          <button onClick={()=>setAuthModalOpen(true)} className={`max-w-24 truncate rounded-xl px-3 py-2 text-xs ${isGuestUser(currentUser)?'bg-primary/10 text-primary':'border border-border-subtle'}`}>{isGuestUser(currentUser)?'登入':currentUser!.name||'帳號'}</button>
         </div>
       </div>
       {menu&&<nav aria-label="行動導覽" className="mt-3 flex flex-wrap gap-1 md:hidden">{links}</nav>}

@@ -8,7 +8,7 @@ export function PublicExploreActivity(){
   const account=useStore(s=>s.currentUser?.id);const [rows,setRows]=useState<PublicItem[]>([]);
   const [busy,setBusy]=useState(true);const [error,setError]=useState('');const [revision,setRevision]=useState(0);
   useEffect(()=>{const abort=new AbortController();setRows([]);setError('');setBusy(true);
-    void sharingApi<{items:PublicItem[]}>('/public/items','GET',undefined,abort.signal)
+    void sharingApi<{items:PublicItem[]}>('/public/items?exclude_subscribed=yes','GET',undefined,abort.signal)
       .then(r=>{if(!abort.signal.aborted)setRows(r.items.slice(0,4));}).catch(e=>{if(!abort.signal.aborted)setError(e.message);})
       .finally(()=>{if(!abort.signal.aborted)setBusy(false);});return ()=>abort.abort();
   },[account,revision]);

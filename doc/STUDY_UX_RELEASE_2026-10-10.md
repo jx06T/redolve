@@ -1,5 +1,7 @@
 # 刷題恢復與共用個人進度發布
 
+2026-10-10 後續 UI 修正見 [UI_UX_POLISH_2026-10-10.md](./UI_UX_POLISH_2026-10-10.md)。該批修正沒有新增 migration、secret 或 binding；已確認 0003／0004 完整的環境可直接採 Git CI 發布，不必重新套用 schema。以下步驟供尚未完成既有 schema 的環境使用。
+
 適用已完成 0002／0003 的正式資料庫。本輪只新增 0004 的 collection_item_progress；不需新 secret、R2 複製、Gemini 配置或舊 migration 重跑。
 
 ## 使用者操作（推送前）

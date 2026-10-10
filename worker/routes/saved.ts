@@ -66,7 +66,7 @@ function snapshotInsert(db:D1Database) {
 function snapshotLayers(db:D1Database) {
   return db.prepare(`INSERT INTO saved_snapshot_layers
     (snapshot_id,layer_origin_key,author_display,draw_asset_id,typed_notes,retained_field_mask)
-    SELECT ?,sl.id,sl.author_display,
+    SELECT ?,sl.id,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=sl.user_id),sl.author_display),
       CASE WHEN ci.contributor_id=? OR co.owner_id=? OR
         EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.kind='user'
          AND g.role='contributor' AND g.user_id=? AND g.revoked_at IS NULL

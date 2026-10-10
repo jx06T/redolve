@@ -134,7 +134,7 @@ collectionsRouter.get('/my/detached-layers/:layerId/draw',authMiddleware,async c
 });
 
 collectionsRouter.get('/my/collections',authMiddleware,async c=>{
-  const { results }=await c.env.DB.prepare(`SELECT co.id,co.title,co.description,co.public_name,co.lifecycle,
+  const { results }=await c.env.DB.prepare(`SELECT co.id,co.title,co.description,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name,co.lifecycle,
     co.visibility,co.listed,co.row_version,co.show_shared_ink,co.show_shared_notes,
     CASE WHEN co.owner_id=? THEN 'owner' ELSE 'contributor' END AS role,
     CASE WHEN EXISTS(SELECT 1 FROM owner_transfers ot WHERE ot.collection_id=co.id
@@ -164,7 +164,8 @@ collectionsRouter.get('/my/collections/membership',authMiddleware,async c=>{
 });
 collectionsRouter.post('/my/collections',authMiddleware,async c=>{
   const body=await c.req.json().catch(()=>({}));
-  const title=clean(body.title,80), name=clean(body.public_name,80);
+  const profile=await c.env.DB.prepare('SELECT display_name FROM public_profiles WHERE user_id=?').bind(c.get('userId')).first<{display_name:string}>();
+  const title=clean(body.title,80), name=profile?.display_name||clean(body.public_name,80);
   if(!title||!name||name.includes('@')||!visibilityOk(body.visibility))
     return c.json(apiError('INVALID_REQUEST','請填名稱、公開顯示名稱及觀看範圍'),400);
   const id=crypto.randomUUID();
@@ -452,8 +453,9 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
   const canWrite=Boolean(c.get('userId')&&await canContribute(c.env,co!,c.get('userId')));
   const progress=canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
     .bind(c.get('userId'),entry.id).first():null;
-  const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,sl.author_display,sl.draw_asset_id,
+  const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,COALESCE(p.display_name,sl.author_display) AS author_display,sl.draw_asset_id,
     sl.draw_seq,sl.typed_notes,sl.notes_seq FROM shared_layers sl
+    LEFT JOIN public_profiles p ON p.user_id=sl.user_id
     WHERE sl.entry_id=? AND sl.entry_generation=? AND sl.state='active'
      AND EXISTS(SELECT 1 FROM collections co WHERE co.id=?
        AND (co.owner_id=sl.user_id OR EXISTS(SELECT 1 FROM collection_grants g
@@ -486,7 +488,7 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
       ORDER BY ci.display_order,ci.id LIMIT 1`)
       .bind(co!.id,entry.display_order,entry.display_order,entry.id).first<{id:string}>(),
   ]);
-  return c.json({collection:{id:co!.id,title:co!.title,show_shared_ink:co!.show_shared_ink,
+  return c.json({collection:{id:co!.id,title:co!.title,visibility:co!.visibility,is_owner:co!.owner_id===c.get('userId'),show_shared_ink:co!.show_shared_ink,
     show_shared_notes:co!.show_shared_notes},entry:{id:entry.id,generation:entry.generation,
     shared_seq:entry.shared_seq,latest_add_event_seq:entry.latest_add_event_seq},
     neighbors:{previous:previous?.id||null,next:next?.id||null},
@@ -624,7 +626,7 @@ collectionsRouter.get('/my/invitations',authMiddleware,async c=>{
   const email=c.get('userEmail')?.toLowerCase();
   if(!email) return c.json({invitations:[]});
   const {results}=await c.env.DB.prepare(`SELECT v.id,v.collection_id,v.role,v.expires_at,
-    co.title,co.public_name FROM invitations v JOIN collections co ON co.id=v.collection_id
+    co.title,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name FROM invitations v JOIN collections co ON co.id=v.collection_id
     WHERE v.email=? AND v.accepted_at IS NULL AND v.revoked_at IS NULL
       AND datetime(v.expires_at)>CURRENT_TIMESTAMP AND co.lifecycle!='deleted'
     ORDER BY v.created_at DESC`).bind(email).all();
@@ -741,21 +743,22 @@ collectionsRouter.post('/share-links/claim',optionalAuthMiddleware,async c=>{
   c.header('Set-Cookie',`rdv_collection_${link.collection_id}=${b.token}; HttpOnly; SameSite=Lax; Path=/api/collections/${link.collection_id}; Max-Age=86400${secure}`);
   return c.json({collection_id:link.collection_id});
 });
-collectionsRouter.get('/public/collections',async c=>{
+collectionsRouter.get('/public/collections',optionalAuthMiddleware,async c=>{
   const q=clean(c.req.query('q'),100).replace(/[\\%_]/g,'\\$&');
   const term=`%${q}%`;
-  const {results}=await c.env.DB.prepare(`SELECT co.id,co.title,co.description,co.public_name,
+  const {results}=await c.env.DB.prepare(`SELECT co.id,co.title,co.description,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name,co.owner_id=?1 AS is_owner,
     co.updated_at,COUNT(ci.id) AS item_count FROM collections co
     JOIN collection_items ci ON ci.collection_id=co.id AND ci.state='included'
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
     JOIN assets a ON a.id=i.image_url AND a.state='ready'
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
-      AND (co.title LIKE ? ESCAPE '\\' OR co.description LIKE ? ESCAPE '\\')
+      ${c.req.query('exclude_subscribed')==='yes'?`AND NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1)`:''}
+      AND (co.title LIKE ?2 ESCAPE '\\' OR co.description LIKE ?3 ESCAPE '\\')
       AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g
         WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor'
           AND g.user_id=ci.contributor_id AND g.revoked_at IS NULL
           AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))
-    GROUP BY co.id ORDER BY co.updated_at DESC LIMIT 50`).bind(term,term).all();
+    GROUP BY co.id ORDER BY co.updated_at DESC LIMIT 50`).bind(c.get('userId')||'',term,term).all();
   return c.json({collections:results||[]});
 });
 collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
@@ -776,12 +779,13 @@ collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
     LEFT JOIN public_profiles p ON p.user_id=ci.contributor_id
     LEFT JOIN taxonomies t ON t.id=i.topic_id
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
-      AND (COALESCE(i.source,'') LIKE ? ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ? ESCAPE '\\')
+      ${c.req.query('exclude_subscribed')==='yes'?`AND NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1)`:''}
+      AND (COALESCE(i.source,'') LIKE ?2 ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ?3 ESCAPE '\\')
       AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g
         WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor'
           AND g.user_id=ci.contributor_id AND g.revoked_at IS NULL
           AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))
-    ORDER BY ci.created_at DESC,ci.id DESC LIMIT 31 OFFSET ?`).bind(c.get('userId')||'',term,term,offset).all();
+    ORDER BY ci.created_at DESC,ci.id DESC LIMIT 31 OFFSET ?4`).bind(c.get('userId')||'',term,term,offset).all();
   const rows=results||[];return c.json({items:rows.slice(0,30),next_offset:rows.length>30?offset+30:null});
 });
 collectionsRouter.post('/collections/:id/reports',authMiddleware,async c=>{

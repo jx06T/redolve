@@ -54,7 +54,7 @@ subscriptionsRouter.delete('/:collectionId',authMiddleware,async c=>{
   return c.json({status:'unsubscribed'});
 });
 async function visibleSubscriptions(env:Bindings,uid:string,cookie?:string) {
-  const {results}=await env.DB.prepare(`SELECT s.*,co.lifecycle,co.visibility,co.public_name,co.title,
+  const {results}=await env.DB.prepare(`SELECT s.*,co.lifecycle,co.visibility,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name,co.title,
     (SELECT MAX(rd.seen_at) FROM collection_item_reads rd JOIN collection_items ci ON ci.id=rd.entry_id
       WHERE rd.user_id=s.user_id AND ci.collection_id=co.id AND rd.seen_add_event_seq>0) AS last_viewed_at,
     CASE WHEN EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.user_id=s.user_id
@@ -104,7 +104,7 @@ subscriptionsRouter.get('/feed',authMiddleware,async c=>{
   const cursor=Number.isSafeInteger(before)&&before>0?before:Number.MAX_SAFE_INTEGER;
   const binds:(string|number)[]=[uid,...ids,upper,cursor];
   let query=`SELECT ci.id AS entry_id,ci.collection_id,ci.latest_add_event_seq AS event_seq,
-    co.title AS collection_title,co.public_name,ci.contributor_id,
+    co.title AS collection_title,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name,ci.contributor_id,
     i.source AS title,i.keywords,
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN i.topic_id ELSE NULL END AS topic_id,
     i.content_seq,ci.shared_seq,

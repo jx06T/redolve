@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { ProblemCard, type ProblemCardWork } from './ProblemCard';
 import type { Item } from '../types';
 import type { ReviewProgress } from '../types/question';
@@ -22,6 +23,8 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
   const [update,setUpdate]=useState<Awaited<ReturnType<typeof libraryService.previewUpdate>>|null>(null);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const [remove,setRemove]=useState(false);const [savedFlash,setSavedFlash]=useState(false);
+  const [classification,setClassification]=useState(false);const [topic,setTopic]=useState(content.topic||'');
+  useEffect(()=>setTopic(content.topic||''),[content.topic]);
   useEffect(()=>{controller.observeCloud(content);},[controller,content]);
   useEffect(()=>{if(state.status!=='saved'){setSavedFlash(false);return;}if(state.revision>0){setSavedFlash(true);const timer=setTimeout(()=>setSavedFlash(false),2200);return ()=>clearTimeout(timer);}},[state.status,state.revision]);
   const [cloud,setCloud]=useState<WorkContent|null>(null);const [name,setName]=useState('');
@@ -51,12 +54,13 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
     setBusy(true);setError('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'操作失敗');}finally{setBusy(false);}
   };
   const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(state.ink),typed_notes:state.notes,status:progress.status,review_count:progress.review_count,vector_clock:null,created_at:'',updated_at:''};
-  const work:ProblemCardWork={image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
+  const work:ProblemCardWork={image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
     copyText:async()=>[content.title,content.topic,content.collectionTitle,content.provider].filter(Boolean).join(' · '),
-    remove:content.saved?()=>setRemove(true):undefined,
-    share:content.shared?()=>{void navigator.clipboard.writeText(window.location.origin+'/collections/'+encodeURIComponent(content.collectionId!)+'?focus='+encodeURIComponent(content.shared!.entry.id)).then(()=>useStore.getState().showToast('已複製分享連結；觀看仍受集合權限限制','success')).catch(()=>useStore.getState().showToast('無法複製連結','error'));}:undefined,
-    label:<p className="mt-3 rounded-xl bg-page-bg px-3 py-2 text-xs text-text-muted">{content.saved?'我存入 · 私人訂正':'我共用中 · 我的共用筆跡與筆記'} · {content.collectionTitle} · {content.provider}</p>,
+    reloadLabel:content.saved?'檢查來源更新':undefined,
+    footerActions:content.saved?<button onClick={()=>setRemove(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs text-text-muted hover:text-status-eraser"><Trash2 size={14}/>移除我的已存版本</button>:undefined,
+    share:content.shared?()=>{void navigator.clipboard.writeText(window.location.origin+'/collections/'+encodeURIComponent(content.collectionId!)+'/items/'+encodeURIComponent(content.shared!.entry.id)).then(()=>useStore.getState().showToast('已複製分享連結；觀看仍受集合權限限制','success')).catch(()=>useStore.getState().showToast('無法複製連結','error'));}:undefined,
+    label:<span className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted">{content.saved?'我存入':'共用中'} · {content.collectionTitle}</span>,
     beforeWorkspace:<>    {!readOnly&&!hasProfile&&<section className="mb-4 rounded-2xl bg-page-bg p-4">
       <label className="block text-sm">開始共用書寫前，設定你的公開顯示名稱<input value={name} maxLength={80} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-surface p-3"/></label>
       <p className="mt-2 text-xs text-text-muted">這個帳號名稱會顯示於你貢獻的題目、筆跡和筆記，不使用 email。</p>
@@ -66,7 +70,7 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
     {content.layers.length>0&&<div className="mb-3 flex flex-wrap gap-2">{content.layers.map(l=><button key={l.id}
       aria-pressed={!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}
       onClick={()=>setHidden(p=>({...p,[l.id]:!(p[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}))}
-      className="rounded-xl border border-border-subtle px-3 py-2 text-xs">{l.author} · 參考筆跡</button>)}</div>}
+      className="rounded-xl border border-border-subtle px-3 py-2 text-xs aria-pressed:bg-primary/10 aria-pressed:border-primary/20 aria-pressed:text-primary">{l.author} · 參考筆跡</button>)}</div>}
 </>,
     references:content.layers.filter(l=>l.ink&&!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))).map(l=>l.ink!),
     afterNotes:<><p role="status" className="mt-2 text-xs text-text-muted">{state.status==='saving'?'儲存中…':state.status==='pending'?'尚未同步':savedFlash?'已儲存':''}</p>{(state.error||error)&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
@@ -78,26 +82,16 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
     {content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-3 rounded-2xl bg-page-bg p-3">
       <summary className="cursor-pointer text-sm">{l.author} · {l.notes.slice(0,60)}{l.notes.length>60?'…':''}</summary>
       <p className="mt-2 whitespace-pre-wrap text-sm">{l.notes}</p></details>)}
-    {!readOnly&&content.saved&&<div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
-      {content.saved.saved.classification_state==='pending'&&<p role="status" className="text-xs text-text-muted">正在將來源分類辨識到你的課綱；你也可以手動指定。</p>}
-      {content.saved.saved.classification_state==='failed'&&<p className="text-xs text-text-muted">自動分類未完成；題目已保留，可手動指定科目與單元。<button disabled={busy} onClick={()=>void act(async()=>{await libraryService.retryClassification(content.saved!.saved.id);onChanged?.();})} className="ml-2 text-primary underline">重試分類</button></p>}
-      <label htmlFor={`saved-topic-${content.saved.saved.id}`} className="block text-xs text-text-muted">我的科目與單元</label>
-      <PersonalTopicSelect id={`saved-topic-${content.saved.saved.id}`} value={content.saved.saved.personal_topic_id||''}
-        onChange={topic=>void act(async()=>{
-          const d=content.saved!;const result=await libraryService.patch(d.saved.id,{expected_version:progressRef.current.row_version,personal_topic_id:topic||null});progressRef.current={...progressRef.current,row_version:result.row_version};onChanged?.();
-        })} disabled={busy}/>
-      <div className="flex flex-wrap gap-2">
-        <button disabled={busy||!content.saved.source.available} onClick={()=>void act(async()=>{
-          setUpdate(await libraryService.previewUpdate(content.saved!.saved.id));
-        })} className="rounded-xl border border-border-subtle px-3 py-2 text-xs disabled:opacity-40">檢查來源更新</button>
-        <a href={content.image} download className="rounded-xl border border-border-subtle px-3 py-2 text-xs">下載圖片</a>
-        <button onClick={()=>setRemove(true)} className="rounded-xl px-3 py-2 text-xs text-status-eraser">移除我的已存版本</button>
-      </div>
-      {!content.saved.source.available&&<p className="text-xs text-text-muted">來源目前無法存取；你的已存版本與訂正仍保留。</p>}
-    </div>}
+    {content.saved&&!content.saved.source.available&&<p className="mt-2 text-xs text-text-muted">來源目前無法存取；你的已存版本與訂正仍保留。</p>}
 </>,
   };
-  return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
+  return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} onEditMetadata={content.saved&&!readOnly?()=>setClassification(true):undefined} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
+    {classification&&content.saved&&<AppDialog title="修改題目分類" busy={busy} onClose={()=>setClassification(false)}>
+      <PersonalTopicSelect id={`saved-topic-${content.saved.saved.id}`} value={topic} onChange={setTopic} disabled={busy}/>
+      {content.saved.saved.classification_state==='failed'&&<button disabled={busy} onClick={()=>void act(async()=>{await libraryService.retryClassification(content.saved!.saved.id);setClassification(false);onChanged?.();})} className="mt-3 text-sm underline">重試自動分類</button>}
+      <button disabled={busy} onClick={()=>void act(async()=>{const result=await libraryService.patch(content.saved!.saved.id,{expected_version:progressRef.current.row_version,personal_topic_id:topic||null});progressRef.current={...progressRef.current,row_version:result.row_version};setClassification(false);onChanged?.();})} className="mt-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">儲存分類</button>
+      {error&&<p role="alert" className="mt-3 text-sm text-status-eraser">{error}</p>}
+    </AppDialog>}
     {update&&<AppDialog title="來源內容更新" busy={busy} onClose={()=>setUpdate(null)}>
       <p className="text-sm">{!update.available?'來源目前無法存取':update.changed?update.changes.join('、'):'目前已與可取得的來源內容一致。'}</p>
       <p className="mt-2 text-xs text-text-muted">更新保留自己的筆跡、筆記、分類與訂正狀態。</p>

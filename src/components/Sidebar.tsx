@@ -110,6 +110,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
     return isStatusMatch && (!p.topic_id || p.topic_id === 'unclassified');
   }).length;
   const [expanded,setExpanded]=useState<Record<string,boolean>>({});
+  const [treeVisible,setTreeVisible]=useState(true);
   const handleSelectTopic = (tId: string | null) => {
     setSelectedTopicId(tId);
     setMobileDrawerOpen(false);
@@ -190,8 +191,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
             <Layers className="w-3.5 h-3.5 text-primary" />
             <span>{isUnclassifiedSubject ? '其他科目' : currentSubjectId==='all'?'科目與章節':(activeSubject?.label || '章節')} 篩選</span>
           </div>
+          <button type="button" aria-expanded={treeVisible} aria-controls="study-taxonomy-tree" onClick={()=>setTreeVisible(v=>!v)} className="rounded-xl px-2 py-1 text-xs text-text-muted">{treeVisible?'隱藏樹狀圖':'顯示樹狀圖'}</button>
         </div>
-
+        <div id="study-taxonomy-tree" hidden={!treeVisible}>
         {isUnclassifiedSubject ? (
           /* Unclassified virtual subject: no chapter tree, just a single "all" entry */
           <div className="space-y-1">
@@ -233,6 +235,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
             {renderNodes(currentSubjectId==='all'?baseTaxonomy:activeSubject?.children||[])}
           </div>
         )}
+        </div>
       </div>
 
       {/* Problem Outline List / Minimap Navigation */}
@@ -302,10 +305,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
       {/* Mobile Floating Slide-over Drawer */}
       {!desktop&&mobileDrawerOpen&&<div
         onClick={() => setMobileDrawerOpen(false)}
-        className={`lg:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        className={`lg:hidden fixed inset-x-0 top-0 bottom-16 md:bottom-0 z-30 bg-black/40 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
       >
         <div
+          id="study-mobile-sidebar"
           onClick={(e) => e.stopPropagation()}
           style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.25rem)' }}
           className={`w-80 max-w-[85vw] bg-surface border-r border-border-subtle h-full px-5 pb-5 flex flex-col shadow-2xl transition-transform duration-300 ease-out ${mobileDrawerOpen ? 'translate-x-0' : '-translate-x-full'
@@ -317,6 +321,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
               <span className="text-sm font-bold text-text-main">章節導航與篩選</span>
             </div>
             <button
+              aria-label="關閉章節導航與篩選"
               onClick={() => setMobileDrawerOpen(false)}
               className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted"
             >

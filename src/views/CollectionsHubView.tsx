@@ -1,3 +1,4 @@
+import { LoginNotice } from '../components/LoginNotice';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AppDialog } from '../components/AppDialog';
@@ -18,7 +19,7 @@ export function CollectionsHubView(){
   const [invites,setInvites]=useState<Invite[]>([]);
   const [detached,setDetached]=useState<DetachedLayer[]>([]);
   const [title,setTitle]=useState('');
-  const [name,setName]=useState('');
+  const [name,setName]=useState('');const [hasProfile,setHasProfile]=useState(false);
   const [creating,setCreating]=useState(false);
   const [visibility,setVisibility]=useState<'restricted'|'link'|'public'>('restricted');
   const [listed,setListed]=useState(false);
@@ -39,7 +40,7 @@ export function CollectionsHubView(){
       ]);
       if(abort.signal.aborted)return;setMine(myResult.collections);setInvites(inviteResult.invitations);
       setDetached(detachedResult.layers);
-      setName(profileResult.profile?.display_name||'');
+      setName(profileResult.profile?.display_name||'');setHasProfile(!!profileResult.profile);
     }
   };
   useEffect(()=>{setMine([]);setInvites([]);setDetached([]);setError('');
@@ -63,8 +64,9 @@ export function CollectionsHubView(){
         <h2 className="font-semibold flex items-center gap-2"><FolderPlus size={18}/>建立公開或限定題目集</h2>
         <label className="block text-sm">集合名稱<input value={title} onChange={e=>setTitle(e.target.value)}
           maxLength={80} className="mt-1 w-full p-2.5 rounded-xl border border-border-subtle bg-page-bg"/></label>
-        <label className="block text-sm">集合展示署名<input value={name} onChange={e=>setName(e.target.value)}
+        <label className="block text-sm">公開顯示名稱<input disabled={hasProfile} value={name} onChange={e=>setName(e.target.value)}
           maxLength={80} className="mt-1 w-full p-2.5 rounded-xl border border-border-subtle bg-page-bg"/></label>
+        <p className="text-xs text-text-muted">所有共用集統一使用個人檔案中的公開顯示名稱。</p>
         <label className="block text-sm">觀看範圍<select value={visibility}
           onChange={e=>setVisibility(e.target.value as typeof visibility)}
           className="mt-1 w-full p-2.5 rounded-xl border border-border-subtle bg-page-bg">
@@ -89,8 +91,7 @@ export function CollectionsHubView(){
             {inv.role==='contributor'?'貢獻者':'觀看者'}。<Link to="/settings#profile" className="ml-2 text-primary underline">至個人檔案接受邀請</Link></p>)}
         </div>}
       </div>
-    </section>:<button onClick={()=>setAuthModalOpen(true)}
-      className="px-5 py-2 rounded-xl bg-primary text-white">登入以建立、貢獻或訂閱</button>}
+    </section>:<LoginNotice description="登入後可建立與貢獻共用題目集。"/>}
     {!isGuestUser(currentUser)&&detached.length>0&&<details className="rounded-3xl border border-border-subtle bg-surface p-5">
       <summary className="cursor-pointer font-semibold">取回已停止展示的共用筆記</summary>
       <p className="mt-1 text-sm text-text-muted">退出或移出集合後，這些舊共用層只供你取回。</p>

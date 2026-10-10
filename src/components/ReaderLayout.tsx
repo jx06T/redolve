@@ -8,7 +8,7 @@ export function ReaderLayout({children}:{children:ReactNode}) {
   const study=useLocation().pathname.startsWith('/study');
   return <><ReaderNavigation/><Navbar/>
     <main className={study
-      ?'flex-1 min-h-0 w-full mx-auto max-w-[1600px] overflow-hidden px-2 sm:px-4 py-3 pb-16 md:pb-3'
+      ?'flex-1 min-h-0 w-full mx-auto max-w-[1600px] overflow-hidden px-2 sm:px-4 pb-16 md:pb-3'
       :'flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-16 md:pb-6'}>
       {children}
     </main><BottomNav/></>;

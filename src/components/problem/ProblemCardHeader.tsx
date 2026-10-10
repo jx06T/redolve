@@ -29,6 +29,8 @@ interface ProblemCardHeaderProps {
   onExport: () => void;
   onOpenShareModal?: () => void;
   copyText?:()=>Promise<string>;
+  sourceLabel?: React.ReactNode;
+  reloadLabel?: string;
   onOpenDeleteModal?: () => void;
   onEditMetadata?: (problem: Item) => void;
 }
@@ -46,7 +48,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onExport,
   onOpenShareModal,
   onOpenDeleteModal,
-  onEditMetadata,copyText,
+  onEditMetadata,copyText,sourceLabel,reloadLabel,
 }) => {
   const [isFetchingText, setIsFetchingText] = useState(false);
   const { isCopied, copy } = useCopyToClipboard();
@@ -101,6 +103,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
             {problem.source}
           </span>
         )}
+        {sourceLabel}
       </div>
 
       {/* Right Toolbar Actions */}
@@ -128,10 +131,10 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={onReload}
           disabled={isReloading}
-          aria-label="手動重新載入本題資料"
+          aria-label={reloadLabel||'手動重新載入本題資料'}
           className={`p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all ${isReloading ? 'text-primary cursor-not-allowed' : ''
             }`}
-          title="手動重新載入本題最新狀態"
+          title={reloadLabel||'手動重新載入本題最新狀態'}
         >
           <RotateCw className={`w-4 h-4 ${isReloading ? 'animate-spin text-primary' : ''}`} />
         </button>

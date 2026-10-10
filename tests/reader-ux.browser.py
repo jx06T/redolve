@@ -2,6 +2,7 @@
 Uses request fixtures so destructive actions never touch a real account.
 """
 import json
+import re
 from pathlib import Path
 from playwright.sync_api import sync_playwright, expect
 
@@ -25,6 +26,9 @@ def run():
     subscriptions = {'c1'}
     invitation_pending = [True]
     public_sets = [{**CO,'id':cid,'title':name,'is_owner':False,'role':'viewer','can_contribute':False} for cid,name in [('c2','公開數學集'),('c3','公開物理集')]]
+    activity_updates = [False]
+    external_scroll = [False]
+    link_co={**CO,'id':'c4','title':'持連結限定集','visibility':'link','is_owner':False,'role':'viewer','can_contribute':False}
     scroll_rows = [False]
     paging = [False]; fail_more = [True]; paging_archived = [False]
     def fixture(route):
@@ -62,14 +66,17 @@ def run():
       elif path == '/api/my/collections': result={'collections':[CO]}
       elif path == '/api/my/collections/membership': result={'memberships':{'owned1':[{'entry_id':'entry1','collection_id':'c1','title':'測試共用集','state':'included','lifecycle':'active','visibility':'public'}]}}
       elif path == '/api/me/public-profile': result={'profile':{'display_name':'測試使用者'}}
-      elif path == '/api/subscriptions': result={'subscriptions':[{'collection_id':c['id'],'title':c['title'],'last_known_title':c['title'],'can_read':True,'subscribed_at':'2026-10-09T00:00:00Z'} for c in [CO,*public_sets] if c['id'] in subscriptions]}
-      elif path in ['/api/subscriptions/c2','/api/subscriptions/c3']:
+      elif path == '/api/subscriptions': result={'subscriptions':[{'collection_id':c['id'],'title':c['title'],'last_known_title':c['title'],'can_read':True,'subscribed_at':'2026-10-09T00:00:00Z'} for c in [CO,*public_sets,link_co] if c['id'] in subscriptions]}
+      elif path in ['/api/subscriptions/c2','/api/subscriptions/c3','/api/subscriptions/c4']:
         cid=path.split('/')[-1]
         if request.method=='PUT': subscriptions.add(cid)
         elif request.method=='DELETE': subscriptions.discard(cid)
         result={'status':'ok'}
-      elif path == '/api/public/collections': result={'collections':public_sets}
-      elif path == '/api/public/items': result={'items':[{**ENTRY,'entry_id':'entry'+c['id'][-1],'collection_id':c['id'],'collection_title':c['title'],'is_subscribed':int(c['id'] in subscriptions),'is_owner':False} for c in public_sets],'next_offset':None}
+      elif path == '/api/public/collections': result={'collections':[c for c in public_sets if not query.get('exclude_subscribed') or c['id'] not in subscriptions]}
+      elif external_scroll[0] and path == '/api/public/items': result={'items':[{**ENTRY,'entry_id':f'scroll{i}','collection_id':'c2','collection_title':'公開數學集','is_subscribed':0,'is_owner':False} for i in range(12)],'next_offset':None}
+      elif external_scroll[0] and re.fullmatch(r'/api/collections/c2/items/scroll[0-9]+',path): result={'collection':public_sets[0],'entry':{**ENTRY,'id':path.split('/')[-1]},'source':SOURCE,'layers':[],'capabilities':{'can_contribute':False,'can_save':True}}
+      elif path == '/api/public/items': result={'items':[{**ENTRY,'entry_id':'entry'+c['id'][-1],'collection_id':c['id'],'collection_title':c['title'],'is_subscribed':int(c['id'] in subscriptions),'is_owner':False} for c in public_sets if not query.get('exclude_subscribed') or c['id'] not in subscriptions],'next_offset':None}
+      elif path == '/api/subscriptions/feed': result={'items':[{**ENTRY,'entry_id':'entry1','collection_id':'c1','collection_title':CO['title']}] if activity_updates[0] else []}
       elif path == '/api/my/invitations': result={'invitations':[{'id':'inv1','collection_id':'c3','title':'公開物理集','public_name':'老師','role':'viewer','expires_at':'2099-01-01'}] if invitation_pending[0] else []}
       elif path == '/api/invitations/accept':
         assert body.get('invitation_id')=='inv1'
@@ -79,13 +86,16 @@ def run():
         saved.append('s1');result={'saved_id':'s1','status':'saved'}
       elif path == '/api/saved/s1': result={'saved':{'id':'s1','entry_id':'entry1','row_version':1,'status':'unsolved','personal_topic_id':'math'},'snapshot':{'source_title':'共用測試題','collection_title':CO['title'],'provider_public_name':'老師'},'workspace':{'draw_asset_id':None,'draw_seq':0,'typed_notes':'','notes_seq':0},'layers':[],'source':{'available':True}}
       elif path == '/api/collections/c1': result={'collection':CO,'items':[ENTRY],'next_cursor':None}
-      elif path == '/api/collections/c1/items/entry1': result={'collection':CO,'entry':ENTRY,'source':SOURCE,'layers':[],'capabilities':{'can_contribute':True,'can_save':True}}
+      elif path == '/api/collections/c1/items/entry1': result={'collection':CO,'entry':ENTRY,'source':SOURCE,'layers':[{'id':'layer1','user_id':'teacher','author_display':'老師','draw_asset_id':'ink1','draw_seq':0,'notes_seq':0,'typed_notes':'參考筆記'}],'capabilities':{'can_contribute':True,'can_save':True}}
+      elif path == '/api/collections/c4': result={'collection':link_co,'items':[{**ENTRY,'id':'entry4'}],'next_cursor':None}
+      elif path == '/api/collections/c4/items/entry4': result={'collection':link_co,'entry':{**ENTRY,'id':'entry4'},'source':SOURCE,'layers':[],'capabilities':{'can_contribute':False,'can_save':True}}
       elif path in ['/api/collections/c2','/api/collections/c3']:
         c=next(c for c in public_sets if c['id']==path.split('/')[-1]);result={'collection':c,'items':[{**ENTRY,'id':'entry'+c['id'][-1]}],'next_cursor':None}
       elif path in ['/api/collections/c2/items/entry2','/api/collections/c3/items/entry3']:
         c=next(c for c in public_sets if c['id']==path.split('/')[3]);result={'collection':c,'entry':{**ENTRY,'id':path.split('/')[-1]},'source':SOURCE,'layers':[],'capabilities':{'can_contribute':False,'can_save':True}}
       elif path.endswith('/notes'):
         writes.append((path,body));result={'notes_seq':body['expected_seq']+1}
+      elif path.endswith('/draw') and request.method == 'GET': result=INK
       elif path.endswith('/draw') and request.method == 'PUT': result={'draw_seq':body['expected_seq']+1}
       elif path.endswith('/star'): result={'starred':body['starred']}
       elif path == '/api/collections/c1/candidates': result={'items':[{'id':'candidate2' if query.get('topic_id') else 'candidate1','title':'數學題' if query.get('topic_id') else '其他題','created_at':'2026-10-09','question_text':'候選題目辨識內容'}],'next_cursor':None}
@@ -107,7 +117,14 @@ def run():
     expect(page.locator('header input')).to_have_count(0)
     expect(page.get_by_text('章節大綱導航',exact=True)).to_be_visible()
     expect(page.get_by_role('group',name='題目來源').get_by_role('link')).to_have_count(3)
-    expect(page.get_by_role('link',name='已公開於〔測試共用集〕',exact=True)).to_be_visible()
+    expect(page.get_by_role('link',name='公開 · 測試共用集',exact=True)).to_be_visible()
+    expect(page.get_by_role('link',name='公開 · 測試共用集',exact=True)).to_have_attribute('href','/settings/collections/c1')
+    tree=page.locator('#study-taxonomy-tree')
+    page.get_by_role('button',name='展開數學',exact=True).click()
+    expect(page.get_by_role('button',name='收合數學',exact=True)).to_have_attribute('aria-expanded','true')
+    page.get_by_role('button',name='隱藏樹狀圖',exact=True).click();expect(tree).to_be_hidden()
+    page.get_by_role('button',name='顯示樹狀圖',exact=True).click();expect(tree).to_be_visible()
+    expect(page.get_by_role('button',name='收合數學',exact=True)).to_have_attribute('aria-expanded','true')
     area=page.locator('#problem-owned1 .transition-\\[height\\]')
     page.wait_for_timeout(400);initial=area.bounding_box()['height'];assert initial>400
     for _ in range(3):
@@ -120,8 +137,13 @@ def run():
     expect(page.get_by_role('button',name='解除封存',exact=True)).to_be_visible()
     expect(page.get_by_role('button',name='重新套用篩選',exact=True)).to_be_visible()
 
-    page.get_by_role('group',name='題目來源').get_by_role('link',name='我共用中',exact=True).click()
+    page.get_by_role('group',name='題目來源').get_by_role('link',name='共用中',exact=True).click()
     page.get_by_label('選擇可貢獻的共用集').select_option('c1')
+    toggle=page.get_by_role('button',name='老師 · 參考筆跡',exact=True)
+    expect(toggle).to_have_attribute('aria-pressed','true')
+    active_color=toggle.evaluate('(el)=>getComputedStyle(el).backgroundColor')
+    toggle.click();expect(toggle).to_have_attribute('aria-pressed','false')
+    assert toggle.evaluate('(el)=>getComputedStyle(el).backgroundColor')!=active_color
     page.get_by_label('我的共用筆記').fill('共用筆記測試')
     page.evaluate("window.history.pushState({},'', '/settings');window.dispatchEvent(new PopStateEvent('popstate'))")
     page.wait_for_timeout(1300)
@@ -137,6 +159,12 @@ def run():
     page.get_by_role('button',name='存入我的題庫',exact=True).click()
     page.get_by_role('link',name='已存入 · 前往訂正',exact=True).click()
     expect(page.get_by_role('group',name='題目來源').get_by_role('link',name='我存入',exact=True)).to_have_attribute('aria-current','page')
+    expect(page.get_by_text('我的科目與單元',exact=True)).to_have_count(0)
+    expect(page.get_by_role('button',name='檢查來源更新',exact=True)).to_be_visible()
+    expect(page.get_by_role('button',name='移除我的已存版本',exact=True)).to_be_visible()
+    page.get_by_title('點擊以變更題目分類',exact=True).click()
+    expect(page.get_by_role('dialog',name='修改題目分類',exact=True)).to_be_visible()
+    page.get_by_role('button',name='關閉對話框').click()
     page.get_by_label('我的私人筆記').fill('私人筆記測試')
     page.evaluate("window.history.pushState({},'', '/settings');window.dispatchEvent(new PopStateEvent('popstate'))");page.wait_for_timeout(1300)
     assert any(p=='/api/saved/s1/workspace/notes' for p,_ in writes),writes
@@ -206,6 +234,8 @@ def run():
     expect(grid.get_by_role('img')).to_have_count(2)
     page.screenshot(path='.wrangler/search-compact.png',full_page=True)
     expect(page.get_by_label('本題筆記')).to_have_count(0)
+    search_header=page.locator('main header')
+    expect(search_header.get_by_label('搜尋檢視方式')).to_be_visible()
     grid.get_by_role('link',name='前往刷題',exact=True).nth(1).click();page.wait_for_load_state('networkidle')
     assert 'focus=owned1' in page.url
     # Search is read-only and returns to its query and display mode.
@@ -217,7 +247,7 @@ def run():
     page.locator('[data-reader]').evaluate('(el)=>el.scrollTop=1600');page.wait_for_timeout(400)
     page.get_by_role('link',name='前往刷題',exact=True).first.click();page.wait_for_load_state('networkidle')
     expect(page.locator('header').get_by_role('navigation',name='主要導覽')).to_be_visible()
-    page.get_by_role('button',name='返回上一步',exact=True).click();page.wait_for_load_state('networkidle');page.wait_for_timeout(1100)
+    page.get_by_role('button',name='返回',exact=True).click();page.wait_for_load_state('networkidle');page.wait_for_timeout(1100)
     assert 'view=full' in page.url and 'q=' in page.url
     expect(page.get_by_label('搜尋檢視方式')).to_have_value('full')
     assert page.locator('[data-reader]').evaluate('(el)=>el.scrollTop')>1000
@@ -228,6 +258,9 @@ def run():
     page.get_by_role('button',name='個人檔案',exact=True).click();page.wait_for_load_state('networkidle')
     expect(page.get_by_label('公開顯示名稱')).to_be_visible()
     expect(page.get_by_label('預設上傳目的地')).to_be_visible()
+    profile_card=page.get_by_role('heading',name='個人檔案',exact=True).locator('..')
+    expect(profile_card.get_by_role('heading',name='iOS 捷徑 API Key 管理',exact=True)).to_be_visible()
+    page.screenshot(path='.wrangler/profile-settings.png',full_page=True)
     inbox=page.get_by_role('region',name='收到的邀請')
     expect(inbox.get_by_text('公開物理集',exact=True)).to_be_visible()
     inbox.get_by_role('button',name='接受邀請',exact=True).click()
@@ -236,16 +269,19 @@ def run():
     page.goto(BASE+'/');page.wait_for_load_state('networkidle')
     private=page.get_by_role('region',name='共用與訂閱動態')
     public=page.get_by_role('region',name='公開探索動態')
+    expect(private).to_have_count(0);expect(public).to_be_visible()
+    activity_updates[0]=True;page.reload();page.wait_for_load_state('networkidle')
     expect(private).to_be_visible();expect(public).to_be_visible()
     expect(public.get_by_text('我的共用集',exact=False)).to_have_count(0)
     page.screenshot(path='.wrangler/dashboard-sections.png',full_page=True)
     public.get_by_role('link',name='探索公開題目',exact=True).click();page.wait_for_load_state('networkidle')
     expect(page.get_by_role('heading',name='公開探索',exact=True)).to_be_visible()
-    page.get_by_role('button',name='訂閱題目集',exact=True).first.click();page.wait_for_load_state('networkidle')
-    assert '/explore' in page.url and 'c2' in subscriptions
-    expect(page.get_by_text('公開題目 · 已訂閱此集合',exact=True)).to_be_visible()
-    page.get_by_role('link',name='公開數學集',exact=True).click();page.wait_for_load_state('networkidle')
-    assert '/explore?collection_id=c2' in page.url
+    page.get_by_role('button',name='訂閱題目集',exact=True).first.click();expect(page).to_have_url(re.compile(r'/extended\?'));page.wait_for_load_state('networkidle')
+    assert '/extended' in page.url and 'c2' in subscriptions, {'url':page.url,'subscriptions':list(subscriptions)}
+    expect(page.get_by_text('已訂閱',exact=True)).to_be_visible()
+    page.goto(BASE+'/explore');page.wait_for_load_state('networkidle')
+    expect(page.get_by_label('選擇公開題目集').locator('option[value="c2"]')).to_have_count(0)
+    expect(page.get_by_role('link',name='公開數學集',exact=True)).to_have_count(0)
     page.screenshot(path='.wrangler/public-explore.png',full_page=True)
     page.goto(BASE+'/extended');page.wait_for_load_state('networkidle')
     picker=page.get_by_label('選擇已訂閱的題目集')
@@ -260,12 +296,41 @@ def run():
     expect(picker.locator('option[value="c2"]')).to_have_count(1)
     page.screenshot(path='.wrangler/extended-selection.png',full_page=True)
     page.goto(BASE+'/explore?collection_id=c2');page.wait_for_load_state('networkidle')
-    page.get_by_role('button',name='取消訂閱題目集',exact=True).click();page.wait_for_load_state('networkidle')
+    page.get_by_role('button',name='取消訂閱題目集',exact=True).click();expect(page).to_have_url(re.compile(r'/explore\?'));page.wait_for_load_state('networkidle')
     assert '/explore' in page.url and 'c2' not in subscriptions
-    expect(page.get_by_text('公開題目 · 尚未訂閱',exact=True)).to_be_visible()
+    expect(page.get_by_role('button',name='訂閱題目集',exact=True)).to_be_visible()
     page.goto(BASE+'/extended?collection_id=c2');page.wait_for_load_state('networkidle')
     expect(page.get_by_role('img',name='共用測試題',exact=True)).to_have_count(0)
     expect(page.get_by_text('此集合未訂閱或目前無法觀看。',exact=False)).to_be_visible()
+    # Read-only virtualization retains row height while remounted content is slow.
+    external_scroll[0]=True
+    page.add_init_script(r"""const nativeFetch=window.fetch;window.fetch=(...args)=>nativeFetch(...args).then(async response=>{if(/collections\/c2\/items\/scroll/.test(String(args[0]))&&!String(args[0]).endsWith('/image'))await new Promise(resolve=>setTimeout(resolve,700));return response;});""")
+    page.goto(BASE+'/explore');page.wait_for_load_state('networkidle');page.wait_for_timeout(900)
+    stream=page.locator('[data-reader]')
+    row=stream.locator('[data-index="0"]');first_height=row.bounding_box()['height']
+    stream.evaluate('(el)=>el.scrollTop=4500');page.wait_for_timeout(1000)
+    expect(row).to_have_count(0)
+    stream.evaluate('(el)=>el.scrollTop=0');page.wait_for_timeout(100)
+    expect(row.locator('[data-reader-loading="true"]')).to_be_attached()
+    assert abs(row.bounding_box()['height']-first_height)<2,{'initial':first_height,'reload':row.bounding_box()['height']}
+    page.wait_for_timeout(850)
+    assert stream.evaluate('(el)=>el.scrollTop')<2
+    external_scroll[0]=False
+    # Entry links open a single read-only card; they do not subscribe or open an editor.
+    page.goto(BASE+'/collections/c2/items/entry2');page.wait_for_load_state('networkidle')
+    expect(page.get_by_role('img',name='共用測試題',exact=True)).to_have_count(1)
+    expect(page.get_by_label('本題筆記')).to_have_count(0)
+    page.get_by_role('button',name='分享連結',exact=True).click()
+    expect(page.get_by_label('題目分享網址')).to_have_value(BASE+'/collections/c2/items/entry2')
+    page.get_by_role('button',name='關閉對話框').click()
+    assert 'c2' not in subscriptions
+    page.goto(BASE+'/collections/c2');expect(page).to_have_url(re.compile(r'/explore\?collection_id=c2'));page.wait_for_load_state('networkidle')
+    # Cancelling a link-only collection must preserve its authorized reader entry.
+    subscriptions.add('c4');page.goto(BASE+'/extended?collection_id=c4');page.wait_for_load_state('networkidle')
+    page.get_by_role('button',name='取消訂閱題目集',exact=True).click()
+    expect(page).to_have_url(re.compile(r'/collections/c4\?'));page.wait_for_load_state('networkidle')
+    expect(page.get_by_role('img',name='共用測試題',exact=True)).to_be_visible()
+    assert 'c4' not in subscriptions
     page.goto(BASE+'/settings/collections/c1');page.wait_for_load_state('networkidle')
     expect(page.get_by_role('heading',name='題目管理',exact=True)).to_be_visible()
     expect(page.get_by_role('link',name='前往共用書寫',exact=True)).to_have_count(0)
@@ -288,20 +353,28 @@ def run():
     p.goto(BASE+'/study?source=owned');p.wait_for_load_state('networkidle')
     mobile_nav=p.locator('nav').filter(has=p.get_by_role('link',name='延伸題目',exact=True)).last
     expect(mobile_nav).to_be_visible()
-    expect(mobile_nav.get_by_role('link')).to_have_count(5)
-    expect(mobile_nav.get_by_role('link',name='刷題',exact=True)).to_have_attribute('aria-current','page')
+    expect(mobile_nav.get_by_role('link')).to_have_count(4)
+    expect(mobile_nav.get_by_role('button',name='開啟刷題側邊欄',exact=True)).to_have_attribute('aria-current','page')
+    boxes=[el.bounding_box() for el in mobile_nav.locator(':scope > *').all()]
+    assert max(b['width'] for b in boxes)-min(b['width'] for b in boxes)<=1
     expect(p.locator('header input')).to_have_count(0)
     toolbar=p.get_by_title('展開工具列',exact=True).locator('..').bounding_box()
     sources=p.locator('[data-study-sources]').bounding_box()
-    assert toolbar['y']>=sources['y']+sources['height'], 'Pen tools obscure floating source controls'
+    assert toolbar['y']+toolbar['height']<=sources['y'], 'Pen tools obscure floating source controls'
     p.locator('[data-reader]').evaluate('(el)=>el.scrollTop=el.scrollHeight');p.wait_for_timeout(200)
     expect(mobile_nav).to_be_visible()
     nav_box=mobile_nav.bounding_box();reader_box=p.locator('[data-reader]').bounding_box()
     assert reader_box['y']+reader_box['height']<=nav_box['y']+1,'Reader extends beneath bottom navigation'
+    assert sources['y']+sources['height']<=nav_box['y']+1,'Sources extend beneath bottom navigation'
     p.screenshot(path='.wrangler/study-mobile-nav.png',full_page=True)
     mobile_nav.get_by_role('link',name='搜尋',exact=True).click();p.wait_for_load_state('networkidle')
     mobile_nav.get_by_role('link',name='刷題',exact=True).click();p.wait_for_load_state('networkidle')
-    p.get_by_role('button',name='開啟章節導航與篩選',exact=True).click()
+    mobile_nav.get_by_role('button',name='開啟刷題側邊欄',exact=True).click()
+    drawer=p.locator('#study-mobile-sidebar');expect(drawer).to_be_visible()
+    drawer_box=drawer.bounding_box();nav_box=mobile_nav.bounding_box()
+    assert drawer_box['y']+drawer_box['height']<=nav_box['y']+1
+    mobile_nav.get_by_role('button',name='關閉刷題側邊欄',exact=True).click();expect(drawer).to_have_count(0)
+    mobile_nav.get_by_role('button',name='開啟刷題側邊欄',exact=True).click()
     p.get_by_role('button',name='選擇分類數學',exact=True).click()
     p.wait_for_load_state('networkidle');assert 'topic_id=math' in p.url
     # A local anonymous upload fixture verifies the multi-select file picker.
@@ -319,6 +392,12 @@ def run():
     p.get_by_role('button',name='移除 two.png',exact=True).click()
     expect(p.get_by_text('待上傳圖片清單 (1 張)',exact=True)).to_be_visible()
 
+    p.get_by_role('button',name='關閉上傳視窗',exact=True).click() if p.get_by_role('button',name='關閉上傳視窗',exact=True).count() else p.keyboard.press('Escape')
+    for destination in ['/extended','/study?source=saved','/settings#profile','/settings#taxonomy','/settings#subscriptions','/settings#collections']:
+      p.goto(BASE+destination);p.wait_for_load_state('networkidle')
+      notice=p.get_by_role('region',name='登入提示')
+      expect(notice).to_have_count(1)
+      expect(notice.get_by_role('button',name='登入',exact=True)).to_be_visible()
     assert not errors,errors
     mobile.close();browser.close()
     print('PASS: source isolation, pagination/retry/history, image-only preview, responsive compact search, separate activity, invitation acceptance, explicit subscription/cancellation, collection switching, mobile upload/navigation')

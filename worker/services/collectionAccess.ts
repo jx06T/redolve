@@ -91,7 +91,7 @@ export async function canReadCollection(
 }
 
 export async function loadCollection(env: Bindings, id: string | undefined): Promise<CollectionRecord | null> {
-  return env.DB.prepare('SELECT * FROM collections WHERE id = ? AND lifecycle != ?')
+  return env.DB.prepare(`SELECT co.*,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=co.owner_id),co.public_name) AS public_name FROM collections co WHERE co.id = ? AND co.lifecycle != ?`)
     .bind(id || '', 'deleted').first<CollectionRecord>();
 }
 

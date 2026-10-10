@@ -67,13 +67,13 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-surface border border-border-subtle rounded-3xl p-6">
+      <div className="pb-2">
         <div className="flex items-center space-x-3 text-text-main">
           <div className="p-2.5 bg-primary-50 text-primary rounded-2xl">
             <Key className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-base font-bold">iOS 捷徑 API Key 管理</h1>
+            <h3 className="text-base font-semibold">iOS 捷徑 API Key 管理</h3>
             <p className="text-xs text-text-muted">
               產生傳輸金鑰供 iPad / iPhone 捷徑將照片拍完直接 POST 上傳至 Redolve
             </p>
@@ -125,10 +125,10 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
       )}
 
       {/* Generate Key Form */}
-      <form onSubmit={handleCreateKey} className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+      <form onSubmit={handleCreateKey} className="border-t border-border-subtle pt-4 space-y-4">
+        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
           新增 API 金鑰
-        </h2>
+        </h4>
         <div className="flex items-center space-x-3">
           <input
             type="text"
@@ -148,10 +148,10 @@ export const ApiKeySettingsSection: React.FC<ApiKeySettingsSectionProps> = ({
       </form>
 
       {/* Keys List */}
-      <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4">
-        <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+      <div className="border-t border-border-subtle pt-4 space-y-4">
+        <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider">
           已授權的 API Key 列表
-        </h2>
+        </h4>
 
         {loadingKeys ? (
           <div className="text-center py-6 text-xs text-text-muted">載入金鑰中...</div>

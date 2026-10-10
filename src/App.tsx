@@ -8,6 +8,7 @@ import { initOnlineSync } from './services/offlineStorage';
 import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
 import { LegacyReaderRedirect } from './views/LegacyReaderRedirect';
+import { SharedQuestionView } from './views/SharedQuestionView';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
@@ -148,7 +149,7 @@ export default function App() {
                       <Route path="/settings/collections/:id" element={<CollectionDetailView />} />
                       <Route path="/extended" element={<CollectionReaderView mode="extended" />} />
                       <Route path="/explore" element={<CollectionReaderView mode="explore" />} />
-                      <Route path="/collections/:id/items/:entryId" element={<LegacyReaderRedirect />} />
+                      <Route path="/collections/:id/items/:entryId" element={<SharedQuestionView />} />
                       <Route path="/subscriptions" element={<Navigate replace to="/extended" />} />
                       <Route path="/subscriptions/manage" element={<Navigate replace to="/settings#subscriptions" />} />
                       <Route path="/saved" element={<Navigate replace to="/study?source=saved" />} />

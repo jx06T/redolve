@@ -4,7 +4,7 @@ import { isGuestUser } from '../utils/guest';
 import { subscriptionService } from '../services/questionService';
 
 export function CollectionSubscriptionButton({collectionId,subscribed,isOwner=false,statusReady=true,onChanged}: {
-  collectionId:string;subscribed:boolean;isOwner?:boolean;statusReady?:boolean;onChanged:()=>void;
+  collectionId:string;subscribed:boolean;isOwner?:boolean;statusReady?:boolean;onChanged:(subscribed:boolean)=>void;
 }) {
   const {currentUser,setAuthModalOpen,showToast}=useStore();
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');const pending=useRef(false);
@@ -12,7 +12,7 @@ export function CollectionSubscriptionButton({collectionId,subscribed,isOwner=fa
     if(isGuestUser(currentUser)){setAuthModalOpen(true);return;}
     if(pending.current||!statusReady)return;pending.current=true;setBusy(true);setError('');
     try{await (subscribed?subscriptionService.unsubscribe(collectionId):subscriptionService.subscribe(collectionId));
-      onChanged();showToast(subscribed?'已取消訂閱；存入的題目仍保留':'已訂閱，可在延伸題目選擇此集合','success');
+      onChanged(!subscribed);window.dispatchEvent(new Event('redolve:subscriptions-changed'));showToast(subscribed?'已取消訂閱；存入的題目仍保留':'已訂閱，可在延伸題目選擇此集合','success');
     }catch(e){setError(e instanceof Error?e.message:'訂閱操作失敗');}
     finally{pending.current=false;setBusy(false);}
   };

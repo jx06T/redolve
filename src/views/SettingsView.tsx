@@ -1,3 +1,4 @@
+import { LoginNotice } from '../components/LoginNotice';
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CollectionsHubView } from './CollectionsHubView';
@@ -36,7 +37,7 @@ export const SettingsView: React.FC = () => {
     description: '管理 iPad / iPhone 捷徑傳輸金鑰、自訂題庫科目與單元分類、手寫筆觸自訂顏色與偏好設定。',
   });
 
-  const { currentUser, setTaxonomies, taxonomyCounts, setAuthModalOpen } = useStore();
+  const { currentUser, setTaxonomies, taxonomyCounts } = useStore();
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(getInitialTab);
   const [keys, setKeys] = useState<ApiKeyItem[]>([]);
@@ -111,10 +112,7 @@ export const SettingsView: React.FC = () => {
           customTaxonomies={customTaxonomies}
           countsMap={countsMap}
           loadTaxonomyData={loadTaxonomyData}
-        /> : <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-3 text-sm text-text-muted">
-          <p>自訂科目與單元需要登入後才能跨裝置保存；訪客仍可在刷題頁使用既有課綱分類。</p>
-          <button type="button" onClick={() => setAuthModalOpen(true)} className="px-4 py-2 rounded-xl bg-primary text-white">登入以自訂課綱</button>
-        </div>
+        /> : <LoginNotice description="自訂科目與單元需要登入後才能跨裝置保存；訪客仍可使用既有課綱分類。"/>
       )}
 
       {/* Tab 3: API Keys */}

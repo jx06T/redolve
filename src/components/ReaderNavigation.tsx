@@ -9,7 +9,7 @@ export function BackButton({fallback='/'}:{fallback?:string}) {
   return <button type="button" onClick={()=>{
     if(Number(window.history.state?.idx)>0)navigate(-1);else navigate(fallback,{replace:true});
   }} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-xs">
-    <ArrowLeft size={14}/>返回上一步</button>;
+    <ArrowLeft size={14}/>返回</button>;
 }
 export function ReaderNavigation() {
   const location=useLocation();const account=useStore(s=>s.currentUser?.id||'guest');

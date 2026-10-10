@@ -14,7 +14,7 @@ export type QuestionWork = {
 };
 export type CollectionItemDetail = {
   progress?: ReviewProgress;
-  collection: Pick<Collection,'id'|'title'|'show_shared_ink'|'show_shared_notes'>;
+  collection: Pick<Collection,'id'|'title'|'show_shared_ink'|'show_shared_notes'> & {visibility?:Collection['visibility'];is_owner?:boolean};
   entry: { id: string; generation: number; shared_seq: number; latest_add_event_seq: number|null };
   source: { id: string; source: string|null; keywords: string|null; topic_id?:string|null;
     topic_label: string|null; content_seq: number; provider_name: string|null; contributor_id?:string };

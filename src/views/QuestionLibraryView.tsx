@@ -1,3 +1,4 @@
+import { LoginNotice } from '../components/LoginNotice';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
 import { StudyLibraryLayout, SearchLibraryLayout } from '../components/LibraryLayouts';
@@ -27,7 +28,7 @@ const pageCache=new Map<string,{key:string;items:SearchHit[];next:number|null;re
 export function QuestionLibraryView({search=false}:{search?:boolean}) {
   const location=useLocation();const legacy=useParams();const [params,setParams]=useSearchParams();
   const source=readSource(params.get('source'));const account=useStore(s=>s.currentUser?.id||'guest');
-  const {currentUser,taxonomies,setAuthModalOpen,problems,showToast}=useStore();
+  const {currentUser,taxonomies,problems,showToast}=useStore();
   const scopeTaxonomies=source==='contributing'?officialTree(taxonomies):taxonomies;
   const find=useStore(s=>s.inPageSearchQuery);
   const collection=params.get('collection_id')||'';const query=params.get('q')||'';
@@ -133,7 +134,7 @@ export function QuestionLibraryView({search=false}:{search?:boolean}) {
     hit.origin==='owned'&&hit.problem?<ProblemCard streamSearch problem={problems.find(p=>p.id===hit.id)||hit.problem} memberships={memberships[hit.id]||[]} onAddToCollection={isGuestUser(currentUser)?undefined:()=>setAdd(hit.id)} onChanged={markChanged} onDeleted={id=>{markChanged();setData(d=>({...d,items:d.items.filter(i=>i.id!==id)}));}} onEditMetadata={p=>{setEditing(p);setEditTopic(p.topic_id||'');try{setEditTags(JSON.parse(p.keywords||'[]').join(', '));}catch{setEditTags('');}}}/>:
     <QuestionWorkCard kind={source==='saved'?'saved':'shared'} id={hit.id} collectionId={hit.collection_id||collection} onChanged={markChanged} onRemoved={()=>{markChanged();setData(d=>({...d,items:d.items.filter(i=>i.id!==hit.id)}));}}/>}/>;
   const needsLogin=isGuestUser(currentUser)&&source!=='owned';
-  const login=<section className="p-6 text-sm">登入後可存入題目及參與共用。<button onClick={()=>setAuthModalOpen(true)} className="ml-3 text-primary">登入</button></section>;
+  const login=<LoginNotice description="登入後可存入題目及參與共用。"/>;
   const sidebar=      <Sidebar scope={{subject:selectedSubject,topic:params.get('topic_id')||legacy.topic||null,status:status||'all',problems:outline.map(asItem),outline:outlineItems.map(asItem),taxonomies:scopeTaxonomies,onSubject:id=>patch({subject_id:id,topic_id:''}),onTopic:id=>patch({topic_id:id||''}),onStatus:value=>patch({status:value==='all'?'':value}),loading:outlineBusy}} onSelectProblemOutline={id=>patch({focus:id})}>
         {collectionPicker}{queryForm}<label className="block text-xs text-text-muted">標籤<input aria-label="篩選標籤" defaultValue={tag} key={tag} onKeyDown={e=>{if(e.key==='Enter')patch({tag:e.currentTarget.value.trim()});}} onBlur={e=>{if(e.currentTarget.value.trim()!==tag)patch({tag:e.currentTarget.value.trim()});}} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2"/></label>
       </Sidebar>;

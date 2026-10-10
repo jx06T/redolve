@@ -7,6 +7,7 @@ interface ProblemCardFooterProps {
   isResolved: boolean;
   readOnly?: boolean;
   onAddToCollection?:()=>void;
+  actions?:React.ReactNode;
   onToggleArchive: () => void;
   onToggleStatus: () => void;
 }
@@ -15,7 +16,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
   problem,
   isResolved,
   readOnly = false,
-  onToggleArchive,onAddToCollection,
+  onToggleArchive,onAddToCollection,actions,
   onToggleStatus,
 }) => {
   return (
@@ -33,6 +34,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
 
       {/* Action Buttons */}
       <div className="flex flex-wrap items-center gap-2">
+        {!readOnly&&actions}
         {!readOnly&&onAddToCollection&&<button type="button" onClick={onAddToCollection} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs font-medium text-text-muted hover:text-text-main"><FolderPlus size={14}/>加入指定共用集</button>}
         {!readOnly && (
           <button

@@ -1,5 +1,5 @@
 import type { StudySource } from '../types/question';
-export const sourceLabels:Record<StudySource,string>={owned:'我上傳',saved:'我存入',contributing:'我共用中'};
+export const sourceLabels:Record<StudySource,string>={owned:'我上傳',saved:'我存入',contributing:'共用中'};
 export function readSource(value:string|null):StudySource {
   return value==='saved'||value==='contributing'?value:'owned';
 }

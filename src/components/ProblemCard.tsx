@@ -24,7 +24,7 @@ export type ProblemCardWork={
   image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
   toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
   copyText?:()=>Promise<string>;remove?:()=>void;share?:()=>void;
-  references?:DrawData[];label:React.ReactNode;notesLabel?:string;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;
+  references?:DrawData[];label:React.ReactNode;notesLabel?:string;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;footerActions?:React.ReactNode;reloadLabel?:string;
 };
 interface ProblemCardProps {
   work?:ProblemCardWork;onAddToCollection?:()=>void;
@@ -438,18 +438,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           onToggleInk={() => setInkVisible((prev) => !prev)}
           onExport={handleExport}
           onOpenShareModal={work?work.share:()=>setIsShareModalOpen(true)}
-          onOpenDeleteModal={work?work.remove:()=>setIsDeleteModalOpen(true)}
+          onOpenDeleteModal={work?undefined:()=>setIsDeleteModalOpen(true)}
           copyText={work?.copyText}
           onEditMetadata={onEditMetadata}
+          reloadLabel={work?.reloadLabel}
+          sourceLabel={work?.label||memberships.slice(0,2).map(m=><Link key={m.entry_id} to={`/settings/collections/${m.collection_id}`} className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted underline">{m.lifecycle==='active'?(m.visibility==='public'?'公開':'共用'):m.lifecycle==='draft'?'草稿':'已暫停'} · {m.title}</Link>)}
         />
-
-        {memberships.length>0&&<div className="mt-2 flex flex-wrap gap-1.5">
-          {memberships.slice(0,2).map(m=><Link key={m.entry_id} to={`/collections/${m.collection_id}/items/${m.entry_id}`}
-            className="rounded-xl bg-[#EAF1EC] dark:bg-[#26362F] px-2.5 py-1 text-xs text-[#376654] dark:text-[#A9C7B6]">
-            {m.lifecycle==='active'&&m.visibility==='public'?'已公開於':m.lifecycle==='active'?'已共用於':
-              m.lifecycle==='draft'?'草稿：':'已暫停：'}〔{m.title}〕</Link>)}
-          {memberships.length>2&&<span className="text-xs text-text-muted">另 {memberships.length-2} 個</span>}
-        </div>}
         {/* Keywords Chips */}
         {keywordsArray.length > 0 && (
           <div className="flex flex-wrap gap-1.5 pt-3 pb-2">
@@ -464,7 +458,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         )}
 
-        {work?.label}
         {work?.beforeWorkspace}
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
@@ -517,6 +510,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           isResolved={isResolved}
           readOnly={readOnly}
           onAddToCollection={onAddToCollection}
+          actions={work?.footerActions}
           onToggleArchive={handleToggleArchive}
           onToggleStatus={handleToggleStatus}
         />

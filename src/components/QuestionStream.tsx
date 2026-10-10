@@ -4,6 +4,10 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationKey } from '../services/navigationState';
 
+// Retain measurements only, never question content or permissions. Reloaded images
+// reserve their previous space until decoding, so virtualization cannot collapse a row.
+const measuredRows=new Map<string,number>();
+
 export function QuestionStream<T extends {id:string;ids?:string[]}>({items,render,loadMore,hasMore,busy,focus,className,loadError=false,autoLoad=true}:{
   items:T[];render:(item:T,index:number)=>ReactNode;loadMore:()=>void;hasMore:boolean;busy:boolean;focus?:string;className?:string;loadError?:boolean;autoLoad?:boolean;
 }) {
@@ -14,8 +18,18 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   const restoration=useRef<number[]>([]);const restoring=useRef(false);
   const match=useStore(s=>s.inPageMatches[s.inPageCurrentIndex]);
   const contains=(item:T,id:string)=>item.id===id||!!item.ids?.includes(id);
+  const sizeKey=(id:string,width:number)=>JSON.stringify([account,historyKey,id,width]);
   const v=useVirtualizer({count:items.length,getScrollElement:()=>parent.current,
-    estimateSize:()=>800,overscan:0,getItemKey:i=>items[i].id,
+    estimateSize:i=>measuredRows.get(sizeKey(items[i].id,parent.current?.clientWidth||0))||800,overscan:0,getItemKey:i=>items[i].id,
+    measureElement:element=>{
+      const height=element.getBoundingClientRect().height;
+      const index=Number(element.getAttribute('data-index'));const item=items[index];
+      if(item&&height>0){
+        measuredRows.set(sizeKey(item.id,element.clientWidth),height);
+        if(measuredRows.size>1000)measuredRows.delete(measuredRows.keys().next().value!);
+      }
+      return height;
+    },
     initialOffset:()=>readScroll(account,historyKey)});
   useEffect(()=>{
     if(!items.length)return;
@@ -53,7 +67,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     {focus&&!busy&&!hasMore&&!items.some(i=>contains(i,focus))&&<p role="status" className="mb-3 rounded-xl bg-page-bg p-3 text-sm">指定題目不在目前條件中，或已無法存取。請清除篩選或返回上一頁。</p>}
     <div className="relative w-full" style={{height:v.getTotalSize()}}>
       {v.getVirtualItems().map(row=><div key={row.key} ref={v.measureElement} data-index={row.index}
-        className="absolute left-0 top-0 w-full pb-5" style={{transform:`translateY(${row.start}px)`}}>
+        className="absolute left-0 top-0 w-full pb-5" style={{transform:`translateY(${row.start}px)`,'--reader-reserved-height':`${measuredRows.get(sizeKey(items[row.index].id,parent.current?.clientWidth||0))||0}px`} as React.CSSProperties}>
         {render(items[row.index],row.index)}</div>)}
     </div>
     {hasMore&&<div className="flex justify-center py-6"><button type="button" disabled={busy} onClick={requestMore}
