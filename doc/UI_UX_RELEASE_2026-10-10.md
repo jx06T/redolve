@@ -49,7 +49,7 @@ node .\node_modules\wrangler\bin\wrangler.js d1 execute redolve-db --remote --co
 
 ## 2. 推送與自動部署
 
-本次實作尚未推送。確認 §1 成功後再推送已確認的本機提交（或請 agent 推送）：
+本次版本透過 main 推送觸發自動部署。確認 §1 成功後再推送已確認的本機提交（或請 agent 推送）：
 
 ```powershell
 git status --short

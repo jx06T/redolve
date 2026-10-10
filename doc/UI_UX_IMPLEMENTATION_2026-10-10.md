@@ -38,7 +38,7 @@
 | 筆記已儲存後被舊讀取覆蓋 | 只接受較新的欄位 seq，pending／衝突作業保留；雲端採用須明確確認。 |
 | 筆跡有推導區卻在閱讀頁被裁掉 | 唯讀參考層依原座標寬度與推導高度保留展示空間，不改原筆跡。 |
 | migration 腳本 npx 無法啟動 | 單元素陣列經 if 賦值降為字串，splat 將 wrangler 拆成逐字參數；明確使用 string[]，預設優先專案 Node CLI，輸出三項 schema 指標；PowerShell 腳本使用 UTF-8 BOM，避免 Windows PowerShell 5.1 誤讀中文造成解析失敗。 |
-| migration 首次查詢失敗卻没有真正錯誤輸出 | 原 --json stdout 收進變數後被通用例外遮蔽；統一擷取 stdout／stderr，失敗顯示原始輸出及退出碼，新增 -CheckOnly 唯讀診斷。使用者此次正式查詢失敗的根因仍待原始輸出，尚不宣稱已修復正式連線。 |
+| migration 首次查詢失敗卻沒有真正錯誤輸出 | 原 --json stdout 收進變數後被通用例外遮蔽；統一擷取 stdout／stderr，失敗顯示原始輸出及退出碼，新增 -CheckOnly 唯讀診斷。發布者其後回報正式查詢與 migration 均成功；先前失敗根因未取得原始輸出，未另外推測。 |
 
 ## 驗證證據（2026-10-10）
 
@@ -62,11 +62,18 @@
 
 - c8b5618 feat: add reader stars and saved classification workflows
 - 76f40b0 feat: implement unified question library and subscription UX
-- 發布腳本、規格及此紀錄另以 docs 提交保存。全部尚未推送。
+- 發布腳本與規格：cad9def；CLI 修正：95624d0／6f24478。部署依 UI_UX_RELEASE_2026-10-10.md 經 main 推送觸發。
+
+## 正式 migration 回報（2026-10-10）
+
+- [x] 發布者執行 apply-reader-ux.ps1 成功，末次 schema 驗證 reader_tables=2、starred_column=1、classification_column=1；兩次 ALTER 均回報 success=true。此紀錄根據使用者貼上的終端輸出，agent 未執行正式 D1 migration。
+- 套用前 Time Travel bookmark：00000270-00000000-00005100-373926d9560dac526cecab27062665cc。此值為本次套用前的恢復參考；未執行還原。
+- 部署前重新確認 TypeScript、正式建置＋SW（c91ab23c3ca10f04）、12 項 Node API／PWA 測試與 33＋5 項 PowerShell 腳本測試通過。
 
 ## 留給發布者的待辦
 
-- [ ] 依 UI_UX_RELEASE_2026-10-10.md，先執行 scripts/apply-reader-ux.ps1。確認 reader_tables=2、starred_column=1、classification_column=1，再推送 main 觸發自動部署。
+- [x] 依 UI_UX_RELEASE_2026-10-10.md 套用 0003，發布者回報 schema 2／1／1。
+- [ ] 推送 main 觸發自動部署，核對遠端提交及線上資產。
 - [ ] 確認前端與 Worker 都對應最新提交，health 正常；不以舊固定版本字串代替 commit 確認。
 - [ ] 正式環境雙帳號：建立者／貢獻者／純訂閱者、邀請／撤權、共用與私人層、下載後來源失效；用少量測試題。
 - [ ] 正式 Gemini：自建分類來源存入後分類成功；失敗重試及手動分類優先。既有 gcp:asia-east1 未改，無新增 secret。
