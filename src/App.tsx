@@ -15,6 +15,7 @@ const DashboardView = lazy(() => import('./views/DashboardView').then((module) =
 const ProblemDetailView = lazy(() => import('./views/ProblemDetailView').then((module) => ({ default: module.ProblemDetailView })));
 const ShareView = lazy(() => import('./views/ShareView').then((module) => ({ default: module.ShareView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
+const AboutView = lazy(() => import('./views/AboutView').then(module => ({ default: module.AboutView })));
 const AdminSharingView = lazy(() => import('./views/AdminSharingView').then(m=>({default:m.AdminSharingView})));
 const CollectionDetailView = lazy(() => import('./views/CollectionDetailView').then(m=>({default:m.CollectionDetailView})));
 const AccessClaimView = lazy(() => import('./views/AccessClaimView').then(m=>({default:m.AccessClaimView})));
@@ -143,6 +144,7 @@ export default function App() {
                       <Route path="/problem/:id" element={<ProblemDetailView />} />
                       <Route path="/search" element={<SearchRoute />} />
                       <Route path="/settings" element={<SettingsView />} />
+                      <Route path="/about" element={<AboutView />} />
                       <Route path="/my/collections" element={<Navigate replace to="/settings#collections" />} />
                       <Route path="/admin/sharing" element={<AdminSharingView />} />
                       <Route path="/collections/:id" element={<CollectionReaderView mode="collection" />} />

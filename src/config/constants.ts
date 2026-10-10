@@ -1,5 +1,7 @@
 import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass } from 'lucide-react';
 
+export const SHOW_SHORTCUTS_EVENT = 'redolve:show-shortcuts';
+
 // Navigation Links Configuration
 export const NAV_LINKS = [
   { path: '/', label: '總覽', icon: LayoutDashboard },
