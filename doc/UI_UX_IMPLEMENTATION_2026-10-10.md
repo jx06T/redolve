@@ -23,7 +23,7 @@
 - [x] 總覽新增訂閱新題、可管理集合及最近五份已存來源更新檢查；探索入口在總覽，公開探索直接列題圖及自己的存入／訂閱標記。
 - [x] 舊 /saved、集合單題、/subscriptions、舊搜尋 scope 等連結相容；集合閱讀不混入管理表單；非貢獻者進管理 URL 轉至唯讀集合。
 - [x] 帳號切換重建頁面狀態、取消舊請求，筆記草稿不跨帳號重播。已確認的新 seq 不被較舊 GET 回應覆蓋。
-- [x] 0003 migration、新舊 schema 一致、可補部分套用的 PowerShell 發布腳本、npx/local Wrangler 選項及發布指南。
+- [x] 0003 migration、新舊 schema 一致、可補部分套用的 PowerShell 發布腳本、auto/npx/local Wrangler 選項及發布指南。
 
 ## 已確認的程式問題
 
@@ -37,6 +37,7 @@
 | 返回／慢請求換集混亂 | URL 保存條件，歷史 key 保存題目 anchor，請求取消並檢查帳號／集合上下文。 |
 | 筆記已儲存後被舊讀取覆蓋 | 只接受較新的欄位 seq，pending／衝突作業保留；雲端採用須明確確認。 |
 | 筆跡有推導區卻在閱讀頁被裁掉 | 唯讀參考層依原座標寬度與推導高度保留展示空間，不改原筆跡。 |
+| migration 腳本 npx 無法啟動 | 單元素陣列經 if 賦值降為字串，splat 將 wrangler 拆成逐字參數；明確使用 string[]，預設優先專案 Node CLI，輸出三項 schema 指標；PowerShell 腳本使用 UTF-8 BOM，避免 Windows PowerShell 5.1 誤讀中文造成解析失敗。 |
 
 ## 驗證證據（2026-10-10）
 
@@ -46,7 +47,8 @@
   - 包含本人／他人權限、純訂閱不能共用書寫、星號非下載及取消訂閱後保留、新題數、最近加入排序、已存標記、來源撤權／刪除後已下載內容與筆記保留。
   - 分類測試故意無 Gemini key，驗證失敗不刪題及個人重試權限；不宣稱已呼叫正式 AI 成功。
 - SQLite：sharing-schema 六項＋reader-migration 一項，7 tests 通過；舊資料保留、預設值及 CHECK 限制確認。
-- PowerShell：reader-release.test.ps1 六種情境通過：未套用／兩種部分套用／已套用／bookmark 失敗／sharing 表缺失。CLI 替身，零正式查詢。
+- PowerShell：先前六種替身情境未檢查 CLI 參數邊界，漏掉 scalar splat 啟動錯誤；已改為逐參數驗證。npx／local／預設 auto 共 33 個情境，在 PowerShell 7 與 Windows PowerShell 5.1 均通過：未套用／兩種部分套用／已套用／bookmark 失敗／sharing 表缺失／CLI 查詢失敗／JSON success=false／異常計數／第二欄失敗及重試。CLI 替身，零正式查詢；重新注入原錯誤確認測試確實失敗。
+- Wrangler 本機啟動：Node＋相同 string[] 參數展開執行 --version，成功回傳 4.120.0；僅檢查 CLI 啟動，未呼叫正式 D1。
 - Python Playwright＋本機 Edge：桌面與 iPhone 尺寸流程通過。
   - 三來源、歸屬標記、封存不跳卡、私人與共用筆記路徑、離開後儲存、返回集合／筆記／捲動位置。
   - 星號不存入、存入後綠色題流可找回、Switch 文案不切換、跨分類保留選取及僅重試失敗題、應用內刪除確認。

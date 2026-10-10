@@ -10,9 +10,22 @@ Set-Location D:\Document_J\redolve
 if (-not $? -or $LASTEXITCODE -ne 0) { throw '停止發布並保留輸出' }
 ```
 
+腳本預設為 `-WranglerMode auto`：有專案 `node_modules/wrangler/bin/wrangler.js` 時直接透過 Node 啟動，未安裝時才選擇 npx。啟動失敗會停止，不在資料庫操作途中自動切換 CLI。
+
 腳本先讀正式 schema、確認兩張必要資料表，只新增缺少的欄位；套用前輸出當下 Time Travel bookmark。兩欄都存在會跳過。任一步失敗會停止，可重跑腳本查詢後補缺少的欄位。不要再跑 0001／0002，也不要對已存在兩欄的資料庫直接重跑 0003 SQL。
 
 必須看見 `reader_tables=2`、`starred_column=1`、`classification_column=1`。這兩個欄位是 additive change，舊 Worker 仍可運作。腳本不做還原、不刪除資料、不匯出含 FTS 的 DB。
+
+### 若之前遇到 npm「could not determine executable to run」
+
+2026-10-10 已修正腳本將單一字串展開成逐字 CLI 參數的問題；先前卡在第一次 schema 查詢的這個錯誤尚未執行 ALTER。使用修正後的本機腳本，直接重跑 §1 即可，不需回滾。若需明確指定專案 Wrangler：
+
+```powershell
+& .\scripts\apply-reader-ux.ps1 -WranglerMode local
+if (-not $? -or $LASTEXITCODE -ne 0) { throw '停止發布並保留輸出' }
+```
+
+`local` **只代表 CLI 從本機 node_modules 啟動**；腳本內 D1 目標仍為 `redolve-db --remote`。也可明確使用 `-WranglerMode npx`。CLI、驗權或查詢失敗時，保留完整輸出並停止推送。
 
 如果 PowerShell 的腳本執行政策阻擋，直接在現有終端貼上腳本內容執行即可；不需要改全域政策。
 
@@ -36,7 +49,7 @@ npx wrangler d1 execute redolve-db --remote --command "$readerSchemaSql"
 if ($LASTEXITCODE -ne 0) { throw 'UI/UX schema 核對失敗' }
 ```
 
-若 npx 無法使用，但 repository 的 node_modules 已完整安裝，第一步改執行 `& .\scripts\apply-reader-ux.ps1 -WranglerMode local`；其他手動查詢可將 `npx wrangler` 換為 `node .\node_modules\wrangler\bin\wrangler.js`。不要為此改 secrets。
+其他手動查詢若遇到 npx 啟動問題，可將 `npx wrangler` 換為 `node .\node_modules\wrangler\bin\wrangler.js`。第一步的預設腳本已優先使用專案 Wrangler；不要為此改 secrets。
 
 ## 3. 功能驗收
 
