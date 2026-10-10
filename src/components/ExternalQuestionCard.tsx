@@ -10,12 +10,15 @@ import { subscriptionService } from '../services/questionService';
 import { sharingApi } from '../services/sharingApi';
 import { savedStudyUrl } from '../services/navigationState';
 import type { WorkContent } from '../types/question';
+import { CollectionSubscriptionButton } from './CollectionSubscriptionButton';
+import { isGuestUser } from '../utils/guest';
 
-export function ExternalQuestionCard({id,collectionId,subscribed=false,starred=false,savedId,onSaved,onStar,onRead,knownSubscribed=false}: {
+export function ExternalQuestionCard({id,collectionId,subscribed=false,starred=false,savedId,onSaved,onStar,onRead,knownSubscribed=false,publicContext=false,isOwner=false,subscriptionStatusReady=true,onSubscriptionChanged}: {
   id:string;collectionId:string;subscribed?:boolean;starred?:boolean;savedId?:string|null;knownSubscribed?:boolean;
   onSaved?:(savedId:string)=>void;onStar?:(starred:boolean)=>void;onRead?:()=>void;
+  publicContext?:boolean;isOwner?:boolean;subscriptionStatusReady?:boolean;onSubscriptionChanged?:()=>void;
 }) {
-  const account=useStore(s=>s.currentUser?.id||'');
+  const user=useStore(s=>s.currentUser);const account=isGuestUser(user)?'':user!.id;
   const {setAuthModalOpen,showToast}=useStore();
   const [content,setContent]=useState<WorkContent>();const [failure,setFailure]=useState('');
   const [retry,setRetry]=useState(0);const [saved,setSaved]=useState(savedId||'');
@@ -46,9 +49,10 @@ export function ExternalQuestionCard({id,collectionId,subscribed=false,starred=f
   };
   return <article className={`rounded-3xl border bg-surface p-4 sm:p-5 ${subscribed?'border-[#DCE8E0]':'border-[#E7D6C6]'}`}>
     <header className={`mb-4 rounded-2xl p-3 ${subscribed?'bg-[#EAF1EC] dark:bg-[#26362F]':'bg-[#F6EADF] dark:bg-[#3B3028]'}`}>
-      <p className="text-xs">{subscribed?'延伸題目 · 訂閱觀看':knownSubscribed?'公開題目 · 已訂閱此集合':'外部題目 · 唯讀觀看'}</p>
+      <p className="text-xs">{subscribed?'延伸題目 · 訂閱觀看':knownSubscribed?'公開題目 · 已訂閱此集合':publicContext?'公開題目 · 尚未訂閱':'外部題目 · 尚未訂閱'}</p>
       <h2 className="mt-1 font-semibold">{content?.title||'題目'}</h2>
-      {content&&<p className="mt-1 text-xs text-text-muted"><Link to={`/collections/${collectionId}`} className="underline">{content.collectionTitle}</Link> · {content.provider}</p>}
+      {content&&<p className="mt-1 text-xs text-text-muted"><Link to={publicContext?`/explore?collection_id=${encodeURIComponent(collectionId)}`:`/collections/${collectionId}`} className="underline">{content.collectionTitle}</Link> · {content.provider}</p>}
+      {onSubscriptionChanged&&<div className="mt-3"><CollectionSubscriptionButton collectionId={collectionId} subscribed={knownSubscribed} isOwner={isOwner} statusReady={subscriptionStatusReady} onChanged={onSubscriptionChanged}/></div>}
     </header>
     {content?<>
       <p className="mb-3 text-xs text-text-muted">{content.shared?.source.topic_label||'未提供官方分類'}{(()=>{try{const tags=JSON.parse(content.shared?.source.keywords||'[]');return Array.isArray(tags)&&tags.length?' · '+tags.join('、'):'';}catch{return '';}})()}</p>

@@ -32,6 +32,7 @@ export const subscriptionService = {
     return (await sharingApi<{subscriptions:Subscription[]}>('/subscriptions','GET',undefined,signal)).subscriptions;
   },
   unsubscribe:(id:string)=>sharingApi(`/subscriptions/${encodeURIComponent(id)}`,'DELETE'),
+  subscribe:(id:string)=>sharingApi(`/subscriptions/${encodeURIComponent(id)}`,'PUT'),
   star:(collectionId:string,entryId:string,starred:boolean)=>sharingApi(
     `/subscriptions/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(entryId)}/star`,'PUT',{starred}),
 };

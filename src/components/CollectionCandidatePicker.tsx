@@ -5,7 +5,8 @@ import { getProblemImageUrl } from '../services/api';
 import { sharingApi } from '../services/sharingApi';
 import { useStore } from '../store/useStore';
 import { PersonalTopicSelect } from './PersonalTopicSelect';
-type Candidate={id:string;title:string|null;created_at:string};
+import { ImageViewerModal } from './ImageViewerModal';
+type Candidate={id:string;title:string|null;created_at:string;question_text?:string|null};
 type Cursor={created_at:string;id:string};
 export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId:string;onChanged:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');const [q,setQ]=useState('');const [topic,setTopic]=useState('');const [tag,setTag]=useState('');
@@ -13,6 +14,7 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
   const [cursor,setCursor]=useState<Cursor|null>(null);const [selected,setSelected]=useState<Record<string,Candidate>>({});
   const [viewSelected,setViewSelected]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [profile,setProfile]=useState(false);
   const [profileDialog,setProfileDialog]=useState(false);const [adding,setAdding]=useState(false);const continueAdd=useRef(true);const abortRef=useRef<AbortController>();
+  const [preview,setPreview]=useState<Candidate|null>(null);
   const params=(next?:Cursor|null)=>{const p=new URLSearchParams({q:filter.q,topic_id:filter.topic,tag:filter.tag});
     if(next){p.set('after_at',next.created_at);p.set('after_id',next.id);}return p;};
   const load=async(more=false)=>{
@@ -21,7 +23,7 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
       if(!abort.signal.aborted){setRows(p=>more?[...p,...r.items]:r.items);setCursor(r.next_cursor);}}
     catch(e){if(!abort.signal.aborted)setError(e instanceof Error?e.message:'讀取失敗');}finally{if(!abort.signal.aborted)setBusy(false);}
   };
-  useEffect(()=>{setSelected({});setProfile(false);const abort=new AbortController();void sharingApi<{profile:unknown}>('/me/public-profile','GET',undefined,abort.signal).then(r=>{if(!abort.signal.aborted)setProfile(!!r.profile);}).catch(e=>{if(!abort.signal.aborted)setError(e.message);});return ()=>abort.abort();},[account,collectionId]);
+  useEffect(()=>{setSelected({});setPreview(null);setProfile(false);const abort=new AbortController();void sharingApi<{profile:unknown}>('/me/public-profile','GET',undefined,abort.signal).then(r=>{if(!abort.signal.aborted)setProfile(!!r.profile);}).catch(e=>{if(!abort.signal.aborted)setError(e.message);});return ()=>abort.abort();},[account,collectionId]);
   useEffect(()=>{setRows([]);void load();return ()=>abortRef.current?.abort();},[account,collectionId,filter]);
   const all=async()=>{
     setBusy(true);setError('');const abort=new AbortController();abortRef.current?.abort();abortRef.current=abort;
@@ -53,15 +55,23 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
     <div className="flex flex-wrap gap-3 text-xs"><button disabled={busy} onClick={()=>setSelected(p=>({...p,...Object.fromEntries(rows.map(i=>[i.id,i]))}))} className="underline text-primary">選取已載入候選</button><button disabled={busy} onClick={()=>void all()} className="underline text-primary">選取目前所有符合條件題目</button>
       <button onClick={()=>setViewSelected(v=>!v)} className="underline">{viewSelected?'返回候選清單':'查看所有已選題目'}</button><button disabled={busy} onClick={()=>setSelected({})} className="underline">清除選取</button></div>
     <p role="status" className="text-xs text-text-muted">已選 {Object.keys(selected).length} 題{hidden>0?`，其中 ${hidden} 題在目前篩選外`:''}</p>
-    <div className="max-h-72 overflow-y-auto rounded-2xl border border-border-subtle p-2">
-      {shown.map(i=><label key={i.id} className="flex min-h-11 gap-3 items-center rounded-xl p-3 text-sm hover:bg-page-bg">
-        <input disabled={busy} type="checkbox" checked={!!selected[i.id]} onChange={e=>setSelected(p=>{const next={...p};if(e.target.checked)next[i.id]=i;else delete next[i.id];return next;})}/><img loading="lazy" src={getProblemImageUrl(i.id)} alt="" className="h-12 w-12 shrink-0 rounded-lg bg-white object-contain"/>{i.title||'未命名題目'}</label>)}
+    <div className="max-h-96 overflow-y-auto rounded-2xl border border-border-subtle p-2">
+      {shown.map(i=><div key={i.id} className="flex gap-3 items-start rounded-2xl p-3 text-sm hover:bg-page-bg">
+        <input aria-label={`選取 ${i.title||'未命名題目'}`} className="mt-3" disabled={busy} type="checkbox" checked={!!selected[i.id]} onChange={e=>setSelected(p=>{const next={...p};if(e.target.checked)next[i.id]=i;else delete next[i.id];return next;})}/>
+        <button type="button" aria-label={`檢視 ${i.title||'未命名題目'} 圖片`} onClick={()=>setPreview(i)} className="shrink-0 rounded-xl border border-border-subtle bg-white p-1">
+          <img loading="lazy" src={getProblemImageUrl(i.id)} alt="" className="h-24 w-28 sm:h-28 sm:w-40 object-contain"/><span className="block py-1 text-xs text-primary">放大檢視</span>
+        </button>
+        <div className="min-w-0 flex-1"><p className="font-medium">{i.title||'未命名題目'}</p><p className="mt-2 line-clamp-4 whitespace-pre-wrap text-text-muted">{i.question_text||'尚未辨識題目文字'}</p></div>
+      </div>)}
       {!shown.length&&<p className="p-3 text-sm text-text-muted">沒有題目。</p>}
     </div>
-    {!viewSelected&&cursor&&<button disabled={busy} onClick={()=>void load(true)} className="rounded-xl border border-border-subtle px-4 py-2 text-sm">載入更多</button>}
-    {adding&&<button onClick={()=>{continueAdd.current=false;}} className="text-sm text-text-muted underline">停止後續批次（保留已成功項目）</button>}
     {error&&<p role="alert" className="text-sm text-status-eraser">{error}</p>}
-    <button disabled={busy||!Object.keys(selected).length} onClick={()=>void add()} className="rounded-xl bg-primary px-4 py-3 text-sm text-white disabled:opacity-40">{busy?'處理中…':`加入選取的 ${Object.keys(selected).length} 題`}</button>
+    <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4">
+      {!viewSelected&&cursor&&<button disabled={busy} onClick={()=>void load(true)} className="min-h-11 rounded-xl border border-border-subtle px-4 py-3 text-sm disabled:opacity-40">載入更多</button>}
+      <button disabled={busy||!Object.keys(selected).length} onClick={()=>void add()} className="min-h-11 rounded-xl bg-primary px-4 py-3 text-sm text-white disabled:opacity-40">{busy?'處理中…':`加入選取的 ${Object.keys(selected).length} 題`}</button>
+      {adding&&<button onClick={()=>{continueAdd.current=false;}} className="min-h-11 rounded-xl border border-border-subtle px-4 py-3 text-sm text-text-muted">停止後續批次</button>}
+    </div>
+    {preview&&<ImageViewerModal imageUrl={getProblemImageUrl(preview.id)} title={preview.title||'題目圖片'} isOpen onClose={()=>setPreview(null)}/>}
     {profileDialog&&<AddToCollectionDialog collectionId={collectionId} itemIds={Object.keys(selected)} onResults={failed=>setSelected(p=>Object.fromEntries(failed.map(id=>[id,p[id]]).filter(([,v])=>v)))} onClose={()=>{setProfileDialog(false);void sharingApi<{profile:unknown}>('/me/public-profile').then(r=>setProfile(!!r.profile)).catch(e=>setError(e.message));onChanged();void load();}}/>}
   </section>;
 }

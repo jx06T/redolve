@@ -86,7 +86,7 @@ export function CollectionsHubView(){
         {invites.length>0&&<div className="mt-5 border-t border-border-subtle pt-4">
           <h3 className="text-sm font-medium">待接受邀請</h3>
           {invites.map(inv=><p key={inv.id} className="mt-2 text-sm">{inv.title}・
-            {inv.role==='contributor'?'貢獻者':'觀看者'}。請使用邀請連結中的 token 接受。</p>)}
+            {inv.role==='contributor'?'貢獻者':'觀看者'}。<Link to="/settings#profile" className="ml-2 text-primary underline">至個人檔案接受邀請</Link></p>)}
         </div>}
       </div>
     </section>:<button onClick={()=>setAuthModalOpen(true)}

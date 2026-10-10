@@ -140,12 +140,13 @@ export function CollectionDetailView(){
             {item.keywords&&<p className="mt-2 line-clamp-1 text-xs text-text-muted">
               {tagsFor([item]).join('・')}</p>}
           </div>
+          <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
           {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
           {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
             {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
               onClick={()=>void act(()=>sharingApi(`/collections/${id}/items/${item.id}/order`,'PATCH',
                 {direction,expected_version:co.row_version}),'題目順序已更新')}
-              className="rounded-lg bg-page-bg px-3 py-1 text-xs disabled:opacity-40">
+              className="min-h-11 rounded-xl bg-page-bg px-4 py-3 text-sm disabled:opacity-40">
               {direction==='up'?'上移':'下移'}</button>)}
           </div>}
         </div>)}</div>:

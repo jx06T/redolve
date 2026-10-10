@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../../store/useStore';
 import { isGuestUser } from '../../utils/guest';
 import { sharingApi, type Collection } from '../../services/sharingApi';
+import { ReceivedInvitations } from './ReceivedInvitations';
 
 export function ProfileSettingsSection({children}:{children:ReactNode}) {
   const {currentUser,setAuthModalOpen,showToast}=useStore();
@@ -29,5 +30,5 @@ export function ProfileSettingsSection({children}:{children:ReactNode}) {
     <label className="block border-t border-border-subtle pt-4 text-sm">預設上傳目的地<select aria-label="預設上傳目的地" disabled={busy||saving} value={destination} onChange={e=>setDestination(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"><option value="">只存我的題庫</option>{collections.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select></label>
     <p className="text-xs text-text-muted">原題會保留在自己的題庫。每次上傳可另選目的地。</p>
     <button disabled={busy||saving} onClick={()=>void save(()=>sharingApi('/me/upload-preferences','PATCH',{default_collection_id:destination||null}))} className="rounded-xl bg-primary/10 px-4 py-2 text-sm text-primary disabled:opacity-40">儲存預設</button>
-  </section>{children}{isAdmin&&<Link className="inline-block rounded-xl border border-border-subtle px-4 py-2 text-sm text-text-muted" to="/admin/sharing">平台管理 · 分享內容檢查</Link>}</div>;
+  </section><ReceivedInvitations/>{children}{isAdmin&&<Link className="inline-block rounded-xl border border-border-subtle px-4 py-2 text-sm text-text-muted" to="/admin/sharing">平台管理 · 分享內容檢查</Link>}</div>;
 }
