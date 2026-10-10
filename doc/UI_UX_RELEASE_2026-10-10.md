@@ -1,5 +1,7 @@
 # UI/UX 重整發布指南
 
+歷史指南：本頁是已完成的 0003。接續刷題恢復／共用個人進度版本請依 [0004 發布指南](STUDY_UX_RELEASE_2026-10-10.md)，不要重跑本頁的舊 migration。
+
 適用已完成共用 v2（21 張 sharing 表、items 三個 seq 欄位）的 redolve-db。此次新增 0003 的兩個欄位，**先套用，再推送觸發自動部署**。不需新增 secret 或改變 Gemini placement。
 
 ## 1. 使用者先執行

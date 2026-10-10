@@ -3,6 +3,10 @@ export const sourceLabels:Record<StudySource,string>={owned:'我上傳',saved:'�
 export function readSource(value:string|null):StudySource {
   return value==='saved'||value==='contributing'?value:'owned';
 }
+export function readerLocationKey(location:{key:string;pathname:string;search:string}) {
+  // Direct document navigation can reuse the router's "default" history key.
+  return JSON.stringify([location.key,location.pathname,location.search]);
+}
 const read=(key:string)=>{try{return sessionStorage.getItem(key);}catch{return null;}};
 const write=(key:string,value:string)=>{try{sessionStorage.setItem(key,value);}catch{/* Browser storage may be unavailable. */}};
 export function lastStudyUrl(account:string) {return read(`rdv:study:last:${account}`)||'/study?source=owned';}

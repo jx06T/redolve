@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import type { Item, TaxonomyNode } from '../types';
 import { useNavigate } from 'react-router-dom';
-import { Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { ChevronRight, Filter, Layers, ListOrdered, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { STATUS_FILTER_ITEMS } from '../config/constants';
@@ -9,27 +10,41 @@ import { CustomSelect } from './CustomSelect';
 
 interface SidebarProps {
   onSelectProblemOutline?: (problemId: string) => void;
+  scope?: {subject:string;topic:string|null;status:string;problems:Item[];outline?:Item[];taxonomies:TaxonomyNode[];
+    onSubject:(id:string)=>void;onTopic:(id:string|null)=>void;onStatus:(status:string)=>void;loading?:boolean};
+  children?: React.ReactNode;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope, children }) => {
   const navigate = useNavigate();
 
   const {
     mobileDrawerOpen,
     setMobileDrawerOpen,
-    selectedSubjectId,
-    setSelectedSubjectId,
-    selectedTopicId,
-    setSelectedTopicId,
-    selectedStatus,
-    setSelectedStatus,
-    problems,
+    selectedSubjectId:storeSubject,
+    setSelectedSubjectId:storeSetSubject,
+    selectedTopicId:storeTopic,
+    setSelectedTopicId:storeSetTopic,
+    selectedStatus:storeStatus,
+    setSelectedStatus:storeSetStatus,
+    problems:storeProblems,
     activeProblemId,
     sidebarCollapsed,
     toggleSidebarCollapsed,
-    taxonomies,
-    taxonomyCounts,
+    taxonomies:storeTaxonomies,
+    taxonomyCounts:storeCounts,
   } = useStore();
+  const selectedSubjectId=scope?.subject||storeSubject;
+  const selectedTopicId=scope?scope.topic:storeTopic;
+  const selectedStatus=scope?.status||storeStatus;
+  const setSelectedSubjectId=scope?.onSubject||storeSetSubject;
+  const setSelectedTopicId=scope?.onTopic||storeSetTopic;
+  const setSelectedStatus=scope?.onStatus||storeSetStatus;
+  const problems=scope?.problems||storeProblems;
+  const taxonomies=scope?.taxonomies||storeTaxonomies;
+  const taxonomyCounts=scope?{}:storeCounts;
+  const [desktop,setDesktop]=useState(()=>window.matchMedia('(min-width:1024px)').matches);
+  useEffect(()=>{const media=window.matchMedia('(min-width:1024px)');const update=()=>setDesktop(media.matches);media.addEventListener('change',update);return ()=>media.removeEventListener('change',update);},[]);
 
   // Close mobile drawer on Escape key press
   useEffect(() => {
@@ -86,7 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   };
 
   // --- 3. 科目總數
-  const subjectTotalCount = activeSubject
+  const subjectTotalCount = currentSubjectId==='all'?problems.length:activeSubject
     ? computeCountForNode(activeSubject)
     : problems.filter(p => selectedStatus === 'all' ? p.status !== 'archived' : p.status === selectedStatus).length;
 
@@ -94,9 +109,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     const isStatusMatch = selectedStatus === 'all' ? p.status !== 'archived' : p.status === selectedStatus;
     return isStatusMatch && (!p.topic_id || p.topic_id === 'unclassified');
   }).length;
+  const [expanded,setExpanded]=useState<Record<string,boolean>>({});
   const handleSelectTopic = (tId: string | null) => {
     setSelectedTopicId(tId);
     setMobileDrawerOpen(false);
+    if(scope)return;
     if (tId) {
       navigate(`/study/${currentSubjectId}/${tId}`);
     } else {
@@ -104,9 +121,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
     }
   };
 
+  const renderNodes=(nodes:TaxonomyNode[],depth=0):React.ReactNode=>nodes.map(node=>{
+    const count=computeCountForNode(node);const selected=selectedTopicId===node.id;
+    const open=expanded[node.id]??((currentSubjectId!=='all'&&depth===0)||getAllDescendantIds(node).includes(selectedTopicId||''));
+    return <div key={node.id} className="space-y-0.5"><div className="flex items-center gap-1">
+      {node.children?.length?<button type="button" aria-label={(open?'收合':'展開')+node.label} aria-expanded={open} onClick={()=>setExpanded(v=>({...v,[node.id]:!open}))} className="shrink-0 rounded-xl p-1 text-text-muted"><ChevronRight size={13} className={open?'rotate-90':''}/></button>:<span className="w-5 shrink-0"/>}
+      <button type="button" aria-label={'選擇分類'+node.label} aria-pressed={selected} onClick={()=>handleSelectTopic(node.id)} className={'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl px-2 py-1.5 text-left text-xs '+(selected?'bg-primary/10 font-semibold text-primary':'text-text-main hover:bg-neutral-100')}><span className="truncate">{node.label}{node.user_id?' · 自訂':''}</span><span className="shrink-0 text-[10px] text-text-muted">{count}</span></button>
+    </div>{open&&node.children?.length?<div className="ml-3 border-l border-border-subtle pl-2">{renderNodes(node.children,depth+1)}</div>:null}</div>;
+  });
+
   // Shared inner navigation content (used in both desktop sidebar & mobile floating drawer)
   const NavigationContent = (
     <div className="space-y-4">
+      {children}
+      {scope?.loading&&<p role="status" className="text-xs text-text-muted">正在載入題目大綱；目前計數為已載入部分。</p>}
       {/* Subject Selection Dropdown inside Sidebar */}
       <div>
         <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
@@ -116,11 +144,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           value={currentSubjectId}
           onChange={(val) => {
             setSelectedSubjectId(val);
-            setSelectedTopicId(null);
+            if(!scope)setSelectedTopicId(null);
             setMobileDrawerOpen(false);
-            navigate(`/study/${val}`);
+            if(!scope)navigate(`/study/${val}`);
           }}
           options={[
+            ...(scope?[{value:'all',label:'所有科目'}]:[]),
             ...(baseTaxonomy || []).map((sub) => ({
               value: sub.id,
               label: sub.label,
@@ -159,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         <div className="flex items-center justify-between text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
           <div className="flex items-center space-x-1.5">
             <Layers className="w-3.5 h-3.5 text-primary" />
-            <span>{isUnclassifiedSubject ? '其他科目' : (activeSubject?.label || '章節')} 篩選</span>
+            <span>{isUnclassifiedSubject ? '其他科目' : currentSubjectId==='all'?'科目與章節':(activeSubject?.label || '章節')} 篩選</span>
           </div>
         </div>
 
@@ -192,7 +221,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
                 : 'text-text-main hover:bg-neutral-100'
                 }`}
             >
-              <span>全部 {activeSubject?.label || '科目'} 錯題</span>
+              <span>全部 {currentSubjectId==='all'?'科目':activeSubject?.label || '科目'} 錯題</span>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium ${selectedTopicId === null
                 ? 'bg-primary/20 text-primary'
                 : 'bg-neutral-200/70 text-neutral-500'
@@ -201,80 +230,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
               </span>
             </button>
 
-            {/* Chapters & Units */}
-            {activeSubject?.children?.map((unit) => {
-              const isUnitSelected = selectedTopicId === unit.id;
-              const unitCount = computeCountForNode(unit);
-              const isCustomUnit = (unit as any).is_custom || unit.id.startsWith('custom_');
-
-              return (
-                <div key={unit.id} className="pt-1">
-                  <button
-                    onClick={() => handleSelectTopic(unit.id)}
-                    className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${isUnitSelected
-                      ? 'bg-primary/10 text-primary font-semibold'
-                      : 'text-text-main hover:bg-neutral-100'
-                      }`}
-                  >
-                    <span className="truncate flex items-center gap-1.5">
-                      <span>{unit.label}</span>
-                      {isCustomUnit && (
-                        <span className="px-1 py-0.2 rounded text-[9px] font-normal bg-accent-peach/20 text-accent-peach border border-accent-peach/30 shrink-0">
-                          自訂
-                        </span>
-                      )}
-                    </span>
-                    {unitCount > 0 && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-mono shrink-0 ml-1.5 ${isUnitSelected
-                        ? 'bg-primary/20 text-primary font-semibold'
-                        : 'bg-neutral-100 text-neutral-500'
-                        }`}>
-                        {unitCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {/* Sub-points / detailed topics */}
-                  {unit.children && unit.children.length > 0 && (
-                    <div className="pl-3 space-y-0.5 mt-0.5 border-l border-border-subtle ml-3">
-                      {unit.children.map((point) => {
-                        const isPointSelected = selectedTopicId === point.id;
-                        const pointCount = computeCountForNode(point);
-                        const isCustomPoint = (point as any).is_custom || point.id.startsWith('custom_');
-
-                        return (
-                          <button
-                            key={point.id}
-                            onClick={() => handleSelectTopic(point.id)}
-                            className={`w-full text-left px-2.5 py-1 rounded-lg text-[11px] transition-colors flex items-center justify-between ${isPointSelected
-                              ? 'bg-primary/15 text-primary font-bold'
-                              : 'text-text-muted hover:text-text-main'
-                              }`}
-                          >
-                            <span className="truncate flex items-center gap-1">
-                              <span>• {point.label}</span>
-                              {isCustomPoint && (
-                                <span className="px-1 py-0.2 rounded text-[9px] font-normal bg-accent-peach/20 text-accent-peach border border-accent-peach/30 shrink-0">
-                                  自訂
-                                </span>
-                              )}
-                            </span>
-                            {pointCount > 0 && (
-                              <span className={`text-[9px] px-1 py-0.5 rounded-md font-mono shrink-0 ml-1 ${isPointSelected
-                                ? 'bg-primary/20 text-primary font-bold'
-                                : 'text-neutral-400'
-                                }`}>
-                                {pointCount}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {renderNodes(currentSubjectId==='all'?baseTaxonomy:activeSubject?.children||[])}
           </div>
         )}
       </div>
@@ -286,13 +242,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             <ListOrdered className="w-3.5 h-3.5" />
             <span>
               {selectedTopicId
-                ? `${baseTaxonomy.find((s) => s.id === selectedTopicId)?.label || '當前章節'}錯題 (${problems.length} 題)`
-                : `錯題大綱清單 (${problems.length} 題)`}
+                ? `${baseTaxonomy.find((s) => s.id === selectedTopicId)?.label || '當前章節'}錯題 (${(scope?.outline||problems).length} 題)`
+                : `錯題大綱清單 (${(scope?.outline||problems).length} 題)`}
             </span>
           </div>
 
           <div className="space-y-1">
-            {problems.map((item) => {
+            {(scope?.outline||problems).map((item) => {
               const isActive = activeProblemId === item.id;
               const pathInfo = getTaxonomyPath(item.topic_id ?? null, undefined, taxonomies);
               const topicBadgeLabel = pathInfo.unit || pathInfo.point || (pathInfo.isUnclassified ? '未分類' : pathInfo.subject);
@@ -344,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
   return (
     <>
       {/* Mobile Floating Slide-over Drawer */}
-      <div
+      {!desktop&&mobileDrawerOpen&&<div
         onClick={() => setMobileDrawerOpen(false)}
         className={`lg:hidden fixed inset-0 z-50 bg-black/60 flex justify-start transition-opacity duration-300 ease-out ${mobileDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
           }`}
@@ -369,10 +325,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
           </div>
           <div className="flex-1 overflow-y-auto overscroll-contain touch-pan-y min-h-0 pr-1">{NavigationContent}</div>
         </div>
-      </div>
+      </div>}
 
       {/* 3. Desktop Permanent Sticky Sidebar (< 1024px hidden, >= 1024px visible) */}
-      {sidebarCollapsed ? (
+      {desktop&&(sidebarCollapsed ? (
         // 加入 self-start，避免 Flex stretch 強迫與主要內容等高而失去 sticky 效果
         <div className=' hidden lg:block w-2 h-1 relative'>
           <div className=" absolute self-start top-0 -left-2">
@@ -387,7 +343,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
         </div>
       ) : (
         // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
-        <aside className="hidden lg:flex flex-col w-72 h-[calc(100dvh-6.5rem)] self-start sticky top-[4.75rem] bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs">
+        <aside className={`hidden lg:flex flex-col w-72 self-start bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs ${scope?'h-full':'h-[calc(100dvh-6.5rem)] sticky top-[4.75rem]'}`}>
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-border-subtle shrink-0">
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-primary" />
@@ -405,7 +361,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline }) => {
             {NavigationContent}
           </div>
         </aside>
-      )}
+      ))}
     </>
   );
 };

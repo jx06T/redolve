@@ -27,8 +27,9 @@ interface ProblemCardHeaderProps {
   onReload: () => void;
   onToggleInk: () => void;
   onExport: () => void;
-  onOpenShareModal: () => void;
-  onOpenDeleteModal: () => void;
+  onOpenShareModal?: () => void;
+  copyText?:()=>Promise<string>;
+  onOpenDeleteModal?: () => void;
   onEditMetadata?: (problem: Item) => void;
 }
 
@@ -45,7 +46,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onExport,
   onOpenShareModal,
   onOpenDeleteModal,
-  onEditMetadata,
+  onEditMetadata,copyText,
 }) => {
   const [isFetchingText, setIsFetchingText] = useState(false);
   const { isCopied, copy } = useCopyToClipboard();
@@ -55,7 +56,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
     if (isFetchingText) return;
     setIsFetchingText(true);
 
-    const textPromise = fetchProblemText(problem.id).then(res => {
+    const textPromise = (copyText?copyText().then(text=>({text})):fetchProblemText(problem.id)).then(res => {
       if (!res.text || res.text.trim().length === 0) {
         throw new Error('EMPTY_TEXT');
       }
@@ -65,7 +66,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
     try {
       const success = await copy(textPromise);
       if (success) {
-        showToast('已複製題目文字', 'success', 2000);
+        showToast(copyText?'已複製題目資訊':'已複製題目文字', 'success', 2000);
       } else {
         showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
       }
@@ -109,9 +110,9 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={handleCopyText}
           disabled={isFetchingText}
-          aria-label="複製題目文字"
+          aria-label={copyText?'複製題目資訊':'複製題目文字'}
           className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
-          title="複製題目文字"
+          title={copyText?'複製題目資訊':'複製題目文字'}
         >
           {isFetchingText ? (
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -160,7 +161,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
         </button>
 
         {/* Share Button */}
-        {!readOnly && <button
+        {!readOnly && onOpenShareModal && <button
           type="button"
           onClick={onOpenShareModal}
           aria-label="開啟公開分享設定"
@@ -171,7 +172,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
         </button>}
 
         {/* Delete Button */}
-        {!readOnly && (
+        {!readOnly && onOpenDeleteModal && (
           <button
             type="button"
             onClick={onOpenDeleteModal}

@@ -37,7 +37,7 @@ export const subscriptionService = {
 };
 export const questionService = {
   async search(input:{source:StudySource;query:string;collectionId?:string;topic?:string;status?:string;
-    tag?:string;offset?:number;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
+    tag?:string;offset?:number;metadataOnly?:boolean;excludeArchived?:boolean;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
     if(input.source==='contributing'&&!input.collectionId)
       return {items:[],next_offset:null,scope:'shared'};
     if(input.guest) {
@@ -50,17 +50,19 @@ export const questionService = {
       });
       visit(input.taxonomies||[]);
       const items=rows.filter(p=>(!input.topic||(input.topic==='unclassified'?!p.topic_id:topics.has(p.topic_id||'')))
-        &&(!input.status||p.status===input.status)&&(!input.tag||(()=>{try{return JSON.parse(p.keywords||'[]').includes(input.tag);}catch{return false;}})()));
+        &&(!input.status||p.status===input.status)&&(!input.excludeArchived||p.status!=='archived')&&(!input.tag||(()=>{try{return JSON.parse(p.keywords||'[]').includes(input.tag);}catch{return false;}})()));
       return {scope:'mine',next_offset:null,items:items.map(p=>({origin:'owned',id:p.id,title:p.source,
         topic_id:p.topic_id,topic_label:null,keywords:p.keywords,typed_notes:p.typed_notes||null,status:p.status,
         review_count:p.review_count,created_at:p.created_at,collection_id:null,collection_title:null,
         provider_name:null,saved_id:null,relevance_score:0,problem:p}))};
     }
-    const params=new URLSearchParams({scope:input.source==='contributing'?'shared':'mine',browse:'1',limit:'30'});
+    const params=new URLSearchParams({scope:input.source==='contributing'?'shared':'mine',browse:'1',limit:input.metadataOnly?'50':'30'});
     if(input.source!=='contributing'){params.set('origin',input.source);if(input.collectionId&&input.source==='owned')params.set('collection_id',input.collectionId);}
     else {params.set('collection_id',input.collectionId!);params.set('contributing','yes');}
     if(input.topic)params.set('topic_id',input.topic);
-    if(input.status&&input.source!=='contributing')params.set('status',input.status);
+    if(input.status&&input.status!=='all')params.set('status',input.status);
+    if(input.metadataOnly)params.set('metadata_only','1');
+    if(input.excludeArchived)params.set('exclude_archived','yes');
     if(input.tag)params.set('tag',input.tag);
     if(input.offset)params.set('offset',String(input.offset));
     return searchProblems(input.query,params,input.signal);

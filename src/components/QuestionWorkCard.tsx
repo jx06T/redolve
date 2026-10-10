@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
+import { ProblemCard, type ProblemCardWork } from './ProblemCard';
+import type { Item } from '../types';
+import type { ReviewProgress } from '../types/question';
 import { DrawCanvas } from './DrawCanvas';
 import { AppDialog } from './AppDialog';
 import { PersonalTopicSelect } from './PersonalTopicSelect';
@@ -9,13 +12,13 @@ import { sharingApi } from '../services/sharingApi';
 import { libraryService } from '../services/libraryService';
 import type { WorkContent } from '../types/question';
 
-function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:()=>void;onRemoved?:()=>void}) {
+function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkContent;readOnly?:boolean;onChanged?:()=>void;onRemoved?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
-  const {tool,penColor,penWidth,eraserActive}=useStore();
+
   const controller=getWorkController(account,content);
   const state=useSyncExternalStore(controller.subscribe,controller.getState);
-  const [collapsed,setCollapsed]=useState(false);const [hidden,setHidden]=useState<Record<string,boolean>>({});
-  const [width,setWidth]=useState(800);const area=useRef<HTMLDivElement>(null);
+  const [hidden,setHidden]=useState<Record<string,boolean>>({});
+
   const [update,setUpdate]=useState<Awaited<ReturnType<typeof libraryService.previewUpdate>>|null>(null);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const [remove,setRemove]=useState(false);const [savedFlash,setSavedFlash]=useState(false);
@@ -23,31 +26,38 @@ function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:
   useEffect(()=>{if(state.status!=='saved'){setSavedFlash(false);return;}if(state.revision>0){setSavedFlash(true);const timer=setTimeout(()=>setSavedFlash(false),2200);return ()=>clearTimeout(timer);}},[state.status,state.revision]);
   const [cloud,setCloud]=useState<WorkContent|null>(null);const [name,setName]=useState('');
   const [hasProfile,setHasProfile]=useState(!content.shared);const [profileError,setProfileError]=useState('');
-  const base=state.ink.baseWidth||800;
-  const extra=state.ink.calcSpaceHeight??400;
-  const rendered=Math.round(extra*width/base);
-  const mineEditable=hasProfile&&(!content.shared||content.shared.capabilities.can_contribute);
+  const initialProgress=()=>content.saved?{status:content.saved.saved.status as ReviewProgress['status'],previous_status:'unsolved' as const,review_count:content.saved.saved.review_count||0,row_version:content.saved.saved.row_version}:content.shared?.progress||{status:'unsolved' as const,previous_status:'unsolved' as const,review_count:0,row_version:0};
+  const [progress,setProgress]=useState<ReviewProgress>(initialProgress);const progressRef=useRef(progress);const progressBusy=useRef(false);
+  useEffect(()=>{const next=initialProgress();if(next.row_version>=progressRef.current.row_version){setProgress(next);progressRef.current=next;}},[content]);
+  const changeProgress=async(action:'resolve'|'archive')=>{
+    if(readOnly||progressBusy.current)return;progressBusy.current=true;
+    try{const current=progressRef.current;
+      let next:ReviewProgress;
+      if(content.saved){const status=action==='archive'?(current.status==='archived'?current.previous_status:'archived'):(current.status==='resolved'?'unsolved':'resolved');
+        const reviewCount=current.review_count+(action==='resolve'&&current.status==='unsolved'?1:0);
+        const result=await libraryService.patch(content.saved.saved.id,{expected_version:current.row_version,status,review_count:reviewCount});
+        next={...current,status,review_count:reviewCount,row_version:result.row_version};
+      }else{const result=await sharingApi<{progress:ReviewProgress}>('/collections/'+encodeURIComponent(content.collectionId!)+'/items/'+encodeURIComponent(content.shared!.entry.id)+'/progress','PUT',{action,expected_version:current.row_version,expected_generation:content.shared!.entry.generation});next=result.progress;}
+      progressRef.current=next;setProgress(next);onChanged?.();
+    }finally{progressBusy.current=false;}
+  };
+  const mineEditable=!readOnly&&hasProfile&&(!content.shared||content.shared.capabilities.can_contribute);
   useEffect(()=>{
     if(!content.shared)return;const abort=new AbortController();
     void sharingApi<{profile:unknown}>('/me/public-profile','GET',undefined,abort.signal).then(r=>{if(!abort.signal.aborted)setHasProfile(!!r.profile);})
       .catch(e=>{if(!abort.signal.aborted)setProfileError(e.message);});return ()=>abort.abort();
   },[content.shared]);
-  useEffect(()=>{
-    const node=area.current;if(!node)return;
-    const observer=new ResizeObserver(()=>setWidth(node.clientWidth));observer.observe(node);
-    setWidth(node.clientWidth);return ()=>observer.disconnect();
-  },[]);
   const act=async(fn:()=>Promise<unknown>)=>{
     setBusy(true);setError('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'操作失敗');}finally{setBusy(false);}
   };
-  return <article data-question={content.ref.kind==='saved'?content.ref.savedRefId:content.ref.entryId}
-    className={`rounded-3xl border bg-surface p-4 sm:p-5 ${content.saved?'border-[#DCE8E0] dark:border-[#3D5449]':'border-primary/20'}`}>
-    <header className={`mb-4 rounded-2xl p-3 ${content.saved?'bg-[#EAF1EC] dark:bg-[#26362F]':'bg-primary/10'}`}>
-      <p className="text-xs font-medium">{content.saved?'我存入 · 私人訂正':'我共用中 · 正在編輯我的共用層'}</p>
-      <h2 className="mt-1 font-semibold">{content.title}</h2>
-      <p className="mt-1 text-xs text-text-muted">{content.collectionTitle} · {content.provider}</p>
-    </header>
-    {!hasProfile&&<section className="mb-4 rounded-2xl bg-page-bg p-4">
+  const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(state.ink),typed_notes:state.notes,status:progress.status,review_count:progress.review_count,vector_clock:null,created_at:'',updated_at:''};
+  const work:ProblemCardWork={image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
+    notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
+    copyText:async()=>[content.title,content.topic,content.collectionTitle,content.provider].filter(Boolean).join(' · '),
+    remove:content.saved?()=>setRemove(true):undefined,
+    share:content.shared?()=>{void navigator.clipboard.writeText(window.location.origin+'/collections/'+encodeURIComponent(content.collectionId!)+'?focus='+encodeURIComponent(content.shared!.entry.id)).then(()=>useStore.getState().showToast('已複製分享連結；觀看仍受集合權限限制','success')).catch(()=>useStore.getState().showToast('無法複製連結','error'));}:undefined,
+    label:<p className="mt-3 rounded-xl bg-page-bg px-3 py-2 text-xs text-text-muted">{content.saved?'我存入 · 私人訂正':'我共用中 · 我的共用筆跡與筆記'} · {content.collectionTitle} · {content.provider}</p>,
+    beforeWorkspace:<>    {!readOnly&&!hasProfile&&<section className="mb-4 rounded-2xl bg-page-bg p-4">
       <label className="block text-sm">開始共用書寫前，設定你的公開顯示名稱<input value={name} maxLength={80} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-surface p-3"/></label>
       <p className="mt-2 text-xs text-text-muted">這個帳號名稱會顯示於你貢獻的題目、筆跡和筆記，不使用 email。</p>
       <button disabled={busy||!name.trim()} onClick={()=>void act(async()=>{await sharingApi('/me/public-profile','PUT',{display_name:name.trim()});setHasProfile(true);})} className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm text-white disabled:opacity-40">儲存名稱並開始</button>
@@ -57,24 +67,9 @@ function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:
       aria-pressed={!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}
       onClick={()=>setHidden(p=>({...p,[l.id]:!(p[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}))}
       className="rounded-xl border border-border-subtle px-3 py-2 text-xs">{l.author} · 參考筆跡</button>)}</div>}
-    <div ref={area} className="relative overflow-hidden rounded-2xl border border-border-subtle bg-page-bg">
-      <img src={content.image} alt={content.title} className="exam-paper-image pointer-events-none block h-auto w-full select-none"/>
-      <div style={{height:collapsed?0:rendered}} className="border-t border-dashed border-border-subtle transition-[height] duration-200"/>
-      {content.layers.filter(l=>l.ink&&!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))).map(l=>
-        <div key={l.id} className="pointer-events-none absolute inset-0"><DrawCanvas initialDrawData={l.ink} readOnly inkVisible calcSpaceHeight={extra}/></div>)}
-      <div className="absolute inset-0"><DrawCanvas initialDrawData={state.ink} calcSpaceHeight={extra}
-        onSaveDrawData={controller.ink} activeTool={tool} activeColor={penColor} activeWidth={penWidth}
-        isEraserActive={eraserActive} readOnly={!mineEditable||state.status==='conflict'} inkVisible/></div>
-    </div>
-    <div className="mt-3 flex flex-wrap items-center gap-2">
-      <button onClick={()=>setCollapsed(v=>!v)} className="rounded-xl border border-border-subtle px-3 py-2 text-xs">
-        {collapsed?'展開推導區':'收合推導區'}</button>
-      <button disabled={collapsed} onClick={()=>controller.ink({...state.ink,calcSpaceHeight:extra+200})}
-        className="rounded-xl border border-border-subtle px-3 py-2 text-xs disabled:opacity-40">增加書寫空間</button>
-      <span role="status" className="text-xs text-text-muted">
-        {state.status==='saving'?'儲存中…':state.status==='pending'?'尚未同步':state.status==='saved'&&savedFlash?'已儲存':''}</span>
-    </div>
-    {(state.error||error)&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
+</>,
+    references:content.layers.filter(l=>l.ink&&!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))).map(l=>l.ink!),
+    afterNotes:<><p role="status" className="mt-2 text-xs text-text-muted">{state.status==='saving'?'儲存中…':state.status==='pending'?'尚未同步':savedFlash?'已儲存':''}</p>{(state.error||error)&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
     {(state.status==='error'||state.status==='pending')&&<button onClick={controller.retry} className="mt-2 rounded-xl border border-border-subtle px-3 py-2 text-xs">重試同步</button>}
     {state.status==='conflict'&&<div className="mt-2 space-y-2 text-xs"><p className="text-text-muted">本機作業已保留；請核對另一裝置的內容。</p>
       <button onClick={()=>downloadWorkDraft(state.ink,state.notes)} className="rounded-xl border border-border-subtle px-3 py-2">下載本機作業</button>
@@ -83,24 +78,15 @@ function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:
     {content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-3 rounded-2xl bg-page-bg p-3">
       <summary className="cursor-pointer text-sm">{l.author} · {l.notes.slice(0,60)}{l.notes.length>60?'…':''}</summary>
       <p className="mt-2 whitespace-pre-wrap text-sm">{l.notes}</p></details>)}
-    <label className="mt-4 block text-sm font-medium">{content.saved?'我的私人筆記':'我的共用筆記'}
-      <textarea value={state.notes} maxLength={65536} disabled={!mineEditable||state.status==='conflict'}
-        onChange={e=>controller.notes(e.target.value)} rows={3}
-        className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/></label>
-    {content.saved&&<div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
+    {!readOnly&&content.saved&&<div className="mt-4 space-y-3 border-t border-border-subtle pt-4">
       {content.saved.saved.classification_state==='pending'&&<p role="status" className="text-xs text-text-muted">正在將來源分類辨識到你的課綱；你也可以手動指定。</p>}
       {content.saved.saved.classification_state==='failed'&&<p className="text-xs text-text-muted">自動分類未完成；題目已保留，可手動指定科目與單元。<button disabled={busy} onClick={()=>void act(async()=>{await libraryService.retryClassification(content.saved!.saved.id);onChanged?.();})} className="ml-2 text-primary underline">重試分類</button></p>}
       <label htmlFor={`saved-topic-${content.saved.saved.id}`} className="block text-xs text-text-muted">我的科目與單元</label>
       <PersonalTopicSelect id={`saved-topic-${content.saved.saved.id}`} value={content.saved.saved.personal_topic_id||''}
         onChange={topic=>void act(async()=>{
-          const d=content.saved!;await libraryService.patch(d.saved.id,{expected_version:d.saved.row_version,personal_topic_id:topic||null});onChanged?.();
+          const d=content.saved!;const result=await libraryService.patch(d.saved.id,{expected_version:progressRef.current.row_version,personal_topic_id:topic||null});progressRef.current={...progressRef.current,row_version:result.row_version};onChanged?.();
         })} disabled={busy}/>
       <div className="flex flex-wrap gap-2">
-        <select aria-label="我的訂正狀態" value={content.saved.saved.status} disabled={busy}
-          onChange={e=>void act(async()=>{
-            const d=content.saved!;await libraryService.patch(d.saved.id,{expected_version:d.saved.row_version,status:e.target.value});onChanged?.();
-          })} className="rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm">
-          <option value="unsolved">待訂正</option><option value="resolved">已訂正</option><option value="archived">已封存</option></select>
         <button disabled={busy||!content.saved.source.available} onClick={()=>void act(async()=>{
           setUpdate(await libraryService.previewUpdate(content.saved!.saved.id));
         })} className="rounded-xl border border-border-subtle px-3 py-2 text-xs disabled:opacity-40">檢查來源更新</button>
@@ -109,6 +95,9 @@ function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:
       </div>
       {!content.saved.source.available&&<p className="text-xs text-text-muted">來源目前無法存取；你的已存版本與訂正仍保留。</p>}
     </div>}
+</>,
+  };
+  return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
     {update&&<AppDialog title="來源內容更新" busy={busy} onClose={()=>setUpdate(null)}>
       <p className="text-sm">{!update.available?'來源目前無法存取':update.changed?update.changes.join('、'):'目前已與可取得的來源內容一致。'}</p>
       <p className="mt-2 text-xs text-text-muted">更新保留自己的筆跡、筆記、分類與訂正狀態。</p>
@@ -136,9 +125,10 @@ function WorkBody({content,onChanged,onRemoved}:{content:WorkContent;onChanged?:
       <button disabled={busy} onClick={()=>void act(async()=>{controller.acceptCloud(cloud);setCloud(null);})} className="mt-4 ml-2 rounded-xl bg-primary px-4 py-2 text-sm text-white">採用雲端作業</button>
       {error&&<p role="alert" className="mt-3 text-sm text-status-eraser">{error}</p>}
     </AppDialog>}
-  </article>;
+  </div>;
+
 }
-export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved}:{kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onRemoved?:()=>void}) {
+export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,readOnly=false}:{readOnly?:boolean;kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onRemoved?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
   const [state,setState]=useState<{key:string;content?:WorkContent;error?:string}>({key:''});
   const [retry,setRetry]=useState(0);const key=`${account}:${kind}:${collectionId}:${id}`;
@@ -160,6 +150,15 @@ export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved}:{kin
   if(state.key!==key)return <p className="rounded-3xl border border-border-subtle bg-surface p-6 text-sm">載入題目作業中…</p>;
   if(!state.content)return <div role="alert" className="rounded-3xl border border-border-subtle bg-surface p-6 text-sm">
     {state.error}<button onClick={()=>setRetry(v=>v+1)} className="ml-3 text-primary underline">重試</button></div>;
-  if(kind==='shared'&&!state.content.shared?.capabilities.can_contribute)return <p className="p-6 text-sm">目前沒有此集合的共用書寫權限。</p>;
-  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} onRemoved={onRemoved} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
+  if(kind==='shared'&&!readOnly&&!state.content.shared?.capabilities.can_contribute)return <p className="p-6 text-sm">目前沒有此集合的共用書寫權限。</p>;
+  if(readOnly)return <WorkPreview content={state.content}/>;
+  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} readOnly={readOnly} onRemoved={onRemoved} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
+}
+
+// A read-only result does not create an editor or attach its draft sync controller.
+function WorkPreview({content}:{content:WorkContent}) {
+  const account=useStore(s=>s.currentUser?.id||'');
+  const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(content.work.ink),typed_notes:content.work.notes,status:content.saved?.saved.status as Item['status']||content.shared?.progress?.status||'unsolved',review_count:content.saved?.saved.review_count||content.shared?.progress?.review_count||0,vector_clock:null,created_at:'',updated_at:''};
+  const work:ProblemCardWork={image:content.image,saveInk:()=>{},saveNotes:()=>{},toggleStatus:async()=>{},toggleArchive:async()=>{},reload:async()=>{},copyText:async()=>content.title,references:content.layers.flatMap(l=>l.ink?[l.ink]:[]),label:<p className="mt-3 text-xs text-text-muted">{content.collectionTitle} · {content.provider}</p>,afterNotes:<>{content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-2 rounded-xl bg-page-bg p-3"><summary className="cursor-pointer text-xs">{l.author} · 參考筆記</summary><p className="mt-2 whitespace-pre-wrap text-sm">{l.notes}</p></details>)}</>};
+  return <ProblemCard problem={item} work={work} readOnly streamSearch/>;
 }

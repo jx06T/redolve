@@ -1,11 +1,12 @@
 import React from 'react';
-import { Archive, ArchiveRestore, CheckCircle } from 'lucide-react';
+import { Archive, ArchiveRestore, CheckCircle, FolderPlus } from 'lucide-react';
 import { Item } from '../../types';
 
 interface ProblemCardFooterProps {
   problem: Item;
   isResolved: boolean;
   readOnly?: boolean;
+  onAddToCollection?:()=>void;
   onToggleArchive: () => void;
   onToggleStatus: () => void;
 }
@@ -14,7 +15,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
   problem,
   isResolved,
   readOnly = false,
-  onToggleArchive,
+  onToggleArchive,onAddToCollection,
   onToggleStatus,
 }) => {
   return (
@@ -31,7 +32,8 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center space-x-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {!readOnly&&onAddToCollection&&<button type="button" onClick={onAddToCollection} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs font-medium text-text-muted hover:text-text-main"><FolderPlus size={14}/>加入指定共用集</button>}
         {!readOnly && (
           <button
             type="button"
@@ -61,7 +63,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
           </button>
         )}
 
-        <button
+        {!readOnly&&<button
           type="button"
           onClick={onToggleStatus}
           disabled={problem.status === 'archived'}
@@ -77,7 +79,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
         >
           <CheckCircle className="w-4 h-4" />
           <span>{isResolved ? '已訂正完畢' : '完成訂正'}</span>
-        </button>
+        </button>}
       </div>
     </div>
   );

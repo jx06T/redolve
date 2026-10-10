@@ -19,23 +19,22 @@ const tagsFor=(entries:CollectionEntry[])=>Array.from(new Set(entries.flatMap(en
 export function CollectionDetailView(){
   const {id=''}=useParams();
   const navigate=useNavigate();
-  const {currentUser,setAuthModalOpen,showToast,taxonomies}=useStore();
+  const {currentUser,showToast,taxonomies}=useStore();
   const [co,setCo]=useState<Collection|null>(null);
   const [items,setItems]=useState<CollectionEntry[]>([]);
   const [nextCursor,setNextCursor]=useState<{display_order:number;id:string}|null>(null);
   const [topicFilter,setTopicFilter]=useState('');
   const [tagFilter,setTagFilter]=useState('');
-  const [savedFilter,setSavedFilter]=useState('');
-  const [readFilter,setReadFilter]=useState('');
+
   const [email,setEmail]=useState('');
   const [role,setRole]=useState<'viewer'|'contributor'>('viewer');
   const [inviteToken,setInviteToken]=useState('');
   const [linkToken,setLinkToken]=useState('');
   const [transfer,setTransfer]=useState<{to_user_id:string;expires_at:string;display_name:string|null}|null>(null);
   const [transferTarget,setTransferTarget]=useState('');
-  const [subscribed,setSubscribed]=useState(false);
   const [grants,setGrants]=useState<{id:string;user_id:string;display_name:string|null;
     role:string;revoked_at:string|null}[]>([]);
+  const memberName=(g:typeof grants[number])=>g.display_name||`尚未設定暱稱的成員 ${grants.indexOf(g)+1}`;
   const [links,setLinks]=useState<{id:string;revoked_at:string|null;created_at:string}[]>([]);
   const [stats,setStats]=useState<{item_count:number;contributor_count:number;
     subscriber_count:number;saved_count:number}|null>(null);
@@ -44,13 +43,12 @@ export function CollectionDetailView(){
   const [confirm,setConfirm]=useState<{title:string;body:string;run:()=>Promise<void>}|null>(null);
   const [title,setTitle]=useState('');
   const loadAbort=useRef<AbortController>();const titleFor=useRef('');
-  const contextKey=JSON.stringify([id,currentUser?.id,topicFilter,tagFilter,savedFilter,readFilter]);const currentContext=useRef(contextKey);currentContext.current=contextKey;
+  const contextKey=JSON.stringify([id,currentUser?.id,topicFilter,tagFilter]);const currentContext=useRef(contextKey);currentContext.current=contextKey;
   const query=()=>{
     const params=new URLSearchParams();
     if(topicFilter)params.set('topic_id',topicFilter);
     if(tagFilter.trim())params.set('tag',tagFilter.trim());
-    if(savedFilter)params.set('saved',savedFilter);
-    if(readFilter)params.set('state',readFilter);
+
     return params;
   };
   const load=async()=>{
@@ -65,10 +63,6 @@ export function CollectionDetailView(){
     if(data.collection.can_contribute) {
       const pending=await read<{transfer:typeof transfer}>(`/collections/${id}/owner-transfer`);
       if(abort.signal.aborted||currentContext.current!==activeContext)return;setTransfer(pending.transfer);
-    }
-    if(currentUser){
-      const subs=await read<{subscriptions:{collection_id:string}[]}>('/subscriptions');
-      if(abort.signal.aborted||currentContext.current!==activeContext)return;setSubscribed(subs.subscriptions.some(s=>s.collection_id===id));
     }
     if(data.collection.is_owner){
       const [grantResult,linkResult,statsResult]=await Promise.all([
@@ -102,7 +96,7 @@ export function CollectionDetailView(){
   };
   if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/settings#collections" className="text-primary">返回題目集</Link></div>;
   if(!co)return <p className="p-6 text-text-muted">載入題目集中…</p>;
-  const canOrder=co.is_owner&&!topicFilter&&!tagFilter&&!savedFilter&&!readFilter;
+  const canOrder=co.is_owner&&!topicFilter&&!tagFilter;
   return <div className="max-w-5xl mx-auto space-y-5 pb-16">
     <BackButton fallback="/settings#collections"/>
     <div className="rounded-3xl border border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F] px-5 py-4">
@@ -112,17 +106,7 @@ export function CollectionDetailView(){
       <h1 className="mt-1 text-2xl font-semibold">{co.title}</h1>
       <p className="mt-1 text-sm text-text-muted">{co.public_name}・{nextCursor?`已載入 ${items.length} 題`:`${items.length} 題`}</p>
       {co.description&&<p className="mt-2 text-sm">{co.description}</p>}
-      <div className="mt-4 flex flex-wrap gap-2">
-        {!co.is_owner&&currentUser&&<button disabled={busy} onClick={()=>void act(()=>
-          sharingApi(`/subscriptions/${id}`,subscribed?'DELETE':'PUT'),
-          subscribed?'已取消訂閱':'已訂閱')}
-          className="rounded-xl bg-[#A8C5BD] px-4 py-2 text-[#254E3C]">
-          {subscribed?'取消訂閱':'訂閱題目集'}</button>}
-        {!currentUser&&<button onClick={()=>setAuthModalOpen(true)} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">登入以訂閱及存入</button>}
-        <Link to="/settings#subscriptions" className="rounded-xl bg-surface/70 px-4 py-2 text-sm">訂閱中心</Link>
-        <Link to={`/study?source=contributing&collection_id=${encodeURIComponent(id)}`}
-          className="rounded-xl bg-surface/70 px-4 py-2 text-sm">前往共用書寫</Link>
-      </div>
+
     </div>
     {error&&<p role="alert" className="text-sm text-rose-600">{error}</p>}
     {co.can_contribute&&<CollectionCandidatePicker collectionId={id} onChanged={()=>void load().catch(e=>setError(e.message))}/>}
@@ -134,7 +118,7 @@ export function CollectionDetailView(){
         className="mt-3 rounded-xl bg-primary px-4 py-2 text-white disabled:opacity-40">接受管理權</button>
     </section>}
     <section className="rounded-3xl border border-border-subtle bg-surface p-5">
-      <h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/>集合內容</h2>
+      <h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/>題目管理</h2>
       <div className="mt-3 flex flex-wrap gap-2">
         <select value={topicFilter} onChange={e=>setTopicFilter(e.target.value)}
           aria-label="依科目與課綱單元篩選" className="rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
@@ -145,26 +129,17 @@ export function CollectionDetailView(){
           placeholder="來源標籤" aria-label="依來源標籤篩選"
           className="min-w-32 rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/>
         <datalist id="collection-tags">{tagsFor(items).map(tag=><option key={tag} value={tag}/>)}</datalist>
-        <select value={savedFilter} onChange={e=>setSavedFilter(e.target.value)}
-          aria-label="依存入狀態篩選" className="rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
-          <option value="">全部存入狀態</option><option value="yes">已存入</option><option value="no">未存入</option>
-        </select>
-        {subscribed&&<select value={readFilter} onChange={e=>setReadFilter(e.target.value)}
-          aria-label="依閱讀狀態篩選" className="rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
-          <option value="">全部閱讀狀態</option><option value="unread">未看</option><option value="read">已看</option>
-        </select>}
       </div>
-      {items.length?<div className="mt-3 grid gap-3 sm:grid-cols-2">{items.map((item,index)=>
+      {items.length?<div className="mt-3 space-y-2">{items.map((item,index)=>
         <div key={item.id} className="rounded-2xl border border-border-subtle p-4">
-          <Link to={`/collections/${id}/items/${item.id}`} className="block hover:text-primary">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-xs text-[#5F8670]">第 {item.display_order||index+1} 題
-              {subscribed?`・${!item.is_new_scope?'訂閱前已有':item.is_read?'已看':'新題'}`:''}</span>
+              </span>
             <p className="mt-1 font-medium">{item.title||'未命名題目'}</p>
-            <p className="mt-1 text-xs text-text-muted">{item.provider_name||'題目提供者'}・
-              {item.saved_id?'已存入我的錯題本':'尚未存入'}</p>
+            <p className="mt-1 text-xs text-text-muted">{item.provider_name||'題目提供者'}</p>
             {item.keywords&&<p className="mt-2 line-clamp-1 text-xs text-text-muted">
               {tagsFor([item]).join('・')}</p>}
-          </Link>
+          </div>
           {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
           {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
             {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
@@ -226,8 +201,8 @@ export function CollectionDetailView(){
           <p className="text-sm font-medium">已加入的成員</p>
           {grants.filter(g=>!g.revoked_at).map(g=><div key={g.id}
             className="flex items-center justify-between gap-2 rounded-xl border border-border-subtle p-2 text-sm">
-            <span>{g.display_name||g.user_id}・{g.role==='contributor'?'可貢獻與書寫':'可觀看'}</span>
-            <button disabled={busy} className="text-rose-600" onClick={()=>setConfirm({title:'移除成員？',body:`移除 ${g.display_name||g.user_id} 後，其提供的題目與共用層停止對外展示；他人已存入版本保留。`,run:async()=>{await sharingApi(`/collections/${id}/grants/${g.id}`,'DELETE');await load();}})}>
+            <span>{memberName(g)}・{g.role==='contributor'?'可貢獻與書寫':'可觀看'}</span>
+            <button disabled={busy} className="text-rose-600" onClick={()=>setConfirm({title:'移除成員？',body:`移除 ${memberName(g)} 後，其提供的題目與共用層停止對外展示；他人已存入版本保留。`,run:async()=>{await sharingApi(`/collections/${id}/grants/${g.id}`,'DELETE');await load();}})}>
               移除</button></div>)}
         </div>}
       </div>
@@ -253,14 +228,14 @@ export function CollectionDetailView(){
             aria-label="選擇接手管理權的貢獻者" className="min-w-48 rounded-xl border border-border-subtle bg-page-bg px-3 py-2">
             <option value="">選擇貢獻者</option>
             {grants.filter(g=>!g.revoked_at&&g.role==='contributor').map(g=><option key={g.id} value={g.user_id}>
-              {g.display_name||g.user_id}</option>)}
+              {memberName(g)}</option>)}
           </select>
           <button disabled={busy||!transferTarget} onClick={()=>void act(()=>
             sharingApi(`/collections/${id}/owner-transfer`,'POST',{to_user_id:transferTarget}),'已送出接手邀請')}
             className="rounded-xl border border-border-subtle px-4 py-2 disabled:opacity-40">邀請接手</button>
         </div>
         {transfer&&<div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-          <span>等待 {transfer.display_name||transfer.to_user_id} 接受（期限 {new Date(transfer.expires_at).toLocaleDateString()}）</span>
+          <span>等待 {transfer.display_name||'貢獻者'} 接受（期限 {new Date(transfer.expires_at).toLocaleDateString()}）</span>
           <button disabled={busy} onClick={()=>void act(()=>
             sharingApi(`/collections/${id}/owner-transfer`,'DELETE'),'已取消接手邀請')}
             className="text-rose-600 disabled:opacity-40">取消邀請</button>

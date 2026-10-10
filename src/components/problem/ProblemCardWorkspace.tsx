@@ -5,6 +5,7 @@ import { DrawCanvas } from '../DrawCanvas';
 
 interface ProblemCardWorkspaceProps {
   imageUrl: string;
+  referenceLayers?:DrawData[];
   drawData?: DrawData | string | null;
   calcSpaceHeight: number;
   renderedCalcSpaceHeight: number;
@@ -20,7 +21,7 @@ interface ProblemCardWorkspaceProps {
 }
 
 export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
-  imageUrl,
+  imageUrl,referenceLayers=[],
   drawData,
   calcSpaceHeight,
   renderedCalcSpaceHeight,
@@ -73,6 +74,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
         )}
       </div>
 
+      {inkVisible&&referenceLayers.map((ink,index)=><div key={index} className="pointer-events-none absolute inset-0"><DrawCanvas initialDrawData={ink} calcSpaceHeight={calcSpaceHeight} readOnly inkVisible/></div>)}
       {/* Full Interactive Canvas Overlay */}
       <div className="absolute inset-0 pointer-events-auto">
         <DrawCanvas

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { readScroll, rememberScroll } from '../services/navigationState';
+import { readScroll, rememberScroll, readerLocationKey } from '../services/navigationState';
 
 export function BackButton({fallback='/'}:{fallback?:string}) {
   const navigate=useNavigate();
@@ -13,11 +13,11 @@ export function BackButton({fallback='/'}:{fallback?:string}) {
 }
 export function ReaderNavigation() {
   const location=useLocation();const account=useStore(s=>s.currentUser?.id||'guest');
-  const saved=useRef({account,key:location.key});
+  const key=readerLocationKey(location);const saved=useRef({account,key});
   useEffect(()=>{
-    saved.current={account,key:location.key};
+    saved.current={account,key};
     const main=document.querySelector<HTMLElement>('main');
-    if(main)main.scrollTop=readScroll(account,`${location.key}:main`);
+    if(main)main.scrollTop=readScroll(account,`${key}:main`);
     const track=(e:Event)=>{
       const target=e.target;
       if(target instanceof HTMLElement&&target.tagName==='MAIN')
@@ -25,6 +25,6 @@ export function ReaderNavigation() {
     };
     document.addEventListener('scroll',track,true);
     return ()=>document.removeEventListener('scroll',track,true);
-  },[account,location.key]);
+  },[account,key]);
   return null;
 }

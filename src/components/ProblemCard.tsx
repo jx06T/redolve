@@ -20,7 +20,14 @@ import { exportProblemAsImage } from '../utils/exportImage';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 import { Link } from 'react-router-dom';
 
+export type ProblemCardWork={
+  image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
+  toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
+  copyText?:()=>Promise<string>;remove?:()=>void;share?:()=>void;
+  references?:DrawData[];label:React.ReactNode;notesLabel?:string;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;
+};
 interface ProblemCardProps {
+  work?:ProblemCardWork;onAddToCollection?:()=>void;
   problem: Item;
   problemIndex?: number;
   readOnly?: boolean;
@@ -42,7 +49,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   onDeleted,
   onChanged,
   streamSearch = false,
-  memberships = [],
+  memberships = [],work,onAddToCollection,
 }) => {
   const {
     tool,
@@ -214,7 +221,16 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   }, [problem.id]);
 
+  useEffect(()=>{
+    if(!work||!problem.draw_data)return;
+    try{const ink:DrawData=JSON.parse(problem.draw_data);latestDrawDataRef.current=ink;
+      if(typeof ink.calcSpaceHeight==='number'){calcSpaceHeightRef.current=ink.calcSpaceHeight;setCalcSpaceHeight(ink.calcSpaceHeight);}
+    }catch{/* Leave a valid local workspace intact. */}
+  },[work?problem.draw_data:null]);
+
   const handleToggleStatus = async () => {
+    if(readOnly)return;
+    if(work){try{await work.toggleStatus();onChanged?.();}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');}return;}
     const nextStatus = await toggleStatus(problem);onChanged?.();
     setIsResolved(nextStatus === 'resolved');
     if (nextStatus === 'resolved' && onStatusResolved) {
@@ -223,6 +239,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleToggleArchive = async () => {
+    if(readOnly)return;
+    if(work){try{await work.toggleArchive();onChanged?.();}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');}return;}
     await toggleArchive(problem,{retainCard:streamSearch});onChanged?.();
     // Bug 3 fix: the resulting status is always either 'archived' or 'unsolved',
     // never 'resolved'. Sync local state unconditionally to prevent stale isResolved.
@@ -230,7 +248,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleTypedNotesChange = (text: string) => {
+    if(readOnly)return;
     setTypedNotes(text);
+    if(work){work.saveNotes(text);return;}
     setIsSavingNotes(true);
     updateProblemInStore(problem.id, { typed_notes: text });
 
@@ -255,13 +275,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       const dataWithHeight: DrawData = { ...drawData, calcSpaceHeight: activeHeight };
       latestDrawDataRef.current = dataWithHeight;
 
+      if(readOnly)return;
+      if(work){work.saveInk(dataWithHeight);return;}
       if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
 
       saveDrawTimerRef.current = setTimeout(async () => {
         await saveDrawData(problem, dataWithHeight, nextSeq);
       }, 400);
     },
-    [problem, vectorSeq, saveDrawData]
+    [problem, vectorSeq, saveDrawData,work,readOnly]
   );
 
   const updateCalcHeight = (newHeight: number | ((prev: number) => number)) => {
@@ -317,6 +339,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     if (isReloading) return;
     setIsReloading(true);
     try {
+      if(work){await work.reload();setReloadVersion(v=>v+1);return;}
       if (problem.id.startsWith('temp_')) {
         setIsReloading(false);
         return;
@@ -368,7 +391,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   // already present in problem.image_url.  Only fall back to the server API
   // endpoint for items that actually live in the cloud (non-blob URLs).
   const isOfflineItem = problem.image_url?.startsWith('blob:');
-  const baseImageUrl = isOfflineItem
+  const baseImageUrl = work?work.image:isOfflineItem
     ? problem.image_url
     : getProblemImageUrl(problem.id);
   const imageUrl = reloadVersion > 0
@@ -414,8 +437,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           onReload={handleReloadProblem}
           onToggleInk={() => setInkVisible((prev) => !prev)}
           onExport={handleExport}
-          onOpenShareModal={() => setIsShareModalOpen(true)}
-          onOpenDeleteModal={() => setIsDeleteModalOpen(true)}
+          onOpenShareModal={work?work.share:()=>setIsShareModalOpen(true)}
+          onOpenDeleteModal={work?work.remove:()=>setIsDeleteModalOpen(true)}
+          copyText={work?.copyText}
           onEditMetadata={onEditMetadata}
         />
 
@@ -440,10 +464,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           </div>
         )}
 
+        {work?.label}
+        {work?.beforeWorkspace}
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
           imageUrl={imageUrl}
           drawData={problem.draw_data}
+          referenceLayers={work?.references}
           calcSpaceHeight={calcSpaceHeight}
           renderedCalcSpaceHeight={isScratchpadCollapsed ? 0 : renderedCalcSpaceHeight}
           workspaceRef={workspaceRef}
@@ -473,6 +500,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
         {/* Typed Notes & Calculation Summary Section (Auto-resizing) */}
         <TextareaAutosize
+          aria-label={work?.notesLabel||'本題筆記'}
           value={typedNotes}
           onChange={(e) => handleTypedNotesChange(e.target.value)}
           disabled={readOnly}
@@ -482,11 +510,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           className="w-full mt-3 p-2.5 rounded-xl bg-surface border border-border-subtle text-xs text-text-main placeholder:text-text-muted focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all resize-none leading-relaxed"
         />
 
+        {work?.afterNotes}
         {/* Bottom Footer Actions */}
         <ProblemCardFooter
           problem={problem}
           isResolved={isResolved}
           readOnly={readOnly}
+          onAddToCollection={onAddToCollection}
           onToggleArchive={handleToggleArchive}
           onToggleStatus={handleToggleStatus}
         />

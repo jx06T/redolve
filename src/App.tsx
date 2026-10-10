@@ -1,16 +1,13 @@
 import { lazy, Suspense, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Navbar } from './components/Navbar';
+import { ReaderLayout } from './components/ReaderLayout';
 import { Toast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchCurrentUser, fetchProblemById, updateProblemDrawData, updateProblemStatus, updateProblemMetadata, mutateProblemTag } from './services/api';
 import { initOnlineSync } from './services/offlineStorage';
 import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
-
-import { ReaderNavigation } from './components/ReaderNavigation';
 import { LegacyReaderRedirect } from './views/LegacyReaderRedirect';
-import { BottomNav } from './components/BottomNav';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
@@ -135,9 +132,7 @@ export default function App() {
             <Route
               path="*"
               element={
-                <>
-                  <ReaderNavigation/><Navbar />
-                  <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-16 md:pb-6">
+                <ReaderLayout>
                     <Routes key={currentUser?.id||'guest'}>
                       <Route path="/" element={<DashboardView />} />
                       <Route path="/study" element={<QuestionLibraryView />} />
@@ -162,9 +157,7 @@ export default function App() {
                       <Route path="/invite/:token" element={<AccessClaimView kind="invite" />} />
                       <Route path="/collection-link/:token" element={<AccessClaimView kind="link" />} />
                     </Routes>
-                  </main>
-                  <BottomNav />
-                </>
+                </ReaderLayout>
               }
             />
           </Routes>
