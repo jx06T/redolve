@@ -26,6 +26,9 @@ interface ProblemCardProps {
   readOnly?: boolean;
   onEditMetadata?: (problem: Item) => void;
   onStatusResolved?: (problemId: string) => void;
+  onDeleted?: (problemId: string) => void;
+  onChanged?: () => void;
+  streamSearch?: boolean;
   memberships?: {entry_id:string;collection_id:string;title:string;state:string;
     lifecycle:string;visibility:string}[];
 }
@@ -36,6 +39,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   readOnly = false,
   onEditMetadata,
   onStatusResolved,
+  onDeleted,
+  onChanged,
+  streamSearch = false,
   memberships = [],
 }) => {
   const {
@@ -158,6 +164,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   // In-Page Search matching logic
   useEffect(() => {
+    if(streamSearch)return;
     if (!inPageSearchQuery) {
       unregisterInPageMatch(problem.id);
       return;
@@ -173,13 +180,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     } else {
       unregisterInPageMatch(problem.id);
     }
-  }, [inPageSearchQuery, problem, registerInPageMatch, unregisterInPageMatch]);
+  }, [inPageSearchQuery, problem, registerInPageMatch, unregisterInPageMatch,streamSearch]);
 
   useEffect(() => {
     return () => {
-      unregisterInPageMatch(problem.id);
+      if(!streamSearch)unregisterInPageMatch(problem.id);
     };
-  }, [problem.id, unregisterInPageMatch]);
+  }, [problem.id, unregisterInPageMatch,streamSearch]);
 
   const isActiveMatch = inPageMatches.length > 0 && inPageMatches[inPageCurrentIndex] === problem.id;
 
@@ -208,7 +215,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   }, [problem.id]);
 
   const handleToggleStatus = async () => {
-    const nextStatus = await toggleStatus(problem);
+    const nextStatus = await toggleStatus(problem);onChanged?.();
     setIsResolved(nextStatus === 'resolved');
     if (nextStatus === 'resolved' && onStatusResolved) {
       onStatusResolved(problem.id);
@@ -216,7 +223,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleToggleArchive = async () => {
-    await toggleArchive(problem);
+    await toggleArchive(problem,{retainCard:streamSearch});onChanged?.();
     // Bug 3 fix: the resulting status is always either 'archived' or 'unsolved',
     // never 'resolved'. Sync local state unconditionally to prevent stale isResolved.
     setIsResolved(false);
@@ -281,6 +288,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     try {
       setIsDeleting(true);
       await deleteItem(problem);
+      onDeleted?.(problem.id);
     } catch {
       // toast already shown by deleteItem
     } finally {

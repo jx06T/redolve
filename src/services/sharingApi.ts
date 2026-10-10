@@ -6,13 +6,13 @@ export type Collection = {
   visibility:'restricted'|'link'|'public'; listed:number;
   show_shared_ink:number; show_shared_notes:number; row_version:number;
   role?:'owner'|'contributor'; can_contribute?:boolean; is_owner?:boolean; item_count?:number;
-  pending_owner_transfer?:number;
+  pending_owner_transfer?:number; contributor_count?:number; is_subscribed?:number;
 };
 export type CollectionEntry = {
   id:string; display_order:number; title:string|null; topic_id:string|null; keywords:string|null;
   content_seq:number; shared_seq:number; provider_name:string|null;
   saved_id:string|null; is_read:number; is_new_scope:number; contributor_id:string;
-  latest_add_event_seq:number|null;
+  latest_add_event_seq:number|null; is_starred?:number; source_item_id?:string; is_subscribed?:number;
 };
 export type SharedLayer = {
   id:string; user_id:string; author_display:string; draw_asset_id:string|null;
@@ -20,6 +20,7 @@ export type SharedLayer = {
 };
 export type SavedDetail = {
   saved:{id:string;entry_id:string;status:string;personal_topic_id:string|null;
+    classification_state?:'ready'|'pending'|'failed'|'manual';
     review_count:number;row_version:number;current_snapshot_id:string};
   snapshot:{id:string;source_title:string;source_label:string|null;source_tags:string|null;
     source_topic_label:string|null;collection_title:string;provider_public_name:string;
@@ -33,8 +34,8 @@ export type SavedDetail = {
 export class SharingApiError extends Error {
   constructor(public status:number,public code:string,message:string){super(message);}
 }
-export async function sharingApi<T>(path:string,method='GET',body?:unknown):Promise<T>{
-  const response=await fetch(`${API_BASE}${path}`,{method,credentials:'include',cache:'no-store',
+export async function sharingApi<T>(path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>{
+  const response=await fetch(`${API_BASE}${path}`,{method,credentials:'include',cache:'no-store',signal,
     headers:body===undefined?undefined:{'Content-Type':'application/json'},
     body:body===undefined?undefined:JSON.stringify(body)});
   const payload=await response.json().catch(()=>({})) as

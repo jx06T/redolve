@@ -11,6 +11,9 @@ import {
 import { useStore } from '../store/useStore';
 import { fetchCurrentUser, logoutUser, getGoogleAuthUrl } from '../services/api';
 import { isGuestUser } from '../utils/guest';
+import { AppDialog } from './AppDialog';
+import { hasUnsavedMemoryWork } from '../services/workService';
+import { PendingWorkPanel } from './PendingWorkPanel';
 
 export const AuthModal: React.FC = () => {
   const {
@@ -24,6 +27,7 @@ export const AuthModal: React.FC = () => {
   } = useStore();
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [confirmMemoryLogout,setConfirmMemoryLogout]=useState(false);
 
   // Load current user on open
   useEffect(() => {
@@ -110,6 +114,7 @@ export const AuthModal: React.FC = () => {
 
         {/* Scrollable Inner Body */}
         <div className="p-4 sm:p-6 pt-4 space-y-5 overflow-y-auto flex-1 custom-scrollbar">
+          <PendingWorkPanel/>
 
           {/* Current Active Session Info */}
           <div className="p-4 rounded-2xl bg-neutral-50 border border-border-subtle space-y-2.5">
@@ -151,7 +156,7 @@ export const AuthModal: React.FC = () => {
               </div>
               {!isGuest && currentUser && (
                 <button
-                  onClick={handleLogout}
+                  onClick={()=>{if(hasUnsavedMemoryWork())setConfirmMemoryLogout(true);else void handleLogout();}}
                   disabled={isLoading}
                   className="px-3 py-1.5 rounded-xl text-xs text-status-eraser hover:bg-status-eraser/10 border border-status-eraser/30 transition-all font-medium flex items-center space-x-1"
                 >
@@ -254,6 +259,11 @@ export const AuthModal: React.FC = () => {
           )}
         </div>
       </div>
+      {confirmMemoryLogout&&<AppDialog title="仍有未寫入本機的作業" onClose={()=>setConfirmMemoryLogout(false)} busy={isLoading}>
+        <p className="text-sm">本機草稿儲存失敗，登出會失去尚未同步的內容。請先下載自己的作業；若仍要離開，需明確確認。</p>
+        <PendingWorkPanel/>
+        <button disabled={isLoading} onClick={()=>{setConfirmMemoryLogout(false);void handleLogout();}} className="mt-4 rounded-xl bg-status-eraser px-4 py-2 text-sm text-white">我已備份，仍要登出</button>
+      </AppDialog>}
     </div>
   );
 };

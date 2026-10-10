@@ -8,27 +8,25 @@ import { initOnlineSync } from './services/offlineStorage';
 import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
 
+import { ReaderNavigation } from './components/ReaderNavigation';
+import { LegacyReaderRedirect } from './views/LegacyReaderRedirect';
 import { BottomNav } from './components/BottomNav';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
-const StudyView = lazy(() => import('./views/StudyView').then((module) => ({ default: module.StudyView })));
 const ProblemDetailView = lazy(() => import('./views/ProblemDetailView').then((module) => ({ default: module.ProblemDetailView })));
-const SearchView = lazy(() => import('./views/SearchView').then((module) => ({ default: module.SearchView })));
 const ShareView = lazy(() => import('./views/ShareView').then((module) => ({ default: module.ShareView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
-const CollectionsHubView = lazy(() => import('./views/CollectionsHubView').then(m=>({default:m.CollectionsHubView})));
 const AdminSharingView = lazy(() => import('./views/AdminSharingView').then(m=>({default:m.AdminSharingView})));
 const CollectionDetailView = lazy(() => import('./views/CollectionDetailView').then(m=>({default:m.CollectionDetailView})));
-const CollectionItemView = lazy(() => import('./views/CollectionItemView').then(m=>({default:m.CollectionItemView})));
-const SubscriptionsView = lazy(() => import('./views/SubscriptionsView').then(m=>({default:m.SubscriptionsView})));
-const SavedHubView = lazy(() => import('./views/SavedHubView').then(m=>({default:m.SavedHubView})));
-const NotebookView = lazy(() => import('./views/NotebookView').then(m=>({default:m.NotebookView})));
-const SavedDetailView = lazy(() => import('./views/SavedDetailView').then(m=>({default:m.SavedDetailView})));
 const AccessClaimView = lazy(() => import('./views/AccessClaimView').then(m=>({default:m.AccessClaimView})));
 
+const QuestionLibraryView = lazy(() => import('./views/QuestionLibraryView').then(m=>({default:m.QuestionLibraryView})));
+const SearchRoute = lazy(() => import('./views/SearchRoute').then(m=>({default:m.SearchRoute})));
+const CollectionReaderView = lazy(() => import('./views/CollectionReaderView').then(m=>({default:m.CollectionReaderView})));
+
 export default function App() {
-  const { setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
+  const { currentUser, setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
   const initialized = useRef(false);
 
   useEffect(() => {
@@ -57,7 +55,7 @@ export default function App() {
     urlParams.delete('auth_name');
     urlParams.delete('auth_email');
     const cleanSearch = urlParams.toString();
-    window.history.replaceState(null, '', `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${cleanSearch ? `?${cleanSearch}` : ''}${window.location.hash}`);
     try { localStorage.removeItem('redolve_auth_token'); }
     catch { /* Authentication is cookie-based; blocked storage is harmless. */ }
 
@@ -138,26 +136,29 @@ export default function App() {
               path="*"
               element={
                 <>
-                  <Navbar />
+                  <ReaderNavigation/><Navbar />
                   <main className="flex-1 max-w-[1600px] w-full mx-auto px-2 sm:px-4 py-3 overflow-y-auto overscroll-contain pb-16 md:pb-6">
-                    <Routes>
+                    <Routes key={currentUser?.id||'guest'}>
                       <Route path="/" element={<DashboardView />} />
-                      <Route path="/study" element={<Navigate to="/study/math" replace />} />
-                      <Route path="/study/:subject" element={<StudyView />} />
-                      <Route path="/study/:subject/:topic" element={<StudyView />} />
-                      <Route path="/study/:subject/:topic/:problemId" element={<StudyView />} />
+                      <Route path="/study" element={<QuestionLibraryView />} />
+                      <Route path="/study/:subject" element={<QuestionLibraryView />} />
+                      <Route path="/study/:subject/:topic" element={<QuestionLibraryView />} />
+                      <Route path="/study/:subject/:topic/:problemId" element={<QuestionLibraryView />} />
                       <Route path="/problem/:id" element={<ProblemDetailView />} />
-                      <Route path="/search" element={<SearchView />} />
+                      <Route path="/search" element={<SearchRoute />} />
                       <Route path="/settings" element={<SettingsView />} />
-                      <Route path="/my/collections" element={<CollectionsHubView />} />
+                      <Route path="/my/collections" element={<Navigate replace to="/settings#collections" />} />
                       <Route path="/admin/sharing" element={<AdminSharingView />} />
-                      <Route path="/collections/:id" element={<CollectionDetailView />} />
-                      <Route path="/collections/:id/items/:entryId" element={<CollectionItemView />} />
-                      <Route path="/subscriptions" element={<SubscriptionsView />} />
-                      <Route path="/subscriptions/manage" element={<SubscriptionsView />} />
-                      <Route path="/saved" element={<SavedHubView />} />
-                      <Route path="/my/notebook" element={<NotebookView />} />
-                      <Route path="/saved/:id" element={<SavedDetailView />} />
+                      <Route path="/collections/:id" element={<CollectionReaderView mode="collection" />} />
+                      <Route path="/settings/collections/:id" element={<CollectionDetailView />} />
+                      <Route path="/extended" element={<CollectionReaderView mode="extended" />} />
+                      <Route path="/explore" element={<CollectionReaderView mode="explore" />} />
+                      <Route path="/collections/:id/items/:entryId" element={<LegacyReaderRedirect />} />
+                      <Route path="/subscriptions" element={<Navigate replace to="/extended" />} />
+                      <Route path="/subscriptions/manage" element={<Navigate replace to="/settings#subscriptions" />} />
+                      <Route path="/saved" element={<Navigate replace to="/study?source=saved" />} />
+                      <Route path="/my/notebook" element={<Navigate replace to="/study?source=owned" />} />
+                      <Route path="/saved/:id" element={<LegacyReaderRedirect saved />} />
                       <Route path="/invite/:token" element={<AccessClaimView kind="invite" />} />
                       <Route path="/collection-link/:token" element={<AccessClaimView kind="link" />} />
                     </Routes>

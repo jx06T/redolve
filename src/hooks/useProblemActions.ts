@@ -103,7 +103,7 @@ export function useProblemActions() {
    * Toggle archived ↔ unsolved.
    */
   const toggleArchive = useCallback(
-    async (problem: Item) => {
+    async (problem: Item, options?:{retainCard?:boolean}) => {
       const isArchived = problem.status === 'archived';
       const nextStatus: Item['status'] = isArchived ? 'unsolved' : 'archived';
 
@@ -118,7 +118,7 @@ export function useProblemActions() {
           const shouldRemove =
             nextStatus === 'archived' ||
             (isArchived && currentSelectedStatus === 'archived');
-          if (shouldRemove) {
+          if (shouldRemove && !options?.retainCard) {
             removeProblemFromStore(problem.id);
           }
 
@@ -131,7 +131,7 @@ export function useProblemActions() {
       } else {
         // Offline items: update status in IndexedDB and remove from active list when archiving.
         await updateOfflineProblemStatus(problem.id, nextStatus);
-        if (nextStatus === 'archived') {
+        if (nextStatus === 'archived' && !options?.retainCard) {
           removeProblemFromStore(problem.id);
         }
       }
@@ -204,7 +204,7 @@ export function useProblemActions() {
     ) => {
       // Optimistic
       updateProblemInStore(problem.id, {
-        topic_id: patch.topic_id ?? problem.topic_id,
+        topic_id: patch.topic_id === undefined ? problem.topic_id : patch.topic_id,
         keywords: patch.keywords ? JSON.stringify(patch.keywords) : problem.keywords,
       });
 

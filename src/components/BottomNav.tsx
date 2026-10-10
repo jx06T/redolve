@@ -1,89 +1,13 @@
-import React from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, Layers, PlusCircle, Search } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { NAV_LINKS } from '../config/constants';
 import { useStore } from '../store/useStore';
-
-export const BottomNav: React.FC = () => {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const {
-    selectedSubjectId,
-    setUploadModalOpen,
-    mobileDrawerOpen,
-    setMobileDrawerOpen,
-  } = useStore();
-
-  const currentSubject = selectedSubjectId || 'math';
-  const isStudyRoute = location.pathname.startsWith('/study');
-  const isHomeRoute = location.pathname === '/';
-  const isSearchRoute = location.pathname.startsWith('/search');
-
-  return (
-    <div
-      // style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      // style={{ paddingBottom: '0px' }}
-      className="md:hidden fixed py-2 bottom-0 left-0 right-0 z-40 bg-surface border-t border-border-subtle flex items-center justify-around py-1 px-1 shadow-lg"
-    >
-      {/* 1. Left: 首頁 */}
-      <Link
-        to="/"
-        className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${isHomeRoute ? 'text-primary font-bold' : 'text-text-muted hover:text-text-main'
-          }`}
-      >
-        <LayoutDashboard className="w-4.5 h-4.5" />
-        <span className="text-[9.5px] mt-0.5 font-medium leading-none">首頁</span>
-      </Link>
-
-      {/* 2. Left: 章節 (Toggles Sidebar Drawer) */}
-      <button
-        type="button"
-        onClick={() => {
-          if (!isStudyRoute) {
-            navigate(`/study/${currentSubject}`);
-            setMobileDrawerOpen(true);
-          } else {
-            setMobileDrawerOpen(!mobileDrawerOpen);
-          }
-        }}
-        className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${mobileDrawerOpen ? 'text-primary font-bold' : 'text-text-muted hover:text-text-main'
-          }`}
-      >
-        <Layers className="w-4.5 h-4.5" />
-        <span className="text-[9.5px] font-medium mt-0.5 leading-none">章節</span>
-      </button>
-
-      {/* 3. Center: 刷題 (Primary Action) */}
-      <Link
-        to={`/study/${currentSubject}`}
-        className={`flex flex-col items-center justify-center py-1 px-4 rounded-2xl transition-all ${isStudyRoute && !mobileDrawerOpen
-          ? 'bg-primary text-white font-bold shadow-xs'
-          : 'bg-primary/10 text-primary font-semibold hover:bg-primary/20'
-          }`}
-      >
-        <BookOpen className="w-4.5 h-4.5" />
-        <span className="text-[10px] mt-0.5 leading-none">刷題</span>
-      </Link>
-
-      {/* 4. Right: 搜尋 */}
-      <Link
-        to="/search"
-        className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${isSearchRoute ? 'text-primary font-bold' : 'text-text-muted hover:text-text-main'
-          }`}
-      >
-        <Search className="w-4.5 h-4.5" />
-        <span className="text-[9.5px] font-medium mt-0.5 leading-none">搜尋</span>
-      </Link>
-
-      {/* 5. Right: 上傳 */}
-      <button
-        type="button"
-        onClick={() => setUploadModalOpen(true)}
-        className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-text-muted hover:text-text-main transition-all"
-        title="上傳錯題"
-      >
-        <PlusCircle className="w-4.5 h-4.5" />
-        <span className="text-[9.5px] font-medium mt-0.5 leading-none">上傳</span>
-      </button>
-    </div>
-  );
-};
+import { lastStudyUrl, searchUrl } from '../services/navigationState';
+export function BottomNav() {
+  const location=useLocation();const account=useStore(s=>s.currentUser?.id||'guest');
+  return <nav aria-label="主要導覽" className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex justify-around border-t border-border-subtle bg-surface px-1 py-2 shadow-lg">
+    {NAV_LINKS.map(l=>{const Icon=l.icon;const active=l.path==='/'?location.pathname==='/':location.pathname.startsWith(l.path);
+      return <Link key={l.path} to={l.path==='/study'?lastStudyUrl(account):l.path==='/search'?searchUrl(account,location.pathname.startsWith('/study')?location.search:undefined):l.path} aria-current={active?'page':undefined}
+        className={`flex min-h-10 flex-col items-center justify-center rounded-xl px-2.5 py-1 ${active?'bg-primary/10 text-primary':'text-text-muted'}`}>
+        <Icon className="h-4.5 w-4.5"/><span className="mt-1 text-[10px]">{l.label}</span></Link>;})}
+  </nav>;
+}

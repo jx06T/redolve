@@ -19,6 +19,7 @@ import { getRootSubjectId } from '../components/StatusBadge';
 import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { isGuestUser } from '../utils/guest';
+import { SharingActivity } from '../components/SharingActivity';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -216,6 +217,7 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
+      <SharingActivity/>
       {/* Grid Content: Subjects Progress & Top Review Topics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Subject Progress Cards */}

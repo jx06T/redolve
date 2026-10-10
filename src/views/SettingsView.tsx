@@ -1,4 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { CollectionsHubView } from './CollectionsHubView';
+import { SubscriptionManagement } from './SubscriptionManagement';
+import { PendingWorkPanel } from '../components/PendingWorkPanel';
 import { Sliders, Tag, Key } from 'lucide-react';
 import { fetchApiKeys, fetchTaxonomyTree } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
@@ -9,8 +13,8 @@ import { PencilSettingsSection } from '../components/settings/PencilSettingsSect
 import { TaxonomySettingsSection } from '../components/settings/TaxonomySettingsSection';
 import { ApiKeySettingsSection } from '../components/settings/ApiKeySettingsSection';
 
-type SettingsTab = 'pencil' | 'taxonomy' | 'apikeys';
-const VALID_TABS: SettingsTab[] = ['pencil', 'taxonomy', 'apikeys'];
+type SettingsTab = 'pencil' | 'taxonomy' | 'apikeys' | 'collections' | 'subscriptions';
+const VALID_TABS: SettingsTab[] = ['pencil', 'taxonomy', 'apikeys', 'collections', 'subscriptions'];
 
 const getInitialTab = (): SettingsTab => {
   if (typeof window !== 'undefined') {
@@ -23,6 +27,8 @@ const getInitialTab = (): SettingsTab => {
 };
 
 export const SettingsView: React.FC = () => {
+  const location=useLocation(); const navigate=useNavigate();
+  useEffect(()=>{const tab=location.hash.slice(1) as SettingsTab;if(VALID_TABS.includes(tab))setActiveTab(tab);},[location.hash]);
   useSEO({
     title: '系統設定與 iOS 捷徑管理',
     description: '管理 iPad / iPhone 捷徑傳輸金鑰、自訂題庫科目與單元分類、手寫筆觸自訂顏色與偏好設定。',
@@ -81,28 +87,16 @@ export const SettingsView: React.FC = () => {
   const handleTabChange = (tab: SettingsTab) => {
     setActiveTab(tab);
     if (typeof window !== 'undefined') {
-      window.history.replaceState(null, '', `#${tab}`);
+      navigate(`/settings#${tab}`);
     }
   };
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '') as SettingsTab;
-      if (VALID_TABS.includes(hash)) {
-        setActiveTab(hash);
-      }
-    };
-    if (!window.location.hash || !VALID_TABS.includes(window.location.hash.replace('#', '') as SettingsTab)) {
-      window.history.replaceState(null, '', `#${activeTab}`);
-    }
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [activeTab]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <PendingWorkPanel/>
       {/* Navigation Tabs */}
-      <div className="flex items-center space-x-2 bg-surface border border-border-subtle p-1.5 rounded-2xl select-none">
+      <div className="flex items-center flex-wrap gap-2 bg-surface border border-border-subtle p-1.5 rounded-2xl select-none">
         <button
           onClick={() => handleTabChange('pencil')}
           className={`flex-1 flex items-center justify-center space-x-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all ${
@@ -112,7 +106,7 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <Sliders className="w-4 h-4 shrink-0" />
-          <span className="hidden sm:inline">iPad 筆觸偏好設定</span>
+          <span className="inline">iPad 筆觸偏好設定</span>
         </button>
 
         <button
@@ -124,7 +118,7 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <Tag className="w-4 h-4 shrink-0" />
-          <span className="hidden sm:inline">自訂科目與單元分類</span>
+          <span className="inline">自訂科目與單元分類</span>
         </button>
 
         <button
@@ -136,10 +130,14 @@ export const SettingsView: React.FC = () => {
           }`}
         >
           <Key className="w-4 h-4 shrink-0" />
-          <span className="hidden sm:inline">iOS 捷徑 API Key</span>
+          <span className="inline">iOS 捷徑 API Key</span>
         </button>
       </div>
 
+      <div className="flex flex-wrap gap-2">{(['collections','subscriptions'] as const).map(tab=><button key={tab} onClick={()=>handleTabChange(tab)}
+        aria-pressed={activeTab===tab} className={`rounded-xl border border-border-subtle px-4 py-3 text-sm ${activeTab===tab?'bg-primary text-white':'bg-surface'}`}>{tab==='collections'?'共用集管理':'訂閱中心'}</button>)}</div>
+      {activeTab==='collections'&&<CollectionsHubView/>}
+      {activeTab==='subscriptions'&&<SubscriptionManagement/>}
       {/* Tab 1: iPad Pen & Handwriting Preferences */}
       {activeTab === 'pencil' && <PencilSettingsSection />}
 

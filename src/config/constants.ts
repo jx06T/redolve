@@ -1,12 +1,12 @@
-import { LayoutDashboard, BookOpen, Settings, BookCopy, Rss } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, Search, Rss } from 'lucide-react';
 
 // Navigation Links Configuration
 export const NAV_LINKS = [
-  { path: '/', label: '總覽 Dashboard', icon: LayoutDashboard },
-  { path: '/study/math', label: '刷題 Study', icon: BookOpen },
-  { path: '/my/collections', label: '題目集', icon: BookCopy },
-  { path: '/subscriptions', label: '訂閱', icon: Rss },
-  { path: '/settings', label: '設定 Settings', icon: Settings },
+  { path: '/', label: '總覽', icon: LayoutDashboard },
+  { path: '/study', label: '刷題', icon: BookOpen },
+  { path: '/search', label: '搜尋', icon: Search },
+  { path: '/settings', label: '設定', icon: Settings },
+  { path: '/extended', label: '延伸題目', icon: Rss },
 ];
 
 // Separated Exam Years & Exam Types (年分與卷別獨立分離)

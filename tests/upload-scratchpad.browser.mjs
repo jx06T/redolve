@@ -73,7 +73,6 @@ test('image multi-selection and scratchpad folding preserve user content', async
         const page = await context.newPage();
         await page.goto(base + '/search?scope=mine&q=測試');
         await page.waitForLoadState('networkidle');
-        await page.getByRole('button', { name: '完整原題', exact: true }).click();
         const area = page.locator('#problem-browser-item .transition-\\[height\\]');
         const height = async () => (await area.boundingBox()).height;
         await page.waitForTimeout(350);
@@ -109,7 +108,6 @@ test('image multi-selection and scratchpad folding preserve user content', async
         const expandedHeight = await height();
         await page.reload();
         await page.waitForLoadState('networkidle');
-        await page.getByRole('button', { name: '完整原題', exact: true }).click();
         await page.waitForTimeout(350);
         assert.ok(Math.abs(await height() - expandedHeight) <= 1);
         // Resize immediately after a stroke, before the 400ms save debounce.

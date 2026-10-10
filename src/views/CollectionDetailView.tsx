@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { BookOpen, Plus, Settings2, UserPlus } from 'lucide-react';
+import { BookOpen, Settings2, UserPlus } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { sharingApi, type Collection, type CollectionEntry } from '../services/sharingApi';
+import { AppDialog } from '../components/AppDialog';
+import { SwitchRow } from '../components/SwitchRow';
+import { CollectionCandidatePicker } from '../components/CollectionCandidatePicker';
+import { BackButton } from '../components/ReaderNavigation';
 import type { TaxonomyNode } from '../types';
 
 const standardTopics=(nodes:TaxonomyNode[],depth=0):{id:string;label:string}[]=>
@@ -19,12 +23,6 @@ export function CollectionDetailView(){
   const [co,setCo]=useState<Collection|null>(null);
   const [items,setItems]=useState<CollectionEntry[]>([]);
   const [nextCursor,setNextCursor]=useState<{display_order:number;id:string}|null>(null);
-  const [candidates,setCandidates]=useState<{id:string;title:string|null;created_at:string}[]>([]);
-  const [candidateCursor,setCandidateCursor]=useState<{created_at:string;id:string}|null>(null);
-  const [candidateSearch,setCandidateSearch]=useState('');
-  const [candidateQuery,setCandidateQuery]=useState('');
-  const [selected,setSelected]=useState<string[]>([]);
-  const [hasProfile,setHasProfile]=useState(false);
   const [topicFilter,setTopicFilter]=useState('');
   const [tagFilter,setTagFilter]=useState('');
   const [savedFilter,setSavedFilter]=useState('');
@@ -43,6 +41,10 @@ export function CollectionDetailView(){
     subscriber_count:number;saved_count:number}|null>(null);
   const [error,setError]=useState('');
   const [busy,setBusy]=useState(false);
+  const [confirm,setConfirm]=useState<{title:string;body:string;run:()=>Promise<void>}|null>(null);
+  const [title,setTitle]=useState('');
+  const loadAbort=useRef<AbortController>();const titleFor=useRef('');
+  const contextKey=JSON.stringify([id,currentUser?.id,topicFilter,tagFilter,savedFilter,readFilter]);const currentContext=useRef(contextKey);currentContext.current=contextKey;
   const query=()=>{
     const params=new URLSearchParams();
     if(topicFilter)params.set('topic_id',topicFilter);
@@ -52,35 +54,34 @@ export function CollectionDetailView(){
     return params;
   };
   const load=async()=>{
+    loadAbort.current?.abort();const abort=new AbortController();loadAbort.current=abort;
+    const activeContext=contextKey;
+    const read=<T,>(path:string)=>sharingApi<T>(path,'GET',undefined,abort.signal);
     const data=await sharingApi<{collection:Collection;items:CollectionEntry[];
-      next_cursor:{display_order:number;id:string}|null}>(`/collections/${id}?${query()}`);
-    setCo(data.collection);setItems(data.items);setNextCursor(data.next_cursor);
+      next_cursor:{display_order:number;id:string}|null}>(`/collections/${id}?${query()}`,'GET',undefined,abort.signal);
+    if(abort.signal.aborted||currentContext.current!==activeContext)return;
+    if(!data.collection.can_contribute){navigate(`/collections/${id}`,{replace:true});return;}
+    setCo(data.collection);if(titleFor.current!==id){setTitle(data.collection.title);titleFor.current=id;}setItems(data.items);setNextCursor(data.next_cursor);
     if(data.collection.can_contribute) {
-      const [found,pending,profile]=await Promise.all([
-        sharingApi<{items:typeof candidates;next_cursor:typeof candidateCursor}>(
-          `/collections/${id}/candidates?q=${encodeURIComponent(candidateQuery)}`),
-        sharingApi<{transfer:typeof transfer}>(`/collections/${id}/owner-transfer`),
-        sharingApi<{profile:{display_name:string}|null}>('/me/public-profile'),
-      ]);
-      setCandidates(found.items);setCandidateCursor(found.next_cursor);setSelected([]);
-      setTransfer(pending.transfer);
-      setHasProfile(Boolean(profile.profile));
+      const pending=await read<{transfer:typeof transfer}>(`/collections/${id}/owner-transfer`);
+      if(abort.signal.aborted||currentContext.current!==activeContext)return;setTransfer(pending.transfer);
     }
     if(currentUser){
-      const subs=await sharingApi<{subscriptions:{collection_id:string}[]}>('/subscriptions');
-      setSubscribed(subs.subscriptions.some(s=>s.collection_id===id));
+      const subs=await read<{subscriptions:{collection_id:string}[]}>('/subscriptions');
+      if(abort.signal.aborted||currentContext.current!==activeContext)return;setSubscribed(subs.subscriptions.some(s=>s.collection_id===id));
     }
     if(data.collection.is_owner){
       const [grantResult,linkResult,statsResult]=await Promise.all([
-        sharingApi<{grants:typeof grants}>(`/collections/${id}/grants`),
-        sharingApi<{links:typeof links}>(`/collections/${id}/links`),
-        sharingApi<{stats:NonNullable<typeof stats>}>(`/collections/${id}/stats`),
+        read<{grants:typeof grants}>(`/collections/${id}/grants`),
+        read<{links:typeof links}>(`/collections/${id}/links`),
+        read<{stats:NonNullable<typeof stats>}>(`/collections/${id}/stats`),
       ]);
-      setGrants(grantResult.grants);setLinks(linkResult.links);setStats(statsResult.stats);
+      if(abort.signal.aborted||currentContext.current!==activeContext)return;setGrants(grantResult.grants);setLinks(linkResult.links);setStats(statsResult.stats);
     }
   };
-  useEffect(()=>{void load().catch(e=>setError(e.message));},
-    [id,currentUser,topicFilter,tagFilter,savedFilter,readFilter,candidateQuery]);
+  useEffect(()=>{setCo(null);setItems([]);setError('');setGrants([]);setLinks([]);setStats(null);setTransfer(null);
+    void load().catch(e=>{if(e.name!=='AbortError')setError(e.message);});return ()=>loadAbort.current?.abort();},
+    [contextKey]);
   const act=async(fn:()=>Promise<unknown>,message:string)=>{
     setBusy(true);setError('');
     try{await fn();showToast(message,'success');await load();}
@@ -89,32 +90,21 @@ export function CollectionDetailView(){
   };
   const loadMore=async()=>{
     if(!nextCursor||busy)return;
-    setBusy(true);
+    setBusy(true);const activeContext=contextKey;
     try{
       const params=query();
       params.set('after_order',String(nextCursor.display_order));params.set('after_id',nextCursor.id);
       const page=await sharingApi<{items:CollectionEntry[];
         next_cursor:{display_order:number;id:string}|null}>(`/collections/${id}?${params}`);
-      setItems(previous=>[...previous,...page.items]);setNextCursor(page.next_cursor);
+      if(currentContext.current!==activeContext)return;setItems(previous=>[...previous,...page.items]);setNextCursor(page.next_cursor);
     }catch(e){setError(e instanceof Error?e.message:'載入更多題目失敗');}
     finally{setBusy(false);}
   };
-  const loadMoreCandidates=async()=>{
-    if(!candidateCursor||busy)return;
-    setBusy(true);
-    try{
-      const params=new URLSearchParams({q:candidateQuery,after_at:candidateCursor.created_at,
-        after_id:candidateCursor.id});
-      const page=await sharingApi<{items:typeof candidates;next_cursor:typeof candidateCursor}>(
-        `/collections/${id}/candidates?${params}`);
-      setCandidates(previous=>[...previous,...page.items]);setCandidateCursor(page.next_cursor);
-    }catch(e){setError(e instanceof Error?e.message:'載入可加入題目失敗');}
-    finally{setBusy(false);}
-  };
-  if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/my/collections" className="text-primary">返回題目集</Link></div>;
+  if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/settings#collections" className="text-primary">返回題目集</Link></div>;
   if(!co)return <p className="p-6 text-text-muted">載入題目集中…</p>;
   const canOrder=co.is_owner&&!topicFilter&&!tagFilter&&!savedFilter&&!readFilter;
   return <div className="max-w-5xl mx-auto space-y-5 pb-16">
+    <BackButton fallback="/settings#collections"/>
     <div className="rounded-3xl border border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F] px-5 py-4">
       <p className="text-xs font-semibold text-[#47705C] dark:text-[#A9C7B6]">題目集・
         {co.visibility==='public'?'公開':co.visibility==='link'?'連結可看':'指定對象'}・
@@ -129,45 +119,13 @@ export function CollectionDetailView(){
           className="rounded-xl bg-[#A8C5BD] px-4 py-2 text-[#254E3C]">
           {subscribed?'取消訂閱':'訂閱題目集'}</button>}
         {!currentUser&&<button onClick={()=>setAuthModalOpen(true)} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">登入以訂閱及存入</button>}
-        <Link to="/subscriptions" className="rounded-xl bg-surface/70 px-4 py-2 text-sm">訂閱中心</Link>
-        <Link to={`/search?scope=shared&collection_id=${encodeURIComponent(id)}`}
-          className="rounded-xl bg-surface/70 px-4 py-2 text-sm">搜尋此題目集</Link>
+        <Link to="/settings#subscriptions" className="rounded-xl bg-surface/70 px-4 py-2 text-sm">訂閱中心</Link>
+        <Link to={`/study?source=contributing&collection_id=${encodeURIComponent(id)}`}
+          className="rounded-xl bg-surface/70 px-4 py-2 text-sm">前往共用書寫</Link>
       </div>
     </div>
     {error&&<p role="alert" className="text-sm text-rose-600">{error}</p>}
-    {co.can_contribute&&<section className="rounded-3xl border border-border-subtle bg-surface p-5">
-      <h2 className="font-semibold flex items-center gap-2"><Plus size={18}/>加入我上傳的原題</h2>
-      <p className="mt-1 text-sm text-text-muted">題目仍保留在你的個人題庫；啟用中的集合會立即顯示，後續來源分類與標籤更新也會反映。</p>
-      {!hasProfile&&<p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-        加入前請先<Link to="/my/collections#profile" className="mx-1 underline">設定貢獻時顯示的名稱</Link>。</p>}
-      <form className="mt-3 flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();setCandidateQuery(candidateSearch.trim());}}>
-        <input value={candidateSearch} onChange={e=>setCandidateSearch(e.target.value)}
-          placeholder="搜尋我上傳的原題" aria-label="搜尋可加入的原題"
-          className="min-w-48 flex-1 rounded-xl border border-border-subtle bg-page-bg px-3 py-2"/>
-        <button type="submit" className="rounded-xl border border-border-subtle px-4 py-2">搜尋</button>
-      </form>
-      <div className="mt-3 max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-border-subtle p-2">
-        {candidates.map(item=><label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-2 hover:bg-page-bg">
-          <input type="checkbox" checked={selected.includes(item.id)}
-            onChange={e=>setSelected(previous=>e.target.checked?
-              previous.length<50?[...previous,item.id]:previous:previous.filter(x=>x!==item.id))}/>
-          <span className="min-w-0 truncate text-sm">{item.title||'未命名題目'}・{item.id.slice(0,8)}</span>
-        </label>)}
-        {!candidates.length&&<p className="px-3 py-2 text-sm text-text-muted">沒有可加入的原題。</p>}
-      </div>
-      {candidateCursor&&<button disabled={busy} onClick={()=>void loadMoreCandidates()}
-        className="mt-2 rounded-xl border border-border-subtle px-4 py-2 text-sm disabled:opacity-40">載入更多原題</button>}
-      <div className="mt-3 flex items-center gap-3">
-        <button disabled={busy||!selected.length||!hasProfile} onClick={()=>void act(async()=>{
-          const result=await sharingApi<{results:{item_id:string;status?:string;error?:string}[]}>(
-            `/collections/${id}/items/batch`,'POST',{item_ids:selected});
-          const failures=result.results.filter(row=>row.error);
-          if(failures.length){await load();throw new Error(`已加入 ${result.results.length-failures.length} 題；${failures.length} 題未成功，請重新檢查。`);}
-        },`已加入 ${selected.length} 題`)}
-          className="rounded-xl bg-primary px-4 py-2 text-white disabled:opacity-40">加入選取的 {selected.length} 題</button>
-        <span className="text-xs text-text-muted">單次最多 50 題</span>
-      </div>
-    </section>}
+    {co.can_contribute&&<CollectionCandidatePicker collectionId={id} onChanged={()=>void load().catch(e=>setError(e.message))}/>}
     {transfer&&!co.is_owner&&transfer.to_user_id===currentUser?.id&&<section
       className="rounded-3xl border border-[#DCE8E0] bg-[#EAF1EC] p-5 dark:border-[#3D5449] dark:bg-[#26362F]">
       <h2 className="font-semibold">接手題目集管理</h2>
@@ -207,6 +165,7 @@ export function CollectionDetailView(){
             {item.keywords&&<p className="mt-2 line-clamp-1 text-xs text-text-muted">
               {tagsFor([item]).join('・')}</p>}
           </Link>
+          {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
           {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
             {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
               onClick={()=>void act(()=>sharingApi(`/collections/${id}/items/${item.id}/order`,'PATCH',
@@ -230,13 +189,15 @@ export function CollectionDetailView(){
           </div>)}
       </div>}
       <p className="text-sm text-text-muted">共用筆跡與筆記只有貢獻者彼此可見；開啟展示後，所有觀看者也能看到。</p>
-      <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2"><input type="checkbox" checked={!!co.show_shared_ink}
-          onChange={e=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',
-            {expected_version:co.row_version,show_shared_ink:e.target.checked}),'展示設定已更新')}/>向觀看者展示共用筆跡</label>
-        <label className="flex items-center gap-2"><input type="checkbox" checked={!!co.show_shared_notes}
-          onChange={e=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',
-            {expected_version:co.row_version,show_shared_notes:e.target.checked}),'展示設定已更新')}/>向觀看者展示共用筆記</label>
+      <label className="block text-sm">觀看範圍<select value={co.visibility} disabled={busy} onChange={e=>{
+        const visibility=e.target.value;setConfirm({title:'變更集合的觀看範圍？',body:visibility==='public'?'啟用中的集合將可由所有人觀看及存入；未列入探索時仍可用集合連結開啟。':'範圍縮小後，原有合法存入的個人版本仍保留；後續觀看及存入按新範圍判定。',run:async()=>{await sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,visibility});await load();}});
+      }} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"><option value="restricted">指定對象</option><option value="link">持連結者</option><option value="public">所有人</option></select></label>
+      {co.visibility==='public'&&<SwitchRow label="列入公開探索" description="未列入時，仍可透過集合連結觀看。" checked={!!co.listed} disabled={busy} onChange={listed=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,listed}),'探索設定已更新')}/>}
+      <label className="block text-sm">集合名稱<input value={title} maxLength={80} onChange={e=>setTitle(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"/></label>
+      <button disabled={busy||!title.trim()} onClick={()=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,title:title.trim()}),'名稱已更新')} className="rounded-xl border border-border-subtle px-4 py-2">儲存名稱</button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <SwitchRow label="向觀看者展示共用筆跡" checked={!!co.show_shared_ink} disabled={busy} onChange={value=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,show_shared_ink:value}),'展示設定已更新')}/>
+        <SwitchRow label="向觀看者展示共用筆記" checked={!!co.show_shared_notes} disabled={busy} onChange={value=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,show_shared_notes:value}),'展示設定已更新')}/>
       </div>
       <div className="flex flex-wrap gap-2">
         {co.lifecycle==='suspended'||co.lifecycle==='draft'?<button onClick={()=>void act(()=>
@@ -266,9 +227,7 @@ export function CollectionDetailView(){
           {grants.filter(g=>!g.revoked_at).map(g=><div key={g.id}
             className="flex items-center justify-between gap-2 rounded-xl border border-border-subtle p-2 text-sm">
             <span>{g.display_name||g.user_id}・{g.role==='contributor'?'可貢獻與書寫':'可觀看'}</span>
-            <button className="text-rose-600" onClick={()=>{if(window.confirm(
-              `移除 ${g.display_name||g.user_id} 後，其提供的題目與共用層會立即停止對外顯示；他人已存入的內容保留。確定移除？`))
-              void act(()=>sharingApi(`/collections/${id}/grants/${g.id}`,'DELETE'),'成員權限已移除');}}>
+            <button disabled={busy} className="text-rose-600" onClick={()=>setConfirm({title:'移除成員？',body:`移除 ${g.display_name||g.user_id} 後，其提供的題目與共用層停止對外展示；他人已存入版本保留。`,run:async()=>{await sharingApi(`/collections/${id}/grants/${g.id}`,'DELETE');await load();}})}>
               移除</button></div>)}
         </div>}
       </div>
@@ -308,11 +267,12 @@ export function CollectionDetailView(){
         </div>}
       </div>
       <div className="border-t border-border-subtle pt-4">
-        <button className="text-sm text-rose-600" onClick={()=>{if(window.confirm(
-          `刪除「${co.title}」會停止所有人觀看集合。已存入個人錯題本的內容會保留。確定刪除？`))
-          void act(async()=>{await sharingApi(`/collections/${id}`,'DELETE');navigate('/my/collections');},'集合已刪除');}}>
+        <button disabled={busy} className="text-sm text-rose-600" onClick={()=>setConfirm({title:`刪除「${co.title}」？`,body:'集合停止服務。所有人的上傳原題、合法已存版本和私人訂正保留。',run:async()=>{await sharingApi(`/collections/${id}`,'DELETE');navigate('/settings#collections');}})}>
           刪除集合</button>
       </div>
     </section>}
+    {confirm&&<AppDialog title={confirm.title} busy={busy} onClose={()=>setConfirm(null)}><p className="text-sm">{confirm.body}</p>
+      {error&&<p role="alert" className="mt-3 text-sm text-status-eraser">{error}</p>}
+      <button disabled={busy} onClick={()=>{setBusy(true);setError('');void confirm.run().then(()=>setConfirm(null)).catch(e=>setError(e.message)).finally(()=>setBusy(false));}} className="mt-4 rounded-xl bg-status-eraser px-4 py-2 text-white">確認</button></AppDialog>}
   </div>;
 }
