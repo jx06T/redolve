@@ -12,7 +12,8 @@
     "worker:dev": "wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "worker:deploy": "npm run build && wrangler deploy",
-    "d1:init": "wrangler d1 execute redolve-db --local --file=./worker/schema.sql"
+    "d1:init": "node scripts/init-local-db.mjs",
+    "d1:check": "node scripts/init-local-db.mjs --check"
   },
   "dependencies": {
     "@google/genai": "^2.15.0",

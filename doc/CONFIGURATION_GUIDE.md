@@ -39,11 +39,34 @@ wrangler secret put ADMIN_EMAILS
 
 ## 資料庫
 
-新建的本地 D1 可用完整 schema 初始化：
+### 本地開發
+
+本地 `wrangler dev` 使用 `.wrangler/state` 下的 D1、R2、KV；正式資料庫套用過 migration 不會更新本地資料庫。本地 `no such table: collections`／`saved_refs` 代表缺少分享 schema。
+
+先停止本地 Worker，再初始化或升級本地 D1：
 
 ```powershell
-wrangler d1 execute redolve-db --local --file=./worker/schema.sql
+npm run d1:init
+npm run d1:check
 ```
+
+初始化腳本固定使用 `--local`，升級前保留本地 D1 備份至 `.wrangler/local-db-backups/`；保留既有資料，完整 schema 時重跑會跳過。部分套用的分享 schema 會停止並提示人工檢查，不會盲目重跑一次性 migration。`d1:check` 只檢查 schema，不套用 migration；缺少必要結構時 exit code 為 1。
+
+分別開兩個終端機：
+
+```powershell
+# 終端機一：本地 API
+npm run worker:dev
+
+# 終端機二：前端與即時更新
+npm run dev
+```
+
+開啟 `http://localhost:3000`。`npm run dev` 只啟動 Vite，不包含 Worker；直接開 `8787` 會使用上次建置的 `dist`。本地 secrets 放在 `.dev.vars`，正式環境 secrets 不會自動下載。本地題庫及圖片也不會自動複製正式環境內容。
+
+若全域 npm 入口異常，可改用 `node scripts/init-local-db.mjs`、`node node_modules/wrangler/bin/wrangler.js dev`、`node node_modules/vite/bin/vite.js`。
+
+### 正式資料庫
 
 以下 0001 為登入改版的初次遷移步驟；本正式環境已執行。**這次共用／訂閱發布請依 [本次部署後操作指南](SHARING_RELEASE_RUNBOOK.md)，不需要重跑 0001 或 0002。** 新環境若只有舊 schema，才先取得 Time Travel bookmark 並執行新增 session 表的遷移：
 
