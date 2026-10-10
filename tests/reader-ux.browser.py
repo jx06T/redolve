@@ -307,9 +307,12 @@ def run():
     expect(page.get_by_role('img',name='共用測試題',exact=True)).to_have_count(0)
     expect(picker.locator('option[value="c3"]')).to_have_count(0)
     for cid in ['c2','c1','c2']:
+      if page.get_by_role('button',name='搜尋與篩選',exact=True).get_attribute('aria-expanded')!='true':
+        page.get_by_role('button',name='搜尋與篩選',exact=True).click()
       picker.select_option(cid);page.wait_for_load_state('networkidle')
       expect(picker).to_have_value(cid)
       expect(page.get_by_role('img',name='共用測試題',exact=True)).to_be_visible()
+    page.get_by_role('button',name='搜尋與篩選',exact=True).click()
     page.get_by_label('尋找已訂閱的集合').fill('不符合任何名稱')
     expect(picker).to_have_value('c2')
     expect(picker.locator('option[value="c2"]')).to_have_count(1)

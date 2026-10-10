@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
 import { ExternalQuestionCard } from '../components/ExternalQuestionCard';
 import { QuestionStream } from '../components/QuestionStream';
-import { BackButton } from '../components/ReaderNavigation';
+import { FloatingReaderControls } from '../components/FloatingReaderControls';
 import { useStore } from '../store/useStore';
 import { sharingApi, type Collection, type CollectionEntry } from '../services/sharingApi';
 import { subscriptionService } from '../services/questionService';
@@ -19,7 +19,7 @@ export function CollectionReaderView({mode}:{mode:'extended'|'explore'|'collecti
   const id=mode==='collection'?route.id||'':params.get('collection_id')||'';
   const query=params.get('q')||'';const filter=params.get('state')||'';const sort=params.get('sort')||storedSort(useStore.getState().currentUser?.id||'guest');
   const {currentUser}=useStore();const account=isGuestUser(currentUser)?'':currentUser!.id;
-  const [controlsOpen,setControlsOpen]=useState(false);
+  const [controlsOpen,setControlsOpen]=useState(mode === 'extended' && !id);
   const [subs,setSubs]=useState<Subscription[]>([]);const [listQuery,setListQuery]=useState('');
   const [collection,setCo]=useState<Collection>();const [queryDraft,setQueryDraft]=useState(query);
   const [dataKey,setDataKey]=useState('');
@@ -33,6 +33,7 @@ export function CollectionReaderView({mode}:{mode:'extended'|'explore'|'collecti
   const co=dataKey===key?collection:undefined;
 
   useEffect(()=>setQueryDraft(query),[query]);
+  useEffect(() => { setControlsOpen(mode === 'extended' && !id); }, [mode, account]);
   useEffect(()=>{try{localStorage.setItem(`rdv:subscription-sort:${account}`,sort);}catch{/* Sorting remains usable without local storage. */}},[account,sort]);
   useEffect(()=>{setSubs([]);setSubscriptionAccount(null);setSubsError('');setSubsBusy(!!account);if(!account){setSubscriptionAccount('');return;}
     const abort=new AbortController();void subscriptionService.list(abort.signal).then(s=>{
@@ -99,43 +100,45 @@ export function CollectionReaderView({mode}:{mode:'extended'|'explore'|'collecti
   const sorted=subs.filter(s=>s.collection_id===id||(s.title||s.last_known_title).toLocaleLowerCase().includes(listQuery.toLocaleLowerCase())).sort((a,b)=>sort==='alphabet'?
     (a.title||a.last_known_title).localeCompare(b.title||b.last_known_title,'zh-Hant'):sort==='viewed'?
     (b.last_viewed_at||'').localeCompare(a.last_viewed_at||''):b.subscribed_at.localeCompare(a.subscribed_at));
-  return <div className="mx-auto max-w-5xl space-y-4">
-    <div className="flex items-center justify-between"><h1 className="text-2xl font-semibold">{mode==='extended'?'延伸題目':mode==='explore'?'公開探索':co?.title||'題目集觀看'}</h1><BackButton/></div>
-    {(mode!=='extended'||account)&&<section className={`rounded-3xl border p-3 sm:p-5 ${mode==='explore'||mode==='collection'&&co?.visibility==='public'?'border-[#E7D6C6] bg-[#F6EADF] dark:bg-[#3B3028]':'border-[#DCE8E0] bg-[#EAF1EC] dark:bg-[#26362F]'}`}>
-      <p className={`text-sm text-text-muted ${mode==='extended'&&id?'hidden md:block':''}`}>{mode==='extended'?'選擇已明確訂閱的題目集；存入後才會建立自己的私人訂正。':mode==='explore'?'探索與訂閱分開。按「訂閱題目集」後，才會加入延伸題目的選單。':'觀看來源集合；私人訂正請先存入自己的題庫。'}</p>
-      {mode==='explore'&&<label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e=>patch({collection_id:e.target.value,q:'',state:''})} className="mt-2 w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
-        <option value="">全部公開題目</option>{id&&!publicSets.some(c=>c.id===id)&&<option value={id}>{co?.title||'目前題目集'}</option>}{publicSets.map(c=><option key={c.id} value={c.id}>{c.title} · {c.item_count||0} 題</option>)}
+  const scopeTitle = co?.title || subs.find(s => s.collection_id === id)?.title || publicSets.find(c => c.id === id)?.title || (id ? '目前題目集' : mode === 'extended' ? '請選擇已訂閱的題目集' : '全部公開題目');
+  return <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col gap-4">
+    <FloatingReaderControls title={mode === 'extended' ? '延伸題目' : mode === 'explore' ? '公開探索' : '題目集觀看'}
+      summary={scopeTitle} open={controlsOpen} onOpenChange={setControlsOpen} activeFilters={!!(query || filter)}>
+      {(mode !== 'extended' || account) ? <>
+      {mode === 'explore' && <label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, q: '', state: '' }); setControlsOpen(false); }} className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
+        <option value="">全部公開題目</option>{id && !publicSets.some(c => c.id === id) && <option value={id}>{co?.title || '目前題目集'}</option>}{publicSets.map(c => <option key={c.id} value={c.id}>{c.title} · {c.item_count || 0} 題</option>)}
       </select></label>}
-      {co&&mode!=='extended'&&<div className="mt-3 flex flex-wrap items-center gap-3"><h2 className="font-medium">{co.title}</h2>{!co.is_owner&&<span className="text-xs">{!subscriptionStatusReady?'確認訂閱狀態中…':subscribed?'已訂閱':'尚未訂閱'}</span>}</div>}
-      {mode==='extended'&&<div className="mt-3 space-y-2">
-        <div className={`gap-2 ${id&&!controlsOpen?'hidden md:flex':'flex'}`}><input value={listQuery} onChange={e=>setListQuery(e.target.value)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm"/>
-          <select value={sort} onChange={e=>patch({sort:e.target.value})} aria-label="訂閱集排序" className="rounded-xl border border-border-subtle bg-surface p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
-        <select disabled={subsBusy||!!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e=>{setListQuery('');patch({collection_id:e.target.value,state:'',q:''});}} className="w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
-          <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s=>s.can_read).map(s=><option key={s.collection_id} value={s.collection_id}>{s.title||s.last_known_title}{s.unread_count?` · ${s.unread_count} 題未看新題`:''}</option>)}</optgroup>
-          {id&&!subs.some(s=>s.collection_id===id)&&<option value={id} disabled>{subsBusy?'讀取訂閱中…':'此集合未訂閱'}</option>}
-          <optgroup label="目前無法觀看">{sorted.filter(s=>!s.can_read).map(s=><option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
-        <div className="flex items-center justify-between gap-2"><Link to="/settings#subscriptions" className="inline-block text-xs text-primary underline">管理訂閱關係</Link>
-          {id&&<button aria-expanded={controlsOpen} onClick={()=>setControlsOpen(v=>!v)} className="md:hidden min-h-11 rounded-xl bg-surface px-3 py-2 text-xs">{controlsOpen?'收合閱讀選項':'搜尋、篩選與排序'}</button>}</div>
+      {co && mode !== 'extended' && <div className="mt-3 flex flex-wrap items-center gap-3"><h2 className="font-medium">{co.title}</h2>{!co.is_owner && <span className="text-xs">{!subscriptionStatusReady ? '確認訂閱狀態中…' : subscribed ? '已訂閱' : '尚未訂閱'}</span>}</div>}
+      {mode === 'extended' && <div className="mt-3 space-y-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => setListQuery(e.target.value)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
+          <select value={sort} onChange={e => patch({ sort: e.target.value })} aria-label="訂閱集排序" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
+        <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { setListQuery(''); patch({ collection_id: e.target.value, state: '', q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
+          <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s => s.can_read).map(s => <option key={s.collection_id} value={s.collection_id}>{s.title || s.last_known_title}{s.unread_count ? ` · ${s.unread_count} 題未看新題` : ''}</option>)}</optgroup>
+          {id && !subs.some(s => s.collection_id === id) && <option value={id} disabled>{subsBusy ? '讀取訂閱中…' : '此集合未訂閱'}</option>}
+          <optgroup label="目前無法觀看">{sorted.filter(s => !s.can_read).map(s => <option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
+        <Link to="/settings#subscriptions" className="inline-block text-xs text-text-muted underline">管理訂閱關係</Link>
       </div>}
-      {(mode!=='extended'||id)&&<form onSubmit={e=>{e.preventDefault();patch({q:queryDraft.trim()});}} className={`mt-3 gap-2 ${mode==='extended'&&id&&!controlsOpen&&!query&&!filter?'hidden md:flex':'flex'}`}>
-        <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e=>setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm"/>
+      {(mode !== 'extended' || id) && <form onSubmit={e => { e.preventDefault(); patch({ q: queryDraft.trim() }); setControlsOpen(false); }} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
         <button className="rounded-xl bg-surface px-4 py-2 text-sm">搜尋</button>
-        {mode==='extended'&&<select aria-label="閱讀篩選" value={filter} onChange={e=>patch({state:e.target.value})} className="rounded-xl bg-surface p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>}
+        {mode === 'extended' && <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="col-span-2 min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>}
       </form>}
-    </section>}
-    {mode==='extended'&&!account&&<LoginNotice description="登入後可選擇已訂閱的題目集。"/>}
-    {subsError&&<p role="alert" className="rounded-2xl bg-surface p-4 text-sm text-status-eraser">訂閱狀態讀取失敗：{subsError}<button onClick={()=>setSubscriptionRevision(v=>v+1)} className="ml-3 underline">重試訂閱清單</button></p>}
-    {publicSetsError&&<p role="alert" className="text-sm text-status-eraser">公開集合清單讀取失敗：{publicSetsError}<button onClick={()=>setRevision(v=>v+1)} className="ml-3 underline">重試</button></p>}
-    {mode==='extended'&&!!account&&!subsBusy&&!subsError&&(!id||!ready)&&<p className="rounded-2xl bg-surface p-5 text-sm">{id?'此集合未訂閱或目前無法觀看。':'請先選擇題目集。'}<Link to="/explore" className="ml-3 text-primary underline">探索並訂閱題目集</Link></p>}
-    {newItems&&<button onClick={()=>setRevision(v=>v+1)} className="rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">有新題目 · 重新載入</button>}
-    {error&&<p role="alert" className="rounded-2xl bg-surface p-4 text-sm text-status-eraser">{error}<button className="ml-3 underline" onClick={()=>void load(rows.length>0)}>重試</button></p>}
-    {!busy&&!error&&!rows.length&&(mode==='explore'||id&&ready)&&<p className="p-5 text-sm text-text-muted">目前沒有符合條件的題目。</p>}
-    {busy&&!rows.length&&<p className="p-5 text-sm text-text-muted">正在載入題目…</p>}
-    <QuestionStream items={dataKey===key?rows:[]} busy={busy} hasMore={dataKey===key&&(publicFeed?offset!==null:cursor!==null)} loadError={!!error} autoLoad={false} loadMore={()=>void load(true)} focus={params.get('focus')||undefined}
-      render={row=><ExternalQuestionCard id={row.id} collectionId={row.collection_id||id} subscribed={mode==='extended'} starred={!!row.is_starred} savedId={row.saved_id} knownSubscribed={subscriptionAccount===account?subs.some(s=>s.collection_id===(row.collection_id||id)):!!row.is_subscribed}
-        publicContext={mode==='explore'} isOwner={!!row.is_owner||co?.is_owner} subscriptionStatusReady={subscriptionStatusReady} onSubscriptionChanged={next=>subscriptionChanged(next,row.collection_id||id,row.id)}
-        onRead={()=>{if(row.is_read)return;setRows(p=>p.map(i=>i.id===row.id?{...i,is_read:1}:i));if(row.is_new_scope)setSubs(p=>p.map(s=>s.collection_id===(row.collection_id||id)?{...s,unread_count:Math.max(0,(s.unread_count||0)-1)}:s));}}
-        onSaved={savedId=>setRows(p=>p.map(i=>i.id===row.id?{...i,saved_id:savedId}:i))}
-        onStar={starred=>setRows(p=>p.map(i=>i.id===row.id?{...i,is_starred:starred?1:0}:i))}/>}/>
+      {(query || filter) && <button type="button" onClick={() => { patch({ q: '', state: '' }); setQueryDraft(''); }} className="mt-3 min-h-11 rounded-xl bg-page-bg px-3 py-2 text-xs">清除搜尋與篩選</button>}
+      </> : null}
+    </FloatingReaderControls>
+    {mode === 'extended' && !account && <LoginNotice description="登入後可選擇已訂閱的題目集。" />}
+    {subsError && <p role="alert" className="rounded-2xl bg-surface p-4 text-sm text-status-eraser">訂閱狀態讀取失敗：{subsError}<button onClick={() => setSubscriptionRevision(v => v + 1)} className="ml-3 underline">重試訂閱清單</button></p>}
+    {publicSetsError && <p role="alert" className="text-sm text-status-eraser">公開集合清單讀取失敗：{publicSetsError}<button onClick={() => setRevision(v => v + 1)} className="ml-3 underline">重試</button></p>}
+    {mode === 'extended' && !!account && !subsBusy && !subsError && (!id || !ready) && <p className="rounded-2xl bg-surface p-5 text-sm">{id ? '此集合未訂閱或目前無法觀看。' : '請先選擇題目集。'}<Link to="/explore" className="ml-3 text-primary underline">探索並訂閱題目集</Link></p>}
+    {newItems && <button onClick={() => setRevision(v => v + 1)} className="rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">有新題目 · 重新載入</button>}
+    {error && <p role="alert" className="rounded-2xl bg-surface p-4 text-sm text-status-eraser">{error}<button className="ml-3 underline" onClick={() => void load(rows.length > 0)}>重試</button></p>}
+    {!busy && !error && !rows.length && (mode === 'explore' || id && ready) && <p className="p-5 text-sm text-text-muted">目前沒有符合條件的題目。</p>}
+    {busy && !rows.length && <p className="p-5 text-sm text-text-muted">正在載入題目…</p>}
+    <QuestionStream className="min-h-48 flex-1 overflow-y-auto overscroll-contain" items={dataKey === key ? rows : []} busy={busy} hasMore={dataKey === key && (publicFeed ? offset !== null : cursor !== null)} loadError={!!error} autoLoad={false} loadMore={() => void load(true)} focus={params.get('focus') || undefined}
+      render={row => <ExternalQuestionCard id={row.id} collectionId={row.collection_id || id} subscribed={mode === 'extended'} starred={!!row.is_starred} savedId={row.saved_id} knownSubscribed={subscriptionAccount === account ? subs.some(s => s.collection_id === (row.collection_id || id)) : !!row.is_subscribed}
+        publicContext={mode === 'explore'} isOwner={!!row.is_owner || co?.is_owner} subscriptionStatusReady={subscriptionStatusReady} onSubscriptionChanged={next => subscriptionChanged(next, row.collection_id || id, row.id)}
+        onRead={() => { if (row.is_read) return; setRows(p => p.map(i => i.id === row.id ? { ...i, is_read: 1 } : i)); if (row.is_new_scope) setSubs(p => p.map(s => s.collection_id === (row.collection_id || id) ? { ...s, unread_count: Math.max(0, (s.unread_count || 0) - 1) } : s)); }}
+        onSaved={savedId => setRows(p => p.map(i => i.id === row.id ? { ...i, saved_id: savedId } : i))}
+        onStar={starred => setRows(p => p.map(i => i.id === row.id ? { ...i, is_starred: starred ? 1 : 0 } : i))} />} />
   </div>;
 }
