@@ -362,3 +362,15 @@ INSERT OR IGNORE INTO assets(id,storage_key)
 SELECT DISTINCT image_url,image_url FROM items WHERE image_url IS NOT NULL AND image_url!='';
 INSERT OR IGNORE INTO asset_refs(id,asset_id,item_id,role)
 SELECT 'item:'||id,image_url,id,'source_image' FROM items WHERE image_url IS NOT NULL AND image_url!='';
+
+-- Additive, safe to repeat. Does not change source items or shared layers.
+CREATE TABLE IF NOT EXISTS collection_item_progress (
+ user_id TEXT NOT NULL REFERENCES users(id),
+ entry_id TEXT NOT NULL REFERENCES collection_items(id),
+ status TEXT NOT NULL DEFAULT 'unsolved' CHECK(status IN ('unsolved','resolved','archived')),
+ previous_status TEXT NOT NULL DEFAULT 'unsolved' CHECK(previous_status IN ('unsolved','resolved')),
+ review_count INTEGER NOT NULL DEFAULT 0 CHECK(review_count>=0),
+ row_version INTEGER NOT NULL DEFAULT 0,
+ updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY(user_id,entry_id)
+);

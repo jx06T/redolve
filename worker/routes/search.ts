@@ -30,7 +30,7 @@ searchRouter.get('/', async c => {
   const offset = Number(c.req.query('offset') || 0);
   const limit = Number(c.req.query('limit') || 30);
   if (!['mine', 'shared', 'public'].includes(scope) || !['all', 'owned', 'saved'].includes(origin)
-    || (scope !== 'mine' && (origin !== 'all' || status))
+    || (scope !== 'mine' && (origin !== 'all' || (status&&!contributing)))
     || (status && !['processing', 'unsolved', 'resolved', 'archived'].includes(status))
     || (subscribed && (scope !== 'shared' || subscribed !== 'yes'))
     || query.length > 200 || tag.length > 80 || collectionId.length > 80 || topic.length > 80
@@ -123,7 +123,8 @@ searchRouter.get('/', async c => {
         WHERE ci.source_item_id=i.id AND ci.state='included' AND co.lifecycle!='deleted'
           AND co.id=${collection} AND ${contributor('ci.contributor_id')})` : ''}
       ${topicFilter('i.topic_id', true)}${tagFilter(['i.keywords'])}
-      ${status ? `AND i.status=${bind(status)}` : ''}`);
+      ${status ? `AND i.status=${bind(status)}` : ''}
+      ${c.req.query('exclude_archived')==='yes'?"AND i.status!='archived'":''}`);
   }
   if (scope === 'mine' && origin !== 'owned') {
     const fields: [string, number][] = [['ss.source_tags', 100], ['sr.personal_tags', 100],
@@ -143,7 +144,8 @@ searchRouter.get('/', async c => {
       WHERE sr.user_id=${user} AND (${contains(fields.map(([field]) => field))})
       ${collectionId ? `AND sr.entry_id IN (SELECT id FROM collection_items WHERE collection_id=${collection})` : ''}
       ${topicFilter('sr.personal_topic_id', true)}${tagFilter(['ss.source_tags', 'sr.personal_tags'])}
-      ${status ? `AND sr.status=${bind(status)}` : ''}`);
+      ${status ? `AND sr.status=${bind(status)}` : ''}
+      ${c.req.query('exclude_archived')==='yes'?"AND sr.status!='archived'":''}`);
   }
   if (scope === 'shared' || scope === 'public') {
     const sharedNotes = `(SELECT COALESCE(group_concat(sl.typed_notes,' '),'') FROM shared_layers sl
@@ -155,12 +157,15 @@ searchRouter.get('/', async c => {
     parts.push(`SELECT '${scope}' AS origin,ci.id,COALESCE(i.source,'題目') AS title,
       t.id AS topic_id,t.label AS topic_label,i.keywords,
       ${scope === 'shared' ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
-      NULL AS status,NULL AS review_count,ci.created_at,co.id AS collection_id,
+      ${contributing ? "COALESCE(cp.status,'unsolved')" : 'NULL'} AS status,${contributing ? 'COALESCE(cp.review_count,0)' : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
       co.title AS collection_title,COALESCE(p.display_name,co.public_name) AS provider_name,
       (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
       ${score(fields)} AS relevance_score,0 AS sort_priority ${liveFrom}
+      ${contributing?`LEFT JOIN collection_item_progress cp ON cp.entry_id=ci.id AND cp.user_id=${user}`:''}
       WHERE ${liveGate} AND ${scope === 'public' ? publicGate : readable}
         ${contributing ? `AND ${contributor(user)}` : ''}
+        ${contributing&&status?`AND COALESCE(cp.status,'unsolved')=${bind(status)}`:''}
+        ${contributing&&c.req.query('exclude_archived')==='yes'?"AND COALESCE(cp.status,'unsolved')!='archived'":''}
         ${scope === 'shared' && !collectionId ? `AND ${related}` : ''}
         ${subscribed ? `AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=${user})` : ''}
         ${collectionId ? `AND co.id=${collection}` : ''}
@@ -197,12 +202,13 @@ searchRouter.get('/', async c => {
     rows = (await execute(false)).results || [];
   }
   const page = rows.slice(0, limit);
-  const ownedIds = page.filter(hit => hit.origin === 'owned').map(hit => hit.id);
+  const ownedIds = (c.req.query('metadata_only')==='1'?[]:page).filter(hit => hit.origin === 'owned').map(hit => hit.id);
   const problems = ownedIds.length ? (await c.env.DB.prepare(
     `SELECT * FROM items WHERE user_id=? AND id IN (${ownedIds.map(() => '?').join(',')})`)
     .bind(uid, ...ownedIds).all<ItemRow>()).results || [] : [];
   const byId = new Map(problems.map(item => [item.id, item]));
   return c.json({ items: page.map(hit => ({ ...hit,
+    ...(c.req.query('metadata_only')==='1'?{typed_notes:null,keywords:null}:{}),
     ...(hit.origin === 'owned' ? { problem: byId.get(hit.id) } : {}),
   })), next_offset: rows.length > limit ? offset + limit : null, scope });
 });

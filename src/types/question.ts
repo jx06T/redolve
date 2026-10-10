@@ -13,6 +13,7 @@ export type QuestionWork = {
   target: WorkTarget; ink: DrawData; notes: string; inkSeq: number; notesSeq: number;
 };
 export type CollectionItemDetail = {
+  progress?: ReviewProgress;
   collection: Pick<Collection,'id'|'title'|'show_shared_ink'|'show_shared_notes'>;
   entry: { id: string; generation: number; shared_seq: number; latest_add_event_seq: number|null };
   source: { id: string; source: string|null; keywords: string|null; topic_id?:string|null;
@@ -20,6 +21,7 @@ export type CollectionItemDetail = {
   layers: SharedLayer[];
   capabilities: { can_contribute: boolean; can_save: boolean };
 };
+export type ReviewProgress={status:'unsolved'|'resolved'|'archived';previous_status:'unsolved'|'resolved';review_count:number;row_version:number};
 export type WorkContent = {
   ref: Exclude<QuestionRef,{kind:'owned'}>; title: string; image: string;
   topic: string|null; collectionId?:string; collectionTitle:string; provider:string;

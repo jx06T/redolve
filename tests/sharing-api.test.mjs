@@ -104,6 +104,26 @@ test('contributor live source revokes while subscriber download survives', async
     assert.ok(originalBrowse.data.items.some(i=>i.id===entryId));
     assert.equal((await call(`/api/search?scope=shared&contributing=yes&collection_id=${collectionId}&browse=1`,'d')).data.items.length,0,
       'a subscriber has no contributing search scope');
+    const progressPath='/api/collections/'+collectionId+'/items/'+entryId+'/progress';
+    const progressAction=(user,action,version,generation=1)=>call(progressPath,user,'PUT',{action,expected_version:version,expected_generation:generation});
+    assert.equal((await progressAction('d','resolve',0)).status,404,'viewer cannot write progress');
+    const done=await progressAction('b','resolve',0);
+    assert.equal(done.status,200,JSON.stringify(done.data));assert.equal(done.data.progress.status,'resolved');
+    assert.equal(done.data.progress.review_count,1);
+    assert.equal((await progressAction('b','archive',0)).status,409,'stale progress must not overwrite');
+    assert.equal((await progressAction('b','archive',1,2)).status,409,'stale generation must not write');
+    const archived=await progressAction('b','archive',1);assert.equal(archived.data.progress.status,'archived');
+    const browseProgress='/api/search?scope=shared&contributing=yes&collection_id='+collectionId+'&browse=1';
+    assert.equal((await call(browseProgress+'&status=archived','b')).data.items[0].id,entryId);
+    assert.equal((await call(browseProgress+'&exclude_archived=yes','b')).data.items.length,0);
+    assert.equal((await call(browseProgress+'&status=unsolved','a')).data.items[0].id,entryId,'owner progress is independent');
+    assert.equal((await db.prepare("SELECT status FROM items WHERE id='source'").first()).status,'unsolved');
+    assert.equal((await call('/api/collections/'+collectionId+'/items/'+entryId,'d')).data.progress,undefined,'private progress stays private');
+    const restored=await progressAction('b','archive',2);assert.equal(restored.data.progress.status,'resolved');
+    await db.prepare('UPDATE collection_grants SET revoked_at=CURRENT_TIMESTAMP WHERE collection_id=? AND user_id=?').bind(collectionId,'b').run();
+    assert.equal((await progressAction('b','resolve',3)).status,404,'revoked contributor cannot write');
+    await db.prepare('UPDATE collection_grants SET revoked_at=NULL WHERE collection_id=? AND user_id=?').bind(collectionId,'b').run();
+    assert.equal((await call('/api/collections/'+collectionId+'/items/'+entryId,'b')).data.progress.status,'resolved','progress survives restored access');
     const initialFeed=await call('/api/subscriptions/feed','d');
     assert.equal(initialFeed.data.items.length,0,'pre-subscription entries are not new');
     await storage.put('images/second.jpg',new Uint8Array([4,5,6]));

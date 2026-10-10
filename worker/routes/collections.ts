@@ -448,6 +448,8 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     LEFT JOIN public_profiles p ON p.user_id=i.user_id WHERE i.id=?`)
     .bind(entry.source_item_id).first();
   const canWrite=Boolean(c.get('userId')&&await canContribute(c.env,co!,c.get('userId')));
+  const progress=canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
+    .bind(c.get('userId'),entry.id).first():null;
   const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,sl.author_display,sl.draw_asset_id,
     sl.draw_seq,sl.typed_notes,sl.notes_seq FROM shared_layers sl
     WHERE sl.entry_id=? AND sl.entry_generation=? AND sl.state='active'
@@ -486,7 +488,9 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     show_shared_notes:co!.show_shared_notes},entry:{id:entry.id,generation:entry.generation,
     shared_seq:entry.shared_seq,latest_add_event_seq:entry.latest_add_event_seq},
     neighbors:{previous:previous?.id||null,next:next?.id||null},
-    source:{...item,contributor_id:entry.contributor_id},layers,capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId')}});
+    source:{...item,contributor_id:entry.contributor_id},layers,
+    ...(canWrite?{progress:progress||{status:'unsolved',previous_status:'unsolved',review_count:0,row_version:0}}:{}),
+    capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId')}});
 });
 collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
@@ -511,8 +515,8 @@ collectionsRouter.get('/collections/:id/grants',authMiddleware,async c=>{
     c.env.DB.prepare(`SELECT MIN(g.id) AS id,
       CASE WHEN MAX(CASE WHEN g.role='contributor' THEN 1 ELSE 0 END)=1
         THEN 'contributor' ELSE 'viewer' END AS role,
-      g.user_id,p.display_name,MAX(g.expires_at) AS expires_at,NULL AS revoked_at
-      FROM collection_grants g LEFT JOIN public_profiles p ON p.user_id=g.user_id
+      g.user_id,COALESCE(p.display_name,NULLIF(u.name,'')) AS display_name,MAX(g.expires_at) AS expires_at,NULL AS revoked_at
+      FROM collection_grants g LEFT JOIN public_profiles p ON p.user_id=g.user_id LEFT JOIN users u ON u.id=g.user_id
       WHERE g.collection_id=? AND g.kind='user' AND g.revoked_at IS NULL
         AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)
       GROUP BY g.user_id ORDER BY MAX(g.created_at) DESC`).bind(co!.id).all(),
@@ -793,6 +797,20 @@ collectionsRouter.post('/collections/:id/reports',authMiddleware,async c=>{
     VALUES(?,?,?,?,?,?)`).bind(id,c.get('userId'),co.id,b.entry_id||null,b.category,
       clean(b.detail,2000)).run();
   return c.json({id,status:'open'},201);
+});
+
+collectionsRouter.put('/collections/:id/items/:entryId/progress',authMiddleware,async c=>{
+  const co=await loadCollection(c.env,c.req.param('id'));
+  if(!co||!await contributor(c,co))return c.json(missing,404);
+  const entry=await liveEntry(c.env,c.req.param('entryId'),co.id);
+  if(!entry)return c.json(missing,404);
+  const b=await c.req.json().catch(()=>({}));
+  if(!['resolve','archive'].includes(b.action)||!Number.isSafeInteger(b.expected_version)||b.expected_version<0||!Number.isSafeInteger(b.expected_generation))return c.json(apiError('INVALID_REQUEST','進度操作或版本無效'),400);
+  if(b.expected_generation!==entry.generation)return c.json(apiError('CONFLICT','題目已重新加入，請重整後操作'),409);
+  const uid=c.get('userId');
+  const result=await c.env.DB.prepare(    "INSERT INTO collection_item_progress(user_id,entry_id,status,previous_status,review_count,row_version) SELECT ?1,?2,CASE WHEN ?3='archive' THEN 'archived' ELSE 'resolved' END,'unsolved',CASE WHEN ?3='resolve' THEN 1 ELSE 0 END,1 WHERE EXISTS(SELECT 1 FROM collection_items ci JOIN collections co ON co.id=ci.collection_id WHERE ci.id=?2 AND ci.collection_id=?4 AND ci.generation=?5 AND ci.state='included' AND co.lifecycle!='deleted' AND (co.owner_id=?1 OR EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor' AND g.user_id=?1 AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))) AND (?6=0 OR EXISTS(SELECT 1 FROM collection_item_progress WHERE user_id=?1 AND entry_id=?2)) ON CONFLICT(user_id,entry_id) DO UPDATE SET status=CASE WHEN ?3='archive' THEN CASE WHEN collection_item_progress.status='archived' THEN collection_item_progress.previous_status ELSE 'archived' END WHEN collection_item_progress.status='resolved' THEN 'unsolved' ELSE 'resolved' END, previous_status=CASE WHEN ?3='archive' AND collection_item_progress.status!='archived' THEN collection_item_progress.status ELSE collection_item_progress.previous_status END, review_count=collection_item_progress.review_count+CASE WHEN ?3='resolve' AND collection_item_progress.status='unsolved' THEN 1 ELSE 0 END,row_version=collection_item_progress.row_version+1,updated_at=CURRENT_TIMESTAMP WHERE collection_item_progress.row_version=?6 AND (?3='archive' OR collection_item_progress.status!='archived') RETURNING status,previous_status,review_count,row_version")
+    .bind(uid,entry.id,b.action,co.id,entry.generation,b.expected_version).first();
+  return result?c.json({progress:result}):c.json(apiError('CONFLICT','進度已變更，請重整後操作'),409);
 });
 
 collectionsRouter.put('/collections/:id/items/:entryId/layers/notes',authMiddleware,async c=>{
