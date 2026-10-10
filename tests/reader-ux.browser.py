@@ -84,7 +84,9 @@ def run():
     page=context.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     page.goto(BASE+'/study?source=owned');page.wait_for_load_state('networkidle')
     expect(page.locator('main > header')).to_have_count(0)
-    expect(page.get_by_role('navigation',name='主要導覽')).to_have_count(0)
+    expect(page.locator('header').get_by_role('navigation',name='主要導覽')).to_be_visible()
+    expect(page.locator('header').get_by_role('navigation',name='主要導覽').get_by_role('link')).to_have_count(5)
+    expect(page.locator('header input')).to_have_count(0)
     expect(page.get_by_text('章節大綱導航',exact=True)).to_be_visible()
     expect(page.get_by_role('group',name='題目來源').get_by_role('link')).to_have_count(3)
     expect(page.get_by_role('link',name='已公開於〔測試共用集〕',exact=True)).to_be_visible()
@@ -177,7 +179,7 @@ def run():
     expect(page.get_by_label('本題筆記').first).to_be_disabled()
     page.locator('[data-reader]').evaluate('(el)=>el.scrollTop=1600');page.wait_for_timeout(400)
     page.get_by_role('link',name='前往刷題',exact=True).first.click();page.wait_for_load_state('networkidle')
-    expect(page.get_by_role('navigation',name='主要導覽')).to_have_count(0)
+    expect(page.locator('header').get_by_role('navigation',name='主要導覽')).to_be_visible()
     page.get_by_role('button',name='返回上一步',exact=True).click();page.wait_for_load_state('networkidle');page.wait_for_timeout(1100)
     assert 'view=full' in page.url and 'q=' in page.url
     expect(page.get_by_label('搜尋檢視方式')).to_have_value('full')
@@ -200,6 +202,21 @@ def run():
     expect(p.get_by_role('navigation',name='主要導覽').get_by_role('link',name='延伸題目',exact=True)).to_be_visible()
     p.screenshot(path='.wrangler/reader-mobile.png',full_page=True)
     p.goto(BASE+'/study?source=owned');p.wait_for_load_state('networkidle')
+    mobile_nav=p.locator('nav').filter(has=p.get_by_role('link',name='延伸題目',exact=True)).last
+    expect(mobile_nav).to_be_visible()
+    expect(mobile_nav.get_by_role('link')).to_have_count(5)
+    expect(mobile_nav.get_by_role('link',name='刷題',exact=True)).to_have_attribute('aria-current','page')
+    expect(p.locator('header input')).to_have_count(0)
+    toolbar=p.get_by_title('展開工具列',exact=True).locator('..').bounding_box()
+    sources=p.locator('[data-study-sources]').bounding_box()
+    assert toolbar['y']>=sources['y']+sources['height'], 'Pen tools obscure floating source controls'
+    p.locator('[data-reader]').evaluate('(el)=>el.scrollTop=el.scrollHeight');p.wait_for_timeout(200)
+    expect(mobile_nav).to_be_visible()
+    nav_box=mobile_nav.bounding_box();reader_box=p.locator('[data-reader]').bounding_box()
+    assert reader_box['y']+reader_box['height']<=nav_box['y']+1,'Reader extends beneath bottom navigation'
+    p.screenshot(path='.wrangler/study-mobile-nav.png',full_page=True)
+    mobile_nav.get_by_role('link',name='搜尋',exact=True).click();p.wait_for_load_state('networkidle')
+    mobile_nav.get_by_role('link',name='刷題',exact=True).click();p.wait_for_load_state('networkidle')
     p.get_by_role('button',name='開啟章節導航與篩選',exact=True).click()
     p.get_by_role('button',name='選擇分類數學',exact=True).click()
     p.wait_for_load_state('networkidle');assert 'topic_id=math' in p.url

@@ -32,16 +32,17 @@ export const FloatingPenToolbar: React.FC = () => {
   // Initialize position from store or default to top-right
   useEffect(() => {
     const initPos = () => {
+      const minY = Math.max(64, (document.querySelector('[data-study-sources]')?.getBoundingClientRect().bottom || 0) + 12);
       if (toolbarPosition && typeof toolbarPosition.x === 'number' && typeof toolbarPosition.y === 'number') {
         const clampedX = Math.max(12, Math.min(window.innerWidth - 62, toolbarPosition.x));
-        const clampedY = Math.max(64, Math.min(window.innerHeight - 64, toolbarPosition.y));
+        const clampedY = Math.max(minY, Math.min(window.innerHeight - 64, toolbarPosition.y));
         setPosition({ x: clampedX, y: clampedY });
         if (toolbarOrientation) {
           setOrientation(toolbarOrientation);
         }
       } else {
         const defaultX = window.innerWidth - 64;
-        const defaultY = 96;
+        const defaultY = Math.max(96, minY);
         setPosition({ x: defaultX, y: defaultY });
         setToolbarPosition({ x: defaultX, y: defaultY });
       }
