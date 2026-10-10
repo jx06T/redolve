@@ -34,6 +34,9 @@ function Invoke-ReaderWrangler([string[]]$CommandArgs, [string]$FailureMessage) 
     $readerAllOutput = ($readerLines | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     if ($readerExitCode -ne 0) {
         Show-ReaderDiagnostic $readerAllOutput
+        if ($readerAllOutput -match '"code"\s*:\s*7403\b|\[code:\s*7403\]') {
+            throw "Cloudflare 拒絕帳號／D1 存取（7403）；停止後續操作。先用相同 CLI 執行 whoami，確認帳號與登入方式；若使用 OAuth 則重新 login，若使用 API Token 則確認帳號範圍與 D1 權限。詳見 doc/STUDY_UX_RELEASE_2026-10-10.md。"
+        }
         throw "$FailureMessage（Wrangler exit code: $readerExitCode）"
     }
     $readerStderr = @($readerLines | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })

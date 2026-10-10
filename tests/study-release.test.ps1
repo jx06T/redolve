@@ -14,6 +14,7 @@ function global:node {
     }
     if ($args.Count -lt 7 -or $args[2] -ne 'execute' -or $args[3] -ne 'redolve-db' -or $args[4] -ne '--remote') { throw 'Unexpected CLI invocation' }
     if ($args[-1] -eq '--json') {
+        if($global:studyFailure -eq 'auth') { $global:LASTEXITCODE=1; return '{"error":{"code":7403,"notes":[{"text":"The given account is not valid or is not authorized to access this service [code: 7403]"}]}}' }
         if($global:studyFailure -eq 'schema') { $global:LASTEXITCODE=7; return 'fixture query denied' }
         $starred=if($global:studyFailure -eq 'old-schema'){0}else{1}
         return @(@{success=$true;results=@(@{metric='reader_tables';count=2},@{metric='starred_column';count=$starred},@{metric='classification_column';count=1},@{metric='study_progress_table';count=$global:studyTable},@{metric='study_progress_columns';count=$global:studyColumns})}) | ConvertTo-Json -Depth 6 -Compress
@@ -32,11 +33,15 @@ try {
     $global:studyCalls.Clear()
     & ./scripts/apply-study-ux.ps1 -WranglerMode local | Out-Null
     if($global:studyCalls.Count -ne 1) { throw 'Repeated migration performed writes' }
-    foreach($failure in @('schema','old-schema','bookmark','ddl')) {
+    foreach($failure in @('auth','schema','old-schema','bookmark','ddl')) {
         $global:studyCalls.Clear();$global:studyTable=0;$global:studyColumns=0;$global:studyFailure=$failure
         $stopped=$false
-        try { & ./scripts/apply-study-ux.ps1 -WranglerMode local | Out-Null } catch { $stopped=$true }
+        try { & ./scripts/apply-study-ux.ps1 -WranglerMode local | Out-Null } catch {
+            $stopped=$true
+            if($failure -eq 'auth' -and ($_.Exception.Message -notmatch '7403' -or $_.Exception.Message -notmatch 'whoami')) { throw 'Missing auth recovery guidance' }
+        }
         if(-not $stopped -or $global:studyTable -ne 0) { throw "Failure did not stop: $failure" }
+        if($failure -eq 'auth' -and $global:studyCalls.Count -ne 1) { throw 'Authorization failure performed subsequent operations' }
     }
     $global:studyFailure='';$global:studyTable=1;$global:studyColumns=4
     $stopped=$false
