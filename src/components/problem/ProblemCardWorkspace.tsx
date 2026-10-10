@@ -5,6 +5,7 @@ import { DrawCanvas } from '../DrawCanvas';
 
 interface ProblemCardWorkspaceProps {
   imageUrl: string;
+  onImageReady?: () => void;
   referenceLayers?:DrawData[];
   drawData?: DrawData | string | null;
   calcSpaceHeight: number;
@@ -21,7 +22,7 @@ interface ProblemCardWorkspaceProps {
 }
 
 export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
-  imageUrl,referenceLayers=[],
+  imageUrl,onImageReady,referenceLayers=[],
   drawData,
   calcSpaceHeight,
   renderedCalcSpaceHeight,
@@ -44,6 +45,8 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
       <div className="w-full relative select-none">
         <img
           src={imageUrl}
+          onLoad={onImageReady}
+          onError={onImageReady}
           alt="題目"
           className="exam-paper-image w-full h-auto object-contain block select-none pointer-events-none"
         />

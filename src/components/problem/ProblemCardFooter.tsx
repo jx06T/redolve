@@ -33,7 +33,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
         {!readOnly&&actions}
         {!readOnly&&onAddToCollection&&<button type="button" onClick={onAddToCollection} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs font-medium text-text-muted hover:text-text-main"><FolderPlus size={14}/>加入共用集</button>}
         {!readOnly && (

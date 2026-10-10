@@ -99,7 +99,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [isVisible, setIsVisible] = useState<boolean>(true);
+  const [isVisible, setIsVisible] = useState<boolean>(false);
   const [canvasHeight, setCanvasHeight] = useState<number>(400);
   const [canvasWidth, setCanvasWidth] = useState<number>(800);
 

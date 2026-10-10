@@ -13,7 +13,7 @@ import { sharingApi } from '../services/sharingApi';
 import { libraryService } from '../services/libraryService';
 import type { WorkContent } from '../types/question';
 
-function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkContent;readOnly?:boolean;onChanged?:()=>void;onRemoved?:()=>void}) {
+function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:WorkContent;readOnly?:boolean;onChanged?:()=>void;onRemoved?:()=>void;onNext?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
 
   const controller=getWorkController(account,content);
@@ -85,7 +85,7 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
     {content.saved&&!content.saved.source.available&&<p className="mt-2 text-xs text-text-muted">來源目前無法存取；你的已存版本與訂正仍保留。</p>}
 </>,
   };
-  return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} onEditMetadata={content.saved&&!readOnly?()=>setClassification(true):undefined} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
+  return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} onNext={onNext} onEditMetadata={content.saved&&!readOnly?()=>setClassification(true):undefined} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
     {classification&&content.saved&&<AppDialog title="修改題目分類" busy={busy} onClose={()=>setClassification(false)}>
       <PersonalTopicSelect id={`saved-topic-${content.saved.saved.id}`} value={topic} onChange={setTopic} disabled={busy}/>
       {content.saved.saved.classification_state==='failed'&&<button disabled={busy} onClick={()=>void act(async()=>{await libraryService.retryClassification(content.saved!.saved.id);setClassification(false);onChanged?.();})} className="mt-3 text-sm underline">重試自動分類</button>}
@@ -122,7 +122,7 @@ function WorkBody({content,onChanged,onRemoved,readOnly=false}:{content:WorkCont
   </div>;
 
 }
-export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,readOnly=false}:{readOnly?:boolean;kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onRemoved?:()=>void}) {
+export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,onNext,readOnly=false}:{readOnly?:boolean;kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onRemoved?:()=>void;onNext?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
   const [state,setState]=useState<{key:string;content?:WorkContent;error?:string}>({key:''});
   const [retry,setRetry]=useState(0);const key=`${account}:${kind}:${collectionId}:${id}`;
@@ -141,12 +141,12 @@ export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,readO
     if(state.key!==key||state.content?.saved?.saved.classification_state!=='pending'||polls.current>=10)return;
     const timer=setTimeout(()=>{polls.current++;setRetry(v=>v+1);},3000);return ()=>clearTimeout(timer);
   },[state,key]);
-  if(state.key!==key)return <p className="rounded-3xl border border-border-subtle bg-surface p-6 text-sm">載入題目作業中…</p>;
+  if(state.key!==key)return <p data-reader-loading="true" className="rounded-3xl border border-border-subtle bg-surface p-6 text-sm">載入題目作業中…</p>;
   if(!state.content)return <div role="alert" className="rounded-3xl border border-border-subtle bg-surface p-6 text-sm">
     {state.error}<button onClick={()=>setRetry(v=>v+1)} className="ml-3 text-primary underline">重試</button></div>;
   if(kind==='shared'&&!readOnly&&!state.content.shared?.capabilities.can_contribute)return <p className="p-6 text-sm">目前沒有此集合的共用書寫權限。</p>;
   if(readOnly)return <WorkPreview content={state.content}/>;
-  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} readOnly={readOnly} onRemoved={onRemoved} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
+  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} readOnly={readOnly} onNext={onNext} onRemoved={onRemoved} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
 }
 
 // A read-only result does not create an editor or attach its draft sync controller.

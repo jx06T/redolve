@@ -271,7 +271,7 @@ select:not([multiple]) {
 }
 
 [data-reader-loading="true"] {
-  min-height: max(0px, calc(var(--reader-reserved-height, 0px) - 1.25rem));
+  min-height: max(0px, calc(var(--reader-reserved-height, 0px) - 1.25rem - var(--reader-row-margin, 0px)));
 }
 a.underline, button.underline {
   color: var(--color-text-muted);

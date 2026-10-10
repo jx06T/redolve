@@ -30,6 +30,8 @@ def run():
     external_scroll = [False]
     link_co={**CO,'id':'c4','title':'持連結限定集','visibility':'link','is_owner':False,'role':'viewer','can_contribute':False}
     scroll_rows = [False]
+    work_scroll = [False]
+    work_progress = {}
     paging = [False]; fail_more = [True]; paging_archived = [False]
     def fixture(route):
       request = route.request
@@ -47,6 +49,11 @@ def run():
         items=[{'id':sid,'origin':'saved','title':'共用測試題','collection_id':None} for sid in saved] if source=='saved' else [
           {'id':'entry1','origin':'shared','collection_id':'c1','title':'共用測試題'}] if query.get('contributing') else [
           {'id':'owned1','origin':'owned','title':'自己上傳測試題','problem':{'id':'owned1','user_id':USER['id'],'source':'自己上傳測試題','image_url':'fixture','status':'unsolved','review_count':0,'keywords':'[]','draw_data':json.dumps(INK),'vector_clock':'{"seq":0}','notes_seq':0,'created_at':'2026-10-10T00:00:00Z'}}]
+        if work_scroll[0]:
+          origin='saved' if source=='saved' else 'shared' if query.get('contributing') else 'owned'
+          prefix={'saved':'ws','shared':'wsh','owned':'wo'}[origin]
+          items=[{'id':f'{prefix}{i}','origin':origin,'collection_id':'c1' if origin=='shared' else None,'title':f'回捲測試 {i}',
+                  'problem':{'id':f'{prefix}{i}','user_id':USER['id'],'source':f'回捲測試 {i}','image_url':'fixture','status':'unsolved','review_count':0,'keywords':'[]','draw_data':json.dumps(INK),'vector_clock':'{"seq":0}','created_at':'2026-10-10'}} for i in range(18)]
         if scroll_rows[0] and source=='owned':
           items=[{**items[0],'id':f'owned{i}','title':f'題目 {i}','problem':{**items[0]['problem'],'id':f'owned{i}','source':f'題目 {i}'}} for i in range(8)]
         if paging[0] and source=='owned':
@@ -84,6 +91,18 @@ def run():
       elif path == '/api/saved/inspect': result={'existing_id':None,'own_source':False}
       elif path == '/api/saved' and request.method == 'POST':
         saved.append('s1');result={'saved_id':'s1','status':'saved'}
+      elif work_scroll[0] and re.fullmatch(r'/api/saved/ws[0-9]+',path):
+        sid=path.split('/')[-1]
+        progress=work_progress.setdefault(sid,{'status':'unsolved','row_version':1,'review_count':0})
+        if request.method=='PATCH': progress.update({k:v for k,v in body.items() if k in ['status','review_count']});progress['row_version']+=1
+        result={'saved':{'id':sid,'entry_id':'e'+sid,'personal_topic_id':'math',**progress},'snapshot':{'source_title':sid,'collection_title':CO['title'],'provider_public_name':'老師'},'workspace':{'draw_asset_id':'ink','draw_seq':0,'typed_notes':'','notes_seq':0},'layers':[],'source':{'available':True},'row_version':progress['row_version']}
+      elif work_scroll[0] and re.fullmatch(r'/api/collections/c1/items/wsh[0-9]+/progress',path):
+        sid=path.split('/')[-2];progress=work_progress.setdefault(sid,{'status':'unsolved','row_version':0,'review_count':0,'previous_status':'unsolved'})
+        progress.update(status='resolved' if body['action']=='resolve' else 'archived',row_version=progress['row_version']+1)
+        result={'progress':progress}
+      elif work_scroll[0] and re.fullmatch(r'/api/collections/c1/items/wsh[0-9]+',path):
+        sid=path.split('/')[-1]
+        result={'collection':CO,'entry':{**ENTRY,'id':sid},'source':SOURCE,'layers':[], 'progress':work_progress.get(sid), 'capabilities':{'can_contribute':True,'can_save':True}}
       elif path == '/api/saved/s1': result={'saved':{'id':'s1','entry_id':'entry1','row_version':1,'status':'unsolved','personal_topic_id':'math'},'snapshot':{'source_title':'共用測試題','collection_title':CO['title'],'provider_public_name':'老師'},'workspace':{'draw_asset_id':None,'draw_seq':0,'typed_notes':'','notes_seq':0},'layers':[],'source':{'available':True}}
       elif path == '/api/collections/c1': result={'collection':CO,'items':[ENTRY],'next_cursor':None}
       elif path == '/api/collections/c1/items/entry1': result={'collection':CO,'entry':ENTRY,'source':SOURCE,'layers':[{'id':'layer1','user_id':'teacher','author_display':'老師','draw_asset_id':'ink1','draw_seq':0,'notes_seq':0,'typed_notes':'參考筆記'}],'capabilities':{'can_contribute':True,'can_save':True}}
@@ -316,6 +335,41 @@ def run():
     page.wait_for_timeout(850)
     assert stream.evaluate('(el)=>el.scrollTop')<2
     external_scroll[0]=False
+    # Nearby work cards/images survive reverse scroll; distant remounts reserve
+    # height during slow API loads. Offscreen work cards do not retain live canvas.
+    work_scroll[0]=True
+    page.add_init_script(r"""const workFetch=window.fetch;window.fetch=(...args)=>workFetch(...args).then(async response=>{if(/\/saved\/ws\d+$|\/collections\/c1\/items\/wsh\d+$/.test(String(args[0])))await new Promise(resolve=>setTimeout(resolve,500));return response;});""")
+    for source,prefix in [('saved','ws'),('contributing','wsh'),('owned','wo')]:
+      page.goto(BASE+f'/study?source={source}'+('&collection_id=c1' if source=='contributing' else ''))
+      page.wait_for_load_state('networkidle');page.wait_for_timeout(700)
+      stream=page.locator('[data-reader]');row=stream.locator('[data-index="0"]')
+      first_height=row.bounding_box()['height'];row.evaluate('(el)=>el.dataset.retained="yes"')
+      detail='/api/saved/ws0' if source=='saved' else '/api/collections/c1/items/wsh0'
+      before=sum(p==detail for _,p,_ in calls)
+      stream.evaluate('(el,y)=>el.scrollTop=y',first_height*2);page.wait_for_timeout(700)
+      expect(row).to_have_attribute('data-retained','yes')
+      expect(row.locator('canvas')).to_have_count(0)
+      stream.evaluate('(el)=>el.scrollTop=0');page.wait_for_timeout(150)
+      expect(row).to_have_attribute('data-retained','yes')
+      assert sum(p==detail for _,p,_ in calls)==before, 'Reverse scroll refetched a retained work card'
+      expect(page.get_by_role('button',name='完成當題訂正',exact=True)).to_be_visible()
+      stream.evaluate('(el)=>el.scrollTop=15000');page.wait_for_timeout(800)
+      expect(row).to_have_count(0)
+      stream.evaluate('(el)=>el.scrollTop=0');page.wait_for_timeout(100)
+      if source!='owned':
+        expect(row.locator('[data-reader-loading="true"]').first).to_be_attached()
+        assert abs(row.bounding_box()['height']-first_height)<2, {'source':source,'before':first_height,'loading':row.bounding_box()['height']}
+      page.wait_for_timeout(700)
+      assert stream.evaluate('(el)=>el.scrollTop')<2, f'{source} jumped when scrolling back'
+      card=row.locator('[data-problem-id]');footer=card.locator('button[aria-label="完成訂正"]').locator('..')
+      assert card.bounding_box()['x']+card.bounding_box()['width']-(footer.bounding_box()['x']+footer.bounding_box()['width'])<30
+      page.get_by_role('button',name='完成當題訂正',exact=True).click();page.wait_for_timeout(800)
+      assert stream.evaluate('(el)=>el.scrollTop')>first_height-100, f'{source} did not advance'
+      stream.evaluate('(el)=>el.scrollTop=0');page.wait_for_timeout(250)
+      expect(page.get_by_role('button',name='切換下一題',exact=True)).to_be_visible()
+      page.get_by_role('button',name='切換下一題',exact=True).click();page.wait_for_timeout(350)
+      assert stream.evaluate('(el)=>el.scrollTop')>first_height-100
+    work_scroll[0]=False
     # Entry links open a single read-only card; they do not subscribe or open an editor.
     page.goto(BASE+'/collections/c2/items/entry2');page.wait_for_load_state('networkidle')
     expect(page.get_by_role('img',name='共用測試題',exact=True)).to_have_count(1)
@@ -360,7 +414,8 @@ def run():
     expect(p.locator('header input')).to_have_count(0)
     toolbar=p.get_by_title('展開工具列',exact=True).locator('..').bounding_box()
     sources=p.locator('[data-study-sources]').bounding_box()
-    assert toolbar['y']+toolbar['height']<=sources['y'], 'Pen tools obscure floating source controls'
+    assert toolbar['y']>=sources['y']+sources['height'], 'Pen tools obscure floating source controls'
+    assert sources['y']<p.locator('[data-reader]').bounding_box()['y']+32, 'Sources should float at the top'
     p.locator('[data-reader]').evaluate('(el)=>el.scrollTop=el.scrollHeight');p.wait_for_timeout(200)
     expect(mobile_nav).to_be_visible()
     nav_box=mobile_nav.bounding_box();reader_box=p.locator('[data-reader]').bounding_box()

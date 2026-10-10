@@ -4,23 +4,24 @@ import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationKey } from '../services/navigationState';
 
-// Retain measurements only, never question content or permissions. Reloaded images
-// reserve their previous space until decoding, so virtualization cannot collapse a row.
+// Retain measurements across remounts, never content or permissions. Nearby cards
+// stay mounted so reversing scroll does not fetch/decode the same question again.
 const measuredRows=new Map<string,number>();
 
 export function QuestionStream<T extends {id:string;ids?:string[]}>({items,render,loadMore,hasMore,busy,focus,className,loadError=false,autoLoad=true}:{
-  items:T[];render:(item:T,index:number)=>ReactNode;loadMore:()=>void;hasMore:boolean;busy:boolean;focus?:string;className?:string;loadError?:boolean;autoLoad?:boolean;
+  items:T[];render:(item:T,index:number,onNext:()=>void)=>ReactNode;loadMore:()=>void;hasMore:boolean;busy:boolean;focus?:string;className?:string;loadError?:boolean;autoLoad?:boolean;
 }) {
   const parent=useRef<HTMLDivElement>(null);const location=useLocation();
   const historyKey=readerLocationKey(location);
   const account=useStore(s=>s.currentUser?.id||'guest');
   const positioned=useRef('');const guard=useRef(false);
+  const pendingNext=useRef<string|null>(null);
   const restoration=useRef<number[]>([]);const restoring=useRef(false);
   const match=useStore(s=>s.inPageMatches[s.inPageCurrentIndex]);
   const contains=(item:T,id:string)=>item.id===id||!!item.ids?.includes(id);
   const sizeKey=(id:string,width:number)=>JSON.stringify([account,historyKey,id,width]);
   const v=useVirtualizer({count:items.length,getScrollElement:()=>parent.current,
-    estimateSize:i=>measuredRows.get(sizeKey(items[i].id,parent.current?.clientWidth||0))||800,overscan:0,getItemKey:i=>items[i].id,
+    estimateSize:i=>measuredRows.get(sizeKey(items[i].id,parent.current?.clientWidth||0))||800,overscan:4,getItemKey:i=>items[i].id,
     measureElement:element=>{
       const height=element.getBoundingClientRect().height;
       const index=Number(element.getAttribute('data-index'));const item=items[index];
@@ -52,6 +53,27 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   useEffect(()=>()=>restoration.current.forEach(clearTimeout),[historyKey]);
   useEffect(()=>{if(!busy)guard.current=false;},[busy,items.length,historyKey]);
   const requestMore=()=>{if(!hasMore||busy||guard.current)return;guard.current=true;loadMore();};
+  const rows=v.getVirtualItems();
+  const syncActive=()=>{
+    if(!location.pathname.startsWith('/study'))return;
+    const row=v.getVirtualItems().find(r=>r.end>(parent.current?.scrollTop||0)+Math.min(100,(parent.current?.clientHeight||0)/4));
+    if(row&&useStore.getState().activeProblemId!==items[row.index].id)useStore.getState().setActiveProblemId(items[row.index].id);
+  };
+  useEffect(syncActive,[rows,items,location.pathname]);
+  const advance=(id:string)=>{
+    stopRestoration();
+    const index=items.findIndex(item=>contains(item,id));
+    if(index>=0&&index+1<items.length){v.scrollToIndex(index+1,{align:'start'});return;}
+    if(hasMore&&!loadError){pendingNext.current=id;requestMore();}
+    else useStore.getState().showToast(loadError?'請先重試載入更多題目':'已到目前清單的最後一題');
+  };
+  useEffect(()=>{pendingNext.current=null;},[historyKey]);
+  useEffect(()=>{
+    const id=pendingNext.current;if(!id)return;
+    const index=items.findIndex(item=>contains(item,id));
+    if(index>=0&&index+1<items.length){pendingNext.current=null;v.scrollToIndex(index+1,{align:'start'});}
+    else if(!busy&&!hasMore)pendingNext.current=null;
+  },[items,busy,hasMore,v]);
   useEffect(()=>{
     if(!match?.startsWith('stream:'))return;const index=items.findIndex(i=>contains(i,match.slice(7)));
     if(index>=0)v.scrollToIndex(index,{align:'start'});
@@ -60,6 +82,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     onWheel={stopRestoration} onTouchStart={stopRestoration} onPointerDown={stopRestoration}
     onScroll={e=>{
       const el=e.currentTarget;
+      syncActive();
       if(!restoring.current){rememberScroll(account,historyKey,el.scrollTop);
         const row=v.getVirtualItems().find(r=>r.end>el.scrollTop);if(row)rememberAnchor(account,historyKey,items[row.index].id,el.scrollTop-row.start);}
       if(autoLoad&&!loadError&&el.scrollHeight-el.scrollTop-el.clientHeight<700)requestMore();
@@ -68,7 +91,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     <div className="relative w-full" style={{height:v.getTotalSize()}}>
       {v.getVirtualItems().map(row=><div key={row.key} ref={v.measureElement} data-index={row.index}
         className="absolute left-0 top-0 w-full pb-5" style={{transform:`translateY(${row.start}px)`,'--reader-reserved-height':`${measuredRows.get(sizeKey(items[row.index].id,parent.current?.clientWidth||0))||0}px`} as React.CSSProperties}>
-        {render(items[row.index],row.index)}</div>)}
+        {render(items[row.index],row.index,()=>advance(items[row.index].id))}</div>)}
     </div>
     {hasMore&&<div className="flex justify-center py-6"><button type="button" disabled={busy} onClick={requestMore}
       className="rounded-xl border border-border-subtle bg-surface px-6 py-3 text-sm text-primary hover:bg-neutral-100 disabled:opacity-50">{busy?'載入中…':loadError?'重試載入更多':'載入更多題目'}</button></div>}

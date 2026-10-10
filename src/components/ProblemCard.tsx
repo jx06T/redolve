@@ -9,6 +9,7 @@ import { ProblemCardHeader } from './problem/ProblemCardHeader';
 import { ProblemCardWorkspace } from './problem/ProblemCardWorkspace';
 import { ProblemCardScratchpadControls } from './problem/ProblemCardScratchpadControls';
 import { ProblemCardFooter } from './problem/ProblemCardFooter';
+import { SmartCTA } from './SmartCTA';
 
 import {
   getProblemImageUrl,
@@ -36,6 +37,7 @@ interface ProblemCardProps {
   onDeleted?: (problemId: string) => void;
   onChanged?: () => void;
   streamSearch?: boolean;
+  onNext?: () => void;
   memberships?: {entry_id:string;collection_id:string;title:string;state:string;
     lifecycle:string;visibility:string}[];
 }
@@ -49,7 +51,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   onDeleted,
   onChanged,
   streamSearch = false,
-  memberships = [],work,onAddToCollection,
+  memberships = [],work,onAddToCollection,onNext,
 }) => {
   const {
     tool,
@@ -93,6 +95,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const [isReloading, setIsReloading] = useState<boolean>(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [reloadVersion, setReloadVersion] = useState<number>(0);
+  const [readyImage, setReadyImage] = useState<string>('');
 
   const getInitialCalcSpaceHeight = useCallback(() => {
     if (problem.draw_data) {
@@ -229,13 +232,14 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   },[work?problem.draw_data:null]);
 
   const handleToggleStatus = async () => {
-    if(readOnly)return;
-    if(work){try{await work.toggleStatus();onChanged?.();}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');}return;}
+    if(readOnly)return false;
+    if(work){try{await work.toggleStatus();onChanged?.();return true;}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');return false;}}
     const nextStatus = await toggleStatus(problem);onChanged?.();
     setIsResolved(nextStatus === 'resolved');
     if (nextStatus === 'resolved' && onStatusResolved) {
       onStatusResolved(problem.id);
     }
+    return nextStatus === 'resolved';
   };
 
   const handleToggleArchive = async () => {
@@ -400,7 +404,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const problemCode = formatProblemCode(problem, taxonomies);
 
   return (
-    <div className="space-y-4 mb-6">
+    <div data-reader-loading={readyImage !== imageUrl} style={{'--reader-row-margin':'1.5rem'} as React.CSSProperties} className="space-y-4 mb-6">
+      {onNext&&isActive&&!readOnly&&<SmartCTA action={{resolved:isResolved,disabled:problem.status==='archived',run:async()=>{
+        if(isResolved||await handleToggleStatus())onNext();
+      }}}/>}
       {/* Visual Divider & Problem Code Header */}
       {problemIndex !== undefined && (
         <div className="flex items-center space-x-3 text-text-muted my-2 select-none">
@@ -462,6 +469,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
           imageUrl={imageUrl}
+          onImageReady={() => setReadyImage(imageUrl)}
           drawData={problem.draw_data}
           referenceLayers={work?.references}
           calcSpaceHeight={calcSpaceHeight}
