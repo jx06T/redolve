@@ -1,7 +1,7 @@
 # 題庫頁面與導覽重整提案
 
 更新：2026-10-10
-狀態：已依本規格完成本機實作與驗證；實作進度、驗證範圍及發布待辦見 [UI_UX_IMPLEMENTATION_2026-10-10.md](UI_UX_IMPLEMENTATION_2026-10-10.md)。尚未推送或部署。
+狀態：本版已實作並部署；實作與部署證據見 [UI_UX_IMPLEMENTATION_2026-10-10.md](UI_UX_IMPLEMENTATION_2026-10-10.md)。使用者部署後回饋提出頁面修正，最新規劃見 [UI_UX_STUDY_RESTORE_2026-10-10.md](UI_UX_STUDY_RESTORE_2026-10-10.md)，其對應頁面／入口決策優先。
 範圍：頁面責任、入口、題目來源、操作、狀態、抽象分層與驗收。0003 欄位與實際發布流程見 [UI_UX_RELEASE_2026-10-10.md](UI_UX_RELEASE_2026-10-10.md)。
 
 閱讀約定：
