@@ -215,7 +215,7 @@ export const FloatingPenToolbar: React.FC = () => {
             ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
             : 'text-text-main hover:bg-neutral-100 '
             }`}
-          title="鋼筆"
+          title="鋼筆（P）"
         >
           <PenTool className="w-4 h-4" />
         </button>
@@ -227,7 +227,7 @@ export const FloatingPenToolbar: React.FC = () => {
             ? 'bg-primary/10 text-primary font-bold ring-1 ring-primary/30'
             : 'text-text-main hover:bg-neutral-100 '
             }`}
-          title="螢光筆"
+          title="螢光筆（H）"
         >
           <Highlighter className="w-4 h-4" />
         </button>
@@ -239,7 +239,7 @@ export const FloatingPenToolbar: React.FC = () => {
             ? 'bg-status-eraser/10 text-status-eraser font-bold ring-1 ring-status-eraser/30'
             : 'text-text-main hover:bg-neutral-100 '
             }`}
-          title="橡皮擦 (局部向量擦除)"
+          title="橡皮擦（E，局部向量擦除）"
         >
           <Eraser className="w-4 h-4" />
         </button>
@@ -254,7 +254,7 @@ export const FloatingPenToolbar: React.FC = () => {
         }
       >
         {/* 前 5 個固定顏色 */}
-        {paletteColors.slice(0, 5).map((c) => (
+        {paletteColors.slice(0, 5).map((c, index) => (
           <button
             key={c.hex}
             onClick={() => {
@@ -267,7 +267,7 @@ export const FloatingPenToolbar: React.FC = () => {
               : 'hover:scale-110'
               }`}
             style={{ backgroundColor: c.hex }}
-            title={c.name || c.hex}
+            title={`${c.name || c.hex}（${index + 1}）`}
           />
         ))}
 
@@ -324,6 +324,7 @@ export const FloatingPenToolbar: React.FC = () => {
             key={w}
             onClick={() => setPenWidth(w)}
             aria-label={`選取筆觸粗細 ${w} pt`}
+            title={`${w} pt（[ / ] 調整筆寬）`}
             className={`w-7 h-7 rounded-full text-[11px] flex items-center justify-center active:scale-95 transition-all ${penWidth === w
               ? 'bg-primary text-white font-bold'
               : 'text-text-main hover:bg-neutral-100 '

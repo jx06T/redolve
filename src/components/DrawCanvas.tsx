@@ -4,6 +4,7 @@ import { DrawData, Stroke, EraserMask } from '../types';
 import { useStore } from '../store/useStore';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 import { getStrokeOptions } from '../utils/strokeOptions';
+import { activateDrawingCanvas, registerDrawingCommands } from '../services/drawingCommands';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -114,7 +115,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const [isHoveringEraser, setIsHoveringEraser] = useState<boolean>(false);
   const [isErasingLive, setIsErasingLive] = useState<boolean>(false);
 
-  const redoStackRef = useRef<Stroke[]>([]);
+  type Snapshot = {strokes: Stroke[]; eraserMasks: EraserMask[]};
+  const undoStackRef = useRef<Snapshot[]>([]);
+  const redoStackRef = useRef<Snapshot[]>([]);
+  const erasingStartRef = useRef<Snapshot | null>(null);
+  const drawingActiveRef = useRef(false);
   const gestureTimerRef = useRef<number | null>(null);
   const pendingTouchCountRef = useRef<number>(0);
 
@@ -148,6 +153,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     if (currentJson && currentJson !== lastSavedDataJsonRef.current) {
       lastSavedDataJsonRef.current = currentJson;
       const parsed = parseDrawData(initialDrawData);
+      undoStackRef.current = [];
+      redoStackRef.current = [];
       setStrokes(parsed.strokes);
       setEraserMasks(parsed.eraserMasks);
       if (parsed.baseWidth) {
@@ -227,10 +234,39 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     [onSaveDrawData]
   );
 
-  // Two-Finger Undo Listener (Bimanual Spring Eraser & Stylus Safe)
+  const rememberChange = (snapshot: Snapshot) => {
+    undoStackRef.current = [...undoStackRef.current.slice(-99), snapshot];
+    redoStackRef.current = [];
+  };
+  const changeHistory = (direction: 'undo' | 'redo') => {
+    if(readOnly || !inkVisible || drawingActiveRef.current)return false;
+    const current = {strokes: strokesRef.current, eraserMasks: eraserMasksRef.current};
+    const from = direction==='undo'?undoStackRef:redoStackRef;
+    const to = direction==='undo'?redoStackRef:undoStackRef;
+    // Keep the existing gesture's ability to remove previously saved strokes.
+    const next = from.current.pop() || (direction==='undo' && current.strokes.length
+      ? {...current, strokes: current.strokes.slice(0,-1)} : undefined);
+    if(!next)return false;
+    to.current = [...to.current.slice(-99), current];
+    strokesRef.current = next.strokes;
+    eraserMasksRef.current = next.eraserMasks;
+    setStrokes(next.strokes); setEraserMasks(next.eraserMasks);
+    emitSave(next.strokes, next.eraserMasks);
+    return true;
+  };
+  const historyRef = useRef(changeHistory); historyRef.current = changeHistory;
+  useEffect(()=>{
+    const element=containerRef.current;
+    if(!element || !isVisible || readOnly || !inkVisible)return;
+    return registerDrawingCommands(element, {
+      undo:()=>historyRef.current('undo'), redo:()=>historyRef.current('redo'),
+    });
+  },[isVisible,readOnly,inkVisible]);
+
+  // Keyboard and touch gestures operate on the same vector history.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || readOnly) return;
+    if (!container || readOnly || !inkVisible) return;
 
     const handleTouchStart = (e: TouchEvent) => {
       const touchList = Array.from(e.touches);
@@ -250,8 +286,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
       if (count >= 2 && count <= 3) {
         e.preventDefault();
+        if(erasingStartRef.current && hasErasedChangeRef.current)rememberChange(erasingStartRef.current);
+        erasingStartRef.current = null;
         isMultiTouchGestureRef.current = true;
         setIsDrawing(false);
+        drawingActiveRef.current = false;
         setCurrentPoints([]);
         isErasingRef.current = false;
         setIsErasingLive(false);
@@ -270,27 +309,9 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           if (now - lastUndoTimestampRef.current <= 350) return;
           lastUndoTimestampRef.current = now;
 
-          if (finalCount === 2) {
-            // 復原
-            if (strokesRef.current.length > 0) {
-              const popped = strokesRef.current[strokesRef.current.length - 1];
-              const next = strokesRef.current.slice(0, -1);
-              redoStackRef.current = [...redoStackRef.current, popped];
-              setStrokes(next);
-              strokesRef.current = next;
-              emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
-            }
-          } else if (finalCount === 3) {
-            // 重做
-            if (redoStackRef.current.length > 0) {
-              const restored = redoStackRef.current[redoStackRef.current.length - 1];
-              redoStackRef.current = redoStackRef.current.slice(0, -1);
-              const next = [...strokesRef.current, restored];
-              setStrokes(next);
-              strokesRef.current = next;
-              emitSave(next, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
-            }
-          }
+          activateDrawingCanvas(container);
+          if(finalCount===2)historyRef.current('undo');
+          else if(finalCount===3)historyRef.current('redo');
         }, 50);
       } else if (count > 3) {
         isMultiTouchGestureRef.current = true;
@@ -323,7 +344,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         window.clearTimeout(gestureTimerRef.current);
       }
     };
-  }, [readOnly, isEraserActive, emitSave, allowTouchDrawing]);
+  }, [readOnly, inkVisible, isEraserActive, allowTouchDrawing]);
 
   // Partial Vector Stroke Eraser: splits stroke into sub-strokes around the eraser circle
   const lastErasePosRef = useRef<{ x: number; y: number } | null>(null);
@@ -534,6 +555,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    if(containerRef.current)activateDrawingCanvas(containerRef.current);
+    drawingActiveRef.current = true;
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -554,6 +577,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     }
 
     if (isEffectiveEraser) {
+      erasingStartRef.current = {strokes: strokesRef.current, eraserMasks: eraserMasksRef.current};
       isErasingRef.current = true;
       setIsErasingLive(true);
       setEraserCursorPos({ x, y });
@@ -599,6 +623,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    drawingActiveRef.current = false;
     try {
       if (e.currentTarget.hasPointerCapture(e.pointerId)) {
         e.currentTarget.releasePointerCapture(e.pointerId);
@@ -616,10 +641,11 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     if (isErasingRef.current) {
       isErasingRef.current = false;
       if (hasErasedChangeRef.current) {
+        if(erasingStartRef.current)rememberChange(erasingStartRef.current);
         emitSave(strokesRef.current, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
-        redoStackRef.current = [];
         hasErasedChangeRef.current = false;
       }
+      erasingStartRef.current = null;
       return;
     }
 
@@ -651,14 +677,22 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
       };
 
       const nextStrokes = [...strokesRef.current, newStroke];
+      rememberChange({strokes: strokesRef.current, eraserMasks: eraserMasksRef.current});
+      strokesRef.current = nextStrokes;
       setStrokes(nextStrokes);
       setCurrentPoints([]);
-      redoStackRef.current = [];
       emitSave(nextStrokes, eraserMasksRef.current, canvasHeightRef.current, canvasWidthRef.current);
     }
   };
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    drawingActiveRef.current = false;
+    if(erasingStartRef.current && hasErasedChangeRef.current) {
+      rememberChange(erasingStartRef.current);
+      emitSave(strokesRef.current, eraserMasksRef.current);
+    }
+    erasingStartRef.current = null;
+    hasErasedChangeRef.current = false;
     try {
       if (e.currentTarget.hasPointerCapture(e.pointerId)) {
         e.currentTarget.releasePointerCapture(e.pointerId);

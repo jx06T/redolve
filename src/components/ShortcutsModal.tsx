@@ -1,124 +1,46 @@
-import React, { useEffect } from 'react';
-import { X, Command, PenTool, Eraser, Palette, CheckCircle2, Moon, HelpCircle } from 'lucide-react';
+import type { FC } from 'react';
+import { PenTool, Highlighter, Eraser, Palette, CheckCircle2, Moon, HelpCircle, Undo2, Redo2, X } from 'lucide-react';
+import { AppDialog } from './AppDialog';
+import { useStore } from '../store/useStore';
 
-interface ShortcutsModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export const ShortcutsModal: React.FC<ShortcutsModalProps> = ({ isOpen, onClose }) => {
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const shortcutGroups = [
-    {
-      title: '手寫與繪圖工具 (Drawing Tools)',
-      items: [
-        { key: 'P', desc: '切換為 鋼筆 (Pen)', icon: PenTool },
-        { key: 'H', desc: '切換為 螢光筆 (Highlighter)', icon: PenTool },
-        { key: 'E', desc: '切換為 橡皮擦 (Eraser)', icon: Eraser },
-        { key: '1 ~ 4', desc: '切換筆觸預設顏色 (黑 / 靛藍 / 玫紅 / 蔚藍)', icon: Palette },
-        { key: '[  /  ]', desc: '縮小 / 放大筆觸粗細 (1px / 2px / 4px)', icon: PenTool },
-      ],
-    },
-    {
-      title: '刷題與訂正推進 (Study & Review)',
-      items: [
-        { key: 'Cmd / Ctrl + Enter', desc: '標記當前題目為完成訂正並推進下一題', icon: CheckCircle2 },
-        { key: '雙指輕觸畫布', desc: '復原上一步筆跡 (Undo Gesture)', icon: Command },
-        { key: '三指輕觸畫布', desc: '重做上一步筆跡 (Redo Gesture)', icon: Command },
-        { key: '左下角長按 FAB', desc: '彈簧橡皮擦 (放開即刻切回鋼筆)', icon: Eraser },
-      ],
-    },
-    {
-      title: '系統與快速操作 (System & Shortcuts)',
-      items: [
-        { key: 'Cmd / Ctrl + D', desc: '切換深淺色模式', icon: Moon },
-        { key: '?', desc: '開啟 / 關閉此快捷鍵指南', icon: HelpCircle },
-        { key: 'Esc', desc: '關閉目前開啟的彈出視窗', icon: X },
-      ],
-    },
+export const ShortcutsModal: FC<{isOpen:boolean;onClose:()=>void}> = ({isOpen,onClose}) => {
+  const colorCount=useStore(state=>Math.min(5,state.paletteColors.length));
+  if(!isOpen)return null;
+  const apple=/Mac|iPad|iPhone/i.test(navigator.platform);
+  const modifier=apple?'Cmd':'Ctrl';
+  const groups=[
+    {title:'手寫與繪圖',items:[
+      {key:'P',desc:'鋼筆',icon:PenTool},
+      {key:'H',desc:'螢光筆',icon:Highlighter},
+      {key:'E',desc:'橡皮擦',icon:Eraser},
+      {key:colorCount>1?`1 – ${colorCount}`:'1',desc:'依工具列順序選取預設顏色',icon:Palette},
+      {key:'[ / ]',desc:'減小／增大筆寬（1、2、4 pt）',icon:PenTool},
+      {key:`${modifier} + Z`,desc:'復原筆跡或橡皮擦操作',icon:Undo2},
+      {key:`${modifier} + Shift + Z`,desc:'重做筆跡或橡皮擦操作',icon:Redo2},
+      ...(!apple?[{key:'Ctrl + Y',desc:'重做（另一組按鍵）',icon:Redo2}]:[]),
+    ]},
+    {title:'訂正與觸控手勢',items:[
+      {key:`${modifier} + Enter`,desc:'完成當題訂正並前往下一題；已訂正時直接下一題',icon:CheckCircle2},
+      {key:'雙指輕觸畫布',desc:'復原畫布操作',icon:Undo2},
+      {key:'三指輕觸畫布',desc:'重做畫布操作',icon:Redo2},
+    ]},
+    {title:'系統操作',items:[
+      {key:`${modifier} + D`,desc:'切換深淺色模式',icon:Moon},
+      {key:'?（Shift + /）',desc:'開啟／關閉快捷鍵指南',icon:HelpCircle},
+      {key:'Esc',desc:'關閉支援 Esc 的對話框或檢視器',icon:X},
+    ]},
   ];
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 select-none animate-in fade-in-50 duration-200">
-      <div className="bg-surface border border-border-subtle rounded-3xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="shrink-0 px-6 py-4 border-b border-border-subtle flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-primary/10 text-primary rounded-2xl">
-              <Command className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-text-main">
-                iPad 外接鍵盤 & 桌面快捷鍵指南
-              </h3>
-              <p className="text-[11px] text-text-muted">
-                支援 iPad Magic Keyboard 與外接藍牙鍵盤高效操作
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted transition-colors"
-            title="關閉 (Esc)"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4 space-y-5">
-          {shortcutGroups.map((group, gIdx) => (
-            <div key={gIdx} className="space-y-2">
-              <h4 className="text-xs font-bold text-text-muted tracking-wider">
-                {group.title}
-              </h4>
-              <div className="space-y-1.5">
-                {group.items.map((item, iIdx) => {
-                  const Icon = item.icon;
-                  return (
-                    <div
-                      key={iIdx}
-                      className="flex items-center justify-between p-2.5 rounded-2xl bg-neutral-50 border border-border-subtle"
-                    >
-                      <div className="flex items-center space-x-2.5">
-                        <Icon className="w-4 h-4 text-primary shrink-0" />
-                        <span className="text-xs text-text-main font-medium">
-                          {item.desc}
-                        </span>
-                      </div>
-                      <kbd className="px-2.5 py-1 rounded-xl bg-surface border border-border-subtle text-[11px] font-mono font-bold text-text-main shadow-2xs">
-                        {item.key}
-                      </kbd>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer */}
-        <div className="shrink-0 px-6 py-3 bg-neutral-50 border-t border-border-subtle flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium bg-primary text-white hover:bg-primary-hover transition-colors"
-          >
-            我知道了
-          </button>
-        </div>
-      </div>
+  return <AppDialog title="快捷鍵與手勢" onClose={onClose}>
+    <p className="mb-4 text-xs leading-relaxed text-text-muted">Mac／iPad 使用 Cmd；Windows／Linux 使用 Ctrl。繪圖快捷鍵作用於最近操作的可見畫布，未操作畫布時使用目前題目。輸入筆記時，復原／重做由文字欄位處理。</p>
+    <div className="space-y-5">
+      {groups.map(group=><section key={group.title} className="space-y-2">
+        <h3 className="text-sm font-semibold">{group.title}</h3>
+        <dl className="space-y-2">{group.items.map(item=><div key={item.key} className="grid min-w-0 gap-2 rounded-2xl border border-border-subtle bg-page-bg p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+          <dt className="flex min-w-0 items-start gap-2 text-xs leading-relaxed"><item.icon aria-hidden="true" size={16} className="shrink-0 text-text-muted"/>{item.desc}</dt>
+          <dd className="min-w-0 justify-self-end"><kbd className="inline-block max-w-full break-words rounded-xl border border-border-subtle bg-surface px-2.5 py-1 font-mono text-xs">{item.key}</kbd></dd>
+        </div>)}</dl>
+      </section>)}
     </div>
-  );
+    <div className="mt-5 flex justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-xl bg-primary/10 px-4 py-2 text-sm text-primary">關閉指南</button></div>
+  </AppDialog>;
 };

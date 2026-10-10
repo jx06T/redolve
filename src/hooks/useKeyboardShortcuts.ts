@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/useStore';
-import { PEN_COLORS, PEN_WIDTHS } from '../config/constants';
+import { PEN_WIDTHS } from '../config/constants';
+import { hasDrawingCanvas, runDrawingCommand, STUDY_ADVANCE_EVENT } from '../services/drawingCommands';
 
 interface KeyboardShortcutsOptions {
   onToggleShortcutsModal?: () => void;
@@ -8,87 +9,61 @@ interface KeyboardShortcutsOptions {
 }
 
 export function useKeyboardShortcuts(options?: KeyboardShortcutsOptions) {
-  const {
-    setTool,
-    setPenColor,
-    setPenWidth,
-    penWidth,
-    showToast,
-    toggleDarkMode,
-  } = useStore();
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const activeEl = document.activeElement;
-      const isInput =
-        activeEl instanceof HTMLInputElement ||
-        activeEl instanceof HTMLTextAreaElement ||
-        activeEl instanceof HTMLSelectElement ||
-        (activeEl as HTMLElement)?.isContentEditable;
-
-      // Allow Escape even in inputs
-      if (e.key === 'Escape') {
+  const optionsRef=useRef(options); optionsRef.current=options;
+  useEffect(()=>{
+    const handleKeyDown=(event:KeyboardEvent)=>{
+      if(event.defaultPrevented || event.isComposing || event.keyCode===229)return;
+      const typing=(element:EventTarget|null)=>element instanceof Element && !!element.closest(
+        'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]');
+      if(typing(event.target)||typing(document.activeElement))return;
+      const key=event.key.toLowerCase();
+      const modifier=event.metaKey||event.ctrlKey;
+      const state=useStore.getState();
+      if(!modifier && !event.altKey && (key==='?' || event.shiftKey && key==='/')) {
+        if(!event.repeat && optionsRef.current?.onToggleShortcutsModal) {
+          event.preventDefault(); optionsRef.current.onToggleShortcutsModal();
+        }
         return;
       }
-
-      if (isInput) return;
-
-      // Handle shortcuts
-      const key = e.key.toLowerCase();
-
-      // Tool Switching
-      if (key === 'p' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        setTool('pen');
-      } else if (key === 'h' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        setTool('highlighter');
-      } else if (key === 'e' && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        e.preventDefault();
-        setTool('eraser');
+      // Modal controls and text fields retain their own keyboard behavior.
+      if(document.querySelector('[role="dialog"][aria-modal="true"]'))return;
+      if(modifier && !event.altKey && (key==='z' || key==='y' && event.ctrlKey && !event.metaKey && !event.shiftKey)) {
+        const direction=key==='y'||event.shiftKey?'redo':'undo';
+        if(runDrawingCommand(direction,state.activeProblemId))event.preventDefault();
+        return;
       }
-      // Color Presets (1-4)
-      else if (['1', '2', '3', '4'].includes(e.key) && !e.metaKey && !e.ctrlKey) {
-        e.preventDefault();
-        const colorIndex = parseInt(e.key, 10) - 1;
-        if (PEN_COLORS[colorIndex]) {
-          setPenColor(PEN_COLORS[colorIndex]);
+      if(modifier && !event.altKey && !event.shiftKey && key==='enter') {
+        if(event.repeat)return;
+        if(optionsRef.current?.onResolveActiveProblem) {
+          event.preventDefault(); optionsRef.current.onResolveActiveProblem();
+        } else {
+          const advance=new Event(STUDY_ADVANCE_EVENT,{cancelable:true});
+          window.dispatchEvent(advance);
+          if(advance.defaultPrevented)event.preventDefault();
         }
+        return;
       }
-      // Stroke Width Presets ([ or ])
-      else if (e.key === '[') {
-        e.preventDefault();
-        const currentIdx = PEN_WIDTHS.indexOf(penWidth);
-        const nextIdx = Math.max(0, currentIdx - 1);
-        setPenWidth(PEN_WIDTHS[nextIdx]);
-      } else if (e.key === ']') {
-        e.preventDefault();
-        const currentIdx = PEN_WIDTHS.indexOf(penWidth);
-        const nextIdx = Math.min(PEN_WIDTHS.length - 1, currentIdx + 1);
-        setPenWidth(PEN_WIDTHS[nextIdx]);
+      if(modifier && !event.altKey && !event.shiftKey && key==='d') {
+        if(!event.repeat){event.preventDefault();state.toggleDarkMode();}
+        return;
       }
-      // Dark Mode (Cmd+D or Alt+D)
-      else if ((e.metaKey || e.ctrlKey) && key === 'd') {
-        e.preventDefault();
-        toggleDarkMode();
-      }
-      // Help Modal (? or Shift+/)
-      else if (e.key === '?' || (e.shiftKey && e.key === '/')) {
-        e.preventDefault();
-        if (options?.onToggleShortcutsModal) {
-          options.onToggleShortcutsModal();
+      if(modifier || event.altKey || event.shiftKey || !hasDrawingCanvas())return;
+      const tools={p:'pen',h:'highlighter',e:'eraser'} as const;
+      if(key in tools) {
+        event.preventDefault();state.setTool(tools[key as keyof typeof tools]);
+      } else if(/^[1-5]$/.test(key)) {
+        const color=state.paletteColors[Number(key)-1];
+        if(color){
+          event.preventDefault();state.setPenColor(color.hex);
+          if(state.tool==='eraser')state.setTool('pen');
         }
-      }
-      // Smart Resolve (Cmd+Enter or Ctrl+Enter)
-      else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        if (options?.onResolveActiveProblem) {
-          options.onResolveActiveProblem();
-        }
+      } else if(key==='[' || key===']') {
+        event.preventDefault();
+        const index=PEN_WIDTHS.indexOf(state.penWidth);
+        state.setPenWidth(PEN_WIDTHS[Math.max(0,Math.min(PEN_WIDTHS.length-1,index+(key==='['?-1:1)))]);
       }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setTool, setPenColor, setPenWidth, penWidth, showToast, toggleDarkMode, options]);
+    window.addEventListener('keydown',handleKeyDown);
+    return ()=>window.removeEventListener('keydown',handleKeyDown);
+  },[]);
 }
