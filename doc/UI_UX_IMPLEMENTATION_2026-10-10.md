@@ -38,6 +38,7 @@
 | 筆記已儲存後被舊讀取覆蓋 | 只接受較新的欄位 seq，pending／衝突作業保留；雲端採用須明確確認。 |
 | 筆跡有推導區卻在閱讀頁被裁掉 | 唯讀參考層依原座標寬度與推導高度保留展示空間，不改原筆跡。 |
 | migration 腳本 npx 無法啟動 | 單元素陣列經 if 賦值降為字串，splat 將 wrangler 拆成逐字參數；明確使用 string[]，預設優先專案 Node CLI，輸出三項 schema 指標；PowerShell 腳本使用 UTF-8 BOM，避免 Windows PowerShell 5.1 誤讀中文造成解析失敗。 |
+| migration 首次查詢失敗卻没有真正錯誤輸出 | 原 --json stdout 收進變數後被通用例外遮蔽；統一擷取 stdout／stderr，失敗顯示原始輸出及退出碼，新增 -CheckOnly 唯讀診斷。使用者此次正式查詢失敗的根因仍待原始輸出，尚不宣稱已修復正式連線。 |
 
 ## 驗證證據（2026-10-10）
 
@@ -49,6 +50,7 @@
 - SQLite：sharing-schema 六項＋reader-migration 一項，7 tests 通過；舊資料保留、預設值及 CHECK 限制確認。
 - PowerShell：先前六種替身情境未檢查 CLI 參數邊界，漏掉 scalar splat 啟動錯誤；已改為逐參數驗證。npx／local／預設 auto 共 33 個情境，在 PowerShell 7 與 Windows PowerShell 5.1 均通過：未套用／兩種部分套用／已套用／bookmark 失敗／sharing 表缺失／CLI 查詢失敗／JSON success=false／異常計數／第二欄失敗及重試。CLI 替身，零正式查詢；重新注入原錯誤確認測試確實失敗。
 - Wrangler 本機啟動：Node＋相同 string[] 參數展開執行 --version，成功回傳 4.120.0；僅檢查 CLI 啟動，未呼叫正式 D1。
+- Native Node 程序：reader-release-native.test.ps1 五項，在 PowerShell 7／Windows PowerShell 5.1 均通過。驗證 JSON 錯誤 stdout、stderr 非零退出、非致命 stderr 不破壞 JSON、無效 JSON、唯讀模式恰好一個 schema 查詢且不執行 DDL；PS7 開啟 native error preference 仍可保留診斷。程序使用 fixture，不啟動 Wrangler、不呼叫 Cloudflare。
 - Python Playwright＋本機 Edge：桌面與 iPhone 尺寸流程通過。
   - 三來源、歸屬標記、封存不跳卡、私人與共用筆記路徑、離開後儲存、返回集合／筆記／捲動位置。
   - 星號不存入、存入後綠色題流可找回、Switch 文案不切換、跨分類保留選取及僅重試失敗題、應用內刪除確認。

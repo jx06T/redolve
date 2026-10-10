@@ -1,5 +1,8 @@
 ﻿# Run from the repository root. Adds only missing columns; never reapplies 0001/0002.
-param([ValidateSet('auto','npx','local')][string]$WranglerMode='auto')
+param(
+    [ValidateSet('auto','npx','local')][string]$WranglerMode='auto',
+    [switch]$CheckOnly
+)
 $ErrorActionPreference = 'Stop'
 $readerLocalCli = './node_modules/wrangler/bin/wrangler.js'
 if ($WranglerMode -eq 'auto') {
@@ -13,16 +16,47 @@ $readerCli = if($WranglerMode -eq 'local'){'node'}else{'npx'}
 [string[]]$readerCliArgs = if($WranglerMode -eq 'local'){@($readerLocalCli)}else{@('wrangler')}
 Write-Output "Wrangler 啟動方式：$WranglerMode"
 $readerCheckSql = (Get-Content -LiteralPath './scripts/reader-ux-schema.sql' -Encoding UTF8) -join ' '
+function Show-ReaderDiagnostic([string]$Output) {
+    Write-Host 'Wrangler 原始輸出：'
+    if ([string]::IsNullOrWhiteSpace($Output)) { Write-Host '(沒有輸出)' }
+    else { Write-Host $Output }
+}
+function Invoke-ReaderWrangler([string[]]$CommandArgs, [string]$FailureMessage) {
+    # Native stderr must not abort capture in Windows PowerShell 5.1, or PS7
+    # sessions with PSNativeCommandUseErrorActionPreference enabled.
+    $readerPreviousErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $PSNativeCommandUseErrorActionPreference = $false
+        $readerLines = @(& $readerCli @readerCliArgs @CommandArgs 2>&1)
+        $readerExitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $readerPreviousErrorAction }
+    $readerAllOutput = ($readerLines | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    if ($readerExitCode -ne 0) {
+        Show-ReaderDiagnostic $readerAllOutput
+        throw "$FailureMessage（Wrangler exit code: $readerExitCode）"
+    }
+    $readerStderr = @($readerLines | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+    if ($readerStderr.Count -gt 0) { Show-ReaderDiagnostic (($readerStderr | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine) }
+    return ($readerLines | Where-Object { $_ -isnot [System.Management.Automation.ErrorRecord] } | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+}
 function Get-ReaderColumns {
-    $readerJson = & $readerCli @readerCliArgs d1 execute redolve-db --remote --command "$readerCheckSql" --json
-    if ($LASTEXITCODE -ne 0) { throw '讀取 UI/UX schema 失敗，未進行後續操作' }
-    $readerResults = $readerJson | ConvertFrom-Json
+    $readerJson = Invoke-ReaderWrangler -CommandArgs @('d1','execute','redolve-db','--remote','--command',$readerCheckSql,'--json') -FailureMessage '讀取 UI/UX schema 失敗，未進行後續操作'
+    try { $readerResults = $readerJson | ConvertFrom-Json -ErrorAction Stop }
+    catch {
+        Show-ReaderDiagnostic $readerJson
+        throw 'Wrangler 未回傳有效 schema JSON，未進行後續操作'
+    }
     $readerCounts = @{}
     foreach ($readerResult in $readerResults) {
-        if ($readerResult.success -eq $false) { throw 'Wrangler 回報 schema 查詢失敗，未進行後續操作' }
+        if ($readerResult.success -eq $false) {
+            Show-ReaderDiagnostic $readerJson
+            throw 'Wrangler 回報 schema 查詢失敗，未進行後續操作'
+        }
         foreach ($readerMetric in $readerResult.results) { $readerCounts[$readerMetric.metric] = [int]$readerMetric.count }
     }
     if (-not $readerCounts.ContainsKey('starred_column') -or -not $readerCounts.ContainsKey('classification_column')) {
+        Show-ReaderDiagnostic $readerJson
         throw '未取得兩項 schema 結果，未進行後續操作'
     }
     if (-not $readerCounts.ContainsKey('reader_tables') -or $readerCounts.reader_tables -ne 2) {
@@ -32,6 +66,10 @@ function Get-ReaderColumns {
 }
 $readerBefore = Get-ReaderColumns
 Write-Output "目前：reader_tables=$($readerBefore.reader_tables)，starred_column=$($readerBefore.starred_column)，classification_column=$($readerBefore.classification_column)"
+if ($CheckOnly) {
+    Write-Output '唯讀檢查完成；未套用 migration。兩個欄位皆為 1 才具備部署所需 schema。'
+    return
+}
 if ($readerBefore.starred_column -eq 1 -and $readerBefore.classification_column -eq 1) {
     Write-Output 'UI/UX migration 已套用，不需重跑。'
     return
@@ -40,8 +78,7 @@ if ($readerBefore.starred_column -notin @(0,1) -or $readerBefore.classification_
     throw '非預期的 schema，停止套用'
 }
 # This is a current recovery reference, not an instruction to restore data.
-& $readerCli @readerCliArgs d1 time-travel info redolve-db
-if ($LASTEXITCODE -ne 0) { throw '無法取得目前 Time Travel bookmark，停止套用' }
+Invoke-ReaderWrangler -CommandArgs @('d1','time-travel','info','redolve-db') -FailureMessage '無法取得目前 Time Travel bookmark，停止套用'
 foreach ($readerColumn in @('starred_column','classification_column')) {
     if ($readerBefore[$readerColumn] -eq 1) { continue }
     $readerDdl = if ($readerColumn -eq 'starred_column') {
@@ -49,8 +86,7 @@ foreach ($readerColumn in @('starred_column','classification_column')) {
     } else {
         "ALTER TABLE saved_refs ADD COLUMN classification_state TEXT NOT NULL DEFAULT 'ready' CHECK(classification_state IN ('ready','pending','failed','manual'));"
     }
-    & $readerCli @readerCliArgs d1 execute redolve-db --remote --command "$readerDdl"
-    if ($LASTEXITCODE -ne 0) { throw "新增 $readerColumn 失敗；停止並保留輸出。腳本可重新查詢後補缺少的欄位。" }
+    Invoke-ReaderWrangler -CommandArgs @('d1','execute','redolve-db','--remote','--command',$readerDdl) -FailureMessage "新增 $readerColumn 失敗；停止並保留輸出。腳本可重新查詢後補缺少的欄位。"
 }
 $readerAfter = Get-ReaderColumns
 if ($readerAfter.starred_column -ne 1 -or $readerAfter.classification_column -ne 1) { throw 'migration 後 schema 未通過' }

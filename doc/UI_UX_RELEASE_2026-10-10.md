@@ -27,6 +27,24 @@ if (-not $? -or $LASTEXITCODE -ne 0) { throw '停止發布並保留輸出' }
 
 `local` **只代表 CLI 從本機 node_modules 啟動**；腳本內 D1 目標仍為 `redolve-db --remote`。也可明確使用 `-WranglerMode npx`。CLI、驗權或查詢失敗時，保留完整輸出並停止推送。
 
+### 若已顯示 local，但仍停在 schema 查詢
+
+舊腳本把 `--json` 的錯誤輸出收進變數，只有通用例外，無法據此判定是驗權、連線、配置還是查詢問題。修正後會顯示 Wrangler 原始 stdout／stderr 與退出碼。先執行唯讀檢查，貼上包含原始輸出的完整結果：
+
+```powershell
+& .\scripts\apply-reader-ux.ps1 -CheckOnly
+```
+
+此模式只查詢 schema，不取得 bookmark、不新增欄位。即使檢查成功，若有欄位為 0，仍需使用 §1 不帶 `-CheckOnly` 的指令套用後才能部署。
+
+若需要略過腳本直接診斷，同一個唯讀查詢為：
+
+```powershell
+node .\node_modules\wrangler\bin\wrangler.js d1 execute redolve-db --remote --command ((Get-Content -Encoding UTF8 .\scripts\reader-ux-schema.sql) -join ' ') --json
+```
+
+第一次 schema 查詢失敗尚未執行 ALTER，不需因此還原 DB。尚未取得實際原始錯誤前，不把本機測試通過當成正式環境已修復。
+
 如果 PowerShell 的腳本執行政策阻擋，直接在現有終端貼上腳本內容執行即可；不需要改全域政策。
 
 ## 2. 推送與自動部署
@@ -75,6 +93,7 @@ node --test tests/sharing-api.test.mjs tests/search.test.mjs tests/sharing-acces
 python tests/sharing-schema.test.py
 python tests/reader-migration.test.py
 & .\tests\reader-release.test.ps1
+& .\tests\reader-release-native.test.ps1
 ```
 
 瀏覽器測試使用 Python Playwright 與已安裝的 Edge，API 全部為測試替身，不碰正式資料。已有 Playwright 時可執行：

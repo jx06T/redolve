@@ -53,7 +53,7 @@ function Invoke-ReaderScript {
 }
 function Assert-ReaderStopped([int]$DdlCount=0) {
     $readerFailed=$false
-    try { Invoke-ReaderScript | Out-Null } catch { $readerFailed=$true }
+    try { Invoke-ReaderScript 6>&1 | Out-Null } catch { $readerFailed=$true }
     if (-not $readerFailed -or (Get-ReaderDdlCount) -ne $DdlCount) { throw 'Failure did not stop as expected' }
 }
 
