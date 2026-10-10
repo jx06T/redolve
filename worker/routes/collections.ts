@@ -224,6 +224,7 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
   }
   const {results}=await c.env.DB.prepare(`SELECT ci.id,ci.display_order,ci.latest_add_event_seq,ci.shared_seq,COALESCE(ci.latest_add_event_seq,0) AS recent_order,
     i.source AS title,i.keywords,
+    ${canWrite?`(SELECT substr(f.problem_text,1,1600) FROM items_fts f WHERE f.id=i.id AND f.user_id=i.user_id ORDER BY f.rowid DESC LIMIT 1) AS question_text,`:''}
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN i.topic_id ELSE NULL END AS topic_id,
     i.content_seq,ci.contributor_id,ci.source_item_id,COALESCE(rd.starred,0) AS is_starred,
     p.display_name AS provider_name,sr.id AS saved_id,
@@ -345,7 +346,8 @@ collectionsRouter.get('/collections/:id/candidates',authMiddleware,async c=>{
     ) SELECT id FROM descendants)`;binds.push(topic,uid,uid);}
   if(tag){filters+=` AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE value=?)`;binds.push(tag);}
   if(hasCursor)binds.push(afterAt!,afterAt!,afterId!);
-  const {results}=await c.env.DB.prepare(`SELECT i.id,i.source AS title,i.created_at
+  const {results}=await c.env.DB.prepare(`SELECT i.id,i.source AS title,i.created_at,
+    (SELECT substr(f.problem_text,1,1600) FROM items_fts f WHERE f.id=i.id AND f.user_id=i.user_id ORDER BY f.rowid DESC LIMIT 1) AS question_text
     FROM items i JOIN assets a ON a.id=i.image_url AND a.state='ready'
     WHERE i.user_id=? AND NOT EXISTS(SELECT 1 FROM collection_items ci
       WHERE ci.collection_id=? AND ci.origin_item_key=i.id AND ci.state='included')
@@ -353,7 +355,7 @@ collectionsRouter.get('/collections/:id/candidates',authMiddleware,async c=>{
       ${filters}
       ${hasCursor?'AND (i.created_at<? OR (i.created_at=? AND i.id<?))':''}
     ORDER BY i.created_at DESC,i.id DESC LIMIT 31`).bind(...binds).all<{
-      id:string;title:string|null;created_at:string}>();
+      id:string;title:string|null;created_at:string;question_text:string|null}>();
   const rows=results||[],page=rows.slice(0,30),last=page.at(-1);
   return c.json({items:page,next_cursor:rows.length>30&&last?
     {created_at:last.created_at,id:last.id}:null});
@@ -630,13 +632,13 @@ collectionsRouter.get('/my/invitations',authMiddleware,async c=>{
 });
 collectionsRouter.post('/invitations/accept',authMiddleware,async c=>{
   const b=await c.req.json().catch(()=>({}));
-  const token=clean(b.token,80),email=c.get('userEmail')?.toLowerCase();
-  if(!email||!/^[a-f0-9]{64}$/.test(token)) return c.json(missing,404);
-  const hash=await hashToken(token);
+  const token=clean(b.token,80),invitationId=clean(b.invitation_id,80),email=c.get('userEmail')?.toLowerCase();
+  if(!email||(token?!/^[a-f0-9]{64}$/.test(token):!/^[a-zA-Z0-9_-]{1,80}$/.test(invitationId))) return c.json(missing,404);
+  const identifier=token?await hashToken(token):invitationId;
   const invite=await c.env.DB.prepare(`SELECT v.* FROM invitations v JOIN collections co ON co.id=v.collection_id
-    WHERE v.token_hash=? AND v.email=? AND v.revoked_at IS NULL AND v.accepted_at IS NULL
+    WHERE ${token?'v.token_hash':'v.id'}=? AND v.email=? AND v.revoked_at IS NULL AND v.accepted_at IS NULL
       AND datetime(v.expires_at)>CURRENT_TIMESTAMP AND co.lifecycle!='deleted'`)
-    .bind(hash,email).first<{id:string;collection_id:string;role:string}>();
+    .bind(identifier,email).first<{id:string;collection_id:string;role:string}>();
   if(!invite) return c.json(missing,404);
   try {
     await c.env.DB.batch([
@@ -765,6 +767,7 @@ collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
     co.title AS collection_title,COALESCE(i.source,'題目') AS title,
     (SELECT sr.id FROM saved_refs sr WHERE sr.entry_id=ci.id AND sr.user_id=?1) AS saved_id,
     (SELECT COUNT(*) FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1) AS is_subscribed,
+    co.owner_id=?1 AS is_owner,
     i.keywords,p.display_name AS provider_name,
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN t.label ELSE NULL END AS topic_label
     FROM collections co JOIN collection_items ci ON ci.collection_id=co.id AND ci.state='included'

@@ -57,6 +57,22 @@ test('contributor live source revokes while subscriber download survives', async
     });
     assert.equal(created.status,201,JSON.stringify(created.data));
     const collectionId=created.data.id;
+    const restricted=await call('/api/my/collections','a','POST',{
+      title:'Invite only',public_name:'Teacher',visibility:'restricted',activate:true,
+    });
+    const inviteOnlyId=restricted.data.id;
+    const inboxInvite=await call(`/api/collections/${inviteOnlyId}/invitations`,'a','POST',{email:'d@example.test',role:'viewer'});
+    assert.equal((await call('/api/invitations/accept','b','POST',{invitation_id:inboxInvite.data.id})).status,404,'another recipient cannot accept an inbox invitation');
+    assert.ok((await call('/api/my/invitations','d')).data.invitations.some(i=>i.id===inboxInvite.data.id));
+    assert.equal((await call('/api/invitations/accept','d','POST',{invitation_id:inboxInvite.data.id})).status,200);
+    assert.equal((await call(`/api/collections/${inviteOnlyId}`,'d')).status,200,'acceptance grants reader access');
+    assert.equal((await call('/api/subscriptions','d')).data.subscriptions.length,0,'acceptance must not subscribe implicitly');
+    assert.equal((await call('/api/invitations/accept','d','POST',{invitation_id:inboxInvite.data.id})).status,404,'accepted invitations cannot be replayed');
+    for(const state of ['expired','revoked']){
+      const inv=await call(`/api/collections/${inviteOnlyId}/invitations`,'a','POST',{email:'b@example.test',role:'viewer'});
+      await db.prepare(state==='expired'?"UPDATE invitations SET expires_at='2000-01-01' WHERE id=?":"UPDATE invitations SET revoked_at=CURRENT_TIMESTAMP WHERE id=?").bind(inv.data.id).run();
+      assert.equal((await call('/api/invitations/accept','b','POST',{invitation_id:inv.data.id})).status,404,`${state} invitation must not grant access`);
+    }
     assert.equal((await call('/api/me/public-profile','b','PUT',{display_name:'Contributor'})).status,200);
     const invite=await call(`/api/collections/${collectionId}/invitations`,'a','POST',{
       email:'b@example.test',role:'contributor',
@@ -73,9 +89,19 @@ test('contributor live source revokes while subscriber download survives', async
       .bind('source','b','images/source.jpg','Original','unsolved','private-topic').run();
     await db.prepare(`INSERT INTO asset_refs(id,asset_id,item_id,role) VALUES(?,?,?,'source_image')`)
       .bind('root','images/source.jpg','source').run();
+    await db.prepare('INSERT INTO items_fts(id,user_id,problem_text,typed_notes) VALUES(?,?,?,?)')
+      .bind('source','b','Question OCR content','Private correction must stay private').run();
+    const textCandidates=await call(`/api/collections/${collectionId}/candidates`,'b');
+    assert.equal(textCandidates.data.items.find(i=>i.id==='source').question_text,'Question OCR content');
+    assert.equal((await call(`/api/collections/${collectionId}/candidates`,'d')).status,404);
     const add=await call(`/api/collections/${collectionId}/items`,'b','POST',{item_id:'source'});
     assert.equal(add.status,201,JSON.stringify(add.data));
     const entryId=add.data.entry_id;
+    const management=await call(`/api/collections/${collectionId}`,'a');
+    assert.equal(management.data.items[0].question_text,'Question OCR content');
+    const viewerList=await call(`/api/collections/${collectionId}`,'d');
+    assert.ok(!('question_text' in viewerList.data.items[0]),'management OCR excerpt must not leak through public reader API');
+    assert.ok(!JSON.stringify(management.data.items).includes('Private correction must stay private'));
     const publicEntry=await call(`/api/collections/${collectionId}/items/${entryId}`,'d');
     assert.equal(publicEntry.data.source.topic_id,null);
     assert.equal(publicEntry.data.source.topic_label,null,'private taxonomy label must stay private');
