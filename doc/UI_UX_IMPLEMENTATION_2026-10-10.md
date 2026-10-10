@@ -70,11 +70,20 @@
 - 套用前 Time Travel bookmark：00000270-00000000-00005100-373926d9560dac526cecab27062665cc。此值為本次套用前的恢復參考；未執行還原。
 - 部署前重新確認 TypeScript、正式建置＋SW（c91ab23c3ca10f04）、12 項 Node API／PWA 測試與 33＋5 項 PowerShell 腳本測試通過。
 
+## 正式部署驗證（2026-10-10 16:00，Asia/Taipei）
+
+- 正式功能版本提交：d6bad75a1e81930dd4928b40d9e57f962d166967；origin/main 已確認指向同一提交。部署結果紀錄另外保存在本機 docs 提交。
+- 該提交的 Cloudflare Pages 與 Workers Builds GitHub checks 均 completed／success。
+- Worker build：8c0648ea-c86d-4d5f-a4bd-f90533798edf；正式啟用 version 37497037-9535-45dd-8510-7664f9494cea，流量 100%；deployment 6d3e4f9c-1d03-4038-8320-ebc7ef19f922。
+- https://redolve.jx06t.com 首頁、sw.js、api/health 均 HTTP 200；health.status=ok。此判定同時使用提交 checks 與 active Worker version，不依賴固定 API version 字串。
+- 正式 SW build=c91ab23c3ca10f04；34 個預快取檔案均 HTTP 200、內容與本機建置逐檔 SHA-256 相同。首頁引用 index-C967tQFm.js／index-Cno70ZBu.css 均在清單內且 MIME 正確，無 HTML fallback。
+- 唯讀 HTTP／部署紀錄驗證；未新增正式測試題、未操作私人筆記、未重新套用 migration。完整靜態檢查輸出保存在 .wrangler/production-reader-deployment.json（忽略檔）。
+
 ## 留給發布者的待辦
 
 - [x] 依 UI_UX_RELEASE_2026-10-10.md 套用 0003，發布者回報 schema 2／1／1。
-- [ ] 推送 main 觸發自動部署，核對遠端提交及線上資產。
-- [ ] 確認前端與 Worker 都對應最新提交，health 正常；不以舊固定版本字串代替 commit 確認。
+- [x] 推送 main 觸發自動部署，核對遠端提交及線上資產。
+- [x] 確認前端與 Worker 都對應 d6bad75，health 正常；不以舊固定版本字串代替 commit 確認。
 - [ ] 正式環境雙帳號：建立者／貢獻者／純訂閱者、邀請／撤權、共用與私人層、下載後來源失效；用少量測試題。
 - [ ] 正式 Gemini：自建分類來源存入後分類成功；失敗重試及手動分類優先。既有 gcp:asia-east1 未改，無新增 secret。
 - [ ] 實體 iPhone Chrome、iPad／Pencil：一次多選真實截圖、旋轉、收合、觸控與筆輸入、PWA 更新。Edge 裝置模擬不能證明 iOS WebKit／Apple Pencil 行為。
