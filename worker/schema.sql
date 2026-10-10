@@ -283,12 +283,14 @@ CREATE TABLE subscriptions (
 );
 CREATE INDEX idx_subscriptions_collection ON subscriptions(collection_id);
 CREATE TABLE collection_item_reads (
+ starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0,1)),
  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  entry_id TEXT NOT NULL REFERENCES collection_items(id) ON DELETE RESTRICT,
  seen_add_event_seq INTEGER NOT NULL DEFAULT 0, seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
  PRIMARY KEY(user_id,entry_id)
 );
 CREATE TABLE saved_refs (
+ classification_state TEXT NOT NULL DEFAULT 'ready' CHECK(classification_state IN ('ready','pending','failed','manual')),
  id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
  entry_id TEXT NOT NULL REFERENCES collection_items(id) ON DELETE RESTRICT,
  current_snapshot_id TEXT REFERENCES saved_snapshots(id) ON DELETE SET NULL,

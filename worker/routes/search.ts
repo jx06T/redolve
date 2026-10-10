@@ -24,6 +24,8 @@ searchRouter.get('/', async c => {
   const topic = c.req.query('topic_id') || '';
   const status = c.req.query('status') || '';
   const tag = c.req.query('tag') || '';
+  const contributing = c.req.query('contributing') === 'yes';
+  if(contributing && (!c.get('userId') || scope!=='shared' || !collectionId)) return c.json(apiError('INVALID_REQUEST','請選擇可貢獻集合'),400);
   const subscribed = c.req.query('subscribed') || '';
   const offset = Number(c.req.query('offset') || 0);
   const limit = Number(c.req.query('limit') || 30);
@@ -38,7 +40,7 @@ searchRouter.get('/', async c => {
   }
   if (!uid && scope !== 'public' && !(scope === 'shared' && collectionId))
     return c.json(apiError('UNAUTHORIZED', '請登入以搜尋個人或共用題庫'), 401);
-  if (!query) return c.json({ items: [], next_offset: null, scope });
+  if (!query && c.req.query('browse')!=='1') return c.json({ items: [], next_offset: null, scope });
 
   // Numbered bindings let repeated ACL predicates share values without interpolating input.
   const values: (string | number)[] = [];
@@ -88,6 +90,7 @@ searchRouter.get('/', async c => {
     AND ${contributor('ci.contributor_id')}`;
   const topicFilter = (column: string, personal: boolean) => {
     if (!topic) return '';
+    if(topic==='unclassified')return ` AND ${column} IS NULL`;
     const root = bind(topic);
     const allowed = personal ? `(user_id IS NULL OR user_id=${user})` : 'user_id IS NULL';
     return ` AND ${column} IN (WITH RECURSIVE descendants(id) AS (
@@ -157,6 +160,7 @@ searchRouter.get('/', async c => {
       (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
       ${score(fields)} AS relevance_score,0 AS sort_priority ${liveFrom}
       WHERE ${liveGate} AND ${scope === 'public' ? publicGate : readable}
+        ${contributing ? `AND ${contributor(user)}` : ''}
         ${scope === 'shared' && !collectionId ? `AND ${related}` : ''}
         ${subscribed ? `AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=${user})` : ''}
         ${collectionId ? `AND co.id=${collection}` : ''}
@@ -178,12 +182,12 @@ searchRouter.get('/', async c => {
   }
   const pageLimit = bind(limit + 1);
   const pageOffset = bind(offset);
-  const ownedFts = scope === 'mine' && origin !== 'saved';
+  const ownedFts = !!query && scope === 'mine' && origin !== 'saved';
   const ftsHits = ownedFts ? `SELECT id FROM items_fts WHERE items_fts MATCH ${match}
     AND user_id=${user} AND rowid IN (SELECT MAX(rowid) FROM items_fts WHERE user_id=${user} GROUP BY id)` : 'SELECT NULL AS id WHERE 0';
   const sql = (withFts: boolean) => `WITH fts_hits AS (${withFts ? ftsHits : 'SELECT NULL AS id WHERE 0'}),
     hits AS (${parts.join(' UNION ALL ')}) SELECT * FROM hits
-    ORDER BY sort_priority DESC,relevance_score DESC,created_at DESC,origin,id DESC LIMIT ${pageLimit} OFFSET ${pageOffset}`;
+    ORDER BY ${query ? 'sort_priority DESC,relevance_score DESC,' : ''}created_at DESC,origin,id DESC LIMIT ${pageLimit} OFFSET ${pageOffset}`;
   const execute = (withFts: boolean) => c.env.DB.prepare(sql(withFts)).bind(...values).all<Hit>();
   let rows: Hit[];
   try { rows = (await execute(ownedFts)).results || []; }

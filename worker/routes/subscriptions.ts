@@ -54,15 +54,31 @@ subscriptionsRouter.delete('/:collectionId',authMiddleware,async c=>{
   return c.json({status:'unsubscribed'});
 });
 async function visibleSubscriptions(env:Bindings,uid:string,cookie?:string) {
-  const {results}=await env.DB.prepare(`SELECT s.*,co.lifecycle,co.visibility,co.public_name,co.title
+  const {results}=await env.DB.prepare(`SELECT s.*,co.lifecycle,co.visibility,co.public_name,co.title,
+    (SELECT MAX(rd.seen_at) FROM collection_item_reads rd JOIN collection_items ci ON ci.id=rd.entry_id
+      WHERE rd.user_id=s.user_id AND ci.collection_id=co.id AND rd.seen_add_event_seq>0) AS last_viewed_at,
+    CASE WHEN EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.user_id=s.user_id
+      AND g.kind='user' AND g.role='contributor' AND g.revoked_at IS NULL
+      AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)) THEN 'contributor' ELSE 'viewer' END AS role
     FROM subscriptions s JOIN collections co ON co.id=s.collection_id
     WHERE s.user_id=? ORDER BY s.subscribed_at DESC LIMIT 100`).bind(uid).all<Record<string,unknown>>();
   const rows=results||[];
+  const counts=(await env.DB.prepare(`SELECT s.collection_id,COUNT(*) AS n FROM subscriptions s
+    JOIN collections co ON co.id=s.collection_id JOIN collection_items ci ON ci.collection_id=co.id AND ci.state='included'
+    JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
+    JOIN assets a ON a.id=i.image_url AND a.state='ready'
+    LEFT JOIN collection_item_reads rd ON rd.entry_id=ci.id AND rd.user_id=s.user_id
+    WHERE s.user_id=? AND co.lifecycle='active' AND ci.latest_add_event_seq>s.subscribed_after_seq
+      AND ci.latest_add_event_seq>s.read_all_through_seq AND ci.latest_add_event_seq>COALESCE(rd.seen_add_event_seq,0)
+      AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id
+        AND g.user_id=ci.contributor_id AND g.kind='user' AND g.role='contributor' AND g.revoked_at IS NULL
+        AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP))) GROUP BY s.collection_id`).bind(uid).all<{collection_id:string;n:number}>()).results||[];
+  const unread=new Map(counts.map(x=>[x.collection_id,x.n]));
   const out:Record<string,unknown>[]=[];
   for(const row of rows){
     const co=await loadCollection(env,String(row.collection_id));
     const canRead=Boolean(co&&await canReadCollection(env,co,uid,cookie));
-    out.push(canRead?{...row,can_read:true}:{collection_id:row.collection_id,
+    out.push(canRead?{...row,can_read:true,unread_count:unread.get(String(row.collection_id))||0}:{collection_id:row.collection_id,
       last_known_title:row.last_known_title,subscribed_at:row.subscribed_at,can_read:false});
   }
   return out;
@@ -144,6 +160,34 @@ subscriptionsRouter.put('/:collectionId/items/:entryId/read',authMiddleware,asyn
     seen_add_event_seq=MAX(seen_add_event_seq,excluded.seen_add_event_seq),
     seen_at=CURRENT_TIMESTAMP`).bind(c.get('userId'),entry.id,entry.latest_add_event_seq||0).run();
   return c.json({status:'read'});
+});
+subscriptionsRouter.put('/:collectionId/items/:entryId/star',authMiddleware,async c=>{
+  const uid=c.get('userId'),co=await loadCollection(c.env,c.req.param('collectionId'));
+  if(!co||!await canReadCollection(c.env,co,uid,c.req.header('cookie')))
+    return c.json(apiError('NOT_FOUND','題目目前不可讀'),404);
+  const entry=await liveEntry(c.env,c.req.param('entryId'),co.id);
+  const sub=await c.env.DB.prepare('SELECT 1 FROM subscriptions WHERE user_id=? AND collection_id=?').bind(uid,co.id).first();
+  if(!entry||!sub)return c.json(apiError('NOT_FOUND','目前未訂閱或題目不可讀'),404);
+  const body=await c.req.json().catch(()=>({}));
+  if(typeof body.starred!=='boolean')return c.json(apiError('INVALID_REQUEST','星號狀態無效'),400);
+  await c.env.DB.prepare(`INSERT INTO collection_item_reads(user_id,entry_id,seen_add_event_seq,starred)
+    VALUES(?,?,0,?) ON CONFLICT(user_id,entry_id) DO UPDATE SET starred=excluded.starred`)
+    .bind(uid,entry.id,body.starred?1:0).run();
+  return c.json({starred:body.starred});
+});
+subscriptionsRouter.put('/:collectionId/items/:entryId/star',authMiddleware,async c=>{
+  const uid=c.get('userId'),co=await loadCollection(c.env,c.req.param('collectionId'));
+  if(!co||!await canReadCollection(c.env,co,uid,c.req.header('cookie')))
+    return c.json(apiError('NOT_FOUND','題目目前不可讀'),404);
+  const entry=await liveEntry(c.env,c.req.param('entryId'),co.id);
+  const sub=await c.env.DB.prepare('SELECT 1 FROM subscriptions WHERE user_id=? AND collection_id=?').bind(uid,co.id).first();
+  if(!entry||!sub)return c.json(apiError('NOT_FOUND','目前未訂閱或題目不可讀'),404);
+  const body=await c.req.json().catch(()=>({}));
+  if(typeof body.starred!=='boolean')return c.json(apiError('INVALID_REQUEST','星號狀態無效'),400);
+  await c.env.DB.prepare(`INSERT INTO collection_item_reads(user_id,entry_id,seen_add_event_seq,starred)
+    VALUES(?,?,0,?) ON CONFLICT(user_id,entry_id) DO UPDATE SET starred=excluded.starred`)
+    .bind(uid,entry.id,body.starred?1:0).run();
+  return c.json({starred:body.starred});
 });
 subscriptionsRouter.post('/read-all',authMiddleware,async c=>{
   const b=await c.req.json().catch(()=>({}));

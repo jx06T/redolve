@@ -92,6 +92,18 @@ test('contributor live source revokes while subscriber download survives', async
     const cannotAddOther=await call(`/api/collections/${collectionId}/items`,'a','POST',{item_id:'source'});
     assert.equal(cannotAddOther.status,409,'owner cannot add contributor private original');
     assert.equal((await call(`/api/subscriptions/${collectionId}`,'d','PUT')).status,200);
+    const star=await call(`/api/subscriptions/${collectionId}/items/${entryId}/star`,'d','PUT',{starred:true});
+    assert.equal(star.status,200,JSON.stringify(star.data));
+    assert.equal((await call(`/api/collections/${collectionId}?state=starred`,'d')).data.items[0].id,entryId);
+    assert.equal((await call('/api/saved','d')).data.items.length,0,'a star is not a download');
+    await call(`/api/subscriptions/${collectionId}`,'d','DELETE');
+    await call(`/api/subscriptions/${collectionId}`,'d','PUT');
+    assert.equal((await call(`/api/collections/${collectionId}?state=starred`,'d')).data.items[0].id,entryId,'stars survive unsubscribe without becoming downloads');
+    const originalBrowse=await call(`/api/search?scope=shared&contributing=yes&collection_id=${collectionId}&browse=1`,'b');
+    assert.equal(originalBrowse.status,200,JSON.stringify(originalBrowse.data));
+    assert.ok(originalBrowse.data.items.some(i=>i.id===entryId));
+    assert.equal((await call(`/api/search?scope=shared&contributing=yes&collection_id=${collectionId}&browse=1`,'d')).data.items.length,0,
+      'a subscriber has no contributing search scope');
     const initialFeed=await call('/api/subscriptions/feed','d');
     assert.equal(initialFeed.data.items.length,0,'pre-subscription entries are not new');
     await storage.put('images/second.jpg',new Uint8Array([4,5,6]));
@@ -120,6 +132,11 @@ test('contributor live source revokes while subscriber download survives', async
       ['included','already_included','SOURCE_UNAVAILABLE']);
     const secondAdded={data:batch.data.results[0]};
     assert.equal((await call(`/api/collections/${collectionId}/candidates?q=New`,'b')).data.items.length,0);
+    const officialDownload=await call('/api/saved','d','POST',{entry_id:secondAdded.data.entry_id});
+    assert.equal(officialDownload.status,201,JSON.stringify(officialDownload.data));
+    assert.equal((await call(`/api/saved/${officialDownload.data.saved_id}`,'d')).data.saved.personal_topic_id,'algebra',
+      'official source classification is retained without AI');
+    await call(`/api/saved/${officialDownload.data.saved_id}`,'d','DELETE');
     assert.equal((await call(`/api/collections/${collectionId}/items/batch`,'b','POST',
       {item_ids:['second','second']})).status,400);
     const firstWithNeighbor=await call(`/api/collections/${collectionId}/items/${entryId}`,'d');
@@ -135,6 +152,11 @@ test('contributor live source revokes while subscriber download survives', async
     const newFeed=await call('/api/subscriptions/feed','d');
     assert.equal(newFeed.data.items.length,1,'new entry appears in subscriber feed');
     assert.equal(newFeed.data.items[0].title,'New question');
+    assert.equal((await call('/api/subscriptions','d')).data.subscriptions[0].unread_count,1);
+    const latestOrder=await call(`/api/collections/${collectionId}`,'a');
+    await call(`/api/collections/${collectionId}/items/${entryId}/order`,'a','PATCH',{direction:'up',expected_version:latestOrder.data.collection.row_version});
+    assert.equal((await call(`/api/collections/${collectionId}`,'d')).data.items[0].id,entryId);
+    assert.equal((await call(`/api/collections/${collectionId}?sort=recent`,'d')).data.items[0].id,secondAdded.data.entry_id,'latest additions do not follow manual ordering');
     const parentTopicFeed=await call('/api/subscriptions/feed?topic_id=math','d');
     assert.equal(parentTopicFeed.status,200,JSON.stringify(parentTopicFeed.data));
     assert.equal(parentTopicFeed.data.items.length,1,'subject filter includes nested unit');
@@ -149,11 +171,15 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal((await call('/api/subscriptions/read-all','d','POST',
       {read_all_token:newFeed.data.read_all_token})).status,200);
     assert.equal((await call('/api/subscriptions/feed','d')).data.items.length,0);
+    assert.equal((await call('/api/subscriptions','d')).data.subscriptions[0].unread_count,0);
     assert.equal((await call(`/api/collections/${collectionId}?state=read`,'d')).data.items.length,1);
     assert.equal((await call(`/api/collections/${collectionId}/items/${entryId}`,'d')).status,200);
     const sharedNotes=await call(`/api/collections/${collectionId}/items/${entryId}/layers/notes`,
       'b','PUT',{typed_notes:'shared explanation',expected_seq:0});
     assert.equal(sharedNotes.status,200,JSON.stringify(sharedNotes.data));
+    const wrongGeneration=await call(`/api/collections/${collectionId}/items/${entryId}/layers/notes`,
+      'b','PUT',{typed_notes:'old generation draft',expected_seq:1,expected_generation:99});
+    assert.equal(wrongGeneration.status,409,'drafts cannot move to a different entry generation');
     const privateLayer=await call(`/api/collections/${collectionId}/items/${entryId}`,'d');
     assert.equal(privateLayer.data.layers.length,0,'reader cannot see contributor notes before display is enabled');
     const drawing={strokes:[],eraserMasks:[],baseWidth:600,baseHeight:500};
@@ -169,11 +195,26 @@ test('contributor live source revokes while subscriber download survives', async
     const saved=await call('/api/saved','d','POST',{entry_id:entryId});
     assert.equal(saved.status,201,JSON.stringify(saved.data));
     const savedId=saved.data.saved_id;
+    const discoverSaved=await call('/api/public/items','d');
+    assert.equal(discoverSaved.data.items.find(i=>i.entry_id===entryId).saved_id,savedId,'public browsing reports own saved copy');
+    assert.equal(discoverSaved.data.items.find(i=>i.entry_id===entryId).is_subscribed,1);
+    await db.prepare("UPDATE saved_refs SET classification_state='failed' WHERE id=?").bind(savedId).run();
+    assert.equal((await call(`/api/saved/${savedId}/retry-classification`,'a','POST',{})).status,409,'another user cannot retry personal classification');
+    assert.equal((await call(`/api/saved/${savedId}/retry-classification`,'d','POST',{})).status,200);
+    const inspect=await call(`/api/saved/inspect?entry_id=${entryId}`,'d');
+    assert.equal(inspect.data.existing_id,savedId);
+    const recentSaved=await call('/api/search?scope=mine&origin=saved&browse=1','d');
+    assert.ok(recentSaved.data.items.some(i=>i.id===savedId),'empty search lists saved questions immediately');
+    const updatePreview=await call(`/api/saved/${savedId}/source-update`,'d');
+    assert.equal(updatePreview.data.available,true);
+    assert.equal(updatePreview.data.changed,false);
+    assert.equal((await call(`/api/saved/${savedId}/refresh-source`,'d','POST',
+      {content_seq:999,shared_seq:0})).status,409,'do not silently refresh a newer version than previewed');
     const savedOnly=await call(`/api/collections/${collectionId}?saved=yes`,'d');
     assert.equal(savedOnly.data.items.length,1);
     assert.equal(savedOnly.data.items[0].id,entryId);
     const category=await call(`/api/saved/${savedId}`,'d','PATCH',
-      {personal_topic_id:'algebra',expected_version:1});
+      {personal_topic_id:'algebra',expected_version:(await call(`/api/saved/${savedId}`,'d')).data.saved.row_version});
     assert.equal(category.status,200,JSON.stringify(category.data));
     const savedBySubject=await call('/api/saved?topic_id=math','d');
     assert.equal(savedBySubject.status,200,JSON.stringify(savedBySubject.data));

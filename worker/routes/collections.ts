@@ -140,7 +140,9 @@ collectionsRouter.get('/my/collections',authMiddleware,async c=>{
     CASE WHEN EXISTS(SELECT 1 FROM owner_transfers ot WHERE ot.collection_id=co.id
       AND ot.to_user_id=? AND ot.from_user_id=co.owner_id
       AND datetime(ot.expires_at)>CURRENT_TIMESTAMP) THEN 1 ELSE 0 END AS pending_owner_transfer,
-    (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id=co.id AND ci.state='included') AS item_count
+    (SELECT COUNT(*) FROM collection_items ci WHERE ci.collection_id=co.id AND ci.state='included') AS item_count,
+    1+(SELECT COUNT(DISTINCT g.user_id) FROM collection_grants g WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor' AND g.user_id!=co.owner_id AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)) AS contributor_count,
+    (SELECT COUNT(*) FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1) AS is_subscribed
     FROM collections co WHERE co.kind!='personal' AND co.lifecycle!='deleted' AND
      (co.owner_id=? OR EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id
       AND g.kind='user' AND g.role='contributor' AND g.user_id=? AND g.revoked_at IS NULL
@@ -180,6 +182,8 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
   if(!await reader(c,co)) return c.json(missing,404);
   const uid=c.get('userId')||'';
   const canWrite=Boolean(uid&&await canContribute(c.env,co!,uid));
+  const recent=c.req.query('sort')==='recent';
+  const text=clean(c.req.query('q'),100).replace(/[\\%_]/g,'\\$&');
   const afterOrder=Number(c.req.query('after_order'));
   const afterId=c.req.query('after_id')||'';
   const hasCursor=Number.isSafeInteger(afterOrder)&&afterOrder>=0&&afterId.length>0&&afterId.length<=80;
@@ -189,6 +193,8 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
   const tag=clean(c.req.query('tag'),80);
   const binds:(string|number)[]=[uid,uid,uid,co!.id];
   let filters='';
+  if(text){filters+=` AND (COALESCE(i.source,'') LIKE ? ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ? ESCAPE '\\')`;binds.push(`%${text}%`,`%${text}%`);}
+  if(state==='starred')filters+=' AND COALESCE(rd.starred,0)=1';
   if(topic){
     filters+=` AND i.topic_id IN (WITH RECURSIVE descendants(id) AS (
       SELECT id FROM taxonomies WHERE id=? AND user_id IS NULL
@@ -213,13 +219,13 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
     binds.push(tag);
   }
   if(hasCursor){
-    filters+=' AND (ci.display_order>? OR (ci.display_order=? AND ci.id>?))';
+    filters+=recent?' AND (COALESCE(ci.latest_add_event_seq,0)<? OR (COALESCE(ci.latest_add_event_seq,0)=? AND ci.id<?))':' AND (ci.display_order>? OR (ci.display_order=? AND ci.id>?))';
     binds.push(afterOrder,afterOrder,afterId);
   }
-  const {results}=await c.env.DB.prepare(`SELECT ci.id,ci.display_order,ci.latest_add_event_seq,ci.shared_seq,
+  const {results}=await c.env.DB.prepare(`SELECT ci.id,ci.display_order,ci.latest_add_event_seq,ci.shared_seq,COALESCE(ci.latest_add_event_seq,0) AS recent_order,
     i.source AS title,i.keywords,
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN i.topic_id ELSE NULL END AS topic_id,
-    i.content_seq,ci.contributor_id,
+    i.content_seq,ci.contributor_id,ci.source_item_id,COALESCE(rd.starred,0) AS is_starred,
     p.display_name AS provider_name,sr.id AS saved_id,
     CASE WHEN sub.user_id IS NOT NULL AND ci.latest_add_event_seq>sub.subscribed_after_seq
       THEN 1 ELSE 0 END AS is_new_scope,
@@ -241,13 +247,13 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
         AND g.user_id=ci.contributor_id AND g.revoked_at IS NULL
         AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))
       ${filters}
-    ORDER BY ci.display_order,ci.id LIMIT 51`)
+    ORDER BY ${recent?'COALESCE(ci.latest_add_event_seq,0) DESC':'ci.display_order ASC'},ci.id ${recent?'DESC':'ASC'} LIMIT 51`)
     .bind(...binds).all<Record<string,unknown>>();
   const page=(results||[]).slice(0,50);
   const tail=page[page.length-1];
   return c.json({collection:{...co,owner_id:undefined,is_owner:co!.owner_id===c.get('userId'),
     can_contribute:canWrite},items:page,
-    next_cursor:(results||[]).length>50?{display_order:tail.display_order,id:tail.id}:null});
+    next_cursor:(results||[]).length>50?{display_order:recent?tail.recent_order:tail.display_order,id:tail.id}:null});
 });
 collectionsRouter.patch('/collections/:id',authMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
@@ -331,12 +337,20 @@ collectionsRouter.get('/collections/:id/candidates',authMiddleware,async c=>{
     !/^[a-zA-Z0-9_-]{1,80}$/.test(afterId)))
     return c.json(apiError('INVALID_CURSOR','分頁位置無效'),400);
   const binds:(string|number)[]=[uid,co.id,`%${q}%`,`%${q}%`];
+  let filters='';
+  const topic=c.req.query('topic_id')||'',tag=c.req.query('tag')||'';
+  if(topic){filters+=` AND i.topic_id IN (WITH RECURSIVE descendants(id) AS (
+    SELECT id FROM taxonomies WHERE id=? AND (user_id IS NULL OR user_id=?)
+    UNION SELECT t.id FROM taxonomies t JOIN descendants d ON t.parent_id=d.id WHERE t.user_id IS NULL OR t.user_id=?
+    ) SELECT id FROM descendants)`;binds.push(topic,uid,uid);}
+  if(tag){filters+=` AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE value=?)`;binds.push(tag);}
   if(hasCursor)binds.push(afterAt!,afterAt!,afterId!);
   const {results}=await c.env.DB.prepare(`SELECT i.id,i.source AS title,i.created_at
     FROM items i JOIN assets a ON a.id=i.image_url AND a.state='ready'
     WHERE i.user_id=? AND NOT EXISTS(SELECT 1 FROM collection_items ci
       WHERE ci.collection_id=? AND ci.origin_item_key=i.id AND ci.state='included')
       AND (COALESCE(i.source,'') LIKE ? ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ? ESCAPE '\\')
+      ${filters}
       ${hasCursor?'AND (i.created_at<? OR (i.created_at=? AND i.id<?))':''}
     ORDER BY i.created_at DESC,i.id DESC LIMIT 31`).bind(...binds).all<{
       id:string;title:string|null;created_at:string}>();
@@ -472,7 +486,7 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     show_shared_notes:co!.show_shared_notes},entry:{id:entry.id,generation:entry.generation,
     shared_seq:entry.shared_seq,latest_add_event_seq:entry.latest_add_event_seq},
     neighbors:{previous:previous?.id||null,next:next?.id||null},
-    source:item,layers,capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId')}});
+    source:{...item,contributor_id:entry.contributor_id},layers,capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId')}});
 });
 collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
@@ -738,11 +752,15 @@ collectionsRouter.get('/public/collections',async c=>{
     GROUP BY co.id ORDER BY co.updated_at DESC LIMIT 50`).bind(term,term).all();
   return c.json({collections:results||[]});
 });
-collectionsRouter.get('/public/items',async c=>{
+collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
+  const offset=Number(c.req.query('offset')||0);
+  if(!Number.isSafeInteger(offset)||offset<0)return c.json(apiError('INVALID_REQUEST','分頁無效'),400);
   const q=clean(c.req.query('q'),100).replace(/[\\%_]/g,'\\$&');
   const term=`%${q}%`;
   const {results}=await c.env.DB.prepare(`SELECT ci.id AS entry_id,co.id AS collection_id,
     co.title AS collection_title,COALESCE(i.source,'題目') AS title,
+    (SELECT sr.id FROM saved_refs sr WHERE sr.entry_id=ci.id AND sr.user_id=?1) AS saved_id,
+    (SELECT COUNT(*) FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1) AS is_subscribed,
     i.keywords,p.display_name AS provider_name,
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN t.label ELSE NULL END AS topic_label
     FROM collections co JOIN collection_items ci ON ci.collection_id=co.id AND ci.state='included'
@@ -751,13 +769,13 @@ collectionsRouter.get('/public/items',async c=>{
     LEFT JOIN public_profiles p ON p.user_id=ci.contributor_id
     LEFT JOIN taxonomies t ON t.id=i.topic_id
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
-      AND (i.source LIKE ? ESCAPE '\\' OR i.keywords LIKE ? ESCAPE '\\')
+      AND (COALESCE(i.source,'') LIKE ? ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ? ESCAPE '\\')
       AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g
         WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor'
           AND g.user_id=ci.contributor_id AND g.revoked_at IS NULL
           AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))
-    ORDER BY ci.created_at DESC,ci.id DESC LIMIT 50`).bind(term,term).all();
-  return c.json({items:results||[]});
+    ORDER BY ci.created_at DESC,ci.id DESC LIMIT 31 OFFSET ?`).bind(c.get('userId')||'',term,term,offset).all();
+  const rows=results||[];return c.json({items:rows.slice(0,30),next_offset:rows.length>30?offset+30:null});
 });
 collectionsRouter.post('/collections/:id/reports',authMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
@@ -783,6 +801,7 @@ collectionsRouter.put('/collections/:id/items/:entryId/layers/notes',authMiddlew
   const entry=await liveEntry(c.env,c.req.param('entryId'),co.id);
   if(!entry) return c.json(missing,404);
   const b=await c.req.json().catch(()=>({}));
+  if(b.expected_generation!==undefined&&b.expected_generation!==entry.generation)return c.json(apiError('CONFLICT','題目已重新加入集合；請保留舊草稿'),409);
   if(typeof b.typed_notes!=='string'||new TextEncoder().encode(b.typed_notes).byteLength>65536
     ||!Number.isSafeInteger(b.expected_seq)||b.expected_seq<0)
     return c.json(apiError('INVALID_REQUEST','筆記內容或版本無效'),400);
@@ -813,6 +832,7 @@ collectionsRouter.put('/collections/:id/items/:entryId/layers/draw',authMiddlewa
   const entry=await liveEntry(c.env,c.req.param('entryId'),co.id);
   if(!entry) return c.json(missing,404);
   const b=await c.req.json().catch(()=>({}));
+  if(b.expected_generation!==undefined&&b.expected_generation!==entry.generation)return c.json(apiError('CONFLICT','題目已重新加入集合；請保留舊草稿'),409);
   const data=JSON.stringify(b.draw_data);
   if(!b.draw_data||!Number.isSafeInteger(b.expected_seq)||b.expected_seq<0
     ||new TextEncoder().encode(data).byteLength>2*1024*1024)

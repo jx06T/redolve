@@ -1,7 +1,8 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
-import { apiError, canReadCollection, hashToken, loadCollection } from '../services/collectionAccess';
+import { apiError, canContribute, canReadCollection, hashToken, loadCollection } from '../services/collectionAccess';
+import { classifySaved } from '../services/savedClassification';
 
 export const savedRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 type AppContext = Context<{ Bindings: Bindings; Variables: Variables }>;
@@ -28,13 +29,13 @@ const providerSql=`(co.owner_id=ci.contributor_id OR EXISTS(
 
 async function sourceGate(c: AppContext,entryId:string) {
   const row=await c.env.DB.prepare(`SELECT ci.id,ci.collection_id,ci.contributor_id,ci.shared_seq,
-    i.image_url,i.content_seq,co.acl_version,co.title,co.owner_id
+    i.image_url,i.content_seq,i.topic_id,i.id AS source_item_id,co.acl_version,co.title,co.owner_id
     FROM collection_items ci JOIN collections co ON co.id=ci.collection_id
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
     JOIN assets a ON a.id=i.image_url AND a.state='ready'
     WHERE ci.id=? AND ci.state='included' AND co.lifecycle='active' AND ${providerSql}`)
     .bind(entryId).first<{id:string;collection_id:string;contributor_id:string;shared_seq:number;
-      image_url:string;content_seq:number;acl_version:number;title:string;owner_id:string}>();
+      image_url:string;content_seq:number;acl_version:number;title:string;owner_id:string;topic_id:string|null;source_item_id:string}>();
   if(!row) return null;
   const co=await loadCollection(c.env,row.collection_id);
   if(!co||!await canReadCollection(c.env,co,c.get('userId'),c.req.header('cookie'))) return null;
@@ -178,24 +179,30 @@ savedRouter.post('/saved',authMiddleware,async c=>{
   if(!src) return c.json(badSource,404);
   if(src.contributor_id===uid) return c.json(apiError('OWN_SOURCE','這是你的原題，請直接開啟'),409);
   let topic:string|null=null;
+  let classification='ready';
+  if(src.topic_id){
+    const official=await c.env.DB.prepare('SELECT id FROM taxonomies WHERE id=? AND user_id IS NULL').bind(src.topic_id).first<{id:string}>();
+    if(official)topic=official.id;else classification='pending';
+  }
   if(b.topic_id!=null&&b.topic_id!=='') {
     if(typeof b.topic_id!=='string') return c.json(apiError('INVALID_TOPIC','個人分類無效'),400);
     const t=await c.env.DB.prepare('SELECT id FROM taxonomies WHERE id=? AND (user_id=? OR user_id IS NULL)')
       .bind(b.topic_id,uid).first();
     if(!t) return c.json(apiError('INVALID_TOPIC','個人分類無效'),400);
     topic=b.topic_id;
+    classification='manual';
   }
   const savedId=crypto.randomUUID(),snapshotId=crypto.randomUUID(),workspaceId=crypto.randomUUID();
   const hash=await cookieHash(c,src.collection_id);
   const statements:D1PreparedStatement[]=[
-    c.env.DB.prepare(`INSERT INTO saved_refs(id,user_id,entry_id,personal_topic_id)
-      SELECT ?,?,ci.id,? FROM collection_items ci JOIN collections co ON co.id=ci.collection_id
+    c.env.DB.prepare(`INSERT INTO saved_refs(id,user_id,entry_id,personal_topic_id,classification_state)
+      SELECT ?,?,ci.id,?,? FROM collection_items ci JOIN collections co ON co.id=ci.collection_id
       JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
       JOIN assets a ON a.id=i.image_url AND a.state='ready'
       WHERE ci.id=? AND ci.state='included' AND co.lifecycle='active'
         AND co.acl_version=? AND ci.shared_seq=? AND i.content_seq=? AND i.image_url=?
         AND ci.contributor_id!=? AND ${providerSql} AND ${accessSql}`)
-      .bind(savedId,uid,topic,entryId,src.acl_version,src.shared_seq,src.content_seq,
+      .bind(savedId,uid,topic,classification,entryId,src.acl_version,src.shared_seq,src.content_seq,
         src.image_url,uid,uid,uid,uid,hash),
     snapshotInsert(c.env.DB).bind(snapshotId,savedId,uid,src.acl_version,src.content_seq,src.shared_seq,
       src.image_url,uid,uid,uid,hash),
@@ -215,7 +222,8 @@ savedRouter.post('/saved',authMiddleware,async c=>{
     if(duplicate) return c.json({saved_id:duplicate.id,status:'already_saved'});
     return c.json(apiError('SOURCE_CHANGED','來源或授權已變更，請重新載入'),409);
   }
-  return c.json({saved_id:savedId,status:'saved'},201);
+  if(classification==='pending')c.executionCtx.waitUntil(classifySaved(c.env,savedId,uid));
+  return c.json({saved_id:savedId,status:'saved',classification_state:classification},201);
 });
 savedRouter.get('/saved',authMiddleware,async c=>{
   const origin=c.req.query('status'),topic=c.req.query('topic_id');
@@ -236,6 +244,46 @@ savedRouter.get('/saved',authMiddleware,async c=>{
     FROM saved_refs sr JOIN saved_snapshots ss ON ss.id=sr.current_snapshot_id
     WHERE ${where} ORDER BY sr.downloaded_at DESC,sr.id DESC LIMIT 100`).bind(...binds).all();
   return c.json({items:results||[]});
+});
+savedRouter.get('/saved/inspect',authMiddleware,async c=>{
+  const source=await sourceGate(c,c.req.query('entry_id')||'');
+  if(!source)return c.json(badSource,404);
+  const found=await c.env.DB.prepare(`SELECT sr.id FROM saved_refs sr JOIN collection_items ci ON ci.id=sr.entry_id
+    WHERE sr.user_id=? AND ci.origin_item_key=? ORDER BY sr.downloaded_at DESC LIMIT 1`)
+    .bind(c.get('userId'),source.source_item_id).first<{id:string}>();
+  return c.json({existing_id:found?.id||null,own_source:source.contributor_id===c.get('userId')});
+});
+savedRouter.get('/saved/:id/source-update',authMiddleware,async c=>{
+  const saved=await own(c.env.DB,c.req.param('id')||'',c.get('userId'));
+  if(!saved)return c.json(apiError('NOT_FOUND','找不到個人題目'),404);
+  const source=await sourceGate(c,saved.entry_id);if(!source)return c.json({available:false,changed:false,changes:[]});
+  const snapshot=await c.env.DB.prepare('SELECT source_content_seq,source_shared_seq FROM saved_snapshots WHERE id=? AND saved_ref_id=?')
+    .bind(saved.current_snapshot_id,saved.id).first<{source_content_seq:number;source_shared_seq:number}>();
+  const changes:string[]=[];
+  if(source.content_seq!==snapshot?.source_content_seq)changes.push('來源標籤或內容已更新');
+  if(source.shared_seq!==snapshot?.source_shared_seq)changes.push('共用參考筆跡或筆記已更新');
+  const co=await loadCollection(c.env,source.collection_id);
+  const writer=co&&await canContribute(c.env,co,c.get('userId'));
+  const shownInk=writer||!!co?.show_shared_ink,shownNotes=writer||!!co?.show_shared_notes;
+  const current=(await c.env.DB.prepare(`SELECT sl.id AS layer_origin_key,sl.draw_asset_id,sl.typed_notes
+    FROM shared_layers sl JOIN collection_items ci ON ci.id=sl.entry_id JOIN collections co ON co.id=ci.collection_id
+    WHERE ci.id=? AND sl.entry_generation=ci.generation AND sl.state='active' AND
+      (co.owner_id=sl.user_id OR EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.user_id=sl.user_id
+        AND g.kind='user' AND g.role='contributor' AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))
+    ORDER BY sl.id`).bind(source.id).all<{layer_origin_key:string;draw_asset_id:string|null;typed_notes:string|null}>()).results||[];
+  const retained=(await c.env.DB.prepare('SELECT layer_origin_key,draw_asset_id,typed_notes FROM saved_snapshot_layers WHERE snapshot_id=? ORDER BY layer_origin_key')
+    .bind(saved.current_snapshot_id).all<{layer_origin_key:string;draw_asset_id:string|null;typed_notes:string|null}>()).results||[];
+  const visible=current.filter(()=>shownInk||shownNotes).map(l=>({...l,draw_asset_id:shownInk?l.draw_asset_id:null,typed_notes:shownNotes?l.typed_notes:null}));
+  if(JSON.stringify(visible)!==JSON.stringify(retained)&&source.shared_seq===snapshot?.source_shared_seq)changes.push('參考圖層的展示範圍已變更');
+  return c.json({available:true,changed:changes.length>0,changes,collection_id:source.collection_id,entry_id:source.id,
+    content_seq:source.content_seq,shared_seq:source.shared_seq,acl_version:source.acl_version});
+});
+savedRouter.post('/saved/:id/retry-classification',authMiddleware,async c=>{
+  const uid=c.get('userId'),id=c.req.param('id')!;
+  const result=await c.env.DB.prepare(`UPDATE saved_refs SET classification_state='pending',row_version=row_version+1
+    WHERE id=? AND user_id=? AND classification_state='failed' AND personal_topic_id IS NULL`).bind(id,uid).run();
+  if(!result.meta.changes)return c.json(apiError('CONFLICT','此題已有分類或正在分類，請重新讀取'),409);
+  c.executionCtx.waitUntil(classifySaved(c.env,id,uid));return c.json({classification_state:'pending'});
 });
 savedRouter.get('/saved/:id',authMiddleware,async c=>{
   const saved=await own(c.env.DB,c.req.param('id')||'',c.get('userId'));
@@ -273,6 +321,10 @@ savedRouter.post('/saved/:id/refresh-source',authMiddleware,async c=>{
   if(!saved) return c.json(apiError('NOT_FOUND','找不到個人題目'),404);
   const source=await sourceGate(c,saved.entry_id);
   if(!source) return c.json(badSource,410);
+  const b=await c.req.json().catch(()=>({}));
+  if((b.content_seq!==undefined&&b.content_seq!==source.content_seq)||
+    (b.shared_seq!==undefined&&b.shared_seq!==source.shared_seq)||(b.acl_version!==undefined&&b.acl_version!==source.acl_version))
+    return c.json(apiError('SOURCE_CHANGED','來源已在預覽後變動，請重新檢查更新'),409);
   const previous=await c.env.DB.prepare(`SELECT ss.image_asset_id FROM saved_snapshots ss
     WHERE ss.id=? AND ss.saved_ref_id=?`).bind(saved.current_snapshot_id,saved.id)
     .first<{image_asset_id:string}>();
@@ -320,7 +372,7 @@ savedRouter.patch('/saved/:id',authMiddleware,async c=>{
       if(!row) return c.json(apiError('INVALID_TOPIC','個人分類無效'),400);
       topic=b.personal_topic_id;
     }
-    updates.push('personal_topic_id=?');values.push(topic);
+    updates.push('personal_topic_id=?',"classification_state='manual'");values.push(topic);
   }
   if(b.review_count!==undefined){
     if(!Number.isSafeInteger(b.review_count)||b.review_count<0) return c.json(apiError('INVALID_REQUEST','複習次數無效'),400);
