@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
-import { Filter } from 'lucide-react';
+import { useId, useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight, Filter } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { StudySources } from './StudySources';
 import { FloatingPenToolbar } from './FloatingPenToolbar';
@@ -12,8 +12,18 @@ export function StudyLibraryLayout({sidebar,notices,children}:{sidebar:ReactNode
 }
 
 export function SearchLibraryLayout({query,collection,filters,view,onView,notices,children}:{query:ReactNode;collection:ReactNode;filters:ReactNode;view:string;onView:(value:string)=>void;notices:ReactNode;children:ReactNode}) {
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersId = useId();
   return <div className="space-y-4"><StudySources/><header className="rounded-3xl border border-border-subtle bg-surface p-4 space-y-3">
-    {query}<div className="flex flex-wrap items-end gap-3">{collection}<label className="block text-xs text-text-muted">檢視方式<select aria-label="搜尋檢視方式" value={view} onChange={e=>onView(e.target.value)} className="mt-2 block min-h-11 rounded-xl border border-border-subtle bg-page-bg px-3 py-3 text-sm"><option value="compact">簡單檢視</option><option value="full">完整檢視</option></select></label></div>
-    <details><summary className="cursor-pointer text-sm text-text-muted">篩選</summary><div className="mt-3">{filters}</div></details>
+    {query}{collection && <div className="flex flex-wrap items-end gap-3">{collection}</div>}
+    <div className="flex items-center justify-between gap-3">
+      <button type="button" aria-expanded={filtersOpen} aria-controls={filtersId} onClick={()=>setFiltersOpen(open=>!open)} className="inline-flex min-h-11 items-center gap-1 rounded-xl text-sm text-text-muted">
+        {filtersOpen ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}篩選
+      </button>
+      <div role="group" aria-label="搜尋檢視方式" className="inline-flex shrink-0 items-center gap-1 rounded-xl border border-border-subtle bg-page-bg p-1">
+        {([{value:'compact',label:'簡單'},{value:'full',label:'詳細'}] as const).map(option=><button key={option.value} type="button" aria-pressed={view===option.value} onClick={()=>onView(option.value)} className={`min-h-11 rounded-xl px-4 py-2 text-sm ${view===option.value?'bg-primary/10 text-primary':'text-text-muted hover:bg-surface'}`}>{option.label}</button>)}
+      </div>
+    </div>
+    <div id={filtersId} hidden={!filtersOpen}>{filters}</div>
   </header>{notices}{children}</div>;
 }

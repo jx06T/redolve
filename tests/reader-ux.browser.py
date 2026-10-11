@@ -255,12 +255,12 @@ def run():
     page.screenshot(path='.wrangler/search-compact.png',full_page=True)
     expect(page.get_by_label('本題筆記')).to_have_count(0)
     search_header=page.locator('main header')
-    expect(search_header.get_by_label('搜尋檢視方式')).to_be_visible()
+    expect(search_header.get_by_role('group',name='搜尋檢視方式')).to_be_visible()
     grid.get_by_role('link',name='前往刷題',exact=True).nth(1).click();page.wait_for_load_state('networkidle')
     assert 'focus=owned1' in page.url
     # Search is read-only and returns to its query and display mode.
     page.goto(BASE+'/search?source=owned&q=題目&view=full');page.wait_for_load_state('networkidle')
-    expect(page.get_by_label('搜尋檢視方式')).to_have_value('full')
+    expect(page.get_by_role('group',name='搜尋檢視方式').get_by_role('button',name='詳細',exact=True)).to_have_attribute('aria-pressed','true')
     expect(page.locator('aside')).to_have_count(0)
     expect(page.get_by_role('button',name='完成訂正',exact=True)).to_have_count(0)
     expect(page.get_by_label('本題筆記').first).to_be_disabled()
@@ -269,7 +269,7 @@ def run():
     expect(page.locator('header').get_by_role('navigation',name='主要導覽')).to_be_visible()
     page.get_by_role('button',name='返回',exact=True).click();page.wait_for_load_state('networkidle');page.wait_for_timeout(1100)
     assert 'view=full' in page.url and 'q=' in page.url
-    expect(page.get_by_label('搜尋檢視方式')).to_have_value('full')
+    expect(page.get_by_role('group',name='搜尋檢視方式').get_by_role('button',name='詳細',exact=True)).to_have_attribute('aria-pressed','true')
     assert page.locator('[data-reader]').evaluate('(el)=>el.scrollTop')>1000
     scroll_rows[0]=False
     page.goto(BASE+'/settings#collections');page.wait_for_load_state('networkidle')
