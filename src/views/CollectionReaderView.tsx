@@ -105,30 +105,30 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     (a.title || a.last_known_title).localeCompare(b.title || b.last_known_title, 'zh-Hant') : sort === 'viewed' ?
       (b.last_viewed_at || '').localeCompare(a.last_viewed_at || '') : b.subscribed_at.localeCompare(a.subscribed_at));
   const scopeTitle = co?.title || subs.find(s => s.collection_id === id)?.title || publicSets.find(c => c.id === id)?.title || (id ? '目前題目集' : mode === 'extended' ? '請選擇已訂閱的題目集' : '全部公開題目');
-  return <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col gap-4">
+  return <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col gap-3">
     <FloatingReaderControls title={mode === 'extended' ? '延伸題目' : mode === 'explore' ? '公開探索' : '題目集觀看'}
       tone={mode === 'collection' ? 'neutral' : mode}
       summary={scopeTitle} open={controlsOpen} onOpenChange={setControlsOpen} activeFilters={!!(query || filter)}>
       {(mode !== 'extended' || account) ? <>
-      {mode === 'explore' && <label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, q: '', state: '' }); setControlsOpen(false); }} className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
-        <option value="">全部公開題目</option>{id && !publicSets.some(c => c.id === id) && <option value={id}>{co?.title || '目前題目集'}</option>}{publicSets.map(c => <option key={c.id} value={c.id}>{c.title} · {c.item_count || 0} 題</option>)}
-      </select></label>}
-      {co && mode !== 'extended' && <div className="mt-3 flex flex-wrap items-center gap-3"><h2 className="font-medium">{co.title}</h2>{!co.is_owner && <span className="text-xs">{!subscriptionStatusReady ? '確認訂閱狀態中…' : subscribed ? '已訂閱' : '尚未訂閱'}</span>}</div>}
-      {mode === 'extended' && <div className="mt-3 space-y-2">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => setListQuery(e.target.value)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
-          <select value={sort} onChange={e => patch({ sort: e.target.value })} aria-label="訂閱集排序" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
-        <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { setListQuery(''); patch({ collection_id: e.target.value, state: '', q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
-          <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s => s.can_read).map(s => <option key={s.collection_id} value={s.collection_id}>{s.title || s.last_known_title}{s.unread_count ? ` · ${s.unread_count} 題未看新題` : ''}</option>)}</optgroup>
-          {id && !subs.some(s => s.collection_id === id) && <option value={id} disabled>{subsBusy ? '讀取訂閱中…' : '此集合未訂閱'}</option>}
-          <optgroup label="目前無法觀看">{sorted.filter(s => !s.can_read).map(s => <option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
-        <Link to="/settings#subscriptions" className="inline-block text-xs text-text-muted underline">管理訂閱關係</Link>
-      </div>}
-      {(mode !== 'extended' || id) && <form onSubmit={e => { e.preventDefault(); patch({ q: queryDraft.trim() }); setControlsOpen(false); }} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
-        <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
-        <button className="rounded-xl bg-surface px-4 py-2 text-sm">搜尋</button>
-        {mode === 'extended' && <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="col-span-2 min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>}
-      </form>}
-      {(query || filter) && <button type="button" onClick={() => { patch({ q: '', state: '' }); setQueryDraft(''); }} className="mt-3 min-h-11 rounded-xl bg-page-bg px-3 py-2 text-xs">清除搜尋與篩選</button>}
+        {mode === 'explore' && <label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, q: '', state: '' }); setControlsOpen(false); }} className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
+          <option value="">全部公開題目</option>{id && !publicSets.some(c => c.id === id) && <option value={id}>{co?.title || '目前題目集'}</option>}{publicSets.map(c => <option key={c.id} value={c.id}>{c.title} · {c.item_count || 0} 題</option>)}
+        </select></label>}
+        {co && mode !== 'extended' && <div className="mt-3 flex flex-wrap items-center gap-3"><h2 className="font-medium">{co.title}</h2>{!co.is_owner && <span className="text-xs">{!subscriptionStatusReady ? '確認訂閱狀態中…' : subscribed ? '已訂閱' : '尚未訂閱'}</span>}</div>}
+        {mode === 'extended' && <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => setListQuery(e.target.value)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
+            <select value={sort} onChange={e => patch({ sort: e.target.value })} aria-label="訂閱集排序" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
+          <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { setListQuery(''); patch({ collection_id: e.target.value, state: '', q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
+            <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s => s.can_read).map(s => <option key={s.collection_id} value={s.collection_id}>{s.title || s.last_known_title}{s.unread_count ? ` · ${s.unread_count} 題未看新題` : ''}</option>)}</optgroup>
+            {id && !subs.some(s => s.collection_id === id) && <option value={id} disabled>{subsBusy ? '讀取訂閱中…' : '此集合未訂閱'}</option>}
+            <optgroup label="目前無法觀看">{sorted.filter(s => !s.can_read).map(s => <option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
+          <Link to="/settings#subscriptions" className="inline-block text-xs text-text-muted underline">管理訂閱關係</Link>
+        </div>}
+        {(mode !== 'extended' || id) && <form onSubmit={e => { e.preventDefault(); patch({ q: queryDraft.trim() }); setControlsOpen(false); }} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+          <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
+          <button className="rounded-xl bg-surface px-4 py-2 text-sm">搜尋</button>
+          {mode === 'extended' && <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="col-span-2 min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>}
+        </form>}
+        {(query || filter) && <button type="button" onClick={() => { patch({ q: '', state: '' }); setQueryDraft(''); }} className="mt-3 min-h-11 rounded-xl bg-page-bg px-3 py-2 text-xs">清除搜尋與篩選</button>}
       </> : null}
     </FloatingReaderControls>
     {mode === 'extended' && !account && <LoginNotice description="登入後可選擇已訂閱的題目集。" />}

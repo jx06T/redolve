@@ -62,7 +62,7 @@ export const SmartCTA: React.FC<SmartCTAProps> = ({ onStatusResolved, action }) 
         disabled={busy || action?.disabled}
         aria-label={isResolved ? '切換下一題' : '完成當題訂正'}
         onClick={handleSmartResolve}
-        className={`flex items-center space-x-1.5 px-4 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 disabled:opacity-50 ${isResolved
+        className={`flex md:translate-y-9 items-center space-x-1.5 px-4 py-3 rounded-full text-xs font-bold text-white shadow-xl transition-all duration-200 active:scale-95 disabled:opacity-50 ${isResolved
           ? 'bg-status-resolved hover:bg-status-resolved/90 ring-2 ring-status-resolved/30'
           : 'bg-primary hover:bg-primary-hover ring-2 ring-primary/30'
           }`}

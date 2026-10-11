@@ -139,7 +139,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
       {scope?.loading&&<p role="status" className="text-xs text-text-muted">正在載入題目大綱；目前計數為已載入部分。</p>}
       {/* Subject Selection Dropdown inside Sidebar */}
       <div>
-        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
           <span>選擇科目</span>
         </div>
         <CustomSelect
@@ -163,7 +163,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
 
       {/* Status Filter Toggle */}
       <div>
-        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+        <div className="flex items-center space-x-2 text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
           <span>訂正狀態過濾</span>
         </div>
         <div className="grid grid-cols-4 gap-1 p-1 bg-neutral-100 rounded-2xl">
@@ -187,7 +187,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
 
       {/* Subject Taxonomy Topic Filter */}
       <div>
-        <div className="flex items-center justify-between text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+        <div className="flex items-center justify-between text-xs font-semibold text-text-muted uppercase tracking-wider mb-1">
           <div className="flex items-center space-x-1.5">
             <Layers className="w-3.5 h-3.5 text-primary" />
             <span>{isUnclassifiedSubject ? '其他科目' : currentSubjectId==='all'?'科目與章節':(activeSubject?.label || '章節')} 篩選</span>
@@ -349,7 +349,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
         </div>
       ) : (
         // 加入 self-start，並調整高度至 h-[calc(100dvh-6.5rem)] (考量 top:4.75rem 與底部安全邊距)，消除整體頁面的垂直滾動條
-        <aside className={`hidden lg:flex flex-col w-72 self-start bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs ${scope?'h-full':'h-[calc(100dvh-6.5rem)] sticky top-[4.75rem]'}`}>
+        <aside className={`hidden mt-2 lg:flex flex-col w-72 self-start bg-surface border border-border-subtle rounded-3xl p-4 shrink-0 transition-all overflow-hidden shadow-2xs ${scope?'h-[calc(100%-0.5rem)]':'h-[calc(100dvh-6.5rem)] sticky top-[4.75rem]'}`}>
           <div className="flex items-center justify-between pb-2 mb-3 border-b border-border-subtle shrink-0">
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-primary" />

@@ -34,7 +34,7 @@ export function FloatingReaderControls({title, summary, open, onOpenChange, acti
     return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
   },[open,onOpenChange]);
   return <div ref={root} className={`sticky top-0 z-30 shrink-0 rounded-2xl border px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${colors.frame}`}>
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-3">
       <div className="min-w-0 flex-1">
         <h1 className="text-base font-semibold sm:text-xl">{title}</h1>
         <p title={summary} className="truncate text-xs text-text-muted">{summary}</p>
