@@ -337,7 +337,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectProblemOutline, scope,
       {desktop&&(sidebarCollapsed ? (
         // 加入 self-start，避免 Flex stretch 強迫與主要內容等高而失去 sticky 效果
         <div className=' hidden lg:block w-2 h-1 relative'>
-          <div className=" absolute self-start top-0 -left-2">
+          <div className=" absolute self-start top-2  z-60 -left-2">
             <button
               onClick={toggleSidebarCollapsed}
               className="p-3 rounded-2xl bg-surface border border-border-subtle text-primary shadow-xs hover:bg-neutral-100 transition-all"
