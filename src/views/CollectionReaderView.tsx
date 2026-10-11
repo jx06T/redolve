@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useNavigationType, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useNavigationType, useParams } from 'react-router-dom';
+import { useRememberedReaderParams } from '../hooks/useRememberedReaderParams';
 import { ExternalQuestionCard } from '../components/ExternalQuestionCard';
 import { QuestionStream } from '../components/QuestionStream';
 import { FloatingReaderControls } from '../components/FloatingReaderControls';
@@ -14,13 +15,14 @@ type Row = CollectionEntry & { collection_id?: string; is_owner?: boolean };
 const storedSort = (account: string) => { try { return localStorage.getItem(`rdv:subscription-sort:${account}`) || 'subscribed'; } catch { return 'subscribed'; } };
 const readerCache = new Map<string, { rows: Row[]; cursor: { display_order: number; id: string } | null; offset: number | null }>();
 export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 'collection' }) {
-  const navigate = useNavigate(); const route = useParams(); const [params, setParams] = useSearchParams();
+  const navigate = useNavigate(); const route = useParams();
+  const { currentUser } = useStore(); const account = isGuestUser(currentUser) ? '' : currentUser!.id;
+  const [params, setParams] = useRememberedReaderParams(mode === 'collection' ? null : mode, account || 'guest');
   const navigation = useNavigationType();
   const id = mode === 'collection' ? route.id || '' : params.get('collection_id') || '';
-  const query = params.get('q') || ''; const filter = params.get('state') || ''; const sort = params.get('sort') || storedSort(useStore.getState().currentUser?.id || 'guest');
-  const { currentUser } = useStore(); const account = isGuestUser(currentUser) ? '' : currentUser!.id;
+  const query = params.get('q') || ''; const filter = params.get('state') || ''; const sort = params.get('sort') || storedSort(account);
   const [controlsOpen, setControlsOpen] = useState(mode === 'extended' && !id);
-  const [subs, setSubs] = useState<Subscription[]>([]); const [listQuery, setListQuery] = useState('');
+  const [subs, setSubs] = useState<Subscription[]>([]); const listQuery = params.get('list_q') || '';
   const [collection, setCo] = useState<Collection>(); const [queryDraft, setQueryDraft] = useState(query);
   const [dataKey, setDataKey] = useState('');
   const [rows, setRows] = useState<Row[]>([]); const [cursor, setCursor] = useState<{ display_order: number; id: string } | null>(null);
@@ -63,7 +65,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     navigate(`${dest}?collection_id=${encodeURIComponent(collectionId)}&focus=${encodeURIComponent(entryId)}`);
   };
   useEffect(() => { if (mode === 'explore' && id && subscribed && subscriptionStatusReady) navigate(`/extended?collection_id=${encodeURIComponent(id)}${params.get('focus') ? '&focus=' + encodeURIComponent(params.get('focus')!) : ''}`, { replace: true }); }, [mode, id, subscribed, subscriptionStatusReady, navigate, params]);
-  const patch = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([k, v]) => v ? next.set(k, v) : next.delete(k)); next.delete('focus'); setParams(next); };
+  const patch = (values: Record<string, string>, replace = false) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([k, v]) => v ? next.set(k, v) : next.delete(k)); next.delete('focus'); setParams(next, { replace }); };
   const load = async (more = false) => {
     abortRef.current?.abort(); const abort = new AbortController(); abortRef.current = abort; setError('');
     if (mode !== 'explore' && !id) { setRows([]); setBusy(false); return; }
@@ -115,9 +117,9 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
         </select></label>}
         {co && mode !== 'extended' && <div className="mt-3 flex flex-wrap items-center gap-3"><h2 className="font-medium">{co.title}</h2>{!co.is_owner && <span className="text-xs">{!subscriptionStatusReady ? '確認訂閱狀態中…' : subscribed ? '已訂閱' : '尚未訂閱'}</span>}</div>}
         {mode === 'extended' && <div className="mt-3 space-y-2">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => setListQuery(e.target.value)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => patch({ list_q: e.target.value }, true)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
             <select value={sort} onChange={e => patch({ sort: e.target.value })} aria-label="訂閱集排序" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
-          <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { setListQuery(''); patch({ collection_id: e.target.value, state: '', q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
+          <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, state: '', q: '', list_q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
             <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s => s.can_read).map(s => <option key={s.collection_id} value={s.collection_id}>{s.title || s.last_known_title}{s.unread_count ? ` · ${s.unread_count} 題未看新題` : ''}</option>)}</optgroup>
             {id && !subs.some(s => s.collection_id === id) && <option value={id} disabled>{subsBusy ? '讀取訂閱中…' : '此集合未訂閱'}</option>}
             <optgroup label="目前無法觀看">{sorted.filter(s => !s.can_read).map(s => <option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
