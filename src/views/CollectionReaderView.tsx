@@ -21,6 +21,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
   const navigation = useNavigationType();
   const id = mode === 'collection' ? route.id || '' : params.get('collection_id') || '';
   const query = params.get('q') || ''; const filter = params.get('state') || ''; const sort = params.get('sort') || storedSort(account);
+  const savedFilter = mode === 'extended' && ['yes', 'no'].includes(params.get('saved') || '') ? params.get('saved')! : '';
   const [controlsOpen, setControlsOpen] = useState(mode === 'extended' && !id);
   const [subs, setSubs] = useState<Subscription[]>([]); const listQuery = params.get('list_q') || '';
   const [collection, setCo] = useState<Collection>(); const [queryDraft, setQueryDraft] = useState(query);
@@ -31,7 +32,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
   const [subscriptionRevision, setSubscriptionRevision] = useState(0); const [subscriptionAccount, setSubscriptionAccount] = useState<string | null>(null);
   const [subsBusy, setSubsBusy] = useState(true); const [subsError, setSubsError] = useState('');
   const [publicSets, setPublicSets] = useState<Collection[]>([]); const [publicSetsError, setPublicSetsError] = useState('');
-  const abortRef = useRef<AbortController>(); const key = JSON.stringify([mode, id, query, filter, account]); const active = useRef(key); active.current = key;
+  const abortRef = useRef<AbortController>(); const key = JSON.stringify([mode, id, query, filter, savedFilter, account]); const active = useRef(key); active.current = key;
   const co = dataKey === key ? collection : undefined;
 
   useEffect(() => setQueryDraft(query), [query]);
@@ -73,6 +74,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     setBusy(true);
     try {
       const p = new URLSearchParams({ q: query }); if (filter) p.set('state', filter);
+      if (savedFilter) p.set('saved', savedFilter);
       if (publicFeed) {
         p.set('exclude_subscribed', 'yes'); p.set('exclude_owned', 'yes'); p.set('offset', String(more ? offset || 0 : 0));
         const result = await sharingApi<{ items: (Row & { entry_id: string })[]; next_offset: number | null }>(`/public/items?${p}`, 'GET', undefined, abort.signal);
@@ -86,7 +88,8 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
         if (mode === 'explore' && result.collection.visibility !== 'public') throw new Error('此集合不屬於公開探索。請由獲准的共用連結觀看。');
         setDataKey(key);
         setCo(result.collection);
-        const cached = !more && navigation === 'POP' && revision === 0 ? readerCache.get(key) : undefined;
+        // Saved membership can change in another view; restore filtered results from the current response.
+        const cached = !savedFilter && !more && navigation === 'POP' && revision === 0 ? readerCache.get(key) : undefined;
         if (cached) { setRows(cached.rows); setCursor(cached.cursor); setNewItems(!!result.items[0] && cached.rows[0]?.id !== result.items[0].id); }
         else { setRows(old => more ? [...old, ...result.items.filter(i => !old.some(x => x.id === i.id))] : result.items); setCursor(result.next_cursor); }
       }
@@ -98,11 +101,14 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     if (!id || !ready) return;
     const abort = new AbortController();
     const listener = () => {
-      void sharingApi<{ items: Row[] }>(`/collections/${id}?sort=recent`, 'GET', undefined, abort.signal).then(r => {
+      const p = new URLSearchParams({ sort: 'recent', q: query });
+      if (filter) p.set('state', filter);
+      if (savedFilter) p.set('saved', savedFilter);
+      void sharingApi<{ items: Row[] }>(`/collections/${id}?${p}`, 'GET', undefined, abort.signal).then(r => {
         if (!abort.signal.aborted && r.items[0] && rows[0] && r.items[0].id !== rows[0].id) setNewItems(true);
       }).catch(e => { if (!abort.signal.aborted && [401, 403, 404].includes(e.status)) { readerCache.delete(key); setRows([]); setCo(undefined); setError(e.message); } });
     }; window.addEventListener('focus', listener); return () => { abort.abort(); window.removeEventListener('focus', listener); };
-  }, [id, mode, rows, ready]);
+  }, [id, mode, rows, ready, query, filter, savedFilter]);
   const sorted = subs.filter(s => s.collection_id === id || (s.title || s.last_known_title).toLocaleLowerCase().includes(listQuery.toLocaleLowerCase())).sort((a, b) => sort === 'alphabet' ?
     (a.title || a.last_known_title).localeCompare(b.title || b.last_known_title, 'zh-Hant') : sort === 'viewed' ?
       (b.last_viewed_at || '').localeCompare(a.last_viewed_at || '') : b.subscribed_at.localeCompare(a.subscribed_at));
@@ -110,7 +116,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
   return <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col gap-3">
     <FloatingReaderControls title={mode === 'extended' ? '延伸題目' : mode === 'explore' ? '公開探索' : '題目集觀看'}
       tone={mode === 'collection' ? 'neutral' : mode}
-      summary={scopeTitle} open={controlsOpen} onOpenChange={setControlsOpen} activeFilters={!!(query || filter)}>
+      summary={scopeTitle} open={controlsOpen} onOpenChange={setControlsOpen} activeFilters={!!(query || filter || savedFilter)}>
       {(mode !== 'extended' || account) ? <>
         {mode === 'explore' && <label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, q: '', state: '' }); setControlsOpen(false); }} className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
           <option value="">全部公開題目</option>{id && !publicSets.some(c => c.id === id) && <option value={id}>{co?.title || '目前題目集'}</option>}{publicSets.map(c => <option key={c.id} value={c.id}>{c.title} · {c.item_count || 0} 題</option>)}
@@ -119,7 +125,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
         {mode === 'extended' && <div className="mt-3 space-y-2">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><input value={listQuery} onChange={e => patch({ list_q: e.target.value }, true)} aria-label="尋找已訂閱的集合" placeholder="尋找已訂閱集合" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
             <select value={sort} onChange={e => patch({ sort: e.target.value })} aria-label="訂閱集排序" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="subscribed">訂閱時間</option><option value="viewed">觀看紀錄</option><option value="alphabet">名稱排序</option></select></div>
-          <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, state: '', q: '', list_q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
+          <select disabled={subsBusy || !!subsError} aria-label="選擇已訂閱的題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, state: '', saved: '', q: '', list_q: '' }); setControlsOpen(false); }} className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm">
             <option value="">請選擇題目集</option><optgroup label="可觀看">{sorted.filter(s => s.can_read).map(s => <option key={s.collection_id} value={s.collection_id}>{s.title || s.last_known_title}{s.unread_count ? ` · ${s.unread_count} 題未看新題` : ''}</option>)}</optgroup>
             {id && !subs.some(s => s.collection_id === id) && <option value={id} disabled>{subsBusy ? '讀取訂閱中…' : '此集合未訂閱'}</option>}
             <optgroup label="目前無法觀看">{sorted.filter(s => !s.can_read).map(s => <option disabled key={s.collection_id} value={s.collection_id}>{s.last_known_title} · 無法存取</option>)}</optgroup></select>
@@ -128,9 +134,12 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
         {(mode !== 'extended' || id) && <form onSubmit={e => { e.preventDefault(); patch({ q: queryDraft.trim() }); setControlsOpen(false); }} className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
           <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
           <button className="rounded-xl bg-surface px-4 py-2 text-sm">搜尋</button>
-          {mode === 'extended' && <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="col-span-2 min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>}
+          {mode === 'extended' && <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
+            <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>
+            <select aria-label="存入狀態篩選" value={savedFilter} onChange={e => patch({ saved: e.target.value })} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部存入狀態</option><option value="no">未存入</option><option value="yes">已存入</option></select>
+          </div>}
         </form>}
-        {(query || filter) && <button type="button" onClick={() => { patch({ q: '', state: '' }); setQueryDraft(''); }} className="mt-3 min-h-11 rounded-xl bg-page-bg px-3 py-2 text-xs">清除搜尋與篩選</button>}
+        {(query || filter || savedFilter) && <button type="button" onClick={() => { patch({ q: '', state: '', saved: '' }); setQueryDraft(''); }} className="mt-3 min-h-11 rounded-xl bg-page-bg px-3 py-2 text-xs">清除搜尋與篩選</button>}
       </> : null}
     </FloatingReaderControls>
     {mode === 'extended' && !account && <LoginNotice description="登入後可選擇已訂閱的題目集。" />}

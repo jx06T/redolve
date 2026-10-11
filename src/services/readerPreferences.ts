@@ -2,7 +2,7 @@ export type ReaderPreferenceScope = 'explore' | 'extended' | 'contributing';
 
 const fields: Record<ReaderPreferenceScope, readonly string[]> = {
   explore: ['collection_id', 'q'],
-  extended: ['collection_id', 'q', 'state', 'sort', 'list_q'],
+  extended: ['collection_id', 'q', 'state', 'saved', 'sort', 'list_q'],
   contributing: ['collection_id'],
 };
 const memory = new Map<string, string>();

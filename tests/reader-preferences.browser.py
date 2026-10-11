@@ -56,9 +56,11 @@ with sync_playwright() as pw:
             page.wait_for_load_state('networkidle')
 
         visit('/explore?collection_id=p1&q=math')
-        visit('/extended?collection_id=c1&q=vector&state=starred&sort=alphabet&list_q=訂閱')
+        visit('/extended?collection_id=c1&q=vector&state=starred&saved=no&sort=alphabet&list_q=訂閱')
         open_controls()
         expect(page.get_by_label('閱讀篩選')).to_have_value('starred')
+        expect(page.get_by_label('存入狀態篩選')).to_have_value('no')
+        assert any(path == '/api/collections/c1' and q.get('saved') == ['no'] and q.get('state') == ['starred'] for path, q in calls), calls
         expect(page.get_by_label('訂閱集排序')).to_have_value('alphabet')
 
         # Bare navigation returns to the previous scoped filters before loading the first page.
@@ -76,9 +78,11 @@ with sync_playwright() as pw:
         expect(page.get_by_label('搜尋目前觀看範圍')).to_have_value('vector')
         expect(page.get_by_label('閱讀篩選')).to_have_value('starred')
         expect(page.get_by_label('尋找已訂閱的集合')).to_have_value('訂閱')
+        expect(page.get_by_label('存入狀態篩選')).to_have_value('no')
         page.reload()
         page.wait_for_load_state('networkidle')
         assert parse_qs(urlparse(page.url).query)['state'] == ['starred']
+        assert parse_qs(urlparse(page.url).query)['saved'] == ['no']
         visit('/explore')
         assert not urlparse(page.url).query, page.url
 
@@ -86,6 +90,12 @@ with sync_playwright() as pw:
         visit('/extended?collection_id=c2&focus=e2')
         query = parse_qs(urlparse(page.url).query)
         assert query == {'collection_id': ['c2'], 'focus': ['e2']}, query
+        open_controls()
+        expect(page.get_by_label('存入狀態篩選')).to_have_value('')
+        page.get_by_label('存入狀態篩選').select_option('no')
+        expect(page.get_by_label('存入狀態篩選')).to_have_value('no')
+        page.get_by_role('region', name='題目閱讀選項').get_by_role('button', name='清除搜尋與篩選').click()
+        expect(page.get_by_label('存入狀態篩選')).to_have_value('')
         visit('/search?source=contributing&collection_id=co')
         calls.clear()
         visit('/study?source=contributing')

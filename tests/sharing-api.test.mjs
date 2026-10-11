@@ -292,6 +292,12 @@ test('contributor live source revokes while subscriber download survives', async
     const savedOnly=await call(`/api/collections/${collectionId}?saved=yes`,'d');
     assert.equal(savedOnly.data.items.length,1);
     assert.equal(savedOnly.data.items[0].id,entryId);
+    const unsavedOnly=await call(`/api/collections/${collectionId}?saved=no`,'d');
+    assert.deepEqual(unsavedOnly.data.items.map(item=>item.id),[secondAdded.data.entry_id]);
+    assert.equal((await call(`/api/collections/${collectionId}?saved=no&state=starred`,'d')).data.items.length,0,
+      'unsaved and starred filters combine rather than replace each other');
+    assert.equal((await call(`/api/collections/${collectionId}?saved=no`,'b')).data.items.length,2,
+      'saved filtering uses the current reader’s own library');
     const category=await call(`/api/saved/${savedId}`,'d','PATCH',
       {personal_topic_id:'algebra',expected_version:(await call(`/api/saved/${savedId}`,'d')).data.saved.row_version});
     assert.equal(category.status,200,JSON.stringify(category.data));
