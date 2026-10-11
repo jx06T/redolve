@@ -1,4 +1,4 @@
-import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass, Info } from 'lucide-react';
 
 export const SHOW_SHORTCUTS_EVENT = 'redolve:show-shortcuts';
 
@@ -14,6 +14,7 @@ export const NAV_LINKS = [
 export const HEADER_NAV_LINKS = [
   ...NAV_LINKS,
   { path: '/explore', label: '探索', icon: Compass },
+  { path: '/about', label: '關於', icon: Info },
 ];
 
 // Separated Exam Years & Exam Types (年分與卷別獨立分離)

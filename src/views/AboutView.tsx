@@ -45,8 +45,8 @@ export function AboutView() {
       <dl className="mt-4 space-y-4 text-sm">
         <div><dt className="font-semibold">我上傳</dt><dd className="mt-1 leading-7 text-text-muted">自己的原題與私人訂正。可把原題加入自己建立、或有貢獻權限的共用集，原題仍留在自己的題庫。</dd></div>
         <div><dt className="font-semibold">我存入</dt><dd className="mt-1 leading-7 text-text-muted">把獲准存入的他人題目保留在自己的題庫，另外做自己的訂正。存入時保留當下內容；之後可維持這份內容，或主動更新來源，不會因訂閱而自動更新。</dd></div>
-        <div><dt className="font-semibold">我共用中</dt><dd className="mt-1 leading-7 text-text-muted">在可貢獻的集合一起書寫與做筆記，檢視其他貢獻者的共用內容。自己的原題私人訂正與集合內的共用作業分開。</dd></div>
-        <div><dt className="font-semibold">訂閱</dt><dd className="mt-1 leading-7 text-text-muted">追蹤題目集並觀看目前獲准存取的內容，不會把整個集合複製進自己的題庫。想自己訂正時先存入；分享連結也不會繞過題目權限。</dd></div>
+        <div><dt className="font-semibold">我共用中</dt><dd className="mt-1 leading-7 text-text-muted">在可貢獻的集合一起書寫與做筆記，檢視其他貢獻者的共用內容。自己貢獻的原題與「我上傳」共用同一份筆跡與筆記；在他人原題上的共用作業則另外儲存。</dd></div>
+        <div><dt className="font-semibold">訂閱</dt><dd className="mt-1 leading-7 text-text-muted">追蹤題目集並觀看目前獲准存取的內容，不會把整個集合複製進自己的題庫。想自己訂正時先存入。獲准建立的獨立單題分享，任何持連結的人都可觀看該版本，但不會因此取得整個集合的權限。</dd></div>
       </dl>
     </section>
     <section className="rounded-3xl border border-border-subtle bg-surface p-5 sm:p-7" aria-labelledby="about-tips">
@@ -58,6 +58,14 @@ export function AboutView() {
         <li>可先用訪客模式試用，本機內容保存在目前瀏覽器。登入後可使用雲端題庫及共用、訂閱功能。</li>
       </ul>
       <button type="button" onClick={() => window.dispatchEvent(new Event(SHOW_SHORTCUTS_EVENT))} className="mt-4 flex min-h-11 items-center gap-2 rounded-xl bg-primary/10 px-4 py-2 text-sm text-primary"><Keyboard size={16} />查看完整快捷鍵與手勢</button>
+    </section>
+    <section className="px-2 py-4" aria-labelledby="about-policies">
+      <h2 id="about-policies" className="text-lg font-semibold">隱私與服務條款</h2>
+      <p className="mt-3 text-sm leading-7 text-text-muted">了解資料如何儲存與使用，以及上傳、共用、存入和分享內容時的權利與責任。</p>
+      <div className="mt-2 flex flex-wrap gap-x-6">
+        <Link to="/about/privacy" className="inline-flex min-h-11 items-center text-sm text-text-muted underline underline-offset-4">隱私權政策</Link>
+        <Link to="/about/terms" className="inline-flex min-h-11 items-center text-sm text-text-muted underline underline-offset-4">服務條款與免責聲明</Link>
+      </div>
     </section>
   </div>;
 }
