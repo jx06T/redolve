@@ -257,6 +257,18 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal(filteredSets.status,200);
     assert.ok(!filteredSets.data.collections.some(co=>co.id===collectionId));
     assert.ok((await call('/api/public/collections?exclude_subscribed=yes','a')).data.collections.some(co=>co.id===collectionId),'other accounts can still discover the collection');
+    const discoveryFilters='exclude_owned=yes&exclude_subscribed=yes';
+    const ownerSets=await call(`/api/public/collections?${discoveryFilters}`,'a');
+    const ownerItems=await call(`/api/public/items?${discoveryFilters}`,'a');
+    assert.equal(ownerSets.status,200);assert.equal(ownerItems.status,200);
+    assert.ok(!ownerSets.data.collections.some(co=>co.id===collectionId),'discovery excludes collections owned by the current account');
+    assert.ok(!ownerItems.data.items.some(i=>i.collection_id===collectionId),'all contributions in an owned collection are excluded before pagination');
+    const contributorItems=await call(`/api/public/items?${discoveryFilters}`,'b');
+    assert.ok(contributorItems.data.items.some(i=>i.entry_id===entryId),'contributing to another owner does not hide their collection');
+    const anonymousDiscovery=await mf.dispatchFetch(`https://redolve.test/api/public/items?${discoveryFilters}`);
+    assert.equal(anonymousDiscovery.status,200);
+    assert.ok((await anonymousDiscovery.json()).items.some(i=>i.entry_id===entryId),'anonymous discovery can still show public collections');
+    assert.equal((await call(`/api/collections/${collectionId}`,'a')).status,200,'discovery exclusion does not restrict owner access');
     await call('/api/me/public-profile','b','PUT',{display_name:'Contributor renamed'});
     const renamed=await call(`/api/collections/${collectionId}/items/${entryId}`,'b');
     assert.equal(renamed.data.source.provider_name,'Contributor renamed');

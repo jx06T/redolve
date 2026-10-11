@@ -763,6 +763,7 @@ collectionsRouter.get('/public/collections',optionalAuthMiddleware,async c=>{
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
     JOIN assets a ON a.id=i.image_url AND a.state='ready'
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
+      ${c.req.query('exclude_owned')==='yes'?`AND co.owner_id<>?1`:''}
       ${c.req.query('exclude_subscribed')==='yes'?`AND NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1)`:''}
       AND (co.title LIKE ?2 ESCAPE '\\' OR co.description LIKE ?3 ESCAPE '\\')
       AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g
@@ -790,6 +791,7 @@ collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
     LEFT JOIN public_profiles p ON p.user_id=ci.contributor_id
     LEFT JOIN taxonomies t ON t.id=i.topic_id
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
+      ${c.req.query('exclude_owned')==='yes'?`AND co.owner_id<>?1`:''}
       ${c.req.query('exclude_subscribed')==='yes'?`AND NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1)`:''}
       AND (COALESCE(i.source,'') LIKE ?2 ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ?3 ESCAPE '\\')
       AND (co.owner_id=ci.contributor_id OR EXISTS(SELECT 1 FROM collection_grants g

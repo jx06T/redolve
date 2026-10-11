@@ -45,7 +45,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
   }, [account, subscriptionRevision]);
   useEffect(() => {
     setPublicSets([]); setPublicSetsError(''); if (mode !== 'explore') return; const abort = new AbortController();
-    void sharingApi<{ collections: Collection[] }>('/public/collections?exclude_subscribed=yes', 'GET', undefined, abort.signal).then(r => { if (!abort.signal.aborted) setPublicSets(r.collections); })
+    void sharingApi<{ collections: Collection[] }>('/public/collections?exclude_subscribed=yes&exclude_owned=yes', 'GET', undefined, abort.signal).then(r => { if (!abort.signal.aborted) setPublicSets(r.collections); })
       .catch(e => { if (!abort.signal.aborted) setPublicSetsError(e.message); }); return () => abort.abort();
   }, [mode, account, revision]);
   const subscribed = subscriptionAccount === account && subs.some(s => s.collection_id === id);
@@ -74,7 +74,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     try {
       const p = new URLSearchParams({ q: query }); if (filter) p.set('state', filter);
       if (publicFeed) {
-        p.set('exclude_subscribed', 'yes'); p.set('offset', String(more ? offset || 0 : 0));
+        p.set('exclude_subscribed', 'yes'); p.set('exclude_owned', 'yes'); p.set('offset', String(more ? offset || 0 : 0));
         const result = await sharingApi<{ items: (Row & { entry_id: string })[]; next_offset: number | null }>(`/public/items?${p}`, 'GET', undefined, abort.signal);
         if (abort.signal.aborted || active.current !== key) return;
         setDataKey(key);
