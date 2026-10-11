@@ -4,6 +4,13 @@
 
 ## 目前狀態
 
+### 2026-10-11 恢復完成訂正後的平滑滾動
+
+- 根因：舊 StudyView 的下一題使用 `behavior: 'smooth'`，新版 QuestionStream 的直接下一題與跨頁續載下一題省略該參數，使用預設立即定位。
+- 兩條下一題路徑恢復平滑滾動；我上傳、我存入、共用中的懸浮完成訂正／已訂正下一題及 Ctrl／Cmd + Enter 使用同一路徑。
+- 回歸驗證：舊正式建置可重現 0 直接跳至 924px、沒有中間動畫影格。新增 `tests/study-smooth-advance.browser.py` 記錄實際 requestAnimationFrame 捲動位置，檢查中間位置、連續性與下一題對齊，並確認已訂正下一題不重送狀態寫入。
+- 驗證：390px／1280px、三種來源、已載入／需續載下一批，共 12 情境、24 次完成／快捷鍵捲動通過；TypeScript、正式建置及 PWA 4/4 通過。使用合成 API，未操作真實帳號，仍需實體 iPhone／iPad 手勢驗收。無新 migration。
+
 ### 2026-10-11 我上傳作業誤報衝突與草稿還原
 
 - 已確認根因：ProblemCard 每次畫筆變更增加 vectorSeq，但 debounce 合併多次變更後送出，違反後端 draw_seq 必須連續的 CAS；筆記多個請求可同時使用舊 notes_seq。重新載入也直接採用雲端，未讀取 IndexedDB 的已保留衝突草稿。

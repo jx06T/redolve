@@ -65,7 +65,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   const advance=(id:string)=>{
     stopRestoration();
     const index=items.findIndex(item=>contains(item,id));
-    if(index>=0&&index+1<items.length){v.scrollToIndex(index+1,{align:'start'});return;}
+    if(index>=0&&index+1<items.length){v.scrollToIndex(index+1,{align:'start',behavior:'smooth'});return;}
     if(hasMore&&!loadError){pendingNext.current=id;requestMore();}
     else useStore.getState().showToast(loadError?'請先重試載入更多題目':'已到目前清單的最後一題');
   };
@@ -73,7 +73,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   useEffect(()=>{
     const id=pendingNext.current;if(!id)return;
     const index=items.findIndex(item=>contains(item,id));
-    if(index>=0&&index+1<items.length){pendingNext.current=null;v.scrollToIndex(index+1,{align:'start'});}
+    if(index>=0&&index+1<items.length){pendingNext.current=null;v.scrollToIndex(index+1,{align:'start',behavior:'smooth'});}
     else if(!busy&&!hasMore)pendingNext.current=null;
   },[items,busy,hasMore,v]);
   useEffect(()=>{
