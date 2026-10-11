@@ -29,6 +29,7 @@ searchRouter.get('/', async c => {
   const status = c.req.query('status') || '';
   const tag = c.req.query('tag') || '';
   const contributing = c.req.query('contributing') === 'yes';
+  const excludeSelf = c.req.query('exclude_self') || '';
   if(contributing && (!c.get('userId') || scope!=='shared' || !collectionId)) return c.json(apiError('INVALID_REQUEST','請選擇可貢獻集合'),400);
   const subscribed = c.req.query('subscribed') || '';
   const offset = Number(c.req.query('offset') || 0);
@@ -38,6 +39,7 @@ searchRouter.get('/', async c => {
     || (scope !== 'mine' && (origin !== 'all' || (status&&!contributing)))
     || (status && !['processing', 'unsolved', 'resolved', 'archived'].includes(status))
     || (subscribed && (scope !== 'shared' || subscribed !== 'yes'))
+    || (excludeSelf && (excludeSelf !== 'yes' || !contributing))
     || query.length > 200 || tag.length > 80 || collectionId.length > 80 || topic.length > 80
     || !Number.isSafeInteger(offset) || offset < 0 || offset > Number.MAX_SAFE_INTEGER - 50
     || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
@@ -162,24 +164,26 @@ searchRouter.get('/', async c => {
       ${c.req.query('exclude_archived')==='yes'?"AND sr.status!='archived'":''}`);
   }
   if (scope === 'shared' || scope === 'public') {
-    const sharedNotes = `(SELECT COALESCE(group_concat(sl.typed_notes,' '),'') FROM shared_layers sl
+    const sharedNotes = `trim(CASE WHEN ${contributor(user)} OR co.show_shared_notes=1 THEN COALESCE(i.typed_notes,'') ELSE '' END || ' ' || (SELECT COALESCE(group_concat(sl.typed_notes,' '),'') FROM shared_layers sl
       WHERE sl.entry_id=ci.id AND sl.entry_generation=ci.generation AND sl.state='active'
-        AND ${contributor('sl.user_id')} AND (${contributor(user)} OR co.show_shared_notes=1))`;
+        AND ${contributor('sl.user_id')} AND (${contributor(user)} OR co.show_shared_notes=1)))`;
+    const progressStatus = `CASE WHEN ci.contributor_id=${user} THEN CASE WHEN i.status IN ('resolved','archived') THEN i.status ELSE 'unsolved' END ELSE COALESCE(cp.status,'unsolved') END`;
     const fields: [string, number][] = [['i.keywords', 100], ['i.source', 60],
       ['co.title', 20], ['co.public_name', 20], ['p.display_name', 20], ['t.label', 10]];
     if (scope === 'shared') fields.push([sharedNotes, 40]);
     parts.push(`SELECT '${scope}' AS origin,ci.id,COALESCE(i.source,'題目') AS title,
       t.id AS topic_id,t.label AS topic_label,${listOnly ? 'NULL' : 'i.keywords'} AS keywords,
       ${scope === 'shared' && !listOnly ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
-      ${contributing ? "COALESCE(cp.status,'unsolved')" : 'NULL'} AS status,${contributing ? 'COALESCE(cp.review_count,0)' : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
+      ${contributing ? progressStatus : 'NULL'} AS status,${contributing ? `CASE WHEN ci.contributor_id=${user} THEN i.review_count ELSE COALESCE(cp.review_count,0) END` : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
       co.title AS collection_title,COALESCE(p.display_name,co.public_name) AS provider_name,
       (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
       ${score(fields)} AS relevance_score,0 AS sort_priority ${liveFrom}
       ${contributing?`LEFT JOIN collection_item_progress cp ON cp.entry_id=ci.id AND cp.user_id=${user}`:''}
       WHERE ${liveGate} AND ${scope === 'public' ? publicGate : readable}
         ${contributing ? `AND ${contributor(user)}` : ''}
-        ${contributing&&status?`AND COALESCE(cp.status,'unsolved')=${bind(status)}`:''}
-        ${contributing&&c.req.query('exclude_archived')==='yes'?"AND COALESCE(cp.status,'unsolved')!='archived'":''}
+        ${excludeSelf ? `AND ci.contributor_id!=${user}` : ''}
+        ${contributing&&status?`AND (${progressStatus})=${bind(status)}`:''}
+        ${contributing&&c.req.query('exclude_archived')==='yes'?`AND (${progressStatus})!='archived'`:''}
         ${scope === 'shared' && !collectionId ? `AND ${related}` : ''}
         ${subscribed ? `AND EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=${user})` : ''}
         ${collectionId ? `AND co.id=${collection}` : ''}

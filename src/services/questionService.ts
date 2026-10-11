@@ -38,7 +38,7 @@ export const subscriptionService = {
 };
 export const questionService = {
   async search(input:{source:StudySource;query:string;collectionId?:string;topic?:string;status?:string;
-    tag?:string;offset?:number;metadataOnly?:boolean;projection?:'compact'|'full';excludeArchived?:boolean;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
+    tag?:string;offset?:number;metadataOnly?:boolean;projection?:'compact'|'full';excludeArchived?:boolean;excludeSelf?:boolean;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
     if(input.source==='contributing'&&!input.collectionId)
       return {items:[],next_offset:null,scope:'shared'};
     if(input.guest) {
@@ -61,6 +61,7 @@ export const questionService = {
     const params=new URLSearchParams({scope:input.source==='contributing'?'shared':'mine',browse:'1',limit:input.metadataOnly?'50':'30'});
     if(input.source!=='contributing'){params.set('origin',input.source);if(input.collectionId&&input.source==='owned')params.set('collection_id',input.collectionId);}
     else {params.set('collection_id',input.collectionId!);params.set('contributing','yes');}
+    if(input.source==='contributing'&&input.excludeSelf)params.set('exclude_self','yes');
     if(input.topic)params.set('topic_id',input.topic);
     if(input.status&&input.status!=='all')params.set('status',input.status);
     if(input.metadataOnly)params.set('metadata_only','1');

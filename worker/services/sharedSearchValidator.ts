@@ -2,7 +2,7 @@ import type { Bindings } from '../types';
 import { hashToken } from './collectionAccess';
 
 // Bump when the shared-search response or matching semantics change.
-const SEARCH_CONTRACT = 'shared-search-v1';
+const SEARCH_CONTRACT = 'shared-search-v2';
 export async function sharedSearchValidator(env: Bindings, collectionId: string, userId: string, params: URLSearchParams) {
   let version: { revision: number; user_revision: number; expired_grants: number } | null;
   try {
@@ -12,7 +12,7 @@ export async function sharedSearchValidator(env: Bindings, collectionId: string,
         AND g.kind='user' AND g.role='contributor' AND g.revoked_at IS NULL
         AND g.expires_at IS NOT NULL AND datetime(g.expires_at)<=CURRENT_TIMESTAMP) AS expired_grants
       FROM collections co JOIN collection_search_versions v ON v.collection_id=co.id
-      JOIN collection_search_cache_config cfg ON cfg.id=1 AND cfg.schema_version=1 AND cfg.ready=1
+      JOIN collection_search_cache_config cfg ON cfg.id=1 AND cfg.schema_version=2 AND cfg.ready=1
       LEFT JOIN collection_search_user_versions uv ON uv.collection_id=co.id AND uv.user_id=?2
       WHERE co.id=?1 AND co.kind!='personal' AND co.lifecycle!='deleted'
         AND (co.owner_id=?2 OR EXISTS(SELECT 1 FROM collection_grants g

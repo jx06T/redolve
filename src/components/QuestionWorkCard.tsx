@@ -19,6 +19,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const controller=getWorkController(account,content);
   const state=useSyncExternalStore(controller.subscribe,controller.getState);
   const [hidden,setHidden]=useState<Record<string,boolean>>({});
+  const layerHidden=(l:WorkContent['layers'][number])=>hidden[l.id]??(!!l.legacy||!!content.shared&&l.authorId!==content.shared.source.contributor_id);
 
   const [update,setUpdate]=useState<Awaited<ReturnType<typeof libraryService.previewUpdate>>|null>(null);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
@@ -42,6 +43,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
         next={...current,status,review_count:reviewCount,row_version:result.row_version};
       }else{const result=await sharingApi<{progress:ReviewProgress}>('/collections/'+encodeURIComponent(content.collectionId!)+'/items/'+encodeURIComponent(content.shared!.entry.id)+'/progress','PUT',{action,expected_version:current.row_version,expected_generation:content.shared!.entry.generation});next=result.progress;}
       progressRef.current=next;setProgress(next);onChanged?.();
+      if(useStore.getState().currentUser?.id===account&&content.shared?.source.contributor_id===account)useStore.getState().updateProblemInStore(content.shared.source.id,{status:next.status,review_count:next.review_count});
     }finally{progressBusy.current=false;}
   };
   const mineEditable=!readOnly&&hasProfile&&(!content.shared||content.shared.capabilities.can_contribute);
@@ -70,11 +72,11 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
       {profileError&&<p role="alert" className="mt-2 text-xs text-status-eraser">{profileError}</p>}
     </section>}
     {content.layers.length>0&&<div className="mb-3 flex flex-wrap gap-2">{content.layers.map(l=><button key={l.id}
-      aria-pressed={!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}
-      onClick={()=>setHidden(p=>({...p,[l.id]:!(p[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))}))}
+      aria-pressed={!layerHidden(l)}
+      onClick={()=>setHidden(p=>({...p,[l.id]:!layerHidden(l)}))}
       className="rounded-xl border border-border-subtle px-3 py-2 text-xs aria-pressed:bg-primary/10 aria-pressed:border-primary/20 aria-pressed:text-primary">{l.author} · 參考筆跡</button>)}</div>}
 </>,
-    references:content.layers.filter(l=>l.ink&&!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))).map(l=>l.ink!),
+    references:content.layers.filter(l=>l.ink&&!layerHidden(l)).map(l=>l.ink!),
     afterNotes:<>{(error||((state.status==='error'||state.status==='conflict'||state.storageFailed)&&state.error))&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
     {state.status==='conflict'&&<div className="mt-2 space-y-2 text-xs"><p className="text-text-muted">本機作業已保留；請核對另一裝置的內容。</p>
       <button onClick={()=>downloadWorkDraft(state.ink,state.notes)} className="rounded-xl border border-border-subtle px-3 py-2">下載本機作業</button>
@@ -154,6 +156,6 @@ export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,onNex
 function WorkPreview({content}:{content:WorkContent}) {
   const account=useStore(s=>s.currentUser?.id||'');
   const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(content.work.ink),typed_notes:content.work.notes,status:content.saved?.saved.status as Item['status']||content.shared?.progress?.status||'unsolved',review_count:content.saved?.saved.review_count||content.shared?.progress?.review_count||0,vector_clock:null,created_at:'',updated_at:''};
-  const work:ProblemCardWork={image:content.image,saveInk:()=>{},saveNotes:()=>{},toggleStatus:async()=>{},toggleArchive:async()=>{},reload:async()=>{},copyText:async()=>content.title,references:content.layers.flatMap(l=>l.ink?[l.ink]:[]),label:<p className="mt-3 text-xs text-text-muted">{content.collectionTitle} · {content.provider}</p>,afterNotes:<>{content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-2 rounded-xl bg-page-bg p-3"><summary className="cursor-pointer text-xs">{l.author} · 參考筆記</summary><p className="mt-2 whitespace-pre-wrap text-sm">{l.notes}</p></details>)}</>};
+  const work:ProblemCardWork={image:content.image,saveInk:()=>{},saveNotes:()=>{},toggleStatus:async()=>{},toggleArchive:async()=>{},reload:async()=>{},copyText:async()=>content.title,references:content.layers.flatMap(l=>l.ink&&!l.legacy?[l.ink]:[]),label:<p className="mt-3 text-xs text-text-muted">{content.collectionTitle} · {content.provider}</p>,afterNotes:<>{content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-2 rounded-xl bg-page-bg p-3"><summary className="cursor-pointer text-xs">{l.author} · 參考筆記</summary><p className="mt-2 whitespace-pre-wrap text-sm">{l.notes}</p></details>)}</>};
   return <ProblemCard problem={item} work={work} readOnly streamSearch/>;
 }

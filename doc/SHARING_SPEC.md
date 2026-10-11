@@ -1,6 +1,17 @@
 # Redolve 共用／題目集／訂閱規格 v2.0
 
-更新：2026-10-03。唯一實作規格；完整取代 v1.0 及先前提案。狀態：設計修訂完成；實作暫停，工作樹內已有未完成的 v1 程式草稿，不代表本規格已實作。進度見 [SHARING_IMPLEMENTATION_PROGRESS.md](./SHARING_IMPLEMENTATION_PROGRESS.md)。
+更新：2026-10-11。唯一共用語意規格；實作與驗證進度見 [SHARING_IMPLEMENTATION_PROGRESS.md](./SHARING_IMPLEMENTATION_PROGRESS.md)。UI 導覽以最新 UI/UX 修訂為準。
+
+## 2026-10-11 優先修訂：原題作者作業同步（覆蓋舊 C06／C07／個人進度規則）
+
+- S01 MUST：本人原題加入任何共用集後，原題作者的筆跡、文字筆記直接讀寫 items；不得建立第二份可編輯作者作業。多集合使用同一原題作業。
+- S02 MUST：所有有效貢獻者互見原題作者作業。一般觀看者分別由 show_shared_ink／show_shared_notes 控制；未加入集合的個人題目與 saved 私人作業不可外洩。
+- S03 MUST：本人貢獻的原題在「我上傳／共用中」完成、取消完成、封存、還原共用狀態與 review_count。其他人的原題使用本人 collection_item_progress，完全不改作者與其他成員進度。原題狀態不公開給觀看者。 舊作者 collection_item_progress 不回灌、不覆蓋原題；作者以既有原題狀態為準。
+- S04 MUST：共用中提供 exclude_self=yes（只看其他人貢獻），卡片／搜尋／metadata 大綱／URL 返回範圍一致；owned、saved、public 不接受此參數。
+- S05 MUST：既有作者 shared_layers 保留為「舊共用作業」唯讀參考，不自動合併、覆蓋原題或搬移筆跡。原本獨立共用目標的本機草稿不自動重播到原題；可從設定取回。 作者共用寫入要求 source_item_id 與 generation，舊客戶端回 SOURCE_TARGET_CHANGED（409），先保留草稿並重新載入。
+- S06 MUST：授權存入／更新來源時固定保存當下允許的原題作業；來源之後更新、撤權、刪除不改已存版本或私人 workspace。讀取來源更新不得因 live draw 沒有 asset ID 而誤判。
+- S07 MUST：draw_seq／notes_seq 獨立 CAS；progress_seq 檢查原題進度；generation 與當下貢獻權重驗。原題更新使所有相關集合快取失效，不產生新題事件。
+- S08 migration：0006_shared_source_work.sql 依賴 0005。部署前使用專用腳本，不把 schema.sql 套用到既有庫。語意修改立即作用於已有集合；發布前告知加入者原題作業會共享。
 
 ## 0. 全部修改清單（先讀；變更 ID 為後文追蹤鍵）
 
@@ -12,7 +23,7 @@
 | C04 | 集合讀取固定發布版本，更新需明確發布 | 集合讀取活的原題；移除發布版本設定、更新公開內容按鈕及 publication_revisions 作為共用來源的模型 |
 | C05 | 替換／裁切圖片後管理版本與筆跡座標 | 本階段不支援替換或裁切既有原題圖片；不同圖片必須新增題目 |
 | C06 | 批註是私人草稿，提交後僅作者看得到 | 集合內每位貢獻者有自己的共用筆跡／筆記；儲存後貢獻者互見；不共寫同一圖層 |
-| C07 | 顯示原作者私人筆記快照；開啟展示須重新發布既有題 | 私人作業不自動共享；展示開關改為對訂閱者顯示共用筆跡／共用文字筆記，立即作用於當前共用層；預設關閉 |
+| C07 | 顯示原作者私人筆記快照；開啟展示須重新發布既有題 | 已加入原題的作者作業同步共享给貢獻者；一般觀看者依筆跡／文字各別展示開關，預設關閉；未加入題及 saved 私人作業不共享 |
 | C08 | 來源內容更新以發布事件／版本提示處理 | 原題及共用層更新可被讀者取得；不推播、不計新題、不強制通知；新題只計新增成員事件 |
 | C09 | 個人題庫與集合使用不同產品模型 | 個人題庫是系統集合，包含本人 owned＋saved；UI 與查詢介面統一，原題歸屬與集合成員關係仍分離 |
 | C10 | 每次上傳後另按加入公開集 | 新增帳號級「預設上傳至〔題目集〕」；雲端上傳成功後加入，單次可改為只存個人題庫；無特殊教師角色 |
@@ -27,11 +38,11 @@
 | C19 | 功能邊界分散、多人共用層被延後 | 本文件列出完整操作矩陣與不支援操作；多人貢獻及各自共用層納入本階段，匿名寫入／他人圖層改寫仍禁止 |
 | C20 | A～D 完成後再考慮多人協作 | 第一階段上線門檻涵蓋多人貢獻、共用書寫、下載後保留、來源更新及預設上傳；測試矩陣隨之替換 |
 
-Agent 契約：MUST＝必要驗收；MUST NOT＝禁止；LATER＝不實作、不顯示可用入口。每節的 `[Cxx]` 指向上表。舊文件、未完成程式、SQL 表名不能覆蓋本文件。只有文件更新獲授權；後續恢復實作時先處理 §11 差異。
+Agent 契約：MUST＝必要驗收；MUST NOT＝禁止；LATER＝不實作、不顯示可用入口。每節的 `[Cxx]` 指向上表。舊文件、未完成程式、SQL 表名不能覆蓋本文件。實作須遵循本文件最上方的優先修訂；後續更新應同步進度。
 
 ## 1. 不變條件與模型
 
-保留：公開／持連結／指定帳號觀看；單題與多題共用同一引擎；listed 與 visibility 分開；匿名唯讀；不自動公開私人筆記；存入後可獨立讀圖；取消訂閱不刪已存資料；既有單題連結相容；訂閱頁色彩＋文字辨識；PWA 共用內容不持久快取；第一階段不保證題圖離線可用。
+保留：公開／持連結／指定帳號觀看；單題與多題共用同一引擎；listed 與 visibility 分開；匿名唯讀；只共享已加入原題的作者作業與集合共用層；存入後可獨立讀圖；取消訂閱不刪已存資料；既有單題連結相容；訂閱頁色彩＋文字辨識；PWA 共用內容不持久快取；第一階段不保證題圖離線可用。
 
 保留：現有 viewport 限制、底部導覽貼底、Logo 操作、快捷鍵及觸控方式均為刻意設計，本功能不改造。
 
@@ -41,7 +52,8 @@ Agent 契約：MUST＝必要驗收；MUST NOT＝禁止；LATER＝不實作、不
 users ─owns→ items（原題／固定 image_asset_id／可變來源資訊）
 users ─owns→ personal system collection（owned + saved 的系統視圖）
 collections ─members→ collection_items ─live source→ items
-collection_items ─per contributor→ shared_layers（彼此可看，各寫各的）
+collection_items ─source author work→ items.draw_data / typed_notes
+collection_items ─other contributors→ shared_layers（彼此可看，各寫各的）
 user ─subscribes→ collection（追蹤，不產生永久觀看權）
 user ─owns→ saved_ref ─current→ saved_snapshot（下載時取得的內容）
 saved_ref ─owns→ personal_workspace（更新來源時不更換）
@@ -94,7 +106,7 @@ items / shared_layers / saved_snapshots / workspaces ─reference→ assets
 | 移出後再加入 | 沿用 entry，generation 遞增，新加入事件；舊共用層不自動恢復可見 |
 | 批次加入 | 每批最多 50，逐題回報成功／失敗；候選全部符合條件需由後端固定清單；無跨批原子承諾 |
 | 改原題公開欄位／AI 完成分類 | 集合讀取最新白名單內容；不需要更新公開內容操作、不算新題 |
-| 改私人筆記／訂正狀態 | 只改私人作業，不傳入共用層 |
+| 改原題作者筆跡／文字／訂正狀態 | 已加入集合的作者筆跡／文字 live 同步；訂正狀態僅作者本人共用檢視同步，其他成員進度獨立 |
 | 換圖／裁切既有題 | 本階段拒絕；後端不接受 image_asset_id 原地替換；新圖需新建題目 |
 | 從集合移出 | 只改指定集合關係；保留原題及已下載個人內容 |
 | 刪除本人原題 | 列出所有受影響集合；停止其全部 live 共用、移除私有根；他人 saved 根完整保留 |
@@ -133,8 +145,8 @@ MUST NOT 因修改標籤、建立教師帳號或普通私人上傳，自動擴�
 
 | 工作區 | 資料主體／寫權 | 讀權 |
 | --- | --- | --- |
-| 私人原題作業 | item owner | 僅本人 |
-| 集合共用層 | entry＋當次 generation＋contributor user | 本人可取回；有效貢獻者互看；一般讀者依展示 mask |
+| 原題作者作業 | item owner | 未加入集合時僅本人；加入後貢獻者可互見，一般觀看者依展示 mask；作業由 items 單一來源讀寫 |
+| 集合其他成員共用層 | entry＋當次 generation＋contributor user | 本人可取回；有效貢獻者互看；一般讀者依展示 mask |
 | 個人已存作業 | saved_ref owner | 僅本人；更新來源不更換 workspace |
 | 已存來源參考層 | saved_snapshot 中取得的內容 | 僅取得者唯讀；不能擦除為自己的可編輯筆跡 |
 
@@ -148,7 +160,7 @@ MUST NOT 因修改標籤、建立教師帳號或普通私人上傳，自動擴�
 - 本機草稿／隊列鍵：account_id＋account_instance_id＋workspace_id＋field；記 expected seq 及 request_id。401 暫停；403／410 共用失權停止重播但保留本人草稿；409 保留內容等待處理。
 - 關閉頁面／切題前刷新本機待存草稿，顯示未同步狀態；重播不得跨帳號或覆蓋較新修改。不得重新引入 iOS 無備援 Blob/File IndexedDB 儲存。
 - 第一階段個人圖片仍需連網；共用書寫離線時只能暫存自己的草稿，恢復後重驗貢獻權再提交。
-- 每次筆跡 payload 初始上限 2 MiB、文字 64 KiB，超限明示保留本機內容。R2 筆跡物件不可原地覆寫；D1 原子切指標後釋放舊引用。
+- 每次筆跡 payload 初始上限 2 MiB、文字 64 KiB，超限明示保留本機內容。其他成員及已存筆跡的 R2 物件不可原地覆寫；D1 原子切指標後釋放舊引用。原題作者筆跡維持 items JSON＋draw_seq CAS，僅在取得固定下載時寫入新的 R2 筆跡資產。
 
 ## 6. 訂閱、讀取最新內容、下載與更新
 

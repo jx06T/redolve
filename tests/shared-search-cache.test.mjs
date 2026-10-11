@@ -22,7 +22,7 @@ test('shared conditional search validates current access and all result dependen
     const db = await mf.getD1Database('DB');
     const schema = await readFile('worker/schema.sql', 'utf8');
     const migration = await readFile('worker/migrations/0005_shared_search_cache.sql', 'utf8');
-    assert.ok(schema.replace(/\r/g, '').trimEnd().endsWith(migration.replace(/\r/g, '').trimEnd()), 'fresh schema must match migration');
+    assert.ok(schema.replace(/\r/g, '').includes(migration.replace(/\r/g, '').trimEnd()), 'fresh schema must match migration');
     async function sqlFile(sql) {
       let statement = '', trigger = false;
       for (const line of sql.replace(/^\uFEFF/, '').replace(/^\s*--[^\r\n]*$/gm, '').split(/\r?\n/)) {
@@ -67,6 +67,7 @@ test('shared conditional search validates current access and all result dependen
     await t.test('repeatable migration, indexed validator and no full list on 304',async()=>{
       const revision=await db.prepare("SELECT revision FROM collection_search_versions WHERE collection_id='co'").first('revision');
       await sqlFile(migration);
+      await db.exec('UPDATE collection_search_cache_config SET schema_version=2,ready=1 WHERE id=1;');
       assert.equal(await db.prepare("SELECT revision FROM collection_search_versions WHERE collection_id='co'").first('revision'),revision);
       assert.equal(await db.prepare("SELECT COUNT(*) n FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'").first('n'),28);
       current=await request();assert.equal(current.status,200);assert.equal(current.data.items.length,30);assert.ok(current.tag);

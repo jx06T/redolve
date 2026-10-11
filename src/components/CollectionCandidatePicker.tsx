@@ -45,7 +45,7 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
   const shown=viewSelected?Object.values(selected):rows;
   const hidden=Object.keys(selected).filter(id=>!rows.some(r=>r.id===id)).length;
   return <section className="rounded-3xl border border-border-subtle bg-surface p-5 space-y-3">
-    <h2 className="font-semibold">加入我上傳的原題</h2><p className="text-sm text-text-muted">只列尚未加入的原題；按分類與標籤選題，切換條件保留選取。加入後原題仍保留在自己的題庫。</p>
+    <h2 className="font-semibold">加入我上傳的原題</h2><p className="text-sm text-text-muted">只列尚未加入的原題；按分類與標籤選題，切換條件保留選取。加入後原題仍保留在自己的題庫；筆跡與筆記同步給集合貢獻者，一般觀看者依展示設定檢視。</p>
     <form onSubmit={e=>{e.preventDefault();setFilter({q:q.trim(),topic,tag:tag.trim()});}} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <input value={q} onChange={e=>setQ(e.target.value)} aria-label="搜尋可加入原題" placeholder="搜尋原題" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
       <PersonalTopicSelect id="candidate-topic" emptyLabel="全部科目與單元" value={topic} onChange={setTopic}/>

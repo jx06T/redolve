@@ -3,6 +3,7 @@ import type { Bindings, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { apiError, canContribute, canReadCollection, hashToken, loadCollection } from '../services/collectionAccess';
 import { classifySaved } from '../services/savedClassification';
+import { snapshotSourceWork, sourceLayerId, sourceWork } from '../services/sharedSourceWork';
 
 export const savedRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 type AppContext = Context<{ Bindings: Bindings; Variables: Variables }>;
@@ -66,7 +67,7 @@ function snapshotInsert(db:D1Database) {
 function snapshotLayers(db:D1Database) {
   return db.prepare(`INSERT INTO saved_snapshot_layers
     (snapshot_id,layer_origin_key,author_display,draw_asset_id,typed_notes,retained_field_mask)
-    SELECT ?,sl.id,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=sl.user_id),sl.author_display),
+    SELECT ?,sl.id,COALESCE((SELECT display_name FROM public_profiles WHERE user_id=sl.user_id),sl.author_display)||CASE WHEN sl.user_id=ci.contributor_id THEN ' · 舊共用作業' ELSE '' END,
       CASE WHEN ci.contributor_id=? OR co.owner_id=? OR
         EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.kind='user'
          AND g.role='contributor' AND g.user_id=? AND g.revoked_at IS NULL
@@ -194,6 +195,12 @@ savedRouter.post('/saved',authMiddleware,async c=>{
   }
   const savedId=crypto.randomUUID(),snapshotId=crypto.randomUUID(),workspaceId=crypto.randomUUID();
   const hash=await cookieHash(c,src.collection_id);
+  const sourceSnapshot=await snapshotSourceWork(c.env,entryId,snapshotId,uid);
+  const cleanupNewSave=async()=>{
+    await sourceSnapshot.cleanup();
+    // A changed source can make the SELECT snapshot insert no-op, leaving a new shell.
+    await c.env.DB.prepare('DELETE FROM saved_refs WHERE id=? AND user_id=? AND current_snapshot_id IS NULL').bind(savedId,uid).run();
+  };
   const statements:D1PreparedStatement[]=[
     c.env.DB.prepare(`INSERT INTO saved_refs(id,user_id,entry_id,personal_topic_id,classification_state)
       SELECT ?,?,ci.id,?,? FROM collection_items ci JOIN collections co ON co.id=ci.collection_id
@@ -207,6 +214,7 @@ savedRouter.post('/saved',authMiddleware,async c=>{
     snapshotInsert(c.env.DB).bind(snapshotId,savedId,uid,src.acl_version,src.content_seq,src.shared_seq,
       src.image_url,uid,uid,uid,hash),
     snapshotLayers(c.env.DB).bind(snapshotId,uid,uid,uid,uid,uid,uid,uid,uid,snapshotId,uid,uid),
+    ...sourceSnapshot.statements,
     c.env.DB.prepare(`UPDATE saved_refs SET current_snapshot_id=?
       WHERE id=? AND user_id=? AND current_snapshot_id IS NULL
         AND EXISTS(SELECT 1 FROM saved_snapshots WHERE id=? AND saved_ref_id=?)`)
@@ -217,11 +225,14 @@ savedRouter.post('/saved',authMiddleware,async c=>{
   ];
   try { await c.env.DB.batch(statements); }
   catch {
+    await sourceSnapshot.cleanup();
     const duplicate=await c.env.DB.prepare('SELECT id FROM saved_refs WHERE user_id=? AND entry_id=?')
       .bind(uid,entryId).first<{id:string}>();
     if(duplicate) return c.json({saved_id:duplicate.id,status:'already_saved'});
     return c.json(apiError('SOURCE_CHANGED','來源或授權已變更，請重新載入'),409);
   }
+  const committed=await c.env.DB.prepare('SELECT id FROM saved_refs WHERE id=? AND current_snapshot_id=?').bind(savedId,snapshotId).first();
+  if(!committed){await cleanupNewSave();return c.json(apiError('SOURCE_CHANGED','來源已變更，請重新載入'),409);}
   if(classification==='pending')c.executionCtx.waitUntil(classifySaved(c.env,savedId,uid));
   return c.json({saved_id:savedId,status:'saved',classification_state:classification},201);
 });
@@ -274,7 +285,13 @@ savedRouter.get('/saved/:id/source-update',authMiddleware,async c=>{
   const retained=(await c.env.DB.prepare('SELECT layer_origin_key,draw_asset_id,typed_notes FROM saved_snapshot_layers WHERE snapshot_id=? ORDER BY layer_origin_key')
     .bind(saved.current_snapshot_id).all<{layer_origin_key:string;draw_asset_id:string|null;typed_notes:string|null}>()).results||[];
   const visible=current.filter(()=>shownInk||shownNotes).map(l=>({...l,draw_asset_id:shownInk?l.draw_asset_id:null,typed_notes:shownNotes?l.typed_notes:null}));
-  if(JSON.stringify(visible)!==JSON.stringify(retained)&&source.shared_seq===snapshot?.source_shared_seq)changes.push('參考圖層的展示範圍已變更');
+  const original=await sourceWork(c.env,source.source_item_id),key=sourceLayerId(source.source_item_id);
+  // Live source ink has no asset id; the retained download does. Compare permitted fields.
+  const sourceVisible=original&&(shownInk||shownNotes)?{ink:shownInk&&!!original.has_draw,notes:shownNotes?original.typed_notes:null}:null;
+  const sourceRetained=retained.find(l=>l.layer_origin_key===key);
+  const sourceFixed=sourceRetained?{ink:!!sourceRetained.draw_asset_id,notes:sourceRetained.typed_notes}:null;
+  const meaningful=(layer:typeof sourceVisible)=>layer&&(layer.ink||layer.notes)?layer:null;
+  if((JSON.stringify(visible)!==JSON.stringify(retained.filter(l=>l.layer_origin_key!==key))||JSON.stringify(meaningful(sourceVisible))!==JSON.stringify(meaningful(sourceFixed)))&&source.shared_seq===snapshot?.source_shared_seq)changes.push('參考圖層的展示範圍已變更');
   return c.json({available:true,changed:changes.length>0,changes,collection_id:source.collection_id,entry_id:source.id,
     content_seq:source.content_seq,shared_seq:source.shared_seq,acl_version:source.acl_version});
 });
@@ -331,6 +348,7 @@ savedRouter.post('/saved/:id/refresh-source',authMiddleware,async c=>{
   if(!previous||previous.image_asset_id!==source.image_url)
     return c.json(apiError('IMAGE_CHANGED','原圖座標已變更，不能搬移既有訂正'),409);
   const snapshotId=crypto.randomUUID(),hash=await cookieHash(c,source.collection_id);
+  const sourceSnapshot=await snapshotSourceWork(c.env,saved.entry_id,snapshotId,c.get('userId'));
   try {
     await c.env.DB.batch([
       snapshotInsert(c.env.DB).bind(snapshotId,saved.id,c.get('userId'),source.acl_version,
@@ -339,6 +357,7 @@ savedRouter.post('/saved/:id/refresh-source',authMiddleware,async c=>{
       snapshotLayers(c.env.DB).bind(snapshotId,c.get('userId'),c.get('userId'),
         c.get('userId'),c.get('userId'),c.get('userId'),c.get('userId'),
         c.get('userId'),c.get('userId'),snapshotId,c.get('userId'),c.get('userId')),
+      ...sourceSnapshot.statements,
       c.env.DB.prepare(`UPDATE saved_refs SET current_snapshot_id=?,row_version=row_version+1,
         updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND row_version=?
         AND EXISTS(SELECT 1 FROM saved_snapshots WHERE id=? AND saved_ref_id=?)`)
@@ -351,7 +370,9 @@ savedRouter.post('/saved/:id/refresh-source',authMiddleware,async c=>{
         AND EXISTS(SELECT 1 FROM saved_refs WHERE id=? AND current_snapshot_id=?)`)
         .bind(saved.current_snapshot_id,saved.id,saved.id,snapshotId),
     ]);
-  } catch { return c.json(apiError('SOURCE_CHANGED','來源或授權已變更，保留目前已存內容'),409); }
+  } catch { await sourceSnapshot.cleanup();return c.json(apiError('SOURCE_CHANGED','來源或授權已變更，保留目前已存內容'),409); }
+  const committed=await c.env.DB.prepare('SELECT id FROM saved_refs WHERE id=? AND current_snapshot_id=?').bind(saved.id,snapshotId).first();
+  if(!committed){await sourceSnapshot.cleanup();return c.json(apiError('SOURCE_CHANGED','個人版本或來源已變更，保留目前內容'),409);}
   return c.json({status:'updated',snapshot_id:snapshotId,personal_workspace_preserved:true});
 });
 savedRouter.patch('/saved/:id',authMiddleware,async c=>{

@@ -25,7 +25,7 @@ export function AddToCollectionDialog({itemIds,onClose,collectionId,onResults}:{
   return <AppDialog title="加入指定共用集" busy={busy} onClose={onClose}>
     <label className="block text-sm">共用集<select value={id} disabled={busy||done>0||!!collectionId} onChange={e=>setId(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3">
       <option value="">請選擇共用集</option>{sets.map(c=><option key={c.id} value={c.id}>{c.title} · {c.visibility==='public'?'所有人':c.visibility==='link'?'持連結者':'指定對象'}可觀看</option>)}</select></label>
-    <p className="mt-3 text-sm text-text-muted">加入後立即在集合顯示。原題仍保留在自己的題庫，私人筆跡和筆記不會公開。</p>
+    <p className="mt-3 text-sm text-text-muted">加入後立即在集合顯示，原題的筆跡與筆記會持續同步，貢獻者可互相查看；一般觀看者是否看得到，依集合的展示設定。</p>
     {profile===false&&<label className="mt-3 block text-sm">你的公開顯示名稱<input maxLength={80} value={name} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"/><span className="mt-1 block text-xs text-text-muted">所有貢獻共用的題目使用這個帳號名稱，之後可於設定修改。</span></label>}
     {done>0&&<p className="mt-3 text-sm">已加入 {done} 題。<Link to={`/settings/collections/${id}`} className="ml-2 text-primary underline">前往集合管理</Link></p>}
     {busy&&<button onClick={()=>{continueAdd.current=false;}} className="mt-3 block text-sm text-text-muted underline">停止後續批次（保留已成功項目）</button>}

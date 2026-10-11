@@ -30,7 +30,7 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
   const [visible, setVisible] = useState<Record<string, boolean>>({});
   const imageArea = useRef<HTMLDivElement>(null); const [areaWidth, setAreaWidth] = useState(800);
   useEffect(() => { const node = imageArea.current; if (!node) return; const observer = new ResizeObserver(() => setAreaWidth(node.clientWidth)); observer.observe(node); setAreaWidth(node.clientWidth); return () => observer.disconnect(); }, [content]);
-  const referenceLayers = content?.layers.filter(l => visible[l.id] ?? l.authorId === content.shared?.source.contributor_id) || [];
+  const referenceLayers = content?.layers.filter(l => visible[l.id] ?? (!l.legacy && l.authorId === content.shared?.source.contributor_id)) || [];
   const referenceHeight = Math.max(0, ...referenceLayers.map(l => l.ink ? (l.ink.calcSpaceHeight || 0) * areaWidth / (l.ink.baseWidth || 800) : 0));
   const link = `${window.location.origin}/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(id)}`;
   useEffect(() => setSaved(savedId || ''), [savedId]);
@@ -72,12 +72,12 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
       </div>
       {content.layers.length > 0 && <details className="mt-3 rounded-2xl bg-page-bg p-3"><summary className="text-sm cursor-pointer">共用參考內容</summary>
         {content.layers.map(l => <div key={l.id} className="mt-2">
-          {l.ink && <SwitchRow label={`${l.author}的筆跡`} checked={visible[l.id] ?? l.authorId === content.shared?.source.contributor_id}
+          {l.ink && <SwitchRow label={`${l.author}的筆跡`} checked={visible[l.id] ?? (!l.legacy && l.authorId === content.shared?.source.contributor_id)}
             onChange={value => setVisible(v => ({ ...v, [l.id]: value }))} />}
           {l.notes && <details className="mt-2 text-sm"><summary className="cursor-pointer">{l.author} · {l.notes.slice(0, 60)}{l.notes.length > 60 ? '…' : ''}</summary><p className="mt-2 whitespace-pre-wrap">{l.notes}</p></details>}
         </div>)}</details>}
       <div className="mt-4 flex flex-wrap gap-2 border-t border-border-subtle pt-3 text-xs">
-        {account === content.shared?.source.contributor_id ? <Link to={`/study?source=owned&focus=${content.shared.source.id}`} className="rounded-xl bg-page-bg px-3 py-3">我的原題 · 前往私人訂正</Link> :
+        {account === content.shared?.source.contributor_id ? <Link to={`/study?source=owned&focus=${content.shared.source.id}`} className="rounded-xl bg-page-bg px-3 py-3">我的原題 · 前往訂正</Link> :
           saved ? <Link to={savedStudyUrl(saved)} className="rounded-xl bg-[#EAF1EC] dark:bg-[#26362F] px-3 py-3">已存入 · 前往訂正</Link> :
             <button disabled={busy} onClick={() => {
               if (!account) { setAuthModalOpen(true); return; }

@@ -126,7 +126,7 @@ test('search scopes enforce current access and retained download versions', asyn
       const viewer = await search('', 'shared', 'b', '&browse=1&collection_id=subscribed');
       assert.equal(viewer.items[0].typed_notes, '', 'hidden shared notes remain hidden');
       const writer = await search('', 'shared', 'c', '&browse=1&collection_id=subscribed&contributing=yes&status=unsolved');
-      assert.equal(writer.items[0].typed_notes, 'shared-secret');
+      assert.equal(writer.items[0].typed_notes, 'private-secret shared-secret');
       const writerMetadata = await search('', 'shared', 'c', '&browse=1&collection_id=subscribed&contributing=yes&metadata_only=1');
       assert.equal(writerMetadata.items[0].typed_notes, null);
       assert.deepEqual(keys(await search('', 'shared', 'c', '&browse=1&collection_id=invited&contributing=yes')), []);

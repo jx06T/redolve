@@ -22,12 +22,12 @@ function execute(options) {
 }
 
 function schema() {
-  const [tables, items, reads, saved, triggers] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%';"]);
+  const [tables, items, reads, saved, triggers, sourceTriggers] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('source_work_shared_update','source_progress_shared_update');"]);
   const names = new Set(tables.results.map(row => row.name));
   const config = names.has('collection_search_cache_config') ? execute(['--command', 'SELECT schema_version,ready FROM collection_search_cache_config WHERE id=1;'])[0].results[0] : null;
   return {
     tables: names,
-    searchReady: config?.ready === 1 && config?.schema_version === 1 && triggers.results.length === 28,
+    searchReady: config?.ready === 1 && config?.schema_version === 2 && triggers.results.length === 28 && sourceTriggers.results.length === 2,
     items: new Set(items.results.map(row => row.name)),
     reads: new Set(reads.results.map(row => row.name)),
     saved: new Set(saved.results.map(row => row.name)),
@@ -40,7 +40,7 @@ function missing(current) {
   return [
     ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config'].filter(name => !current.tables.has(name)),
     ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
-    ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
+    ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes', 'progress_seq', 'previous_status'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
     ...(!current.reads.has('starred') ? ['collection_item_reads.starred'] : []),
     ...(!current.saved.has('classification_state') ? ['saved_refs.classification_state'] : []),
   ];
@@ -92,6 +92,11 @@ if (!current.tables.has('items')) {
   if (!current.saved.has('classification_state')) execute(['--command', "ALTER TABLE saved_refs ADD COLUMN classification_state TEXT NOT NULL DEFAULT 'ready' CHECK(classification_state IN ('ready','pending','failed','manual'));"]);
   execute(['--file', 'worker/migrations/0004_study_progress.sql']);
   execute(['--file', 'worker/migrations/0005_shared_search_cache.sql']);
+  current = schema();
+  if (!current.items.has('progress_seq')) execute(['--command', 'ALTER TABLE items ADD COLUMN progress_seq INTEGER NOT NULL DEFAULT 1;']);
+  if (!current.items.has('previous_status')) execute(['--command', "ALTER TABLE items ADD COLUMN previous_status TEXT NOT NULL DEFAULT 'unsolved';"]);
+  const sourceSyncSql = readFileSync(path.join(root, 'worker/migrations/0006_shared_source_work.sql'), 'utf8').replace(/^\s*--.*$/gm, '').replace(/^ALTER TABLE[^;]+;/gm, '').trim();
+  execute(['--command', sourceSyncSql]);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

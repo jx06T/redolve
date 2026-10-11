@@ -16,6 +16,7 @@ export type CollectionEntry = {
   latest_add_event_seq:number|null; is_starred?:number; source_item_id?:string; is_subscribed?:number; question_text?:string|null;
 };
 export type SharedLayer = {
+  is_source?:boolean;has_draw?:boolean;legacy_source?:boolean;
   id:string; user_id:string; author_display:string; draw_asset_id:string|null;
   draw_seq:number; typed_notes:string|null; notes_seq:number;
 };

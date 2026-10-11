@@ -8,7 +8,7 @@ export type QuestionRef =
   | { kind: 'collection'; collectionId: string; entryId: string };
 export type WorkTarget =
   | { kind: 'saved'; savedRefId: string }
-  | { kind: 'shared'; collectionId: string; entryId: string; generation: number };
+  | { kind: 'shared'; collectionId: string; entryId: string; generation: number; sourceItemId?:string };
 export type QuestionWork = {
   target: WorkTarget; ink: DrawData; notes: string; inkSeq: number; notesSeq: number;
 };
@@ -26,7 +26,7 @@ export type WorkContent = {
   ref: Exclude<QuestionRef,{kind:'owned'}>; title: string; image: string;
   topic: string|null; collectionId?:string; collectionTitle:string; provider:string;
   work: QuestionWork;
-  layers: { id:string; author:string; notes:string; ink?:DrawData; authorId?:string }[];
+  layers: { id:string; author:string; notes:string; ink?:DrawData; authorId?:string; legacy?:boolean }[];
   saved?: SavedDetail; shared?:CollectionItemDetail;
 };
 export type Question = { ref:QuestionRef; title:string; owned?:Item };

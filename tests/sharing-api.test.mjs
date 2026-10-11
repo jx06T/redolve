@@ -133,19 +133,20 @@ test('contributor live source revokes while subscriber download survives', async
     const progressPath='/api/collections/'+collectionId+'/items/'+entryId+'/progress';
     const progressAction=(user,action,version,generation=1)=>call(progressPath,user,'PUT',{action,expected_version:version,expected_generation:generation});
     assert.equal((await progressAction('d','resolve',0)).status,404,'viewer cannot write progress');
-    const done=await progressAction('b','resolve',0);
+    const initialVersion=(await call(`/api/collections/${collectionId}/items/${entryId}`,'b')).data.progress.row_version;
+    const done=await progressAction('b','resolve',initialVersion);
     assert.equal(done.status,200,JSON.stringify(done.data));assert.equal(done.data.progress.status,'resolved');
     assert.equal(done.data.progress.review_count,1);
     assert.equal((await progressAction('b','archive',0)).status,409,'stale progress must not overwrite');
     assert.equal((await progressAction('b','archive',1,2)).status,409,'stale generation must not write');
-    const archived=await progressAction('b','archive',1);assert.equal(archived.data.progress.status,'archived');
+    const archived=await progressAction('b','archive',done.data.progress.row_version);assert.equal(archived.data.progress.status,'archived');
     const browseProgress='/api/search?scope=shared&contributing=yes&collection_id='+collectionId+'&browse=1';
     assert.equal((await call(browseProgress+'&status=archived','b')).data.items[0].id,entryId);
     assert.equal((await call(browseProgress+'&exclude_archived=yes','b')).data.items.length,0);
     assert.equal((await call(browseProgress+'&status=unsolved','a')).data.items[0].id,entryId,'owner progress is independent');
-    assert.equal((await db.prepare("SELECT status FROM items WHERE id='source'").first()).status,'unsolved');
+    assert.equal((await db.prepare("SELECT status FROM items WHERE id='source'").first()).status,'archived');
     assert.equal((await call('/api/collections/'+collectionId+'/items/'+entryId,'d')).data.progress,undefined,'private progress stays private');
-    const restored=await progressAction('b','archive',2);assert.equal(restored.data.progress.status,'resolved');
+    const restored=await progressAction('b','archive',archived.data.progress.row_version);assert.equal(restored.data.progress.status,'resolved');
     await db.prepare('UPDATE collection_grants SET revoked_at=CURRENT_TIMESTAMP WHERE collection_id=? AND user_id=?').bind(collectionId,'b').run();
     assert.equal((await progressAction('b','resolve',3)).status,404,'revoked contributor cannot write');
     await db.prepare('UPDATE collection_grants SET revoked_at=NULL WHERE collection_id=? AND user_id=?').bind(collectionId,'b').run();
@@ -220,8 +221,13 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal((await call('/api/subscriptions','d')).data.subscriptions[0].unread_count,0);
     assert.equal((await call(`/api/collections/${collectionId}?state=read`,'d')).data.items.length,1);
     assert.equal((await call(`/api/collections/${collectionId}/items/${entryId}`,'d')).status,200);
+    await db.prepare("INSERT INTO shared_layers(id,entry_id,entry_generation,user_id,author_display,typed_notes) VALUES('legacy-author',?,1,'b','Contributor','shared explanation')").bind(entryId).run();
+    await db.prepare("INSERT INTO assets(id,storage_key,mime_type) VALUES('legacy-ink','legacy-ink','application/json')").run();
+    await (await mf.getR2Bucket('STORAGE')).put('legacy-ink',JSON.stringify({strokes:[],eraserMasks:[]}));
+    await db.prepare("UPDATE shared_layers SET draw_asset_id='legacy-ink' WHERE id='legacy-author'").run();
+    await db.prepare("INSERT INTO asset_refs(id,asset_id,layer_id,role) VALUES('legacy-ref','legacy-ink','legacy-author','shared_draw')").run();
     const sharedNotes=await call(`/api/collections/${collectionId}/items/${entryId}/layers/notes`,
-      'b','PUT',{typed_notes:'shared explanation',expected_seq:0});
+      'b','PUT',{typed_notes:'shared explanation',expected_seq:0,expected_generation:1,source_item_id:'source'});
     assert.equal(sharedNotes.status,200,JSON.stringify(sharedNotes.data));
     const wrongGeneration=await call(`/api/collections/${collectionId}/items/${entryId}/layers/notes`,
       'b','PUT',{typed_notes:'old generation draft',expected_seq:1,expected_generation:99});
@@ -230,13 +236,13 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal(privateLayer.data.layers.length,0,'reader cannot see contributor notes before display is enabled');
     const drawing={strokes:[],eraserMasks:[],baseWidth:600,baseHeight:500};
     const written=await call(`/api/collections/${collectionId}/items/${entryId}/layers/draw`,
-      'b','PUT',{draw_data:drawing,expected_seq:0});
+      'b','PUT',{draw_data:drawing,expected_seq:0,expected_generation:1,source_item_id:'source'});
     assert.equal(written.status,200,JSON.stringify(written.data));
     const viewerWrite=await call(`/api/collections/${collectionId}/items/${entryId}/layers/draw`,
-      'd','PUT',{draw_data:drawing,expected_seq:0});
+      'd','PUT',{draw_data:drawing,expected_seq:0,expected_generation:1,source_item_id:'source'});
     assert.equal(viewerWrite.status,404,'subscriber cannot write a shared layer');
     const stale=await call(`/api/collections/${collectionId}/items/${entryId}/layers/draw`,
-      'b','PUT',{draw_data:drawing,expected_seq:0});
+      'b','PUT',{draw_data:drawing,expected_seq:0,expected_generation:1,source_item_id:'source'});
     assert.equal(stale.status,409,'stale draw update must not overwrite');
     const saved=await call('/api/saved','d','POST',{entry_id:entryId});
     assert.equal(saved.status,201,JSON.stringify(saved.data));
@@ -313,7 +319,7 @@ test('contributor live source revokes while subscriber download survives', async
     });
     assert.equal(publicLayers.status,200,JSON.stringify(publicLayers.data));
     const shown=await call(`/api/collections/${collectionId}/items/${entryId}`,'d');
-    assert.equal(shown.data.layers.length,1);
+    assert.equal(shown.data.layers.length,2);
     assert.equal(shown.data.layers[0].typed_notes,'shared explanation');
     const changed=await call('/api/problems/source','b','PUT',{source:'Revised source'});
     assert.equal(changed.status,200,JSON.stringify(changed.data));
@@ -323,7 +329,7 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal(refreshed.status,200,JSON.stringify(refreshed.data));
     const afterRefresh=await call(`/api/saved/${savedId}`,'d');
     assert.equal(afterRefresh.data.snapshot.source_title,'Revised source');
-    assert.equal(afterRefresh.data.layers.length,1);
+    assert.equal(afterRefresh.data.layers.length,2);
     assert.equal(afterRefresh.data.workspace.id,firstSaved.data.workspace.id);
     assert.equal(afterRefresh.data.workspace.typed_notes,'my own correction');
     assert.equal(afterRefresh.data.saved.personal_topic_id,'algebra');

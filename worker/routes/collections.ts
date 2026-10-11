@@ -1,6 +1,8 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
+import { sourceWork, sourceProgress, sourceLayerId, sourceWriteGate } from '../services/sharedSourceWork';
+import { itemSearchIndexStatements } from '../services/itemSearchIndex';
 import {
   apiError, canContribute, canReadCollection, hashToken, liveEntry, loadCollection, randomToken,
   type CollectionRecord,
@@ -426,14 +428,14 @@ collectionsRouter.patch('/collections/:id/items/:entryId/order',authMiddleware,a
     c.env.DB.prepare(`UPDATE collection_items SET display_order=CASE
       WHEN id=? THEN ? WHEN id=? THEN ? ELSE display_order END,
       updated_at=CURRENT_TIMESTAMP WHERE collection_id=? AND id IN (?,?)
-      AND (SELECT row_version FROM collections WHERE id=?)=?`)
+      AND (SELECT row_version FROM collections WHERE id=?)=? RETURNING id`)
       .bind(entry.id,neighbor.display_order,neighbor.id,entry.display_order,co!.id,
         entry.id,neighbor.id,co!.id,co!.row_version),
     c.env.DB.prepare(`UPDATE collections SET row_version=row_version+1,updated_at=CURRENT_TIMESTAMP
-      WHERE id=? AND owner_id=? AND row_version=?`)
+      WHERE id=? AND owner_id=? AND row_version=? RETURNING id`)
       .bind(co!.id,c.get('userId'),co!.row_version),
   ]);
-  if(results[0].meta.changes!==2||results[1].meta.changes!==1)
+  if(results[0].results.length!==2||results[1].results.length!==1)
     return c.json(apiError('CONFLICT','排序時內容已變動，請重新載入'),409);
   return c.json({status:'moved',row_version:co!.row_version+1});
 });
@@ -451,7 +453,8 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     LEFT JOIN public_profiles p ON p.user_id=i.user_id WHERE i.id=?`)
     .bind(entry.source_item_id).first();
   const canWrite=Boolean(c.get('userId')&&await canContribute(c.env,co!,c.get('userId')));
-  const progress=canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
+  const original=await sourceWork(c.env,entry.source_item_id!);
+  const progress=canWrite&&entry.contributor_id===c.get('userId')&&original?sourceProgress(original):canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
     .bind(c.get('userId'),entry.id).first():null;
   const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,COALESCE(p.display_name,sl.author_display) AS author_display,sl.draw_asset_id,
     sl.draw_seq,sl.typed_notes,sl.notes_seq FROM shared_layers sl
@@ -466,9 +469,17 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
        (?=1 AND sl.draw_asset_id IS NOT NULL) OR (?=1 AND sl.typed_notes!=''))
     ORDER BY sl.updated_at,sl.id`).bind(entry.id,entry.generation,co!.id,c.get('userId')||'',
       canWrite?1:0,co!.show_shared_ink,co!.show_shared_notes).all<Record<string,unknown>>();
-  const layers=(results||[]).map(row=>({...row,
+  const layers:Record<string,unknown>[]=(results||[]).map(row=>({...row,
+    legacy_source:row.user_id===entry.contributor_id,
+    author_display:row.user_id===entry.contributor_id?row.author_display+' · 舊共用作業':row.author_display,
     draw_asset_id:canWrite||row.user_id===c.get('userId')||co!.show_shared_ink?row.draw_asset_id:null,
     typed_notes:canWrite||row.user_id===c.get('userId')||co!.show_shared_notes?row.typed_notes:null}));
+  if(original&&(canWrite||co!.show_shared_ink||co!.show_shared_notes))layers.unshift({
+    id:sourceLayerId(entry.source_item_id!),user_id:entry.contributor_id,is_source:true,
+    author_display:(item as {provider_name?:string}|null)?.provider_name||co!.public_name,
+    draw_asset_id:null,has_draw:Boolean(original.has_draw&&(canWrite||co!.show_shared_ink)),
+    draw_seq:original.draw_seq,notes_seq:original.notes_seq,
+    typed_notes:canWrite||co!.show_shared_notes?original.typed_notes:null});
   const neighborBase=`FROM collection_items ci
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
     JOIN assets a ON a.id=i.image_url AND a.state='ready'
@@ -815,6 +826,16 @@ collectionsRouter.put('/collections/:id/items/:entryId/progress',authMiddleware,
   if(!['resolve','archive'].includes(b.action)||!Number.isSafeInteger(b.expected_version)||b.expected_version<0||!Number.isSafeInteger(b.expected_generation))return c.json(apiError('INVALID_REQUEST','進度操作或版本無效'),400);
   if(b.expected_generation!==entry.generation)return c.json(apiError('CONFLICT','題目已重新加入，請重整後操作'),409);
   const uid=c.get('userId');
+  if(entry.contributor_id===uid){
+    const result=await c.env.DB.prepare(`UPDATE items SET
+      status=CASE WHEN ?='archive' THEN CASE WHEN status='archived' THEN previous_status ELSE 'archived' END
+      WHEN status='resolved' THEN 'unsolved' ELSE 'resolved' END,
+      review_count=review_count+CASE WHEN ?='resolve' AND status NOT IN ('resolved','archived') THEN 1 ELSE 0 END,
+      updated_at=CURRENT_TIMESTAMP WHERE id=? AND user_id=? AND progress_seq=? AND (?='archive' OR status!='archived') AND ${sourceWriteGate}`)
+      .bind(b.action,b.action,entry.source_item_id!,uid,b.expected_version,b.action,entry.id,co.id,entry.generation).run();
+    const row=result.meta.changes?await sourceWork(c.env,entry.source_item_id!):null;
+    return row?c.json({progress:sourceProgress(row)}):c.json(apiError('CONFLICT','原題進度已變更，請重整後操作'),409);
+  }
   const result=await c.env.DB.prepare(    "INSERT INTO collection_item_progress(user_id,entry_id,status,previous_status,review_count,row_version) SELECT ?1,?2,CASE WHEN ?3='archive' THEN 'archived' ELSE 'resolved' END,'unsolved',CASE WHEN ?3='resolve' THEN 1 ELSE 0 END,1 WHERE EXISTS(SELECT 1 FROM collection_items ci JOIN collections co ON co.id=ci.collection_id WHERE ci.id=?2 AND ci.collection_id=?4 AND ci.generation=?5 AND ci.state='included' AND co.lifecycle!='deleted' AND (co.owner_id=?1 OR EXISTS(SELECT 1 FROM collection_grants g WHERE g.collection_id=co.id AND g.kind='user' AND g.role='contributor' AND g.user_id=?1 AND g.revoked_at IS NULL AND (g.expires_at IS NULL OR datetime(g.expires_at)>CURRENT_TIMESTAMP)))) AND (?6=0 OR EXISTS(SELECT 1 FROM collection_item_progress WHERE user_id=?1 AND entry_id=?2)) ON CONFLICT(user_id,entry_id) DO UPDATE SET status=CASE WHEN ?3='archive' THEN CASE WHEN collection_item_progress.status='archived' THEN collection_item_progress.previous_status ELSE 'archived' END WHEN collection_item_progress.status='resolved' THEN 'unsolved' ELSE 'resolved' END, previous_status=CASE WHEN ?3='archive' AND collection_item_progress.status!='archived' THEN collection_item_progress.status ELSE collection_item_progress.previous_status END, review_count=collection_item_progress.review_count+CASE WHEN ?3='resolve' AND collection_item_progress.status='unsolved' THEN 1 ELSE 0 END,row_version=collection_item_progress.row_version+1,updated_at=CURRENT_TIMESTAMP WHERE collection_item_progress.row_version=?6 AND (?3='archive' OR collection_item_progress.status!='archived') RETURNING status,previous_status,review_count,row_version")
     .bind(uid,entry.id,b.action,co.id,entry.generation,b.expected_version).first();
   return result?c.json({progress:result}):c.json(apiError('CONFLICT','進度已變更，請重整後操作'),409);
@@ -831,6 +852,16 @@ collectionsRouter.put('/collections/:id/items/:entryId/layers/notes',authMiddlew
     ||!Number.isSafeInteger(b.expected_seq)||b.expected_seq<0)
     return c.json(apiError('INVALID_REQUEST','筆記內容或版本無效'),400);
   const uid=c.get('userId'),id=crypto.randomUUID();
+  if(entry.contributor_id===uid){
+    if(b.source_item_id!==entry.source_item_id||b.expected_generation!==entry.generation)return c.json(apiError('SOURCE_TARGET_CHANGED','原題作業已改為同步；請保留草稿並重新載入頁面'),409);
+    const [result]=await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE items SET typed_notes=?,notes_seq=notes_seq+1,updated_at=CURRENT_TIMESTAMP
+        WHERE id=? AND user_id=? AND notes_seq=? AND ${sourceWriteGate}`)
+        .bind(b.typed_notes,entry.source_item_id!,uid,b.expected_seq,entry.id,co.id,entry.generation),
+      ...itemSearchIndexStatements(c.env.DB,entry.source_item_id!,uid),
+    ]);
+    return result.meta.changes?c.json({notes_seq:b.expected_seq+1}):c.json(apiError('CONFLICT','原題筆記已變更；請保留本機草稿'),409);
+  }
   const display=await c.env.DB.prepare('SELECT display_name FROM public_profiles WHERE user_id=?')
     .bind(uid).first<{display_name:string}>();
   if(!display) return c.json(apiError('PUBLIC_NAME_REQUIRED','請先確認公開名稱'),409);
@@ -863,6 +894,13 @@ collectionsRouter.put('/collections/:id/items/:entryId/layers/draw',authMiddlewa
     ||new TextEncoder().encode(data).byteLength>2*1024*1024)
     return c.json(apiError('INVALID_REQUEST','筆跡內容或版本無效'),400);
   const uid=c.get('userId');
+  if(entry.contributor_id===uid){
+    if(b.source_item_id!==entry.source_item_id||b.expected_generation!==entry.generation)return c.json(apiError('SOURCE_TARGET_CHANGED','原題作業已改為同步；請保留草稿並重新載入頁面'),409);
+    const result=await c.env.DB.prepare(`UPDATE items SET draw_data=?,draw_seq=draw_seq+1,vector_clock=?,updated_at=CURRENT_TIMESTAMP
+      WHERE id=? AND user_id=? AND draw_seq=? AND ${sourceWriteGate}`)
+      .bind(data,JSON.stringify({clientId:'shared-source',seq:b.expected_seq+1}),entry.source_item_id!,uid,b.expected_seq,entry.id,co.id,entry.generation).run();
+    return result.meta.changes?c.json({draw_seq:b.expected_seq+1}):c.json(apiError('CONFLICT','原題筆跡已變更；請保留本機草稿'),409);
+  }
   const display=await c.env.DB.prepare('SELECT display_name FROM public_profiles WHERE user_id=?')
     .bind(uid).first<{display_name:string}>();
   if(!display) return c.json(apiError('PUBLIC_NAME_REQUIRED','請先確認公開名稱'),409);
@@ -901,6 +939,13 @@ collectionsRouter.get('/collections/:id/items/:entryId/layers/:layerId/draw',opt
   if(!entry) return c.json(missing,404);
   const uid=c.get('userId');
   const canWrite=Boolean(uid&&await canContribute(c.env,co!,uid));
+  if(c.req.param('layerId')===sourceLayerId(entry.source_item_id!)){
+    if(!(canWrite||co!.show_shared_ink))return c.json(missing,404);
+    const original=await c.env.DB.prepare('SELECT draw_data FROM items WHERE id=? AND user_id=?')
+      .bind(entry.source_item_id!,entry.contributor_id!).first<{draw_data:string|null}>();
+    if(!original?.draw_data)return c.json(missing,404);
+    return new Response(original.draw_data,{headers:{'Content-Type':'application/json','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+  }
   const row=await c.env.DB.prepare(`SELECT sl.user_id,a.storage_key FROM shared_layers sl
     JOIN assets a ON a.id=sl.draw_asset_id AND a.state='ready'
     WHERE sl.id=? AND sl.entry_id=? AND sl.entry_generation=? AND sl.state='active'

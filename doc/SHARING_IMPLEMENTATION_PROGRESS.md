@@ -1,8 +1,20 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-10-10。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-10-11。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
+
+### 2026-10-11 原題作業與共用中同步（本機候選）
+
+- S01–S08：原題作者的共用筆跡／筆記直接讀寫 items；自己貢獻題的完成／取消完成／封存／還原及複習次數同步原題。其他成員仍使用獨立共用層與個人進度。
+- 既有作者獨立 shared_layers 保留為唯讀舊共用作業；舊目標草稿可取回，不自動覆蓋原題。
+- 側欄與搜尋提供「只看其他人貢獻」，卡片、metadata、大綱與 URL 範圍一致；canonical 作業更新會失效集合快取。
+- 存入／刷新固定保存有權檢視的作者作業；筆跡由 R2 JSON＋saved_draw refs 保管，已存與個人 workspace 不依賴後續來源 ACL。修正 source-update 對 live／固定筆跡資產的誤判。
+- 題目加入提示同步改寫，避免仍宣稱原題筆記不共享。D1 排序以 RETURNING 判斷實際更新，避免 version triggers 變更數導致成功誤報。
+- 驗證：TypeScript、production build／SW、41 項 API／搜尋／權限／快取／PWA 測試、1280／390px 合成 API 瀏覽器測試通過；0006 腳本唯讀、重跑、部分安裝及失敗停止模擬通過。
+- 新增0006、fresh schema、可重跑部署腳本與 local initializer；尚未執行遠端 migration／推送／部署。先完成0005，再依 [原題同步發布指南](./SHARED_SOURCE_SYNC_RELEASE_2026-10-11.md) 執行0006。
+- 待辦：正式 schema 驗證、iOS/Pencil 實機雙向作業、正式 D1 rows_written fan-out 觀察；資產稽核／GC 維持既有策略。以下較早「私人作業完全不共享／作者個人進度獨立」由最新規格 S01–S08 取代。
+
 
 ### 2026-10-10 集合選題與探索／訂閱入口修正
 
