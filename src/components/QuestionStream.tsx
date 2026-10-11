@@ -7,6 +7,8 @@ import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationK
 // Retain measurements across remounts, never content or permissions. Nearby cards
 // stay mounted so reversing scroll does not fetch/decode the same question again.
 const measuredRows=new Map<string,number>();
+// Reserve this height while details/images load so short placeholders cannot expand the mounted window.
+const ESTIMATED_ROW_HEIGHT=800;
 
 export function QuestionStream<T extends {id:string;ids?:string[]}>({items,render,loadMore,hasMore,busy,focus,className,loadError=false,autoLoad=true}:{
   items:T[];render:(item:T,index:number,onNext:()=>void)=>ReactNode;loadMore:()=>void;hasMore:boolean;busy:boolean;focus?:string;className?:string;loadError?:boolean;autoLoad?:boolean;
@@ -21,7 +23,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   const contains=(item:T,id:string)=>item.id===id||!!item.ids?.includes(id);
   const sizeKey=(id:string,width:number)=>JSON.stringify([account,historyKey,id,width]);
   const v=useVirtualizer({count:items.length,getScrollElement:()=>parent.current,
-    estimateSize:i=>measuredRows.get(sizeKey(items[i].id,parent.current?.clientWidth||0))||800,overscan:4,getItemKey:i=>items[i].id,
+    estimateSize:i=>measuredRows.get(sizeKey(items[i].id,parent.current?.clientWidth||0))||ESTIMATED_ROW_HEIGHT,overscan:4,getItemKey:i=>items[i].id,
     measureElement:element=>{
       const height=element.getBoundingClientRect().height;
       const index=Number(element.getAttribute('data-index'));const item=items[index];
@@ -90,7 +92,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     {focus&&!busy&&!hasMore&&!items.some(i=>contains(i,focus))&&<p role="status" className="mb-3 rounded-xl bg-page-bg p-3 text-sm">指定題目不在目前條件中，或已無法存取。請清除篩選或返回上一頁。</p>}
     <div className="relative w-full" style={{height:v.getTotalSize()}}>
       {v.getVirtualItems().map(row=><div key={row.key} ref={v.measureElement} data-index={row.index}
-        className="absolute left-0 top-0 w-full pb-5" style={{transform:`translateY(${row.start}px)`,'--reader-reserved-height':`${measuredRows.get(sizeKey(items[row.index].id,parent.current?.clientWidth||0))||0}px`} as React.CSSProperties}>
+        className="absolute left-0 top-0 w-full pb-5" style={{transform:`translateY(${row.start}px)`,'--reader-reserved-height':`${measuredRows.get(sizeKey(items[row.index].id,parent.current?.clientWidth||0))||ESTIMATED_ROW_HEIGHT}px`} as React.CSSProperties}>
         {render(items[row.index],row.index,()=>advance(items[row.index].id))}</div>)}
     </div>
     {hasMore&&<div className="flex justify-center py-6"><button type="button" disabled={busy} onClick={requestMore}
