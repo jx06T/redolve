@@ -15,7 +15,7 @@ CREATE TRIGGER IF NOT EXISTS source_progress_shared_update AFTER UPDATE OF statu
 WHEN NEW.status IS NOT OLD.status OR NEW.review_count IS NOT OLD.review_count
 BEGIN
  UPDATE items SET progress_seq=progress_seq+1,
- previous_status=CASE WHEN NEW.status='archived' AND OLD.status IN ('unsolved','resolved') THEN OLD.status ELSE previous_status END
+ previous_status = CASE WHEN NEW.status='archived' AND OLD.status IN ('unsolved','resolved') THEN OLD.status ELSE previous_status END
  WHERE id=NEW.id;
  INSERT INTO collection_search_user_versions(collection_id,user_id,revision)
  SELECT DISTINCT collection_id,NEW.user_id,1 FROM collection_items WHERE source_item_id=NEW.id

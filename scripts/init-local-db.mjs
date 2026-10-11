@@ -15,7 +15,7 @@ function execute(options) {
     cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stderr || result.stdout || `Wrangler exited with ${result.status}`);
+  if (result.status !== 0) throw new Error([result.stderr, result.stdout].filter(Boolean).join('\n') || `Wrangler exited with ${result.status}`);
   const output = JSON.parse(result.stdout);
   if (output.some(entry => entry.success === false)) throw new Error('Local D1 reported a failed query.');
   return output;

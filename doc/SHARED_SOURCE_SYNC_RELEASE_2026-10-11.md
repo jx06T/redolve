@@ -63,6 +63,8 @@ if ($LASTEXITCODE -ne 0) { throw '本地 schema 未就緒；停止' }
 npm run worker:dev
 ```
 
+腳本會先將本地 D1 備份到 `.wrangler/local-db-backups/`，只補缺少欄位；成功後 `--check` 顯示 `Local schema is ready. No migration needed.`。Wrangler 4.120.0 本地觸發器解析要求 CASE 前有空白；0006 與 schema 已修正格式，正式庫已安裝者不必重套用。若執行環境不允許寫入全域 Wrangler 日誌，可在當次終端設定 `$env:WRANGLER_LOG_PATH = Join-Path (Get-Location) '.wrangler/local-migration-logs'` 再執行。
+
 ## 部署後實機驗收
 
 1. 一張已有筆跡／筆記的原題加入集合；共用中直接顯示原有作業，不變成空白。

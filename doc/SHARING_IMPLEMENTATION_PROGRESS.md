@@ -4,6 +4,13 @@
 
 ## 目前狀態
 
+### 2026-10-11 本地 0005／0006 補齊與 Wrangler SQL 解析修正
+
+- 本地 .wrangler/state 原缺少 0005 快取表及 0006 欄位；init-local-db 自動備份後補齊。首次備份：.wrangler/local-db-backups/2026-10-11T05-32-33-960Z。
+- Wrangler 4.120.0 的本地 SQL splitter 未辨識 `previous_status=CASE`，將 CASE 的 END 誤當觸發器結尾而回 incomplete input。0006 與 fresh schema 同步調整成 `previous_status = CASE`；SQL 行為不變，正式庫無需重套用。
+- 初始化失敗現在同時保留 stdout／stderr 診斷。本機 agent 執行時以 WRANGLER_LOG_PATH 指向專案 .wrangler/local-migration-logs，避開全域日誌寫入限制。
+- 真實本地初始化、再次唯讀檢查、Wrangler splitter 回歸、共用原題同步回歸及 TypeScript 通過；schema_version=2、ready=1、source_triggers=2。初始化前後題數21、含筆跡7、含文字筆記4一致。
+
 ### 2026-10-11 公開單題閱讀與私人進度分離（本機候選）
 
 - 正式站匿名重現：公開清單／集合清單／圖片 200，單題內容 500。正式 D1 欄位仍需使用者執行檢查；本機套用至 0005 的 schema 已重現同樣 500（缺少 progress_seq）。
