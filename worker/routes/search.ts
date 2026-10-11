@@ -21,6 +21,8 @@ searchRouter.get('/', async c => {
   const origin = c.req.query('origin') || 'all';
   const query = (c.req.query('q') || '').trim();
   const metadataOnly = c.req.query('metadata_only') === '1';
+  const projection = c.req.query('projection') || 'full';
+  const listOnly = metadataOnly || projection === 'compact';
   const collectionId = c.req.query('collection_id') || '';
   const topic = c.req.query('topic_id') || '';
   const status = c.req.query('status') || '';
@@ -31,6 +33,7 @@ searchRouter.get('/', async c => {
   const offset = Number(c.req.query('offset') || 0);
   const limit = Number(c.req.query('limit') || 30);
   if (!['mine', 'shared', 'public'].includes(scope) || !['all', 'owned', 'saved'].includes(origin)
+    || !['full', 'compact'].includes(projection)
     || (scope !== 'mine' && (origin !== 'all' || (status&&!contributing)))
     || (status && !['processing', 'unsolved', 'resolved', 'archived'].includes(status))
     || (subscribed && (scope !== 'shared' || subscribed !== 'yes'))
@@ -113,7 +116,7 @@ searchRouter.get('/', async c => {
     const fields: [string, number][] = [['i.keywords', 100], ['i.keyword_tokens', 100],
       ['i.source', 60], ['i.typed_notes', 40], ['f.problem_text', 10], ['t.label', 10]];
     parts.push(`SELECT 'owned' AS origin,i.id,i.source AS title,i.topic_id,t.label AS topic_label,
-      i.keywords,${metadataOnly ? 'NULL' : 'i.typed_notes'} AS typed_notes,i.status,i.review_count,i.created_at,
+      ${listOnly ? 'NULL' : 'i.keywords'} AS keywords,${listOnly ? 'NULL' : 'i.typed_notes'} AS typed_notes,i.status,i.review_count,i.created_at,
       NULL AS collection_id,NULL AS collection_title,NULL AS provider_name,NULL AS saved_id,
       ${query ? `(CASE WHEN ${like('i.keywords')} OR ${like('i.keyword_tokens')} THEN 100 ELSE 0 END)
       +${score(fields.slice(2))}+CASE WHEN i.id IN (SELECT id FROM fts_hits) THEN 10 ELSE 0 END` : '0'} AS relevance_score,
@@ -137,12 +140,12 @@ searchRouter.get('/', async c => {
       FROM saved_snapshot_layers sl WHERE sl.snapshot_id=ss.id AND (sl.retained_field_mask & 2)=2)`;
     fields.push([retainedNotes, 40]);
     parts.push(`SELECT 'saved' AS origin,sr.id,ss.source_title AS title,
-      sr.personal_topic_id AS topic_id,t.label AS topic_label,ss.source_tags AS keywords,
-      ${metadataOnly ? 'NULL' : 'pw.typed_notes'} AS typed_notes,sr.status,sr.review_count,sr.downloaded_at AS created_at,
+      sr.personal_topic_id AS topic_id,t.label AS topic_label,${listOnly ? 'NULL' : 'ss.source_tags'} AS keywords,
+      ${listOnly ? 'NULL' : 'pw.typed_notes'} AS typed_notes,sr.status,sr.review_count,sr.downloaded_at AS created_at,
       NULL AS collection_id,ss.collection_title,ss.provider_public_name AS provider_name,sr.id AS saved_id,
       ${score(fields)} AS relevance_score,0 AS sort_priority
       FROM saved_refs sr JOIN saved_snapshots ss ON ss.id=sr.current_snapshot_id AND ss.saved_ref_id=sr.id
-      LEFT JOIN personal_workspaces pw ON pw.saved_ref_id=sr.id AND pw.user_id=${user}
+      ${query || !listOnly ? `LEFT JOIN personal_workspaces pw ON pw.saved_ref_id=sr.id AND pw.user_id=${user}` : ''}
       LEFT JOIN taxonomies t ON t.id=sr.personal_topic_id AND (t.user_id IS NULL OR t.user_id=${user})
       WHERE sr.user_id=${user}${searchFilter(fields)}
       ${collectionId ? `AND sr.entry_id IN (SELECT id FROM collection_items WHERE collection_id=${collection})` : ''}
@@ -158,8 +161,8 @@ searchRouter.get('/', async c => {
       ['co.title', 20], ['co.public_name', 20], ['p.display_name', 20], ['t.label', 10]];
     if (scope === 'shared') fields.push([sharedNotes, 40]);
     parts.push(`SELECT '${scope}' AS origin,ci.id,COALESCE(i.source,'題目') AS title,
-      t.id AS topic_id,t.label AS topic_label,i.keywords,
-      ${scope === 'shared' && !metadataOnly ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
+      t.id AS topic_id,t.label AS topic_label,${listOnly ? 'NULL' : 'i.keywords'} AS keywords,
+      ${scope === 'shared' && !listOnly ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
       ${contributing ? "COALESCE(cp.status,'unsolved')" : 'NULL'} AS status,${contributing ? 'COALESCE(cp.review_count,0)' : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
       co.title AS collection_title,COALESCE(p.display_name,co.public_name) AS provider_name,
       (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
@@ -207,13 +210,13 @@ searchRouter.get('/', async c => {
     rows = (await execute(false)).results || [];
   }
   const page = rows.slice(0, limit);
-  const ownedIds = (metadataOnly?[]:page).filter(hit => hit.origin === 'owned').map(hit => hit.id);
+  const ownedIds = (listOnly?[]:page).filter(hit => hit.origin === 'owned').map(hit => hit.id);
   const problems = ownedIds.length ? (await c.env.DB.prepare(
     `SELECT * FROM items WHERE user_id=? AND id IN (${ownedIds.map(() => '?').join(',')})`)
     .bind(uid, ...ownedIds).all<ItemRow>()).results || [] : [];
   const byId = new Map(problems.map(item => [item.id, item]));
   return c.json({ items: page.map(hit => ({ ...hit,
-    ...(metadataOnly?{typed_notes:null,keywords:null}:{}),
-    ...(hit.origin === 'owned' ? { problem: byId.get(hit.id) } : {}),
+    ...(listOnly?{typed_notes:null,keywords:null}:{}),
+    ...(hit.origin === 'owned' && !listOnly ? { problem: byId.get(hit.id) } : {}),
   })), next_offset: rows.length > limit ? offset + limit : null, scope });
 });

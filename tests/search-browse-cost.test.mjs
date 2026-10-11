@@ -65,6 +65,31 @@ test('empty owned browsing reads one page instead of scanning the OCR index', as
       assert.ok(!plan.some(row => /VIRTUAL TABLE|TEMP B-TREE/.test(row.detail)), 'no OCR scan or temporary relevance sort');
       console.log(`browse limit=${limit - 1} offset=${offset}: rows_read=${result.meta.rows_read}`);
     }
+    // Include hydration in the route's cost, not just its first list query.
+    const profile = [];
+    const measuredDB = { prepare(sql) {
+      let values = [];
+      return { bind(...args) { values = args; return this; },
+        async first() { return sql.includes('auth_sessions') ? { id: 'session' } : { email: 'cost@example.test' }; },
+        async all() { const result = await db.prepare(sql).bind(...values).all(); profile.push({ sql, ...result.meta }); return result; } };
+    } };
+    const costs = {};
+    for (const projection of ['full', 'compact']) {
+      profile.length = 0;
+      const response = await app.fetch(new Request(`https://cost.test/search?scope=mine&origin=owned&browse=1&projection=${projection}`,
+        { headers: { Authorization: `Bearer ${token}` } }), { DB: measuredDB, JWT_SECRET: 'cost-test-secret' });
+      assert.equal(response.status, 200);
+      const page = await response.json();
+      assert.equal(page.items.length, 30);
+      if (projection === 'compact') {
+        assert.equal(profile.length, 1, 'compact browsing must not hydrate full items');
+        assert.ok(profile[0].rows_read <= 36);
+        assert.ok(page.items.every(hit => !('problem' in hit) && hit.typed_notes === null));
+      } else assert.ok(page.items.every(hit => hit.problem));
+      costs[projection] = profile.reduce((sum, result) => sum + result.rows_read, 0);
+    }
+    assert.ok(costs.compact < costs.full);
+    console.log(`complete owned browse: full=${costs.full} reads, compact=${costs.compact} reads`);
   } finally {
     if (mf) await mf.dispose();
     await rm(dir, { recursive: true, force: true });

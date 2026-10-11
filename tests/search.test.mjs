@@ -135,6 +135,24 @@ test('search scopes enforce current access and retained download versions', asyn
       assert.ok(!publicKeys.includes(`public:${invitedEntry}`) && !publicKeys.includes(`public:${unlistedEntry}`));
     });
 
+    await t.test('compact lists preserve matches, access and pagination without hydrating private work', async () => {
+      const extra = '&browse=1&origin=owned&projection=compact&limit=1&topic_id=math&tag=向量&status=unsolved';
+      const first = await search('   ', 'mine', 'b', extra);
+      const next = await search('', 'mine', 'b', extra + '&offset=1');
+      assert.equal(first.items.length, 1);
+      assert.equal(first.next_offset, 1);
+      assert.equal(next.items.length, 1);
+      assert.notEqual(first.items[0].id, next.items[0].id);
+      assert.equal(next.next_offset, null);
+      assert.ok([...first.items, ...next.items].every(hit => !('problem' in hit) && hit.typed_notes === null && hit.keywords === null));
+      assert.deepEqual(new Set(keys(await search('private-secret', 'mine', 'b', '&projection=compact&origin=owned'))), new Set(['owned:own', 'owned:no-index']));
+      assert.deepEqual(keys(await search('private-secret', 'public', null, '&projection=compact')), []);
+      assert.deepEqual(keys(await search('', 'shared', 'd', '&browse=1&projection=compact&collection_id=invited')), []);
+      const shared = await search('', 'shared', 'c', '&browse=1&projection=compact&contributing=yes&collection_id=subscribed');
+      assert.deepEqual(keys(shared), [`shared:${subscribedEntry}`]);
+      assert.equal(shared.items[0].typed_notes, null);
+      assert.equal((await call('/search?browse=1&projection=bogus')).status, 400);
+    });
     await t.test('own metadata without an index; latest OCR; safe literal search; pagination and filters', async () => {
       assert.deepEqual(keys(await search('電流')), ['owned:no-index']);
       assert.deepEqual(keys(await search('洛倫茲')), ['owned:own']);
@@ -244,6 +262,10 @@ test('search scopes enforce current access and retained download versions', asyn
       assert.deepEqual(keys(downloaded), [`saved:${savedId}`]);
       assert.equal(downloaded.items[0].typed_notes, 'personal-download-note');
       assert.equal(downloaded.items[0].relevance_score, 0);
+      const compactDownload = await search('', 'mine', 'b', '&browse=1&projection=compact&origin=saved&topic_id=math&tag=personal-tag');
+      assert.deepEqual(keys(compactDownload), [`saved:${savedId}`]);
+      assert.equal(compactDownload.items[0].typed_notes, null);
+      assert.deepEqual(keys(await search('personal-download-note', 'mine', 'b', '&projection=compact&origin=saved')), [`saved:${savedId}`]);
       assert.deepEqual(keys(await search('向量', 'mine', 'b', '&origin=saved&topic_id=math&tag=personal-tag')), [`saved:${savedId}`]);
       await db.prepare("UPDATE items SET source='updated-live-source',keywords=? WHERE id='source-subscribed'")
         .bind('["updated-tag"]').run();

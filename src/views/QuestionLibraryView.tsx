@@ -39,7 +39,8 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const outlineSubject = selectedSubject !== 'all' ? selectedSubject : topic === 'unclassified' ? topic : findNodeAndLineage(scopeTaxonomies, topic)?.[0].id || '';
   const status = params.get('status') || ''; const tag = params.get('tag') || '';
   const excludeArchived = (!search || params.get('exclude_archived') === 'yes') && (!status || status === 'all');
-  const scopeKey = JSON.stringify([account, source, collection, query, topic, status, tag, search, excludeArchived]);
+  const compactSearch = search && params.get('view') !== 'full';
+  const scopeKey = JSON.stringify([account, source, collection, query, topic, status, tag, search, excludeArchived, compactSearch]);
   const [data, setData] = useState<{ key: string; items: SearchHit[]; next: number | null; rebase?: boolean }>({ key: '', items: [], next: null });
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [revision, setRevision] = useState(0);
   const [sets, setSets] = useState<Collection[]>([]); const [setsError, setSetsError] = useState('');
@@ -57,11 +58,11 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   useEffect(() => { setDraftQuery(query); setDraft({ topic, status, tag, collection }); }, [query, topic, status, tag, collection]);
   useEffect(() => { if (!search) rememberStudy(account, location.pathname + location.search, source); }, [account, location.pathname, location.search, source, search]);
   useEffect(() => {
-    if (isGuestUser(currentUser)) { setSets([]); return; }
+    if (isGuestUser(currentUser) || search && source !== 'contributing') { setSets([]); setSetsError(''); return; }
     const abort = new AbortController(); setSets([]); setSetsError('');
     void collectionService.listContributable(abort.signal).then(setSets).catch(e => { if (!abort.signal.aborted) setSetsError(e.message); });
     return () => abort.abort();
-  }, [account, currentUser, revision]);
+  }, [account, currentUser, revision, search, source]);
   const load = async (offset = 0, append = false) => {
     const epoch = mutationEpoch.current;
     if (pending.current?.key === scopeKey && pending.current.offset === offset) return;
@@ -70,14 +71,14 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     try {
       const page = await questionService.search({
         source, collectionId: source === 'contributing' ? collection : undefined, query, topic, status: status === 'all' ? '' : status, excludeArchived, tag, offset,
-        signal: abort.signal, guest: isGuestUser(currentUser), taxonomies
+        projection: compactSearch ? 'compact' : 'full', signal: abort.signal, guest: isGuestUser(currentUser), taxonomies
       });
       if (abort.signal.aborted || active.current !== key) return;
       setData(previous => ({
         key, items: (offset || append) && previous.key === key ?
           [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.origin === i.origin && p.id === i.id))] : page.items, next: page.next_offset, rebase: append && mutationEpoch.current !== epoch
       }));
-      if (source === 'owned') {
+      if (source === 'owned' && !compactSearch) {
         const previous = offset || append ? useStore.getState().problems : [];
         useStore.getState().setProblems([...previous, ...page.items.flatMap(i => i.problem && !previous.some(p => p.id === i.id) ? [i.problem] : [])], null);
       }
@@ -88,7 +89,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     setDirty(false);
     const cached = navType === 'POP' && revision === 0 ? pageCache.get(scopeKey) : undefined;
     if (cached) {
-      setDirty(!!cached.rebase); setData(cached); setBusy(false); setError(''); if (source === 'owned') {
+      setDirty(!!cached.rebase); setData(cached); setBusy(false); setError(''); if (source === 'owned' && !compactSearch) {
         const existing = useStore.getState().problems;
         useStore.getState().setProblems(cached.items.flatMap(i => i.problem ? [existing.find(p => p.id === i.id && p.user_id === i.problem?.user_id) || i.problem] : []), null);
       }
@@ -99,11 +100,12 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   useEffect(() => { if (data.key !== scopeKey) return; pageCache.set(scopeKey, data); if (pageCache.size > 20) pageCache.delete(pageCache.keys().next().value!); }, [data, scopeKey]);
   useEffect(() => { const refresh = () => setRevision(v => v + 1); window.addEventListener('redolve:library-refresh', refresh); return () => window.removeEventListener('redolve:library-refresh', refresh); }, []);
   useEffect(() => {
+    if (search) { setMemberships({}); return; }
     const ids = data.items.filter(i => i.origin === 'owned').map(i => i.id); if (isGuestUser(currentUser) || !ids.length) { setMemberships({}); return; }
     const abort = new AbortController(); void collectionService.memberships(ids, abort.signal).then(r => {
       if (abort.signal.aborted) return; setMemberships(r);
     }).catch(() => { }); return () => abort.abort();
-  }, [data.items, currentUser, membershipRevision]);
+  }, [data.items, currentUser, membershipRevision, search]);
   const patch = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([k, v]) => v ? next.set(k, v) : next.delete(k)); if (!('focus' in values)) next.delete('focus'); setParams(next); };
   const items = data.key === scopeKey ? data.items : [];
   useEffect(() => {

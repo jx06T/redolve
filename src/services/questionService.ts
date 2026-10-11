@@ -38,12 +38,13 @@ export const subscriptionService = {
 };
 export const questionService = {
   async search(input:{source:StudySource;query:string;collectionId?:string;topic?:string;status?:string;
-    tag?:string;offset?:number;metadataOnly?:boolean;excludeArchived?:boolean;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
+    tag?:string;offset?:number;metadataOnly?:boolean;projection?:'compact'|'full';excludeArchived?:boolean;signal?:AbortSignal;guest?:boolean;taxonomies?:TaxonomyNode[]}):Promise<SearchPage> {
     if(input.source==='contributing'&&!input.collectionId)
       return {items:[],next_offset:null,scope:'shared'};
     if(input.guest) {
       if(input.source!=='owned')return {items:[],next_offset:null,scope:'mine'};
-      const rows=input.query?await OfflineSyncManager.searchOfflineProblems(input.query)
+      const query=input.query.trim();
+      const rows=query?await OfflineSyncManager.searchOfflineProblems(query)
         :await OfflineSyncManager.getOfflineProblemsAsItems();
       const topics=new Set<string>();
       const visit=(nodes:TaxonomyNode[],include=false)=>nodes.forEach(n=>{
@@ -63,6 +64,7 @@ export const questionService = {
     if(input.topic)params.set('topic_id',input.topic);
     if(input.status&&input.status!=='all')params.set('status',input.status);
     if(input.metadataOnly)params.set('metadata_only','1');
+    if(input.projection)params.set('projection',input.projection);
     if(input.excludeArchived)params.set('exclude_archived','yes');
     if(input.tag)params.set('tag',input.tag);
     if(input.offset)params.set('offset',String(input.offset));
