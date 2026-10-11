@@ -4,6 +4,7 @@ import { sharingApi, savedImageUrl, imageUrl, type SavedDetail } from './sharing
 import type { CollectionItemDetail, WorkContent, WorkTarget } from '../types/question';
 import type { DrawData } from '../types';
 import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
+import { hasUnsavedOwnedMemoryWork } from './ownedWorkService';
 
 // An untouched workspace uses the card width, just like a newly uploaded item.
 // The canvas records baseWidth when drawing starts; existing coordinates stay intact.
@@ -164,7 +165,7 @@ export function downloadWorkDraft(ink:DrawData,notes:string) {
   const url=URL.createObjectURL(new Blob([JSON.stringify({ink,notes},null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download='redolve-local-work.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),10000);
 }
-export function hasUnsavedMemoryWork(){return [...controllers.values()].some(c=>c.pending()&&c.getState().storageFailed);}
+export function hasUnsavedMemoryWork(){return hasUnsavedOwnedMemoryWork()||[...controllers.values()].some(c=>c.pending()&&c.getState().storageFailed);}
 export function listWorkDrafts(account:string) {
   const drafts:{key:string;target:WorkTarget;ink:DrawData;notes:string}[]=[];
   const prefix=`rdv:work:v1:${account}:`;

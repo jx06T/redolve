@@ -17,7 +17,6 @@ import { useCallback } from 'react';
 import { useStore } from '../store/useStore';
 import {
   updateProblemStatus,
-  updateProblemDrawData,
   updateProblemMetadata,
   mutateProblemTag,
   deleteProblem,
@@ -36,6 +35,7 @@ import {
 } from '../services/offlineStorage';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { DrawData, Item } from '../types';
+import { getOwnedWorkController, forgetOwnedWork } from '../services/ownedWorkService';
 
 const OFFLINE_PROBS_STORE = 'offlineProblems';
 
@@ -144,25 +144,16 @@ export function useProblemActions() {
    */
   const saveDrawData = useCallback(
     async (problem: Item, drawData: DrawData, seq: number) => {
+      if (!isOfflineProblemId(problem.id)) {
+        getOwnedWorkController(problem).ink(drawData);
+        return;
+      }
       updateProblemInStore(problem.id, {
         draw_data: JSON.stringify(drawData),
         vector_clock: JSON.stringify({ node: 'client', seq }),
       });
 
-      if (!isOfflineProblemId(problem.id)) {
-        try {
-          await updateProblemDrawData(problem.id, drawData, seq);
-        } catch (err) {
-          console.error('[useProblemActions] saveDrawData failed, queueing for offline sync:', err);
-          const conflict=err instanceof Error&&err.message.startsWith('CONFLICT:');
-          await queueOfflineMutation(problem.id, { drawData, seq,
-            blockedReason:conflict?'筆跡版本衝突':undefined }, problem.user_id);
-          if(conflict) showToast('筆跡與另一裝置衝突，本機草稿已保留，請重新載入並手動處理。','error',8000);
-        }
-      } else {
-        // Persist offline stroke data in IndexedDB
-        await updateOfflineProblemDraw(problem.id, drawData, seq);
-      }
+      await updateOfflineProblemDraw(problem.id, drawData, seq);
     },
     [updateProblemInStore, showToast]
   );
@@ -173,18 +164,7 @@ export function useProblemActions() {
   const saveTypedNotes = useCallback(
     async (problem: Item, text: string) => {
       if (!isOfflineProblemId(problem.id)) {
-        try {
-          const res=await updateProblemMetadata(problem.id, {
-            typed_notes: text, expected_notes_seq: problem.notes_seq ?? 0,
-          });
-          updateProblemInStore(problem.id,{notes_seq:res.notes_seq});
-        } catch (err) {
-          console.error('[useProblemActions] saveTypedNotes failed, queueing for offline sync:', err);
-          const conflict=err instanceof Error&&err.message.startsWith('CONFLICT:');
-          await queueOfflineMutation(problem.id, { typed_notes: text, notesSeq:problem.notes_seq ?? 0,
-            blockedReason:conflict?'筆記版本衝突':undefined }, problem.user_id);
-          if(conflict) showToast('筆記與另一裝置衝突，本機草稿已保留，請重新載入並手動處理。','error',8000);
-        }
+        getOwnedWorkController(problem).notes(text);
       } else {
         // Persist typed notes in IndexedDB for offline items
         await updateOfflineProblemNotes(problem.id, text);
@@ -254,6 +234,7 @@ export function useProblemActions() {
       } else {
         try {
           await deleteProblem(problem.id);
+          forgetOwnedWork(problem);
           removeProblemFromStore(problem.id);
           showToast('已刪除錯題', 'success', 2000);
         } catch (err) {

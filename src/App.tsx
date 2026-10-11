@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ReaderLayout } from './components/ReaderLayout';
 import { Toast } from './components/Toast';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { fetchCurrentUser, fetchProblemById, updateProblemDrawData, updateProblemStatus, updateProblemMetadata, mutateProblemTag } from './services/api';
+import { fetchCurrentUser, fetchProblemById, updateProblemStatus, updateProblemMetadata, mutateProblemTag } from './services/api';
 import { initOnlineSync } from './services/offlineStorage';
 import { useStore } from './store/useStore';
 import { OfflineSyncManager } from './services/OfflineSyncManager';
@@ -80,18 +80,8 @@ export default function App() {
           const problem = await fetchProblemById(item.id);
           if (problem.user_id !== currentUserId) return false;
         }
-        let allSuccess = true;
-        if (item.drawData && item.seq !== undefined) {
-          const res = await updateProblemDrawData(item.id, item.drawData, item.seq);
-          if (res.status !== 'ok') allSuccess = false;
-        }
         if (item.status && item.status !== 'processing') {
           await updateProblemStatus(item.id, item.status);
-        }
-        if (item.typed_notes !== undefined) {
-          if (item.notesSeq === undefined) return false;
-          await updateProblemMetadata(item.id, { typed_notes: item.typed_notes,
-            expected_notes_seq: item.notesSeq });
         }
         if (item.tag_ops) for (const op of item.tag_ops)
           await mutateProblemTag(item.id, op.op, op.tag);
@@ -100,7 +90,7 @@ export default function App() {
           if (item.metadata_patch.topic_id !== undefined)
             await updateProblemMetadata(item.id, { topic_id: item.metadata_patch.topic_id });
         }
-        return allSuccess;
+        return true;
       } catch (err) {
         return false;
       }

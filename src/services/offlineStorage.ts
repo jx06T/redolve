@@ -126,6 +126,21 @@ export async function removeQueuedDraw(problemId: string) {
   await db.delete(SYNC_STORE_NAME, problemId);
 }
 
+// Move drawing/notes to the durable owned-work controller without deleting unrelated queued actions.
+export async function stripLegacyQueuedWork(snapshot: SyncQueueItem) {
+  const db = await getOfflineDB();
+  const tx = db.transaction(SYNC_STORE_NAME, 'readwrite');
+  const store = tx.objectStore(SYNC_STORE_NAME);
+  const current = await store.get(snapshot.id);
+  if (current && JSON.stringify(current) === JSON.stringify(snapshot)) {
+    const {drawData: _draw, seq: _seq, typed_notes: _notes, notesSeq: _notesSeq, ...remaining} = current;
+    if (remaining.blockedReason?.includes('筆跡') || remaining.blockedReason?.includes('筆記')) delete remaining.blockedReason;
+    if (remaining.status || remaining.metadata_patch || remaining.tag_ops?.length) await store.put(remaining);
+    else await store.delete(snapshot.id);
+  }
+  await tx.done;
+}
+
 export async function updateOfflineProblemStatus(
   id: string,
   status: 'unsolved' | 'resolved' | 'archived' | 'processing',
@@ -148,24 +163,20 @@ export async function updateOfflineProblemAnalysis(id: string, tagResult: NonNul
 }
 
 export async function updateOfflineProblemDraw(id: string, drawData: any, seq: number) {
-  const existing = await getOfflineProblem(id);
-  if (!existing) return;
-
-  await putOfflineProblem({
-    ...existing,
-    draw_data: drawData,
-    vector_clock: { node: 'client', seq },
-  });
+  await patchOfflineWork(id, {draw_data: drawData, vector_clock: {node: 'client', seq}});
 }
 
 export async function updateOfflineProblemNotes(id: string, typedNotes: string) {
-  const existing = await getOfflineProblem(id);
-  if (!existing) return;
+  await patchOfflineWork(id, {typed_notes: typedNotes});
+}
 
-  await putOfflineProblem({
-    ...existing,
-    typed_notes: typedNotes,
-  });
+async function patchOfflineWork(id: string, patch: Pick<Partial<StoredOfflineProblem>, 'draw_data' | 'vector_clock' | 'typed_notes'>) {
+  const db = await getOfflineDB();
+  const tx = db.transaction(OFFLINE_PROBS_STORE, 'readwrite');
+  const store = tx.objectStore(OFFLINE_PROBS_STORE);
+  const existing = await store.get(id);
+  if (existing) await store.put({...existing, ...patch});
+  await tx.done;
 }
 
 export async function updateOfflineProblemMetadata(
@@ -204,6 +215,9 @@ export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<bo
     try {
       const items = await getQueuedDraws();
       for (const item of items) {
+        // Owned-work restores these drafts before editing and serializes their CAS writes.
+        // Replaying the same draw/notes here would race with the active editor.
+        if (item.drawData !== undefined || item.typed_notes !== undefined) continue;
         if (item.blockedReason) continue;
         const currentUserId = getCurrentUserId();
         if (!currentUserId) break;
@@ -211,7 +225,11 @@ export function initOnlineSync(syncCallback: (item: SyncQueueItem) => Promise<bo
         try {
           const success = await syncCallback(item);
           if (success && getCurrentUserId() === currentUserId) {
-            await removeQueuedDraw(item.id);
+            const db = await getOfflineDB();
+            const tx = db.transaction(SYNC_STORE_NAME, 'readwrite');
+            const store = tx.objectStore(SYNC_STORE_NAME);
+            if (JSON.stringify(await store.get(item.id)) === JSON.stringify(item)) await store.delete(item.id);
+            await tx.done;
           }
         } catch (err) {
           console.error(`[PWA Sync] Failed to sync item ${item.id}`, err);

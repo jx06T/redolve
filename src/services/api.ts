@@ -213,7 +213,7 @@ export async function updateProblemDrawData(
   id: string,
   drawData: any,
   seq: number
-): Promise<{ status: string; current?: any }> {
+): Promise<{ status: string; seq: number; current?: any }> {
   let clientId = createClientId();
   try {
     clientId = localStorage.getItem('rdv_client_id') || clientId;

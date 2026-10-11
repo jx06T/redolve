@@ -11,6 +11,11 @@ import { ProblemCardWorkspace } from './problem/ProblemCardWorkspace';
 import { ProblemCardScratchpadControls } from './problem/ProblemCardScratchpadControls';
 import { ProblemCardFooter } from './problem/ProblemCardFooter';
 import { SmartCTA } from './SmartCTA';
+import { useOwnedWork } from '../hooks/useOwnedWork';
+import { itemInk, itemInkSeq } from '../services/ownedWorkController';
+import { downloadWorkDraft } from '../services/workService';
+import { AppDialog } from './AppDialog';
+import { DrawCanvas } from './DrawCanvas';
 
 import {
   getProblemImageUrl,
@@ -44,7 +49,7 @@ interface ProblemCardProps {
 }
 
 export const ProblemCard: React.FC<ProblemCardProps> = ({
-  problem,
+  problem: inputProblem,
   problemIndex,
   readOnly = false,
   onEditMetadata,
@@ -72,21 +77,18 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const { toggleStatus, toggleArchive, saveDrawData, saveTypedNotes, deleteItem } = useProblemActions();
 
+  const ownedEnabled = !work && !inputProblem.id.startsWith('temp_');
+  const owned = useOwnedWork(inputProblem, ownedEnabled);
+  const problem = React.useMemo(() => owned.state ? {...inputProblem,
+    draw_data: JSON.stringify(owned.state.ink), typed_notes: owned.state.notes,
+    draw_seq: owned.state.inkSeq, notes_seq: owned.state.notesSeq} : inputProblem, [inputProblem, owned.state]);
+  const workspaceReadOnly = readOnly || ownedEnabled && (!owned.state || owned.state.restoring || owned.state.storageFailed);
+  const [cloudWork, setCloudWork] = useState<Item | null>(null);
+  const [workError, setWorkError] = useState('');
+
   const isActive = activeProblemId === problem.id;
 
-  const getInitialSeq = useCallback(() => {
-    if (problem.vector_clock) {
-      try {
-        const parsed = typeof problem.vector_clock === 'string' ? JSON.parse(problem.vector_clock) : problem.vector_clock;
-        return typeof parsed.seq === 'number' ? parsed.seq : 0;
-      } catch {
-        return 0;
-      }
-    }
-    return 0;
-  }, [problem.vector_clock]);
-
-  const [vectorSeq, setVectorSeq] = useState<number>(getInitialSeq);
+  const offlineSeq = useRef(itemInkSeq(problem));
   const [isResolved, setIsResolved] = useState<boolean>(problem.status === 'resolved');
   const [inkVisible, setInkVisible] = useState<boolean>(true);
   const [isExporting, setIsExporting] = useState<boolean>(false);
@@ -165,9 +167,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const drawSavingSeq=useRef(0),notesSavingSeq=useRef(0);
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
 
-  const saveDrawTimerRef = useRef<any>(null);
-  const saveNotesTimerRef = useRef<any>(null);
-
   useEffect(() => {
     setIsResolved(problem.status === 'resolved');
     setTypedNotes(problem.typed_notes || '');
@@ -228,11 +227,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   }, [problem.id]);
 
   useEffect(()=>{
-    if(!work||!problem.draw_data)return;
+    if((!work&&!owned.state)||!problem.draw_data)return;
     try{const ink:DrawData=JSON.parse(problem.draw_data);latestDrawDataRef.current=ink;
       if(typeof ink.calcSpaceHeight==='number'){calcSpaceHeightRef.current=ink.calcSpaceHeight;setCalcSpaceHeight(ink.calcSpaceHeight);}
     }catch{/* Leave a valid local workspace intact. */}
-  },[work?problem.draw_data:null]);
+  },[work||owned.state?problem.draw_data:null]);
 
   const handleToggleStatus = async () => {
     if(readOnly)return false;
@@ -255,43 +254,38 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   };
 
   const handleTypedNotesChange = (text: string) => {
-    if(readOnly)return;
+    if(workspaceReadOnly)return;
     setTypedNotes(text);
     if(work){work.saveNotes(text);return;}
+    if(owned.controller){owned.controller.notes(text);return;}
     setIsSavingNotes(true);const generation=++notesSavingSeq.current;
     updateProblemInStore(problem.id, { typed_notes: text });
 
-    if (saveNotesTimerRef.current) {
-      clearTimeout(saveNotesTimerRef.current);
-    }
-
-    saveNotesTimerRef.current = setTimeout(async () => {
+    void (async () => {
       try {
         await saveTypedNotes(problem, text);
       } finally {
         if(generation===notesSavingSeq.current)setIsSavingNotes(false);
       }
-    }, 600);
+    })();
   };
 
   const handleSaveDraw = useCallback(
     (drawData: DrawData, explicitHeight?: number) => {
       const activeHeight = typeof explicitHeight === 'number' ? explicitHeight : calcSpaceHeightRef.current;
-      const nextSeq = vectorSeq + 1;
-      setVectorSeq(nextSeq);
       const dataWithHeight: DrawData = { ...drawData, calcSpaceHeight: activeHeight };
       latestDrawDataRef.current = dataWithHeight;
 
-      if(readOnly)return;
+      if(workspaceReadOnly)return;
       if(work){work.saveInk(dataWithHeight);return;}
+      if(owned.controller){owned.controller.ink(dataWithHeight);return;}
       setIsSavingInk(true);const generation=++drawSavingSeq.current;
-      if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
-
-      saveDrawTimerRef.current = setTimeout(async () => {
+      const nextSeq=++offlineSeq.current;
+      void (async () => {
         try{await saveDrawData(problem, dataWithHeight, nextSeq);}finally{if(generation===drawSavingSeq.current)setIsSavingInk(false);}
-      }, 400);
+      })();
     },
-    [problem, vectorSeq, saveDrawData,work,readOnly]
+    [problem, saveDrawData,work,workspaceReadOnly,owned.controller]
   );
 
   const updateCalcHeight = (newHeight: number | ((prev: number) => number)) => {
@@ -353,6 +347,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         return;
       }
       const freshProblem = await fetchProblemById(problem.id);
+      if(owned.controller?.pending()) {setCloudWork(freshProblem);return;}
+      owned.controller?.adoptCloud(freshProblem);
       latestDrawDataRef.current = null;
       updateProblemInStore(problem.id, freshProblem);
       setIsResolved(freshProblem.status === 'resolved');
@@ -483,14 +479,14 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           penColor={penColor}
           penWidth={penWidth}
           eraserActive={eraserActive}
-          readOnly={readOnly}
+          readOnly={workspaceReadOnly}
           inkVisible={inkVisible}
           onSaveDraw={handleSaveDraw}
           onOpenLightbox={() => setIsLightboxOpen(true)}
         />
 
         {/* Scratchpad Height Controls */}
-        {(!readOnly || work?.syncStatus) && (
+        {(!readOnly || work?.syncStatus || owned.state) && (
           <ProblemCardScratchpadControls
             calcSpaceHeight={calcSpaceHeight}
             isCollapsed={isScratchpadCollapsed || calcSpaceHeight === 0}
@@ -499,8 +495,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               else setIsScratchpadCollapsed((previous) => !previous);
             }}
             isSavingNotes={isSavingNotes}
-            syncStatus={work?.syncStatus}
-            readOnly={readOnly}
+            syncStatus={work?.syncStatus ?? (owned.state&&<><span role="status" aria-atomic="true">{owned.state.restoring?'還原本機草稿…':owned.state.storageFailed?'本機儲存失敗':owned.state.status==='conflict'?'版本待核對':owned.state.status==='error'?'同步失敗':owned.state.status==='saving'?'正在同步存檔…':owned.state.status==='pending'?'本機已保存，等待同步…':'支援即時打字'}</span>{owned.state.status==='error'&&(!owned.state.storageFailed||owned.controller?.pending())&&<button type="button" onClick={owned.controller?.retry} className="text-text-muted underline underline-offset-2">重試同步</button>}</>)}
+            readOnly={workspaceReadOnly}
             onUpdateCalcHeight={updateCalcHeight}
           />
         )}
@@ -510,7 +506,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           aria-label={work?.notesLabel||'本題筆記'}
           value={typedNotes}
           onChange={(e) => handleTypedNotesChange(e.target.value)}
-          disabled={readOnly}
+          disabled={workspaceReadOnly}
           placeholder="在此輸入本題的核心觀念、易錯陷阱、解題口訣或公式筆記..."
           minRows={2}
           maxRows={12}
@@ -518,6 +514,13 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         />
 
         {work?.afterNotes}
+        {owned.state&&(owned.state.status==='conflict'||owned.state.status==='error')&&<div className="mt-3 space-y-2 text-xs text-text-muted">
+          <p role="alert">{owned.state.error}{!owned.state.storageFailed&&' 本機草稿會在重新整理後還原。'}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={()=>downloadWorkDraft(owned.state!.ink,owned.state!.notes)} className="rounded-xl border border-border-subtle px-3 py-2">下載本機作業</button>
+            {owned.state.status==='conflict'&&<button type="button" disabled={isReloading} onClick={()=>void handleReloadProblem()} className="rounded-xl border border-border-subtle px-3 py-2">核對雲端版本</button>}
+          </div>
+        </div>}
         {/* Bottom Footer Actions */}
         <ProblemCardFooter
           problem={problem}
@@ -554,10 +557,21 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         isOpen={isShareModalOpen}
         problemId={problem.id}
         canCreate={!problem.id.startsWith('temp_')}
-        blockedReason={problem.id.startsWith('temp_')?'請先將題目同步至雲端，再建立分享連結。':isSavingInk||isSavingNotes?'請先完成作業同步，再建立分享連結。':''}
-        beforeCreate={async()=>{if(!navigator.onLine)throw new Error('需要連線才能建立分享');const drafts=await getQueuedDraws();if(drafts.some(d=>d.id===problem.id))throw new Error('此題還有未同步作業，請完成同步後再分享。');}}
+        blockedReason={problem.id.startsWith('temp_')?'請先將題目同步至雲端，再建立分享連結。':isSavingInk||isSavingNotes||owned.controller?.pending()||owned.state?.restoring?'請先完成作業同步，再建立分享連結。':''}
+        beforeCreate={async()=>{if(!navigator.onLine)throw new Error('需要連線才能建立分享');if(owned.controller?.pending())throw new Error('此題還有未同步作業');const drafts=await getQueuedDraws();if(drafts.some(d=>d.id===problem.id))throw new Error('此題還有未同步作業，請完成同步後再分享。');}}
         onClose={() => setIsShareModalOpen(false)}
       />
+      {cloudWork&&<AppDialog title="核對雲端與本機作業" onClose={()=>{setCloudWork(null);setWorkError('');}}>
+        <p className="text-xs text-text-muted">本機作業仍在題卡上。選擇任一版本前，系統會保留兩份內容的本機備份；筆跡不會自動合併。</p>
+        <h3 className="mt-3 text-sm font-medium">雲端筆記</h3><p className="mt-1 whitespace-pre-wrap text-sm">{cloudWork.typed_notes||'無筆記'}</p>
+        <div className="relative mt-3 h-52 overflow-hidden rounded-xl border border-border-subtle bg-page-bg"><DrawCanvas initialDrawData={itemInk(cloudWork)} readOnly inkVisible/></div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button onClick={()=>downloadWorkDraft(owned.state!.ink,owned.state!.notes)} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">下載本機作業</button>
+          <button onClick={()=>{try{owned.controller?.adoptCloud(cloudWork);setCloudWork(null);setWorkError('');}catch{setWorkError('備份寫入失敗；尚未替換任何作業，請先下載本機作業。');}}} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">採用雲端作業</button>
+          <button onClick={()=>{try{owned.controller?.keepLocal(cloudWork);setCloudWork(null);setWorkError('');}catch{setWorkError('備份寫入失敗；尚未覆蓋任何作業，請先下載本機作業。');}}} className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">以本機作業更新雲端</button>
+        </div>
+        {workError&&<p role="alert" className="mt-3 text-xs text-text-muted">{workError}</p>}
+      </AppDialog>}
     </div>
   );
 };
