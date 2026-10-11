@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   BookOpen,
   CheckCircle2,
@@ -20,6 +20,7 @@ import { GuestNoticeBanner } from '../components/GuestNoticeBanner';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { isGuestUser } from '../utils/guest';
 import { SharingActivity } from '../components/SharingActivity';
+import { resolveDashboardStudyUrl } from '../services/dashboardStudyService';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -28,11 +29,14 @@ export const DashboardView: React.FC = () => {
   });
 
   const navigate = useNavigate();
-  const { taxonomies, setSelectedSubjectId, setSelectedTopicId, setUploadModalOpen, currentUser } = useStore();
+  const { taxonomies, setUploadModalOpen, currentUser, showToast } = useStore();
   const isGuest = isGuestUser(currentUser);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<boolean>(false);
+  const [opening,setOpening]=useState(false);
+  const entryRequest=useRef<AbortController>();
+  useEffect(()=>()=>entryRequest.current?.abort(),[currentUser?.id]);
 
   useEffect(() => {
     let active = true;
@@ -104,23 +108,14 @@ export const DashboardView: React.FC = () => {
   const completionRate = summary.total > 0 ? Math.round((summary.resolved / summary.total) * 100) : 0;
   const unclassifiedCount = summary.unclassified ?? 0;
 
-  const handleSubjectClick = (subjectId: string) => {
-    setSelectedSubjectId(subjectId);
-    setSelectedTopicId(null);
-    navigate(`/study/${subjectId}`);
-  };
-
-  const handleTopicClick = (topicId: string) => {
-    const rootSub = getRootSubjectId(topicId, taxonomies);
-    setSelectedSubjectId(rootSub);
-    setSelectedTopicId(topicId);
-    navigate(`/study/${rootSub}/${topicId}`);
-  };
-
-  const handleUnclassifiedClick = () => {
-    setSelectedSubjectId('all');
-    setSelectedTopicId('unclassified');
-    navigate('/study/all');
+  const openStudy = async (scope:Parameters<typeof resolveDashboardStudyUrl>[0]) => {
+    entryRequest.current?.abort();const abort=new AbortController();entryRequest.current=abort;setOpening(true);
+    try {
+      const url=await resolveDashboardStudyUrl(scope,{guest:isGuest,tree:taxonomies,signal:abort.signal});
+      if(!abort.signal.aborted&&useStore.getState().currentUser?.id===currentUser?.id)navigate(url);
+    } catch(error) {
+      if(!abort.signal.aborted)showToast(error instanceof Error?error.message:'無法進入刷題，請稍後重試','error');
+    } finally { if(entryRequest.current===abort)setOpening(false); }
   };
 
   return (
@@ -175,7 +170,8 @@ export const DashboardView: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={handleUnclassifiedClick}
+            disabled={opening}
+            onClick={()=>void openStudy({topicId:'unclassified',status:'all'})}
             className="px-4 py-2 rounded-xl bg-status-warning text-white text-xs font-semibold hover:bg-status-warning/90 active:scale-95 transition-all shadow-xs flex items-center space-x-1.5 shrink-0"
           >
             <FolderSync className="w-3.5 h-3.5" />
@@ -226,17 +222,15 @@ export const DashboardView: React.FC = () => {
               <TrendingUp className="w-4 h-4 text-primary" />
               <span>各科目錯題訂正率</span>
             </h2>
-            <Link
-              to="/study/math"
-              onClick={() => {
-                setSelectedSubjectId('math');
-                setSelectedTopicId(null);
-              }}
+            <button
+              type="button"
+              disabled={opening}
+              onClick={()=>void openStudy({})}
               className="text-xs text-primary font-medium flex items-center space-x-1 hover:underline"
             >
-              <span>進入刷題</span>
+              <span>{opening?'準備題目…':'進入刷題'}</span>
               <ArrowRight className="w-3 h-3" />
-            </Link>
+            </button>
           </div>
 
           {subjects.length === 0 ? (
@@ -249,10 +243,12 @@ export const DashboardView: React.FC = () => {
                 const pct = sub.total > 0 ? Math.round((sub.resolved / sub.total) * 100) : 0;
                 const unsolvedSub = sub.total - sub.resolved;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={sub.subject_id}
-                    onClick={() => handleSubjectClick(sub.subject_id)}
-                    className="p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle hover:border-primary/40 hover:bg-neutral-100 cursor-pointer transition-all duration-150 space-y-2 group"
+                    disabled={opening}
+                    onClick={() => void openStudy({subjectId:sub.subject_id})}
+                    className="w-full text-left p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle hover:border-primary/40 hover:bg-neutral-100 cursor-pointer transition-all duration-150 space-y-2 group"
                   >
                     <div className="flex justify-between items-center text-xs font-medium">
                       <div className="flex items-center space-x-2">
@@ -275,7 +271,7 @@ export const DashboardView: React.FC = () => {
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -296,10 +292,12 @@ export const DashboardView: React.FC = () => {
             <div className="space-y-3">
               {topUnsolved.map((topic, idx) => {
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={topic.topic_id}
-                    onClick={() => handleTopicClick(topic.topic_id)}
-                    className="p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
+                    disabled={opening}
+                    onClick={() => void openStudy({topicId:topic.topic_id})}
+                    className="w-full text-left p-3.5 rounded-2xl bg-neutral-50 border border-border-subtle flex items-center justify-between hover:border-primary/40 cursor-pointer transition-all duration-150 group"
                   >
                     <div className="flex items-center space-x-3">
                       <span className="w-6 h-6 rounded-full bg-status-warning/10 text-status-warning font-bold text-xs flex items-center justify-center">
@@ -317,7 +315,7 @@ export const DashboardView: React.FC = () => {
                     <div className="p-2 rounded-xl bg-neutral-100 text-primary group-hover:bg-primary-50 active:scale-95 transition-all">
                       <ArrowRight className="w-4 h-4" />
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
