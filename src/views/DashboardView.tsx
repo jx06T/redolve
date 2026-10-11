@@ -217,7 +217,6 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      <SharingActivity/>
       {/* Grid Content: Subjects Progress & Top Review Topics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Subject Progress Cards */}
@@ -325,6 +324,8 @@ export const DashboardView: React.FC = () => {
           )}
         </div>
       </div>
+      <SharingActivity />
+      <div className=' w-full h-16'></div>
     </div>
   );
 };
