@@ -5,6 +5,7 @@ import { DEFAULT_PALETTE_COLORS, PaletteColorItem } from '../config/constants';
 import { TAXONOMY_SEED_DATA } from '../../worker/data/taxonomy-seed';
 import { fetchTaxonomyTree } from '../services/api';
 import { OfflineSyncManager } from '../services/OfflineSyncManager';
+import { questionListCache } from '../services/listCache';
 
 export interface ToastNotice {
   id: string;
@@ -163,6 +164,7 @@ export const useStore = create<StoreState>()(
       setUploadModalOpen: (uploadModalOpen) => set({ uploadModalOpen }),
       setMobileDrawerOpen: (mobileDrawerOpen) => set({ mobileDrawerOpen }),
       setCurrentUser: (user) => {
+        questionListCache.setAccount(user?.id || 'guest');
         const wasGuest = !get().currentUser || get().currentUser?.id === 'dev_user_default';
         const isNowLoggedIn = user && user.id !== 'dev_user_default';
 
@@ -179,6 +181,7 @@ export const useStore = create<StoreState>()(
         }
       },
       logout: () => {
+        questionListCache.setAccount('guest');
         try { localStorage.removeItem('redolve_auth_token'); }
         catch { /* Keep logout usable when browser storage is restricted. */ }
         set({ currentUser: null });

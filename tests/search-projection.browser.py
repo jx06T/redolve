@@ -47,7 +47,9 @@ with sync_playwright() as pw:
         group.get_by_role('button', name='簡單', exact=True).click()
         expect(page.get_by_role('heading', name='來源：測試來源')).to_be_visible()
         page.get_by_role('textbox', name='搜尋目前題目來源').fill('向量')
-        page.get_by_role('button', name='搜尋', exact=True).click()
+        with page.expect_response(lambda response: urlparse(response.url).path == '/api/search'
+                                  and parse_qs(urlparse(response.url).query).get('q') == ['向量']):
+            page.get_by_role('button', name='搜尋', exact=True).click()
         page.wait_for_load_state('networkidle')
         request = [params for path, params in calls if path == '/api/search'][-1]
         assert request['q'] == ['向量'] and request['projection'] == ['compact']

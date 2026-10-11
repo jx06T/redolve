@@ -12,6 +12,7 @@ import { SearchResultCard } from '../components/SearchResultCard';
 import { AddToCollectionDialog } from '../components/AddToCollectionDialog';
 import { useStore } from '../store/useStore';
 import { questionService, collectionService } from '../services/questionService';
+import { questionListCache, LIST_FRESHNESS_MS } from '../services/listCache';
 import { readSource, rememberStudy } from '../services/navigationState';
 import { isGuestUser } from '../utils/guest';
 import { useProblemActions } from '../hooks/useProblemActions';
@@ -26,7 +27,10 @@ import type { TaxonomyNode } from '../types';
 const topics = (nodes: TaxonomyNode[], depth = 0): { id: string; label: string }[] => nodes.flatMap(n => [
   { id: n.id, label: `${'　'.repeat(depth)}${n.label}` }, ...topics(n.children || [], depth + 1)]);
 const officialTree = (nodes: TaxonomyNode[]): TaxonomyNode[] => nodes.filter(n => !n.user_id).map(n => ({ ...n, children: officialTree(n.children || []) }));
-const pageCache = new Map<string, { key: string; items: SearchHit[]; next: number | null; rebase?: boolean }>();
+type LibraryPage = { key: string; items: SearchHit[]; next: number | null; rebase?: boolean; receivedAt: number; generation: number };
+const pageCache = new Map<string, LibraryPage>();
+questionListCache.onInvalidate(() => pageCache.clear());
+let pageCacheAccount = '';
 export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const location = useLocation(); const legacy = useParams(); const [params, setParams] = useSearchParams();
   const source = readSource(params.get('source')); const account = useStore(s => s.currentUser?.id || 'guest');
@@ -41,7 +45,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const excludeArchived = (!search || params.get('exclude_archived') === 'yes') && (!status || status === 'all');
   const compactSearch = search && params.get('view') !== 'full';
   const scopeKey = JSON.stringify([account, source, collection, query, topic, status, tag, search, excludeArchived, compactSearch]);
-  const [data, setData] = useState<{ key: string; items: SearchHit[]; next: number | null; rebase?: boolean }>({ key: '', items: [], next: null });
+  const [data, setData] = useState<LibraryPage>({ key: '', items: [], next: null, receivedAt: 0, generation: -1 });
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [revision, setRevision] = useState(0);
   const [sets, setSets] = useState<Collection[]>([]); const [setsError, setSetsError] = useState('');
   const [draftQuery, setDraftQuery] = useState(query);
@@ -50,7 +54,8 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const mutationEpoch = useRef(0);
   const markChanged = () => { mutationEpoch.current++; setDirty(true); setData(d => ({ ...d, rebase: true })); };
   const [dirty, setDirty] = useState(false); const [membershipRevision, setMembershipRevision] = useState(0);
-  const navType = useNavigationType(); const { saveMetadata, analyzeItem } = useProblemActions();
+  const { saveMetadata, analyzeItem } = useProblemActions();
+  const navType = useNavigationType();
   const [editing, setEditing] = useState<Item | null>(null); const [editTopic, setEditTopic] = useState(''); const [editTags, setEditTags] = useState(''); const [analyzing, setAnalyzing] = useState(false);
   const [memberships, setMemberships] = useState<Record<string, { entry_id: string; collection_id: string; title: string; state: string; lifecycle: string; visibility: string }[]>>({});
   const pending = useRef<{ key: string; offset: number } | null>(null);
@@ -63,42 +68,58 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     void collectionService.listContributable(abort.signal).then(setSets).catch(e => { if (!abort.signal.aborted) setSetsError(e.message); });
     return () => abort.abort();
   }, [account, currentUser, revision, search, source]);
-  const load = async (offset = 0, append = false) => {
+  const load = async (offset = 0, append = false, restoreCount = 0) => {
     const epoch = mutationEpoch.current;
-    if (pending.current?.key === scopeKey && pending.current.offset === offset) return;
+    const requestGeneration = questionListCache.version();
+    if (pending.current?.key === scopeKey && pending.current.offset === offset && !abortRef.current?.signal.aborted) return;
     abortRef.current?.abort(); const abort = new AbortController(); abortRef.current = abort; pending.current = { key: scopeKey, offset };
     const key = scopeKey; setBusy(true); setError('');
     try {
-      const page = await questionService.search({
+      const readPage = (offset: number) => questionService.search({
         source, collectionId: source === 'contributing' ? collection : undefined, query, topic, status: status === 'all' ? '' : status, excludeArchived, tag, offset,
         projection: compactSearch ? 'compact' : 'full', signal: abort.signal, guest: isGuestUser(currentUser), taxonomies
       });
+      let page = await readPage(offset);
+      // Returning to a shared scope restores the loaded range using freshly authorized rows.
+      while (!abort.signal.aborted && page.items.length < restoreCount && page.next_offset !== null) {
+        const next = await readPage(page.next_offset);
+        page = { ...next, items: [...page.items, ...next.items.filter(i => !page.items.some(p => p.id === i.id && p.origin === i.origin))] };
+      }
       if (abort.signal.aborted || active.current !== key) return;
+      const receivedAt = questionListCache.receivedAt(page), generation = questionListCache.versionOf(page) ?? requestGeneration;
       setData(previous => ({
         key, items: (offset || append) && previous.key === key ?
-          [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.origin === i.origin && p.id === i.id))] : page.items, next: page.next_offset, rebase: append && mutationEpoch.current !== epoch
+          [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.origin === i.origin && p.id === i.id))] : page.items, next: page.next_offset, rebase: append && mutationEpoch.current !== epoch,
+        receivedAt: append && previous.key === key ? Math.min(previous.receivedAt, receivedAt) : receivedAt,
+        generation: append && previous.key === key ? Math.min(previous.generation, generation) : generation,
       }));
       if (source === 'owned' && !compactSearch) {
-        const previous = offset || append ? useStore.getState().problems : [];
-        useStore.getState().setProblems([...previous, ...page.items.flatMap(i => i.problem && !previous.some(p => p.id === i.id) ? [i.problem] : [])], null);
+        const existing = useStore.getState().problems;
+        const previous = offset || append ? existing : [];
+        useStore.getState().setProblems([...previous, ...page.items.flatMap(i => i.problem && !previous.some(p => p.id === i.id) ?
+          [questionListCache.wasCached(page) ? existing.find(p => p.id === i.id && p.user_id === i.problem?.user_id) || i.problem : i.problem] : [])], null);
       }
     } catch (e) { if (!abort.signal.aborted && active.current === key) setError(e instanceof Error ? e.message : '載入失敗'); }
     finally { if (abortRef.current === abort) { pending.current = null; if (active.current === key) setBusy(false); } }
   };
   useEffect(() => {
     setDirty(false);
-    const cached = navType === 'POP' && revision === 0 ? pageCache.get(scopeKey) : undefined;
+    if (pageCacheAccount !== account) { pageCache.clear(); pageCacheAccount = account; }
+    const candidate = !isGuestUser(currentUser) ? pageCache.get(scopeKey) : undefined;
+    const fresh = candidate && candidate.generation === questionListCache.version() && Date.now() - candidate.receivedAt < LIST_FRESHNESS_MS ? candidate : undefined;
+    const cached = source !== 'contributing' ? fresh : undefined;
     if (cached) {
       setDirty(!!cached.rebase); setData(cached); setBusy(false); setError(''); if (source === 'owned' && !compactSearch) {
         const existing = useStore.getState().problems;
         useStore.getState().setProblems(cached.items.flatMap(i => i.problem ? [existing.find(p => p.id === i.id && p.user_id === i.problem?.user_id) || i.problem] : []), null);
       }
     }
-    else { setData({ key: scopeKey, items: [], next: null }); void load(); }
+    else { setData({ key: scopeKey, items: [], next: null, receivedAt: 0, generation: -1 }); void load(0, false, source === 'contributing' && navType === 'POP' ? fresh?.items.length : 0); }
     return () => abortRef.current?.abort();
   }, [scopeKey, revision]);
-  useEffect(() => { if (data.key !== scopeKey) return; pageCache.set(scopeKey, data); if (pageCache.size > 20) pageCache.delete(pageCache.keys().next().value!); }, [data, scopeKey]);
-  useEffect(() => { const refresh = () => setRevision(v => v + 1); window.addEventListener('redolve:library-refresh', refresh); return () => window.removeEventListener('redolve:library-refresh', refresh); }, []);
+  useEffect(() => { if (data.key !== scopeKey || !data.receivedAt || isGuestUser(currentUser)) return; pageCache.set(scopeKey, data); if (pageCache.size > 20) pageCache.delete(pageCache.keys().next().value!); }, [data, scopeKey]);
+  const refresh = () => { questionListCache.invalidate(); pageCache.clear(); setRevision(v => v + 1); };
+  useEffect(() => { window.addEventListener('redolve:library-refresh', refresh); return () => window.removeEventListener('redolve:library-refresh', refresh); }, []);
   useEffect(() => {
     if (search) { setMemberships({}); return; }
     const ids = data.items.filter(i => i.origin === 'owned').map(i => i.id); if (isGuestUser(currentUser) || !ids.length) { setMemberships({}); return; }
@@ -155,7 +176,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     const label = topics(scopeTaxonomies).find(t => t.id === (problem?.topic_id || hit.topic_id))?.label.trim() || hit.topic_label;
     return problem ? { ...hit, problem, title: problem.source, topic_id: problem.topic_id, topic_label: label, keywords: problem.keywords, typed_notes: problem.typed_notes || null, status: problem.status, review_count: problem.review_count } : { ...hit, topic_label: label };
   };
-  const notices = <>{setsError && <p role="alert" className="p-3 text-sm text-status-eraser">{setsError}</p>}{dirty && <p role="status" className="rounded-2xl bg-surface p-3 text-xs text-text-muted">資訊已更新，保留目前閱讀位置。<button onClick={() => setRevision(v => v + 1)} className="ml-2 text-primary underline">重新套用篩選</button></p>}{error && <p role="alert" className="p-3 text-sm text-status-eraser">{error}<button onClick={() => items.length ? loadNext() : void load()} className="ml-3 underline">重試</button></p>}{!items.length && !busy && !error && <p className="p-6 text-sm text-text-muted">{source === 'contributing' && !collection ? '請從側欄選擇共用集。' : '目前範圍沒有題目。'}</p>}{busy && !items.length && <p className="p-6 text-sm text-text-muted">載入題目中…</p>}</>;
+  const notices = <>{setsError && <p role="alert" className="p-3 text-sm text-status-eraser">{setsError}</p>}{dirty && <p role="status" className="rounded-2xl bg-surface p-3 text-xs text-text-muted">資訊已更新，保留目前閱讀位置。<button onClick={refresh} className="ml-2 text-primary underline">重新套用篩選</button></p>}{error && <p role="alert" className="p-3 text-sm text-status-eraser">{error}<button onClick={() => items.length ? loadNext() : void load()} className="ml-3 underline">重試</button></p>}{!items.length && !busy && !error && <p className="p-6 text-sm text-text-muted">{source === 'contributing' && !collection ? '請從側欄選擇共用集。' : '目前範圍沒有題目。'}</p>}{busy && !items.length && <p className="p-6 text-sm text-text-muted">載入題目中…</p>}</>;
   const compactRows = items.reduce<{ id: string; ids: string[]; hits: SearchHit[] }[]>((rows, hit, index) => { if (index % 2 === 0) rows.push({ id: hit.id, ids: [], hits: [] }); rows[rows.length - 1].ids.push(hit.id); rows[rows.length - 1].hits.push(hit); return rows; }, []);
   const stream = search && params.get('view') !== 'full' ? <QuestionStream autoLoad={false} items={compactRows} busy={busy} hasMore={data.key === scopeKey && data.next !== null} loadError={!!error} loadMore={loadNext} focus={params.get('focus') || undefined}
     render={row => <div data-search-grid className="grid gap-4 lg:grid-cols-2">{row.hits.map(hit => <SearchResultCard key={hit.id} hit={currentHit(hit)} full={false} studyUrl={'/study?' + new URLSearchParams({ ...Object.fromEntries(params), focus: hit.id })} />)}</div>} /> :

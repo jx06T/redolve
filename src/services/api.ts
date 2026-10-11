@@ -1,12 +1,16 @@
 import { Item, DashboardData, ApiKeyItem, User, TaxonomyNode } from '../types';
 import { createClientId } from '../utils/clientId';
 import type { SearchPage } from '../types/search';
+import { questionListCache } from './listCache';
 
 export const API_BASE = (import.meta as any).env?.VITE_API_URL || '/api';
 export const WORKER_BASE = (import.meta as any).env?.VITE_WORKER_URL || '';
 
-function requestApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return globalThis.fetch(input, { credentials: 'include', cache: 'no-store', ...init });
+async function requestApi(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const response = await globalThis.fetch(input, { credentials: 'include', cache: 'no-store', ...init });
+  const method = (init?.method || 'GET').toUpperCase();
+  if (response.status === 401 || response.ok && !['GET', 'HEAD'].includes(method)) questionListCache.invalidate();
+  return response;
 }
 
 function getAuthHeaders(includeContentType = true): HeadersInit {
@@ -275,16 +279,18 @@ export async function deleteProblem(id: string) {
 export async function searchProblems(query: string, options: URLSearchParams = new URLSearchParams(),
   signal?: AbortSignal): Promise<SearchPage> {
   const params = new URLSearchParams(options);
-  params.set('q', query);
-  const res = await requestApi(`${API_BASE}/search?${params}`, {
-    headers: getAuthHeaders(false),
-    signal,
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({})) as {error?: {message?: string}};
-    throw new Error(data.error?.message || (res.status === 401 ? '登入已失效，請重新登入。' : '搜尋暫時無法使用，請稍後重試。'));
-  }
-  return res.json();
+  params.set('q', query.trim()); params.sort();
+  const load = async (requestSignal?: AbortSignal): Promise<SearchPage> => {
+    const res = await requestApi(`${API_BASE}/search?${params}`, { headers: getAuthHeaders(false), signal: requestSignal });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({})) as {error?: {message?: string}};
+      throw new Error(data.error?.message || (res.status === 401 ? '登入已失效，請重新登入。' : '搜尋暫時無法使用，請稍後重試。'));
+    }
+    return res.json();
+  };
+  // Shared/explore reads must always reach the server for current access checks.
+  return params.get('scope') === 'mine' && ['owned', 'saved'].includes(params.get('origin') || '')
+    ? questionListCache.read(`${API_BASE}/search?${params}`, load, signal) : load(signal);
 }
 
 export async function fetchApiKeys(): Promise<{ keys: ApiKeyItem[] }> {

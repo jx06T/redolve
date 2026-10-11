@@ -1,4 +1,5 @@
 import { API_BASE } from './api';
+import { questionListCache } from './listCache';
 
 export type Collection = {
   id:string; title:string; description:string; public_name:string;
@@ -42,6 +43,7 @@ export async function sharingApi<T>(path:string,method='GET',body?:unknown,signa
     {error?:{code?:string;message?:string};message?:string};
   if(!response.ok) throw new SharingApiError(response.status,payload.error?.code||'REQUEST_FAILED',
     payload.error?.message||payload.message||'操作失敗');
+  if(!['GET','HEAD'].includes(method.toUpperCase()))questionListCache.invalidate();
   return payload as T;
 }
 export const imageUrl=(collectionId:string,entryId:string)=>
