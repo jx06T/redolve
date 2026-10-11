@@ -159,6 +159,7 @@ collectionsRouter.get('/my/collections/membership',authMiddleware,async c=>{
     co.id AS collection_id,co.title,co.lifecycle,co.visibility FROM collection_items ci
     JOIN collections co ON co.id=ci.collection_id JOIN items i ON i.id=ci.source_item_id
     WHERE i.user_id=? AND ci.source_item_id IN (${ids.map(()=>'?').join(',')})
+      AND ci.state='included' AND co.kind!='personal'
       AND co.lifecycle!='deleted' ORDER BY co.updated_at DESC`).bind(c.get('userId'),...ids).all<Record<string,unknown>>();
   const memberships:Record<string,Record<string,unknown>[]>={};
   for(const row of results||[]) (memberships[String(row.source_item_id)]||=[]).push(row);

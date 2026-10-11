@@ -453,7 +453,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           copyText={work?.copyText}
           onEditMetadata={onEditMetadata}
           reloadLabel={work?.reloadLabel}
-          sourceLabel={work?.label||memberships.slice(0,2).map(m=><Link key={m.entry_id} to={`/settings/collections/${m.collection_id}`} className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted underline">{m.lifecycle==='active'?(m.visibility==='public'?'公開':'共用'):m.lifecycle==='draft'?'草稿':'已暫停'} · {m.title}</Link>)}
+          sourceLabel={work?.label||memberships.filter(m=>m.state==='included'&&m.lifecycle!=='deleted').slice(0,2).map(m=><Link key={m.entry_id} to={`/settings/collections/${m.collection_id}`} className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted underline">{m.lifecycle==='active'?(m.visibility==='public'?'公開':'共用'):m.lifecycle==='draft'?'草稿':'已暫停'} · {m.title}</Link>)}
         />
         {/* Keywords Chips */}
         {keywordsArray.length > 0 && (
