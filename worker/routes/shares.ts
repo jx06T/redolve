@@ -1,83 +1,52 @@
 import { Hono } from 'hono';
 import { Bindings, Variables, ShareRow, ItemRow } from '../types';
-import { authMiddleware } from '../middleware/auth';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
+import { createQuestionShare, loadQuestionShare, sourceCollectionHint, SharePolicyError, type ShareTarget } from '../services/questionSharing';
 
 export const sharesRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
-// 1. Create Share Token (Protected & Idempotent)
-sharesRouter.post('/api/problems/:id/share', authMiddleware, async (c) => {
-  const userId = c.get('userId');
-  const problemId = c.req.param('id');
-  const body = await c.req.json().catch(() => ({}));
-
-  const item = await c.env.DB.prepare('SELECT id FROM items WHERE id = ? AND user_id = ?')
-    .bind(problemId, userId)
-    .first();
-
-  if (!item) {
-    return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
-  }
-
-
-  const allowInk = body.allow_ink === false ? 0 : 1;
-  const allowNotes = body.allow_notes === false ? 0 : 1;
-  const expiresAt = body.expires_at || null;
-  if (expiresAt && (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt)) ||
-    Date.parse(expiresAt) <= Date.now() || Date.parse(expiresAt) > Date.now() + 366 * 24 * 60 * 60 * 1000)) {
-    return c.json({ error: { code: 'INVALID_EXPIRY', message: '分享期限必須介於現在與一年之間' } }, 400);
-  }
-
-  // 💡 安全的重複網址檢查邏輯
-  let existingShare: ShareRow | null = null;
-  if (expiresAt) {
-    existingShare = await c.env.DB.prepare(`
-      SELECT token, expires_at, allow_ink, allow_notes
-      FROM shares 
-      WHERE item_id = ? 
-        AND user_id = ? 
-        AND allow_ink = ?
-        AND (allow_notes IS NULL OR allow_notes = ?)
-        AND expires_at = ?
-      LIMIT 1
-    `).bind(problemId, userId, allowInk, allowNotes, expiresAt).first<ShareRow>();
-  } else {
-    existingShare = await c.env.DB.prepare(`
-      SELECT token, expires_at, allow_ink, allow_notes
-      FROM shares 
-      WHERE item_id = ? 
-        AND user_id = ? 
-        AND allow_ink = ?
-        AND (allow_notes IS NULL OR allow_notes = ?)
-        AND expires_at IS NULL
-      LIMIT 1
-    `).bind(problemId, userId, allowInk, allowNotes).first<ShareRow>();
-  }
-
-  if (existingShare) {
-    return c.json({
-      token: existingShare.token,
-      allow_ink: Boolean(existingShare.allow_ink),
-      allow_notes: Boolean(existingShare.allow_notes),
-      expires_at: existingShare.expires_at
-    });
-  }
-
-  const tokenBytes = crypto.getRandomValues(new Uint8Array(12));
-  const tokenStr = Array.from(tokenBytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  const token = `st_${tokenStr}`;
-
-  await c.env.DB.prepare(
-    'INSERT INTO shares (token, item_id, user_id, allow_ink, allow_notes, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
-  )
-    .bind(token, problemId, userId, allowInk, allowNotes, expiresAt)
-    .run();
-
-  return c.json({
-    token,
-    allow_ink: Boolean(allowInk),
-    allow_notes: Boolean(allowNotes),
-    expires_at: expiresAt
-  });
+const shareRoutes = [
+ {base:'/api/problems/:id',target:(id:string):ShareTarget=>({kind:'owned',id})},
+ {base:'/api/saved/:id',target:(id:string):ShareTarget=>({kind:'saved',id})},
+ {base:'/api/collections/:collectionId/items/:id',target:(id:string,collectionId?:string):ShareTarget=>({kind:'collection',id,collectionId})},
+];
+for(const route of shareRoutes){
+ sharesRouter.post(route.base+'/share',authMiddleware,async c=>{
+  const body=await c.req.json().catch(()=>null);
+  if(!body||typeof body!=='object'||Array.isArray(body)||['allow_ink','allow_notes'].some(key=>body[key]!==undefined&&typeof body[key]!=='boolean'))return c.json({error:{code:'INVALID_REQUEST',message:'分享設定格式無效'}},400);
+  try{return c.json(await createQuestionShare(c.env,c.get('userId'),route.target(c.req.param('id')!,c.req.param('collectionId')),body,c.req.header('cookie')),201);}
+  catch(e){if(e instanceof SharePolicyError)return c.json({error:{code:e.code,message:e.message}},e.status);throw e;}
+ });
+ if(route.base==='/api/problems/:id')continue;
+ sharesRouter.get(route.base+'/shares',authMiddleware,async c=>{
+  const target=route.target(c.req.param('id')!,c.req.param('collectionId'));
+  const key=target.kind==='collection'?target.collectionId+':'+target.id:target.id;
+  const rows=await c.env.DB.prepare('SELECT token,allow_ink,allow_notes,expires_at,created_at FROM independent_shares WHERE user_id=? AND origin_kind=? AND origin_key=? ORDER BY created_at DESC LIMIT 100').bind(c.get('userId'),target.kind,key).all();
+  return c.json({shares:rows.results||[]});
+ });
+ sharesRouter.delete(route.base+'/share/:token',authMiddleware,async c=>{
+  const target=route.target(c.req.param('id')!,c.req.param('collectionId'));
+  const key=target.kind==='collection'?target.collectionId+':'+target.id:target.id;
+  await c.env.DB.prepare('DELETE FROM independent_shares WHERE token=? AND user_id=? AND origin_kind=? AND origin_key=?').bind(c.req.param('token'),c.get('userId'),target.kind,key).run();
+  return c.json({status:'revoked'});
+ });
+}
+sharesRouter.get('/api/me/question-shares',authMiddleware,async c=>{
+ let cursor:{created:string;token:string}|null=null;
+ if(c.req.query('cursor')){try{cursor=JSON.parse(c.req.query('cursor')!);if(typeof cursor?.created!=='string'||typeof cursor?.token!=='string')throw Error();}catch{return c.json({error:{code:'INVALID_CURSOR',message:'分享分頁無效'}},400);}}
+ const rows=await c.env.DB.prepare(`SELECT token,source,origin_kind,allow_ink,allow_notes,expires_at,created_at FROM independent_shares WHERE user_id=?
+  ${cursor?'AND (created_at<? OR (created_at=? AND token<?))':''} ORDER BY created_at DESC,token DESC LIMIT 51`)
+  .bind(c.get('userId'),...(cursor?[cursor.created,cursor.created,cursor.token]:[])).all<{token:string;created_at:string}>();
+ const items=(rows.results||[]).slice(0,50),last=items.at(-1);
+ return c.json({shares:items,next_cursor:rows.results.length>50&&last?JSON.stringify({created:last.created_at,token:last.token}):null});
+});
+sharesRouter.delete('/api/me/question-shares/expired',authMiddleware,async c=>{
+ const result=await c.env.DB.prepare("DELETE FROM independent_shares WHERE user_id=? AND expires_at IS NOT NULL AND datetime(expires_at)<=CURRENT_TIMESTAMP RETURNING token").bind(c.get('userId')).all();
+ return c.json({removed:result.results.length});
+});
+sharesRouter.delete('/api/me/question-shares/:token',authMiddleware,async c=>{
+ await c.env.DB.prepare('DELETE FROM independent_shares WHERE token=? AND user_id=?').bind(c.req.param('token'),c.get('userId')).run();
+ return c.json({status:'revoked'});
 });
 
 // List all active links so a user can revoke links after closing the dialog.
@@ -90,14 +59,16 @@ sharesRouter.get('/api/problems/:id/shares', authMiddleware, async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT token, allow_ink, allow_notes, expires_at, created_at FROM shares WHERE item_id = ? AND user_id = ? AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC'
   ).bind(problemId, userId, new Date().toISOString()).all();
-  return c.json({ shares: results || [] });
+  const independent=await c.env.DB.prepare("SELECT token,allow_ink,allow_notes,expires_at,created_at FROM independent_shares WHERE user_id=? AND origin_kind='owned' AND origin_key=? ORDER BY created_at DESC LIMIT 100").bind(userId,problemId).all();
+  return c.json({ shares: [...(independent.results||[]),...(results||[])] });
 });
 
 // 2. Revoke Share Token (Protected)
 sharesRouter.delete('/api/problems/:id/share/:token', authMiddleware, async (c) => {
   const userId = c.get('userId');
-  const token = c.req.param('token');
+  const token = c.req.param('token') || '';
 
+  await c.env.DB.prepare("DELETE FROM independent_shares WHERE token=? AND user_id=? AND origin_kind='owned' AND origin_key=?").bind(token,userId,c.req.param('id')).run();
   await c.env.DB.prepare('DELETE FROM shares WHERE token = ? AND item_id = ? AND user_id = ?')
     .bind(token, c.req.param('id'), userId).run();
 
@@ -105,7 +76,7 @@ sharesRouter.delete('/api/problems/:id/share/:token', authMiddleware, async (c) 
 });
 
 // 3. Public Read-Only Metadata (Public Route)
-sharesRouter.get('/share/:token', async (c) => {
+sharesRouter.get('/share/:token', optionalAuthMiddleware, async (c) => {
   // If the request comes from a browser navigation (Accept: text/html), serve the SPA entry
   const acceptHeader = c.req.header('accept') || '';
   if (acceptHeader.includes('text/html') && c.env.ASSETS) {
@@ -117,8 +88,18 @@ sharesRouter.get('/share/:token', async (c) => {
     return new Response(asset.body, { status: asset.status, headers });
   }
 
-  const token = c.req.param('token');
+  const token = c.req.param('token') || '';
 
+  if(token.startsWith('qs_')){
+    try{
+      const share=await loadQuestionShare(c.env,token);
+      const origin=await sourceCollectionHint(c.env,share,c.get('userId')||'',c.req.header('cookie'));
+      c.header('X-Robots-Tag','noindex, nofollow');c.header('Referrer-Policy','no-referrer');
+      return c.json({item:{id:'share:'+token,type:'problem',source:share.source,keywords:share.keywords,
+        topic_label:share.topic_label,draw_data:share.draw_data,typed_notes:share.typed_notes},
+        share:{token,allow_ink:!!share.allow_ink,allow_notes:!!share.allow_notes,fixed_version:true},origin});
+    }catch(e){if(e instanceof SharePolicyError)return c.json({error:{code:e.code,message:e.message}},e.status);throw e;}
+  }
   const share = await c.env.DB.prepare('SELECT * FROM shares WHERE token = ?').bind(token).first<ShareRow & { allow_notes?: number }>();
 
   if (!share) {
@@ -160,8 +141,18 @@ sharesRouter.get('/share/:token', async (c) => {
 
 // 4. Public Read-Only Image Proxy (Public Route)
 sharesRouter.get('/share/:token/image', async (c) => {
-  const token = c.req.param('token');
+  const token = c.req.param('token') || '';
 
+  if(token.startsWith('qs_')){
+    try{
+      const share=await loadQuestionShare(c.env,token);
+      const asset=await c.env.DB.prepare("SELECT storage_key,mime_type FROM assets WHERE id=? AND state='ready'").bind(share.image_asset_id).first<{storage_key:string;mime_type:string}>();
+      const object=asset&&await c.env.STORAGE.get(asset.storage_key);
+      if(!object)return c.json({error:{code:'IMAGE_MISSING',message:'分享圖片暫時無法取得'}},503);
+      return new Response(object.body,{headers:{'Content-Type':object.httpMetadata?.contentType||asset!.mime_type,
+       'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
+    }catch(e){if(e instanceof SharePolicyError)return c.json({error:{code:e.code,message:e.message}},e.status);throw e;}
+  }
   const share = await c.env.DB.prepare('SELECT item_id, expires_at FROM shares WHERE token = ?').bind(token).first<ShareRow>();
 
   if (!share) {
@@ -178,7 +169,9 @@ sharesRouter.get('/share/:token/image', async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '圖片不存在' } }, 404);
   }
 
-  const object = await c.env.STORAGE.get(item.image_url);
+  const asset=await c.env.DB.prepare('SELECT storage_key,state FROM assets WHERE id=?').bind(item.image_url).first<{storage_key:string;state:string}>();
+  if(asset&&asset.state!=='ready')return c.json({error:{code:'CONTENT_UNAVAILABLE',message:'分享內容目前無法使用'}},410);
+  const object = await c.env.STORAGE.get(asset?.storage_key||item.image_url);
   if (!object) {
     return c.json({ error: { code: 'NOT_FOUND', message: '圖片檔案不存在' } }, 404);
   }

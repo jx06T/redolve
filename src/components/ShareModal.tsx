@@ -1,260 +1,71 @@
-import React, { useState, useEffect } from 'react';
-import { X, Share2, Copy, Check, Link2Off, Eye, FileText, Send } from 'lucide-react';
-import { createShareLink, revokeShareLink, listShareLinks, ShareLink } from '../services/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Copy, Link2Off, Send } from 'lucide-react';
+import { AppDialog } from './AppDialog';
+import { SwitchRow } from './SwitchRow';
 import { useStore } from '../store/useStore';
-import { useCopyToClipboard } from '../hooks/useCopyToClipboard';
+import { isGuestUser } from '../utils/guest';
+import { shareService } from '../services/shareService';
+import type { ShareLink } from '../services/api';
+import type { QuestionRef } from '../types/question';
 
-interface ShareModalProps {
-  isOpen: boolean;
-  problemId: string;
-  onClose: () => void;
-}
-
-export const ShareModal: React.FC<ShareModalProps> = ({ isOpen, problemId, onClose }) => {
-  const { showToast, currentUser, setAuthModalOpen } = useStore();
-
-  const [includeInk, setIncludeInk] = useState<boolean>(true);
-  const [includeNotes, setIncludeNotes] = useState<boolean>(true);
-  const [isGenerating, setIsGenerating] = useState<boolean>(false);
-  const [shareUrl, setShareUrl] = useState<string | null>(null);
-  const [shareToken, setShareToken] = useState<string | null>(null);
-  const [expiryDays, setExpiryDays] = useState<'1' | '7' | '30' | 'never'>('7');
-  const [existingShares, setExistingShares] = useState<ShareLink[]>([]);
-  
-  const { isCopied, copy } = useCopyToClipboard(2500);
-
-  // 當開啟新題目的 Share Modal 時，重置狀態
-  useEffect(() => {
-    let active = true;
-    if (isOpen) {
-      setShareUrl(null);
-      setShareToken(null);
-      setExistingShares([]);
-      if (currentUser) {
-        listShareLinks(problemId)
-          .then(({ shares }) => { if (active) setExistingShares(shares); })
-          .catch(() => { if (active) setExistingShares([]); });
-      }
-    }
-    return () => { active = false; };
-  }, [isOpen, problemId, currentUser]);
-
-  if (!isOpen) return null;
-
-  // 1. 產生連結 (非同步網路請求)
-  const handleGenerateShareLink = async () => {
-    setIsGenerating(true);
-    try {
-      // 將 includeInk 與 includeNotes 傳給後端 API
-      const expiresAt = expiryDays === 'never' ? null : new Date(Date.now() + Number(expiryDays) * 24 * 60 * 60 * 1000).toISOString();
-      const res = await createShareLink(problemId, includeInk, includeNotes, expiresAt);
-      const generatedUrl = `${window.location.origin}/share/${res.token}`;
-      setShareToken(res.token);
-      setShareUrl(generatedUrl);
-      const { shares } = await listShareLinks(problemId);
-      setExistingShares(shares);
-      showToast('已生成公開分享連結！請點擊下方按鈕複製或分享', 'success');
-    } catch (err: any) {
-      console.error('Failed to create share link:', err);
-      showToast(err?.message || '產生分享連結失敗，請檢查網路連線後重試', 'error');
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  // 2. 複製網址到剪貼簿
-  const handleCopyShareUrl = async () => {
-    if (!shareUrl) return;
-    const success = await copy(shareUrl);
-    if (success) {
-      showToast('已成功複製分享連結至剪貼簿', 'success', 2000);
-    } else {
-      showToast('複製失敗，請手動選取網址複製', 'error');
-    }
-  };
-
-  // 3. 手機原生分享面板 (點擊按鈕直接同步觸發，手機 100% 成功)
-  const handleNativeShare = async () => {
-    if (!shareUrl) return;
-    if (typeof navigator !== 'undefined' && navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Redolve 錯題分享',
-          text: '檢視錯題資料：',
-          url: shareUrl,
-        });
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          handleCopyShareUrl();
-        }
-      }
-    } else {
-      handleCopyShareUrl();
-    }
-  };
-
-  // 4. 撤銷分享
-  const handleRevoke = async (token: string) => {
-    try {
-      await revokeShareLink(problemId, token);
-      if (shareToken === token) {
-        setShareUrl(null);
-        setShareToken(null);
-      }
-      setExistingShares((shares) => shares.filter((share) => share.token !== token));
-      showToast('已成功撤銷公開分享連結', 'info');
-    } catch (err: any) {
-      console.error('Failed to revoke share link:', err);
-      showToast(err?.message || '撤銷分享連結失敗', 'error');
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-start justify-center p-4 select-none">
-      <div className="mt-6 sm:mt-14 max-h-[calc(100dvh-3rem)] overflow-y-auto bg-surface border border-border-subtle rounded-3xl max-w-md w-full p-6 space-y-5 shadow-2xl animate-in fade-in duration-200">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border-subtle">
-          <div className="flex items-center space-x-2.5">
-            <div className="p-2 bg-primary-50 text-primary rounded-2xl">
-              <Share2 className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-text-main">公開題目分享</h3>
-              <p className="text-xs text-text-muted">設定分享範圍並生成網址</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-xl hover:bg-neutral-100 text-text-muted"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {!currentUser ? (
-          <div className="space-y-3 text-sm text-text-muted">
-            <p>公開分享需要先登入。訪客題目仍保存在此瀏覽器。</p>
-            <button type="button" className="px-4 py-2 rounded-xl bg-primary text-white" onClick={() => { onClose(); setAuthModalOpen(true); }}>登入以分享</button>
-          </div>
-        ) : <>
-        {/* Options */}
-        <div className="space-y-3 text-xs">
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 border border-border-subtle cursor-pointer">
-            <div className="flex items-center space-x-2.5">
-              <Eye className="w-4 h-4 text-primary" />
-              <span className="font-semibold text-text-main">包含手寫筆跡 (Drawings)</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={includeInk}
-              onChange={(e) => setIncludeInk(e.target.checked)}
-              className="w-4 h-4 accent-primary rounded cursor-pointer"
-            />
-          </label>
-
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 border border-border-subtle cursor-pointer">
-            <div className="flex items-center space-x-2.5">
-              <FileText className="w-4 h-4 text-primary" />
-              <span className="font-semibold text-text-main">包含打字筆記 (Typed Notes)</span>
-            </div>
-            <input
-              type="checkbox"
-              checked={includeNotes}
-              onChange={(e) => setIncludeNotes(e.target.checked)}
-              className="w-4 h-4 accent-primary rounded cursor-pointer"
-            />
-          </label>
-          <label className="flex items-center justify-between p-3 rounded-2xl bg-neutral-50 border border-border-subtle">
-            <span className="font-semibold text-text-main">連結有效期限</span>
-            <select value={expiryDays} onChange={(event) => setExpiryDays(event.target.value as typeof expiryDays)} className="rounded-xl bg-surface border border-border-subtle px-2 py-1 text-text-main">
-              <option value="1">1 天</option>
-              <option value="7">7 天</option>
-              <option value="30">30 天</option>
-              <option value="never">永久，直到撤銷</option>
-            </select>
-          </label>
-        </div>
-
-        {/* Result Area */}
-        {shareUrl && (
-          <div className="p-3.5 rounded-2xl bg-primary-50/80 border border-primary-200/60 space-y-3">
-            <div className="text-[11px] font-semibold text-primary">已生成的分享網址</div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="text"
-                readOnly
-                value={shareUrl}
-                className=" outline-none flex-1 px-3 py-2 rounded-xl bg-surface border border-primary-200 font-mono text-xs text-text-main select-all focus:outline-none"
-              />
-            </div>
-
-            {/* 按鈕功能組 */}
-            <div className="flex items-center gap-2 pt-1">
-              {/* 如果手機支援原生分享面板 (Web Share API) */}
-              {typeof navigator !== 'undefined' && 'share' in navigator && (
-                <button
-                  onClick={handleNativeShare}
-                  className="flex-1 py-2 rounded-xl bg-primary text-white text-xs font-semibold hover:bg-primary-hover active:scale-95 transition-all flex items-center justify-center space-x-1.5 shadow-xs"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              )}
-
-              <button
-                onClick={handleCopyShareUrl}
-                className="flex-1 px-1 py-2 rounded-xl bg-surface text-text-main border border-border-subtle text-xs font-semibold hover:bg-neutral-100 active:scale-95 transition-all flex items-center justify-center space-x-1.5"
-              >
-                {isCopied ? <Check className="w-3.5 h-3.5 text-status-resolved" /> : <Copy className="w-3.5 h-3.5" />}
-                <span>{isCopied ? '已複製' : '複製網址'}</span>
-              </button>
-            </div>
-
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => shareToken && handleRevoke(shareToken)}
-                className="text-xs text-rose-500 hover:text-rose-600 font-medium flex items-center space-x-1"
-              >
-                <Link2Off className="w-3.5 h-3.5" />
-                <span>撤銷此分享連結</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {existingShares.length > 0 && (
-          <div className="space-y-2 max-h-36 overflow-y-auto text-xs">
-            <p className="font-semibold text-text-main">現有分享連結</p>
-            {existingShares.map((share) => (
-              <div key={share.token} className="flex items-center justify-between gap-2 rounded-xl border border-border-subtle p-2 text-text-muted">
-                <span className="truncate">{share.expires_at ? `有效至 ${new Date(share.expires_at).toLocaleDateString('zh-TW')}` : '永久有效'} · {share.allow_ink ? '含筆跡' : '無筆跡'} · {share.allow_notes ? '含筆記' : '無筆記'}</span>
-                <button type="button" className="shrink-0 text-primary" onClick={() => copy(`${window.location.origin}/share/${share.token}`)}>複製</button>
-                <button type="button" className="shrink-0 text-rose-500" onClick={() => handleRevoke(share.token)}>撤銷</button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Action Button */}
-        <div className="pt-2 flex items-center justify-end space-x-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium text-text-muted hover:bg-neutral-100 transition-colors"
-          >
-            關閉
-          </button>
-          <button
-            type="button"
-            onClick={handleGenerateShareLink}
-            disabled={isGenerating}
-            className="px-5 py-2 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-xs active:scale-95 transition-all disabled:opacity-50"
-          >
-            {isGenerating ? '正在生成...' : '確認產生連結'}
-          </button>
-        </div>
-        </>}
-      </div>
+export function ShareModal({isOpen,problemId,target,onClose,canCreate=true,blockedReason='',beforeCreate}:{
+ isOpen:boolean;problemId?:string;target?:QuestionRef;onClose:()=>void;canCreate?:boolean;blockedReason?:string;beforeCreate?:()=>Promise<void>;
+}){
+ const user=useStore(s=>s.currentUser),showToast=useStore(s=>s.showToast),openAuth=useStore(s=>s.setAuthModalOpen);
+ const key=JSON.stringify(target||{kind:'owned',itemId:problemId||''});
+ const ref=useMemo(()=>JSON.parse(key) as QuestionRef,[key]);
+ const epoch=useRef(0);
+ const account=isGuestUser(user)?'':user!.id;
+ const [ink,setInk]=useState(true),[notes,setNotes]=useState(true);
+ const [days,setDays]=useState('7'),[token,setToken]=useState('');
+ const [links,setLinks]=useState<ShareLink[]>([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ useEffect(()=>{
+  epoch.current++;setToken('');setLinks([]);setError('');setBusy(false);
+  if(!isOpen||!account)return;
+  const abort=new AbortController();
+  void shareService.list(ref,abort.signal).then(r=>{if(!abort.signal.aborted)setLinks(r.shares);})
+   .catch(e=>{if(!abort.signal.aborted)setError(e.message);});
+  return()=>{abort.abort();epoch.current++;};
+ },[isOpen,account,ref]);
+ useEffect(()=>setToken(''),[ink,notes,days]);
+ if(!isOpen)return null;
+ const act=async(fn:()=>Promise<void>)=>{const current=epoch.current;setBusy(true);setError('');try{await fn();}catch(e){if(current===epoch.current)setError(e instanceof Error?e.message:'分享操作失敗');}finally{if(current===epoch.current)setBusy(false);}};
+ const copy=async(value:string)=>{await navigator.clipboard.writeText(value);showToast('已複製分享連結','success');};
+ return <AppDialog title="分享此題" busy={busy} onClose={onClose}>
+  <p className="text-sm">持有有效連結的人可直接觀看此題，不會取得來源集合的存取權限。</p>
+  <p className="mt-2 text-xs text-text-muted">分享保留建立當下的版本；只包含你選擇的個人筆跡與筆記，不包含其他人的作業。你可隨時撤銷連結。</p>
+  {!account?<button className="mt-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary" onClick={()=>{onClose();openAuth(true);}}>登入以建立分享</button>:<>
+   <div className="mt-4 space-y-3">
+    <SwitchRow label="包含我的筆跡" checked={ink} disabled={busy} onChange={setInk}/>
+    <SwitchRow label="包含我的筆記" checked={notes} disabled={busy} onChange={setNotes}/>
+    <label className="flex items-center justify-between gap-4 text-sm">連結有效期限
+     <select aria-label="連結有效期限" disabled={busy} value={days} onChange={e=>setDays(e.target.value)} className="min-w-0 rounded-xl border border-border-subtle bg-page-bg px-3 py-2">
+      <option value="1">1 天</option><option value="7">7 天</option><option value="30">30 天</option><option value="never">直到撤銷</option>
+     </select></label>
+   </div>
+   {(!canCreate||blockedReason)&&<p className="mt-3 text-sm text-text-muted">{blockedReason||'此版本未取得再分享授權。集合開啟再分享後，可重新更新來源取得授權。'}</p>}
+   {token&&<div className="mt-4 space-y-3 rounded-2xl border border-border-subtle bg-page-bg p-4">
+    <input aria-label="題目分享網址" readOnly value={shareService.url(token)} onFocus={e=>e.target.select()} className="w-full min-w-0 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-xs"/>
+    <div className="flex flex-wrap gap-2">
+     <button disabled={busy} onClick={()=>void act(()=>copy(shareService.url(token)))} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle px-4 py-2 text-sm"><Copy size={16}/>複製連結</button>
+     {typeof navigator.share==='function'&&<button disabled={busy} onClick={()=>void act(async()=>{
+      try{await navigator.share({title:'Redolve 單題分享',url:shareService.url(token)});}catch(e){if(!(e instanceof Error&&e.name==='AbortError'))throw e;}
+     })} className="inline-flex items-center gap-2 rounded-xl border border-border-subtle px-4 py-2 text-sm"><Send size={16}/>分享</button>}
     </div>
-  );
-};
+   </div>}
+   {links.length>0&&<div className="mt-4 max-h-48 space-y-2 overflow-y-auto"><h3 className="text-sm font-medium">已建立的分享連結</h3><p className="text-xs text-text-muted">全部獨立連結也可在設定的個人檔案中管理。</p>
+    {links.map(link=><div key={link.token} className="flex flex-wrap items-center gap-3 rounded-xl border border-border-subtle p-3 text-xs">
+     <span className="min-w-0 flex-1 text-text-muted">{link.expires_at&&Date.parse(link.expires_at)<=Date.now()?'已過期':link.expires_at?`有效至 ${new Date(link.expires_at).toLocaleDateString('zh-TW')}`:'直到撤銷'} · {link.allow_ink?'含筆跡':'無筆跡'} · {link.allow_notes?'含筆記':'無筆記'}</span>
+     <button disabled={busy} onClick={()=>void act(()=>copy(shareService.url(link.token)))} className="text-text-muted underline">複製</button>
+     <button disabled={busy} onClick={()=>void act(async()=>{await shareService.revoke(ref,link.token);setLinks(p=>p.filter(l=>l.token!==link.token));if(token===link.token)setToken('');})} className="inline-flex items-center gap-1 text-text-muted underline"><Link2Off size={14}/>撤銷</button>
+    </div>)}
+   </div>}
+   <button disabled={busy||!canCreate||!!blockedReason} onClick={()=>void act(async()=>{
+    const current=epoch.current;await beforeCreate?.();if(current!==epoch.current)return;
+    const result=await shareService.create(ref,{allow_ink:ink,allow_notes:notes,expires_at:days==='never'?null:new Date(Date.now()+Number(days)*86400000).toISOString()});
+    if(current!==epoch.current)return;setToken(result.token);const list=await shareService.list(ref);if(current===epoch.current)setLinks(list.shares);
+   })} className="mt-4 rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary disabled:opacity-40">{busy?'處理中…':'建立獨立分享連結'}</button>
+  </>}
+  {error&&<p role="alert" className="mt-3 text-sm text-text-muted">{error}</p>}
+ </AppDialog>;
+}

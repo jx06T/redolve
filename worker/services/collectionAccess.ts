@@ -12,6 +12,7 @@ export interface CollectionRecord {
   listed: number;
   show_shared_ink: number;
   show_shared_notes: number;
+  allow_reshare: number;
   acl_version: number;
   row_version: number;
   created_at: string;

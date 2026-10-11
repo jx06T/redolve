@@ -22,7 +22,7 @@ export function CollectionsHubView(){
   const [name,setName]=useState('');const [hasProfile,setHasProfile]=useState(false);
   const [creating,setCreating]=useState(false);
   const [visibility,setVisibility]=useState<'restricted'|'link'|'public'>('restricted');
-  const [listed,setListed]=useState(false);
+  const [listed,setListed]=useState(false);const [allowReshare,setAllowReshare]=useState(true);
 
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
@@ -50,7 +50,7 @@ export function CollectionsHubView(){
     setBusy(true);setError('');
     try{
       const result=await sharingApi<{id:string}>('/my/collections','POST',{
-        title,public_name:name,visibility,listed,activate:true,
+        title,public_name:name,visibility,listed,activate:true,allow_reshare:allowReshare,
       });
       navigate(`/settings/collections/${result.id}`);
     }catch(e){setError(e instanceof Error?e.message:'建立失敗');}
@@ -73,6 +73,8 @@ export function CollectionsHubView(){
           <option value="restricted">指定對象</option><option value="link">持連結者</option>
           <option value="public">所有人</option></select></label>
         {visibility==='public'&&<SwitchRow label="出現在公開探索" checked={listed} onChange={setListed}/>}
+        <SwitchRow label="允許存入後再分享" checked={allowReshare} disabled={busy} onChange={setAllowReshare}/>
+        <p className="text-xs text-text-muted">開啟後，獲准觀看者可建立不需登入的單題連結。私人集合也預設開啟，可在建立前關閉。</p>
         <button type="button" disabled={busy||!title.trim()||!name.trim()} onClick={create}
           className="px-5 py-2.5 rounded-xl bg-primary text-white disabled:opacity-40">建立並啟用</button>
       </div>

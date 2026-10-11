@@ -2,6 +2,21 @@
 
 更新：2026-10-11。唯一共用語意規格；實作與驗證進度見 [SHARING_IMPLEMENTATION_PROGRESS.md](./SHARING_IMPLEMENTATION_PROGRESS.md)。UI 導覽以最新 UI/UX 修訂為準。
 
+## 2026-10-11 優先修訂：獨立單題分享（覆蓋舊單題集合引擎與 share 契約）
+
+- Q01 MUST：owned／saved／collection 統一 POST share 能力與 /share/:token 檢視。新 token 是固定捕捉版本；持有效連結者可匿名觀看單題，無須來源集合 ACL。
+- Q02 MUST：新 public／restricted／link 集合 allow_reshare 預設 1。建立與管理使用同一「允許存入後再分享」switch；private 不代表禁止單題再分享。建立者可關閉。原題提供者仍可分享本人原題。
+- Q03 MUST：save／refresh 在同一交易將 co.allow_reshare 記入 saved_snapshots.reshare_allowed。關閉、撤權、下架不回收已獲准版本的再分享權；明確 refresh 取得新的授權值。來源更新預覽必須包含授權差異。
+- Q04 MUST：collection 直接分享視為取得當下單題版本，不必先建立 saved_ref；建立時重驗觀看權、來源有效性、allow_reshare。saved 分享只查本人版本的已取得授權，不依當前來源 ACL。
+- Q05 MUST：只捕捉 sharer 自己的筆跡／文字，依 allow_ink／allow_notes 分別包含。原題提供者捕捉 canonical items；其他貢獻者捕捉自己的 shared_layer；saved 捕捉 personal_workspace。不得把其他人的可見參考層自動轉成分享內容。
+- Q06 MUST：來源入口另查當下 ACL。可讀才回傳集合名稱／id／URL；不可讀只給登入／切換帳號提示，來源失效另顯示狀態。獨立連結不授權整個集合、不自動訂閱、不提供匿名編輯。
+- Q07 MUST：independent_shares 保存 immutable metadata／本人作業文字；share_asset_refs 保護題圖資產。asset_reference_inventory = asset_refs UNION ALL share_asset_refs，稽核／未來 GC 需讀此聯集。撤銷刪除 share 並 cascade 引用，不直接刪 R2。
+- Q08 MUST：到期／撤銷停止 metadata 及題圖。過期保存資料可由本人清除；實體 GC 維持關閉。quarantined 資產使所有新式分享停止服務；這是內容治理，非一般來源撤權。
+- Q09 MUST：分享管理包含原題／已存版本刪除後的連結；設定→個人檔案提供分頁列表、撤銷與過期清理。建立固定分享前先完成本機作業同步，避免靜默分享舊內容。
+- Q10 相容：舊 shares token 保留活原題／到期／撤銷契約，不無聲改成固定版本；新分享一律 independent_shares。原集合題連結仍查集合 ACL。既有集合／已存版本 migration 預設 0，不追溯授權；集合作者開啟後，讀者 refresh 才取得新授權。
+- Q11 migration：0007_independent_question_shares.sql 依賴 0006；遠端先 migration 再推送。新資料結構與新增 API 無新增 secret。
+- 抽象層：questionSharing.ts 集中 target→capture／authorization／固定版本讀取／來源 ACL 投影；shareService.ts 統一前端 API；ShareModal／ShareView 統一 UX。資料仍用 TypeScript 型別＋普通物件，不建立有 fetch/save 的題目 class。
+
 ## 2026-10-11 優先修訂：原題作者作業同步（覆蓋舊 C06／C07／個人進度規則）
 
 - S01 MUST：本人原題加入任何共用集後，原題作者的筆跡、文字筆記直接讀寫 items；不得建立第二份可編輯作者作業。多集合使用同一原題作業。
@@ -346,7 +361,7 @@ API 共通：列表預設30、上限100、穩定游標；名稱80字、簡介2,0
 | src/types、API adapters、useProblemActions、offlineStorage | 仍以原有私人題目流程為主 | 判別來源與工作區；來源更新不覆蓋 personal；帳號隔離本機草稿；新入口尚未完成 |
 | Sidebar／StudyView／ProblemCard／Navbar／App | 新功能 UI 尚未接入 | 共用呈現元件、獨立 counts；新路由／來源徽章／作者集合篩選／共享層／兩選項更新／預設目的地 |
 
-既有 `/share/:token` 仍維持活原題、到期及展示設定；新單題用同一集合引擎。相容期舊連結不提供新版訂閱／服務端持久存入，作者可建立新版分享。不可讓舊 URL 無聲改變授權範圍。
+既有 legacy `/share/:token` 維持活原題、到期及展示設定；新單題依 Q01–Q11 使用獨立固定版本及 bearer token。來源集合 ACL 與單題分享授權分開；不把單題連結變成訂閱或集合授權。
 
 恢復實作順序：先以實際遠端 migration 狀態確認 0002 未部署才可重寫；若已被執行過，另建 migration 修正，不重寫已部署歷史。此文件修訂未執行任何遠端 migration。
 

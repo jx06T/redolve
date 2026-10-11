@@ -50,7 +50,7 @@ class SharingSchemaTest(unittest.TestCase):
         # Simulate a strict compound SELECT cap; do not assume desktop SQLite's default.
         db.setlimit(sqlite3.SQLITE_LIMIT_COMPOUND_SELECT, 3)
         metrics = asset_audit_metrics(db)
-        self.assertEqual(len(metrics), 7)
+        self.assertEqual(len(metrics), 8)
         self.assertTrue(all(count == 0 for count in metrics.values()), metrics)
         db.execute("DELETE FROM asset_refs WHERE id='root'")
         metrics = asset_audit_metrics(db)

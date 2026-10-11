@@ -22,11 +22,14 @@ function execute(options) {
 }
 
 function schema() {
-  const [tables, items, reads, saved, triggers, sourceTriggers] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('source_work_shared_update','source_progress_shared_update');"]);
+  const [tables, items, reads, saved, triggers, sourceTriggers, collections, snapshots, shareDdl] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('source_work_shared_update','source_progress_shared_update'); PRAGMA table_info(collections); PRAGMA table_info(saved_snapshots); SELECT name FROM sqlite_master WHERE name IN ('asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset');"]);
   const names = new Set(tables.results.map(row => row.name));
   const config = names.has('collection_search_cache_config') ? execute(['--command', 'SELECT schema_version,ready FROM collection_search_cache_config WHERE id=1;'])[0].results[0] : null;
   return {
     tables: names,
+    collections: new Set(collections.results.map(row=>row.name)),
+    snapshots: new Set(snapshots.results.map(row=>row.name)),
+    shareDdl: new Set(shareDdl.results.map(row=>row.name)),
     searchReady: config?.ready === 1 && config?.schema_version === 2 && triggers.results.length === 28 && sourceTriggers.results.length === 2,
     items: new Set(items.results.map(row => row.name)),
     reads: new Set(reads.results.map(row => row.name)),
@@ -38,7 +41,10 @@ const sharingSql = readFileSync(path.join(root, 'worker/migrations/0002_sharing_
 const sharingTables = [...sharingSql.matchAll(/CREATE TABLE (\w+)\s*\(/g)].map(match => match[1]);
 function missing(current) {
   return [
-    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config'].filter(name => !current.tables.has(name)),
+    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs'].filter(name => !current.tables.has(name)),
+    ...(!current.collections.has('allow_reshare') ? ['collections.allow_reshare'] : []),
+    ...(!current.snapshots.has('reshare_allowed') ? ['saved_snapshots.reshare_allowed'] : []),
+    ...['asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset'].filter(name=>!current.shareDdl.has(name)),
     ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
     ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes', 'progress_seq', 'previous_status'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
     ...(!current.reads.has('starred') ? ['collection_item_reads.starred'] : []),
@@ -91,12 +97,17 @@ if (!current.tables.has('items')) {
   if (!current.reads.has('starred')) execute(['--command', 'ALTER TABLE collection_item_reads ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0,1));']);
   if (!current.saved.has('classification_state')) execute(['--command', "ALTER TABLE saved_refs ADD COLUMN classification_state TEXT NOT NULL DEFAULT 'ready' CHECK(classification_state IN ('ready','pending','failed','manual'));"]);
   execute(['--file', 'worker/migrations/0004_study_progress.sql']);
-  execute(['--file', 'worker/migrations/0005_shared_search_cache.sql']);
+  if(!current.searchReady) execute(['--file', 'worker/migrations/0005_shared_search_cache.sql']);
   current = schema();
   if (!current.items.has('progress_seq')) execute(['--command', 'ALTER TABLE items ADD COLUMN progress_seq INTEGER NOT NULL DEFAULT 1;']);
   if (!current.items.has('previous_status')) execute(['--command', "ALTER TABLE items ADD COLUMN previous_status TEXT NOT NULL DEFAULT 'unsolved';"]);
   const sourceSyncSql = readFileSync(path.join(root, 'worker/migrations/0006_shared_source_work.sql'), 'utf8').replace(/^\s*--.*$/gm, '').replace(/^ALTER TABLE[^;]+;/gm, '').trim();
-  execute(['--command', sourceSyncSql]);
+  if(!current.searchReady)execute(['--command', sourceSyncSql]);
+  current=schema();
+  if(!current.collections.has('allow_reshare'))execute(['--command','ALTER TABLE collections ADD COLUMN allow_reshare INTEGER NOT NULL DEFAULT 0 CHECK(allow_reshare IN (0,1));']);
+  if(!current.snapshots.has('reshare_allowed'))execute(['--command','ALTER TABLE saved_snapshots ADD COLUMN reshare_allowed INTEGER NOT NULL DEFAULT 0 CHECK(reshare_allowed IN (0,1));']);
+  const shareSql=readFileSync(path.join(root,'worker/migrations/0007_independent_question_shares.sql'),'utf8').replace(/^\s*--.*$/gm,'').replace(/^ALTER TABLE[^;]+;/gm,'').trim();
+  execute(['--command',shareSql]);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

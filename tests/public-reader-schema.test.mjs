@@ -46,7 +46,7 @@ test('public readers do not require private source progress migration; visibilit
     assert.equal(detail.status, 200, JSON.stringify(detail.data));
     assert.equal(detail.data.progress, undefined);
     assert.deepEqual(detail.data.layers, []);
-    assert.deepEqual(detail.data.capabilities, { can_contribute: false, can_save: false });
+    assert.deepEqual(detail.data.capabilities, { can_contribute: false, can_save: false, can_create_share:false });
     assert.equal((await mf.dispatchFetch(path + '/image')).status, 200);
     assert.equal((await get('/layers/source%3Aq/draw')).status, 404);
     await db.exec("UPDATE collections SET show_shared_notes=1 WHERE id='co';");

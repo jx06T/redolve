@@ -50,10 +50,10 @@ async function cookieHash(c: AppContext,collectionId:string) {
 function snapshotInsert(db:D1Database) {
   return db.prepare(`INSERT INTO saved_snapshots
     (id,saved_ref_id,image_asset_id,source_title,source_label,source_tags,source_topic_label,
-     collection_title,provider_public_name,source_content_seq,source_shared_seq)
+     collection_title,provider_public_name,source_content_seq,source_shared_seq,reshare_allowed)
     SELECT ?,sr.id,i.image_url,COALESCE(i.source,'題目'),i.source,i.keywords,
       CASE WHEN t.user_id IS NULL THEN t.label ELSE NULL END,
-      co.title,COALESCE(p.display_name,co.public_name),i.content_seq,ci.shared_seq
+      co.title,COALESCE(p.display_name,co.public_name),i.content_seq,ci.shared_seq,co.allow_reshare
     FROM saved_refs sr JOIN collection_items ci ON ci.id=sr.entry_id
     JOIN collections co ON co.id=ci.collection_id
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
@@ -268,12 +268,13 @@ savedRouter.get('/saved/:id/source-update',authMiddleware,async c=>{
   const saved=await own(c.env.DB,c.req.param('id')||'',c.get('userId'));
   if(!saved)return c.json(apiError('NOT_FOUND','找不到個人題目'),404);
   const source=await sourceGate(c,saved.entry_id);if(!source)return c.json({available:false,changed:false,changes:[]});
-  const snapshot=await c.env.DB.prepare('SELECT source_content_seq,source_shared_seq FROM saved_snapshots WHERE id=? AND saved_ref_id=?')
-    .bind(saved.current_snapshot_id,saved.id).first<{source_content_seq:number;source_shared_seq:number}>();
+  const snapshot=await c.env.DB.prepare('SELECT source_content_seq,source_shared_seq,reshare_allowed FROM saved_snapshots WHERE id=? AND saved_ref_id=?')
+    .bind(saved.current_snapshot_id,saved.id).first<{source_content_seq:number;source_shared_seq:number;reshare_allowed:number}>();
   const changes:string[]=[];
   if(source.content_seq!==snapshot?.source_content_seq)changes.push('來源標籤或內容已更新');
   if(source.shared_seq!==snapshot?.source_shared_seq)changes.push('共用參考筆跡或筆記已更新');
   const co=await loadCollection(c.env,source.collection_id);
+  if(Number(co?.allow_reshare||0)!==Number(snapshot?.reshare_allowed||0))changes.push('再分享授權已變更');
   const writer=co&&await canContribute(c.env,co,c.get('userId'));
   const shownInk=writer||!!co?.show_shared_ink,shownNotes=writer||!!co?.show_shared_notes;
   const current=(await c.env.DB.prepare(`SELECT sl.id AS layer_origin_key,sl.draw_asset_id,sl.typed_notes
@@ -316,7 +317,7 @@ savedRouter.get('/saved/:id',authMiddleware,async c=>{
   ]);
   if(!snapshot||!workspace) return c.json(apiError('SNAPSHOT_MISSING','個人版本暫時無法讀取'),503);
   return c.json({saved,snapshot,layers:layers.results||[],workspace,
-    source:{available:!!available}});
+    source:{available:!!available},capabilities:{can_create_share:!!(snapshot as {reshare_allowed?:number}).reshare_allowed}});
 });
 savedRouter.get('/saved/:id/image',authMiddleware,async c=>{
   const row=await c.env.DB.prepare(`SELECT a.storage_key,a.mime_type FROM saved_refs sr

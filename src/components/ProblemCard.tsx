@@ -3,6 +3,7 @@ import TextareaAutosize from 'react-textarea-autosize';
 import { Item, DrawData } from '../types';
 import { formatProblemCode } from './StatusBadge';
 import { ConfirmModal } from './ConfirmModal';
+import { getQueuedDraws } from '../services/offlineStorage';
 import { ShareModal } from './ShareModal';
 import { ImageViewerModal } from './ImageViewerModal';
 import { ProblemCardHeader } from './problem/ProblemCardHeader';
@@ -160,6 +161,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const responsiveScale = containerWidth > 0 && baseWidth > 0 ? containerWidth / baseWidth : 1.0;
   const renderedCalcSpaceHeight = Math.round(calcSpaceHeight * responsiveScale);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
+  const [isSavingInk,setIsSavingInk]=useState(false);
+  const drawSavingSeq=useRef(0),notesSavingSeq=useRef(0);
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
 
   const saveDrawTimerRef = useRef<any>(null);
@@ -255,7 +258,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     if(readOnly)return;
     setTypedNotes(text);
     if(work){work.saveNotes(text);return;}
-    setIsSavingNotes(true);
+    setIsSavingNotes(true);const generation=++notesSavingSeq.current;
     updateProblemInStore(problem.id, { typed_notes: text });
 
     if (saveNotesTimerRef.current) {
@@ -266,7 +269,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       try {
         await saveTypedNotes(problem, text);
       } finally {
-        setIsSavingNotes(false);
+        if(generation===notesSavingSeq.current)setIsSavingNotes(false);
       }
     }, 600);
   };
@@ -281,10 +284,11 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
       if(readOnly)return;
       if(work){work.saveInk(dataWithHeight);return;}
+      setIsSavingInk(true);const generation=++drawSavingSeq.current;
       if (saveDrawTimerRef.current) clearTimeout(saveDrawTimerRef.current);
 
       saveDrawTimerRef.current = setTimeout(async () => {
-        await saveDrawData(problem, dataWithHeight, nextSeq);
+        try{await saveDrawData(problem, dataWithHeight, nextSeq);}finally{if(generation===drawSavingSeq.current)setIsSavingInk(false);}
       }, 400);
     },
     [problem, vectorSeq, saveDrawData,work,readOnly]
@@ -549,6 +553,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
       <ShareModal
         isOpen={isShareModalOpen}
         problemId={problem.id}
+        canCreate={!problem.id.startsWith('temp_')}
+        blockedReason={problem.id.startsWith('temp_')?'請先將題目同步至雲端，再建立分享連結。':isSavingInk||isSavingNotes?'請先完成作業同步，再建立分享連結。':''}
+        beforeCreate={async()=>{if(!navigator.onLine)throw new Error('需要連線才能建立分享');const drafts=await getQueuedDraws();if(drafts.some(d=>d.id===problem.id))throw new Error('此題還有未同步作業，請完成同步後再分享。');}}
         onClose={() => setIsShareModalOpen(false)}
       />
     </div>

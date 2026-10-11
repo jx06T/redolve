@@ -6,6 +6,7 @@ import type { Item } from '../types';
 import type { ReviewProgress } from '../types/question';
 import { DrawCanvas } from './DrawCanvas';
 import { AppDialog } from './AppDialog';
+import { ShareModal } from './ShareModal';
 import { PersonalTopicSelect } from './PersonalTopicSelect';
 import { useStore } from '../store/useStore';
 import { downloadWorkDraft, forgetWork, getWorkController, workService } from '../services/workService';
@@ -24,6 +25,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const [update,setUpdate]=useState<Awaited<ReturnType<typeof libraryService.previewUpdate>>|null>(null);
   const [busy,setBusy]=useState(false);const [error,setError]=useState('');
   const [remove,setRemove]=useState(false);const [savedFlash,setSavedFlash]=useState(false);
+  const [sharing,setSharing]=useState(false);
   const [classification,setClassification]=useState(false);const [topic,setTopic]=useState(content.topic||'');
   useEffect(()=>setTopic(content.topic||''),[content.topic]);
   useEffect(()=>{controller.observeCloud(content);},[controller,content]);
@@ -63,7 +65,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
     copyText:async()=>[content.title,content.topic,content.collectionTitle,content.provider].filter(Boolean).join(' · '),
     reloadLabel:content.saved?'檢查來源更新':undefined,
     footerActions:content.saved?<button onClick={()=>setRemove(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs text-text-muted hover:text-status-eraser"><Trash2 size={14}/>移除我的已存版本</button>:undefined,
-    share:content.shared?()=>{void navigator.clipboard.writeText(window.location.origin+'/collections/'+encodeURIComponent(content.collectionId!)+'/items/'+encodeURIComponent(content.shared!.entry.id)).then(()=>useStore.getState().showToast('已複製分享連結；觀看仍受集合權限限制','success')).catch(()=>useStore.getState().showToast('無法複製連結','error'));}:undefined,
+    share:()=>setSharing(true),
     label:<span className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted">{content.saved?'我存入':'共用中'} · {content.collectionTitle}</span>,
     beforeWorkspace:<>    {!readOnly&&!hasProfile&&<section className="mb-4 rounded-2xl bg-page-bg p-4">
       <label className="block text-sm">開始共用書寫前，設定你的公開顯示名稱<input value={name} maxLength={80} onChange={e=>setName(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-surface p-3"/></label>
@@ -89,6 +91,9 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
 </>,
   };
   return <div data-question={item.id} className={content.saved?'[&_[data-problem-id]]:border-[#DCE8E0] dark:[&_[data-problem-id]]:border-[#3D5449]':''}><ProblemCard problem={item} work={work} onNext={onNext} onEditMetadata={content.saved&&!readOnly?()=>setClassification(true):undefined} readOnly={readOnly||!mineEditable||state.status==='conflict'} streamSearch/>
+    <ShareModal isOpen={sharing} target={content.ref} onClose={()=>setSharing(false)}
+      canCreate={!!(content.saved?.capabilities?.can_create_share||content.shared?.capabilities.can_create_share)}
+      blockedReason={controller.pending()?'請先完成作業同步，再建立分享連結。':''}/>
     {classification&&content.saved&&<AppDialog title="修改題目分類" busy={busy} onClose={()=>setClassification(false)}>
       <PersonalTopicSelect id={`saved-topic-${content.saved.saved.id}`} value={topic} onChange={setTopic} disabled={busy}/>
       {content.saved.saved.classification_state==='failed'&&<button disabled={busy} onClick={()=>void act(async()=>{await libraryService.retryClassification(content.saved!.saved.id);setClassification(false);onChanged?.();})} className="mt-3 text-sm underline">重試自動分類</button>}

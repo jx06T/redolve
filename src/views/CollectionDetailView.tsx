@@ -169,6 +169,8 @@ export function CollectionDetailView(){
         const visibility=e.target.value;setConfirm({title:'變更集合的觀看範圍？',body:visibility==='public'?'啟用中的集合將可由所有人觀看及存入；未列入探索時仍可用集合連結開啟。':'範圍縮小後，原有合法存入的個人版本仍保留；後續觀看及存入按新範圍判定。',run:async()=>{await sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,visibility});await load();}});
       }} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"><option value="restricted">指定對象</option><option value="link">持連結者</option><option value="public">所有人</option></select></label>
       {co.visibility==='public'&&<SwitchRow label="列入公開探索" description="未列入時，仍可透過集合連結觀看。" checked={!!co.listed} disabled={busy} onChange={listed=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,listed}),'探索設定已更新')}/>}
+      <SwitchRow label="允許存入後再分享" description="獲准存入的人可建立任何持連結者都能觀看的單題分享，不會開放整個集合。關閉只影響之後取得的版本，已授權版本仍可分享。" checked={!!co.allow_reshare} disabled={busy}
+        onChange={value=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,allow_reshare:value}),'再分享設定已更新')}/>
       <label className="block text-sm">集合名稱<input value={title} maxLength={80} onChange={e=>setTitle(e.target.value)} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3"/></label>
       <button disabled={busy||!title.trim()} onClick={()=>void act(()=>sharingApi(`/collections/${id}`,'PATCH',{expected_version:co.row_version,title:title.trim()}),'名稱已更新')} className="rounded-xl border border-border-subtle px-4 py-2">儲存名稱</button>
       <div className="grid gap-3 sm:grid-cols-2">

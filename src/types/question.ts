@@ -19,7 +19,7 @@ export type CollectionItemDetail = {
   source: { id: string; source: string|null; keywords: string|null; topic_id?:string|null;
     topic_label: string|null; content_seq: number; provider_name: string|null; contributor_id?:string };
   layers: SharedLayer[];
-  capabilities: { can_contribute: boolean; can_save: boolean };
+  capabilities: { can_contribute: boolean; can_save: boolean; can_create_share?:boolean };
 };
 export type ReviewProgress={status:'unsolved'|'resolved'|'archived';previous_status:'unsolved'|'resolved';review_count:number;row_version:number};
 export type WorkContent = {

@@ -4,6 +4,18 @@
 
 ## 目前狀態
 
+### 2026-10-11 獨立單題分享 Q01–Q11（本機候選）
+
+- 我上傳／我存入／共用中／探索與延伸題目使用同一分享視窗與 /share/:token。已存題右上新增分享按鈕；只建立本人已同步作業的固定版本。
+- 新 public／restricted／link 集合預設 allow_reshare=1；建立／管理提供 switch。既有集合／已存版本保持 0，作者開啟後需明確更新來源才取得授權。來源更新提示包含授權變更。
+- questionSharing 集中 capture、當下權限、原子提交與來源 ACL 提示；shareService 統一前端 create/list/revoke。新 links 匿名可讀；不授權來源集合、不自動訂閱、不複製他人的筆跡／筆記。
+- independent_shares＋share_asset_refs 保存單題與題圖引用；引用稽核改讀聯集 view。來源撤權／下架／刪除個人版本不取消已建立分享；分享者撤銷／到期停止服務，quarantine 停止資產服務。
+- 個人檔案提供分頁分享管理、原題刪除後撤銷與過期清理。實體資產 GC 未啟用；沒有新增 cron／secret。
+- 本地 0007 已備份套用，21 題／7 份筆跡／4 份文字筆記前後一致；init-local-db --check ready。備份見專用發布指南。
+- 驗證：TypeScript、production build／SW、23 項後端／PWA／SQL 分割回歸、SQLite schema／引用稽核、0007 發布腳本模擬與 390／1280px 瀏覽器回歸。瀏覽器使用合成 API；權限、固定版本、刪除保留、CAS 競態、expiry、asset refs 與舊連結由 Miniflare D1/R2 驗證。
+- 2026-10-11 使用者完成正式 D1 0007，唯讀檢查為 1、1、2、1、1、4；套用稽核 missing_share_refs=0，已授權推送。後續：確認 Git CI/CD 自動部署、正式分享功能、真實 OAuth 成功換帳號及實體 iPhone／iPad 驗收。詳細指令：INDEPENDENT_SHARING_RELEASE_2026-10-11.md。
+
+
 ### 2026-10-11 本地 0005／0006 補齊與 Wrangler SQL 解析修正
 
 - 本地 .wrangler/state 原缺少 0005 快取表及 0006 欄位；init-local-db 自動備份後補齊。首次備份：.wrangler/local-db-backups/2026-10-11T05-32-33-960Z。

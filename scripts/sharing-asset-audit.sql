@@ -25,7 +25,11 @@ LEFT JOIN asset_refs ar ON ar.workspace_id=pw.id AND ar.asset_id=pw.draw_asset_i
 WHERE pw.draw_asset_id IS NOT NULL AND ar.id IS NULL;
 
 SELECT 'unreferenced_ready_assets' AS metric,COUNT(*) AS count FROM assets a
-WHERE a.state='ready' AND NOT EXISTS(SELECT 1 FROM asset_refs ar WHERE ar.asset_id=a.id);
+WHERE a.state='ready' AND NOT EXISTS(SELECT 1 FROM asset_reference_inventory ar WHERE ar.asset_id=a.id);
 
-SELECT 'nonready_referenced_assets' AS metric,COUNT(*) AS count FROM asset_refs ar
+SELECT 'nonready_referenced_assets' AS metric,COUNT(*) AS count FROM asset_reference_inventory ar
 JOIN assets a ON a.id=ar.asset_id WHERE a.state!='ready';
+
+SELECT 'missing_share_asset_ref' AS metric,COUNT(*) AS count FROM independent_shares s
+LEFT JOIN share_asset_refs r ON r.token=s.token AND r.asset_id=s.image_asset_id
+WHERE r.token IS NULL;

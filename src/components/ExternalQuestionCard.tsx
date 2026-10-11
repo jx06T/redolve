@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, Share2, Star } from 'lucide-react';
+import { ShareModal } from './ShareModal';
 import { AppDialog } from './AppDialog';
 import { DrawCanvas } from './DrawCanvas';
 import { SwitchRow } from './SwitchRow';
@@ -32,7 +33,6 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
   useEffect(() => { const node = imageArea.current; if (!node) return; const observer = new ResizeObserver(() => setAreaWidth(node.clientWidth)); observer.observe(node); setAreaWidth(node.clientWidth); return () => observer.disconnect(); }, [content]);
   const referenceLayers = content?.layers.filter(l => visible[l.id] ?? (!l.legacy && l.authorId === content.shared?.source.contributor_id)) || [];
   const referenceHeight = Math.max(0, ...referenceLayers.map(l => l.ink ? (l.ink.calcSpaceHeight || 0) * areaWidth / (l.ink.baseWidth || 800) : 0));
-  const link = `${window.location.origin}/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(id)}`;
   useEffect(() => setSaved(savedId || ''), [savedId]);
   useEffect(() => setStar(starred), [starred]);
   useEffect(() => {
@@ -93,10 +93,9 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
     </> : !failure && <p className="p-5 text-sm text-text-muted">正在載入題圖與參考內容…</p>}
     {failure && <p role="alert" className="mt-3 text-sm text-status-eraser">{failure}
       <button onClick={() => setRetry(v => v + 1)} className="ml-3 underline">重新載入</button></p>}
-    {dialog && <AppDialog title={dialog === 'share' ? '分享此題' : dialog === 'report' ? '檢舉題目' : '你已從其他集合存入相同原題'} busy={busy} onClose={() => setDialog(null)}>
-      {dialog === 'share' ? <><p className="text-sm">接收者仍須具備來源集合的觀看權限。</p><input readOnly value={link} aria-label="題目分享網址" onFocus={e => e.target.select()} className="mt-3 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm" />
-        <button onClick={() => void act(async () => { await navigator.clipboard.writeText(link); showToast('已複製連結', 'success'); })} className="mt-3 rounded-xl bg-primary px-4 py-2 text-white">複製連結</button></> :
-        dialog === 'duplicate' ? <><p className="text-sm">你可以沿用已存版本，或另存此集合的參考內容。兩份私人訂正互相獨立。</p>
+    <ShareModal isOpen={dialog === 'share'} target={{kind:'collection',collectionId,entryId:id}} canCreate={!!content?.shared?.capabilities.can_create_share} onClose={() => setDialog(null)}/>
+    {dialog && dialog !== 'share' && <AppDialog title={dialog === 'report' ? '檢舉題目' : '你已從其他集合存入相同原題'} busy={busy} onClose={() => setDialog(null)}>
+      {dialog === 'duplicate' ? <><p className="text-sm">你可以沿用已存版本，或另存此集合的參考內容。兩份私人訂正互相獨立。</p>
           <Link to={savedStudyUrl(existing)} className="mt-3 inline-block rounded-xl bg-page-bg px-4 py-2">前往已存版本</Link>
           <button disabled={busy} onClick={() => void act(save)} className="mt-3 ml-2 rounded-xl bg-primary px-4 py-2 text-white">另存此來源</button></> :
           <><label className="block text-sm">檢舉原因<textarea value={reason} onChange={e => setReason(e.target.value)} maxLength={2000} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3" /></label>

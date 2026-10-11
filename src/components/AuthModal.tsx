@@ -41,7 +41,7 @@ export function AuthModal() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      const result = await getGoogleAuthUrl();
+      const result = await getGoogleAuthUrl(/^\/share\/[a-zA-Z0-9_-]+$/.test(window.location.pathname)?window.location.pathname:undefined);
       if (result.configured && result.url) window.location.href = result.url;
       else showToast('目前無法使用 Google 登入，請稍後再試', 'info', 5000);
     } catch {

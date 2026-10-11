@@ -1,37 +1,41 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
-import { Loader2, AlertTriangle, BookOpen, Download, FileText, CheckCircle2, PenLine } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { Loader2, AlertTriangle, BookOpen, Download, FileText, PenLine } from 'lucide-react';
 import { fetchSharedProblem, getSharedImageUrl } from '../services/api';
 import { useSEO } from '../hooks/useSEO';
 import { DrawCanvas } from '../components/DrawCanvas';
-import { StatusBadge } from '../components/StatusBadge';
+import { AuthModal } from '../components/AuthModal';
+import { useStore } from '../store/useStore';
+import type { SharedProblemData } from '../services/api';
 import { exportProblemAsImage } from '../utils/exportImage';
-import { Item, DrawData } from '../types';
+import { DrawData } from '../types';
 
 import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
 
 export const ShareView: React.FC = () => {
   const { token } = useParams<{ token: string }>();
+  const account=useStore(s=>s.currentUser?.id),openAuth=useStore(s=>s.setAuthModalOpen);
 
   useSEO({
-    title: '公開錯題分享檢視',
-    description: 'Redolve 公開唯讀錯題分享，支援原圖、手寫推導與作者文字筆記同步展示。',
+    title: '單題分享檢視',
+    description: 'Redolve 唯讀單題分享，支援題圖、分享者筆跡與文字筆記。',
     ogType: 'article',
   });
 
-  const [data, setData] = useState<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } } | null>(null);
+  const [data, setData] = useState<SharedProblemData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
   useEffect(() => {
-    if (token) {
-      fetchSharedProblem(token)
-        .then((res) => setData(res))
-        .catch((err) => setErrorMsg(err.message || '無法載入分享連結'))
-        .finally(() => setLoading(false));
-    }
-  }, [token]);
+    const abort=new AbortController();setData(null);setLoading(true);setErrorMsg(null);
+    const load=()=>{if(!token){setErrorMsg('缺少分享連結');setLoading(false);return;}
+      void fetchSharedProblem(token,abort.signal).then(res=>{if(!abort.signal.aborted){setData(res);setErrorMsg(null);}})
+        .catch(err=>{if(!abort.signal.aborted){setData(null);setErrorMsg(err.message||'無法載入分享連結');}})
+        .finally(()=>{if(!abort.signal.aborted)setLoading(false);});};
+    load();window.addEventListener('focus',load);
+    return()=>{abort.abort();window.removeEventListener('focus',load);};
+  },[token,account]);
 
   // Compute calculation workspace height from draw_data (matching ProblemCard baseline)
   const calcSpaceHeight = useMemo(() => {
@@ -61,7 +65,7 @@ export const ShareView: React.FC = () => {
     try {
       if (data.item.keywords.startsWith('[')) {
         const parsed = JSON.parse(data.item.keywords);
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed) ? parsed.filter((value):value is string=>typeof value==='string') : [];
       }
     } catch {
       // fallback
@@ -89,7 +93,7 @@ export const ShareView: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="h-full overflow-y-auto bg-page-bg flex items-center justify-center p-4">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -97,7 +101,7 @@ export const ShareView: React.FC = () => {
 
   if (errorMsg || !data) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="h-full overflow-y-auto bg-page-bg flex items-center justify-center p-4">
         <div className="bg-surface border border-border-subtle rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-sm">
           <div className="p-3 bg-status-warning/10 text-status-warning rounded-2xl w-fit mx-auto">
             <AlertTriangle className="w-8 h-8" />
@@ -109,12 +113,12 @@ export const ShareView: React.FC = () => {
     );
   }
 
-  const { item, share } = data;
+  const { item, share, origin } = data;
   const isInkAllowed = Boolean(share?.allow_ink);
   const imageUrl = getSharedImageUrl(token!);
 
   return (
-    <div className="min-h-screen bg-background py-8 px-4">
+    <div className="h-full overflow-y-auto bg-page-bg py-8 px-4">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header Bar */}
         <div className="bg-surface border border-border-subtle rounded-3xl p-6 flex flex-wrap items-center justify-between gap-4 shadow-xs">
@@ -126,12 +130,12 @@ export const ShareView: React.FC = () => {
               <a href="/" className="text-base font-bold text-text-main">
                 Redolve
               </a>
-              <p className="text-xs text-text-muted">公開錯題分享</p>
+              <p className="text-xs text-text-muted">單題分享 · {share.fixed_version?'建立連結時的版本':'原題目前版本'}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
             <span className="px-3 py-1.5 rounded-xl text-xs font-medium bg-neutral-100 text-text-main">
-              {share.allow_ink ? '包含作者手寫推導' : '無筆跡原圖'}
+              {share.allow_ink ? '包含分享者筆跡' : '無筆跡原圖'}
             </span>
             <button
               onClick={handleExport}
@@ -146,18 +150,13 @@ export const ShareView: React.FC = () => {
 
         {/* Card View */}
         <div className="bg-surface border border-border-subtle rounded-3xl p-6 space-y-4 shadow-xs">
-          {/* Metadata Top Bar */}
-          <div className="flex items-center justify-between pb-2 border-b border-border-subtle">
-            <StatusBadge
-              status={item.status as any || 'unsolved'}
-              topicId={item.topic_id || null}
-            />
-            {item.status === 'resolved' && (
-              <span className="inline-flex items-center space-x-1 text-xs font-medium text-status-resolved bg-status-resolved/10 px-2.5 py-1 rounded-xl border border-status-resolved/20">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>已完成訂正</span>
-              </span>
-            )}
+          <div className="space-y-2 border-b border-border-subtle pb-3 text-sm">
+            <p>來源：{item.source||'題目'}{origin?.provider_name ? ' · '+origin.provider_name : ''}</p>
+            {item.topic_label&&<p className="text-xs text-text-muted">分類：{item.topic_label}</p>}
+            {origin?.kind==='personal'&&<p className="text-xs text-text-muted">私人題目；此連結僅分享單題。</p>}
+            {origin?.can_visit&&origin.url ? <Link to={origin.url} className="text-text-muted underline">前往{origin.visibility==='public'?'公開':'共用'}集合 · {origin.title}</Link> : origin?.kind==='collection'&&<p className="text-xs text-text-muted">
+              {origin.access_hint==='source_unavailable'?'來源集合或原題目前無法存取，此分享版本仍可觀看。':<>來源集合另有存取權限。<button onClick={()=>openAuth(true)} className="ml-2 underline">{origin.access_hint==='login'?'登入以查看來源':'切換帳號以查看來源'}</button></>}
+            </p>}
           </div>
 
           {/* Keywords Chips */}
@@ -216,7 +215,7 @@ export const ShareView: React.FC = () => {
             <div className="mt-4 rounded-2xl bg-neutral-50/80 border border-border-subtle p-4">
               <div className="flex items-center space-x-2 text-xs font-semibold text-text-main mb-2">
                 <FileText className="w-4 h-4 text-primary" />
-                <span>作者文字筆記 / 解題思路與觀念總結</span>
+                <span>分享者的文字筆記</span>
               </div>
               <p className="text-xs text-text-main leading-relaxed whitespace-pre-wrap">
                 {item.typed_notes}
@@ -225,6 +224,7 @@ export const ShareView: React.FC = () => {
           )}
         </div>
       </div>
+      <AuthModal/>
     </div>
   );
 };

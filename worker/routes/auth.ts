@@ -32,11 +32,14 @@ function trustedFrontendOrigin(candidate: string | null, c: { req: { url: string
   }
 }
 
+function shareReturnPath(value:string|null|undefined){return value&&/^\/share\/[a-zA-Z0-9_-]+$/.test(value)?value:'/';}
+
 function finishOAuth(c: Context<{ Bindings: Bindings; Variables: Variables }>, frontendUrl: string, query: string, sessionToken?: string) {
   const secure = new URL(c.req.url).protocol === 'https:';
-  const response: Response = c.redirect(`${frontendUrl}/?${query}`);
+  const response: Response = c.redirect(`${frontendUrl}${shareReturnPath(cookieValue(c.req.header('Cookie'),'rdv_oauth_path'))}?${query}`);
   response.headers.append('Set-Cookie', cookie('rdv_oauth_state', '', 0, secure, '/api/auth'));
   response.headers.append('Set-Cookie', cookie('rdv_oauth_return', '', 0, secure, '/api/auth'));
+  response.headers.append('Set-Cookie', cookie('rdv_oauth_path', '', 0, secure, '/api/auth'));
   if (sessionToken) response.headers.append('Set-Cookie', cookie('rdv_session', sessionToken, SESSION_MAX_AGE, secure));
   response.headers.set('Cache-Control', 'no-store');
   return response;
@@ -72,6 +75,7 @@ authRouter.get('/google/url', (c) => {
   const secure = new URL(c.req.url).protocol === 'https:';
   response.headers.append('Set-Cookie', cookie('rdv_oauth_state', state, OAUTH_MAX_AGE, secure, '/api/auth'));
   response.headers.append('Set-Cookie', cookie('rdv_oauth_return', returnUrl, OAUTH_MAX_AGE, secure, '/api/auth'));
+  response.headers.append('Set-Cookie', cookie('rdv_oauth_path', shareReturnPath(c.req.query('return_to')), OAUTH_MAX_AGE, secure, '/api/auth'));
   return response;
 });
 

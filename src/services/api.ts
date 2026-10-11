@@ -43,8 +43,8 @@ export async function logoutUser(): Promise<void> {
   if (!res.ok) throw new Error('登出失敗，請確認網路連線後重試');
 }
 
-export async function getGoogleAuthUrl(): Promise<{ configured: boolean; url?: string; message?: string }> {
-  const res = await requestApi(`${API_BASE}/auth/google/url`, {
+export async function getGoogleAuthUrl(returnTo?: string): Promise<{ configured: boolean; url?: string; message?: string }> {
+  const res = await requestApi(`${API_BASE}/auth/google/url${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ''}`, {
     headers: getAuthHeaders(false),
   });
   if (!res.ok) throw new Error('Failed to get Google Auth URL');
@@ -371,11 +371,17 @@ export async function revokeShareLink(problemId: string, token: string): Promise
   return res.json();
 }
 
-export async function fetchSharedProblem(token: string): Promise<{ item: Partial<Item>; share: { token: string; allow_ink: boolean } }> {
-  const base = WORKER_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
-  const res = await requestApi(`${base}/share/${token}`);
-  if (!res.ok) throw new Error('Shared link expired or invalid');
-  return res.json();
+export type SharedProblemData = {
+ item: Partial<Item> & {topic_label?:string|null};
+ share: {token:string;allow_ink:boolean;allow_notes?:boolean;fixed_version?:boolean};
+ origin?: {kind:'personal'|'collection';provider_name?:string|null;can_visit?:boolean;title?:string;url?:string;visibility?:string;access_hint?:'login'|'switch_account'|'source_unavailable'};
+};
+export async function fetchSharedProblem(token: string, signal?:AbortSignal): Promise<SharedProblemData> {
+ const base=WORKER_BASE || (typeof window !== 'undefined' ? window.location.origin : '');
+ const res=await requestApi(`${base}/share/${encodeURIComponent(token)}`,{signal});
+ const data=await res.json() as SharedProblemData & {error?:{message?:string}};
+ if(!res.ok)throw new Error(data.error?.message || '無法載入分享連結');
+ return data;
 }
 
 export function getSharedImageUrl(token: string): string {

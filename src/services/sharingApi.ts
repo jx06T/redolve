@@ -6,6 +6,7 @@ export type Collection = {
   lifecycle:'draft'|'active'|'suspended'|'deleted';
   visibility:'restricted'|'link'|'public'; listed:number;
   show_shared_ink:number; show_shared_notes:number; row_version:number;
+  allow_reshare?:number;
   role?:'owner'|'contributor'; can_contribute?:boolean; is_owner?:boolean; item_count?:number;
   pending_owner_transfer?:number; contributor_count?:number; is_subscribed?:number;
 };
@@ -21,6 +22,7 @@ export type SharedLayer = {
   draw_seq:number; typed_notes:string|null; notes_seq:number;
 };
 export type SavedDetail = {
+  capabilities?:{can_create_share:boolean};
   saved:{id:string;entry_id:string;status:string;personal_topic_id:string|null;
     classification_state?:'ready'|'pending'|'failed'|'manual';
     review_count:number;row_version:number;current_snapshot_id:string};

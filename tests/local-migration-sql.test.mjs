@@ -12,5 +12,5 @@ test('local Wrangler keeps nested CASE inside the 0006 progress trigger', async 
   assert.ok(triggers.every(query => /END\s*;?\s*$/.test(query)));
   assert.match(triggers[1], /INSERT INTO collection_search_user_versions/);
   const schema = await readFile('worker/schema.sql', 'utf8');
-  assert.ok(schema.replace(/\r/g, '').endsWith(migration.replace(/\r/g, '')));
+  assert.ok(schema.replace(/\r/g, '').includes(migration.replace(/\r/g, '')));
 });

@@ -172,10 +172,10 @@ collectionsRouter.post('/my/collections',authMiddleware,async c=>{
     return c.json(apiError('INVALID_REQUEST','請填名稱、公開顯示名稱及觀看範圍'),400);
   const id=crypto.randomUUID();
   await c.env.DB.prepare(`INSERT INTO collections(id,owner_id,title,description,public_name,visibility,listed,
-    show_shared_ink,show_shared_notes,lifecycle) VALUES(?,?,?,?,?,?,?,?,?,?)`)
+    show_shared_ink,show_shared_notes,lifecycle,allow_reshare) VALUES(?,?,?,?,?,?,?,?,?,?,?)`)
     .bind(id,c.get('userId'),title,clean(body.description,2000),name,body.visibility,
       body.visibility==='public'&&body.listed===true?1:0,body.show_shared_ink===true?1:0,
-      body.show_shared_notes===true?1:0,body.activate===true?'active':'draft').run();
+      body.show_shared_notes===true?1:0,body.activate===true?'active':'draft',body.allow_reshare===false?0:1).run();
   await c.env.DB.prepare(`INSERT INTO public_profiles(user_id,display_name) VALUES(?,?)
     ON CONFLICT(user_id) DO NOTHING`).bind(c.get('userId'),name).run();
   return c.json({id,lifecycle:body.activate===true?'active':'draft'},201);
@@ -270,12 +270,13 @@ collectionsRouter.patch('/collections/:id',authMiddleware,async c=>{
   const name=b.public_name===undefined?co!.public_name:clean(b.public_name,80);
   if(!title||!name||name.includes('@')) return c.json(apiError('INVALID_REQUEST','名稱無效'),400);
   const r=await c.env.DB.prepare(`UPDATE collections SET title=?,description=?,public_name=?,visibility=?,listed=?,
-    show_shared_ink=?,show_shared_notes=?,row_version=row_version+1,acl_version=acl_version+1,
+    show_shared_ink=?,show_shared_notes=?,allow_reshare=?,row_version=row_version+1,acl_version=acl_version+1,
     updated_at=CURRENT_TIMESTAMP WHERE id=? AND owner_id=? AND row_version=?`)
     .bind(title,b.description===undefined?co!.description:clean(b.description,2000),name,vis,
       vis==='public'&&(b.listed===undefined?Boolean(co!.listed):b.listed===true)?1:0,
       b.show_shared_ink===undefined?co!.show_shared_ink:b.show_shared_ink===true?1:0,
       b.show_shared_notes===undefined?co!.show_shared_notes:b.show_shared_notes===true?1:0,
+      b.allow_reshare===undefined?co!.allow_reshare:b.allow_reshare===true?1:0,
       co!.id,c.get('userId'),co!.row_version).run();
   return r.meta.changes?c.json({row_version:co!.row_version+1}):c.json(apiError('CONFLICT','設定已變動'),409);
 });
@@ -508,7 +509,8 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     neighbors:{previous:previous?.id||null,next:next?.id||null},
     source:{...item,contributor_id:entry.contributor_id},layers,
     ...(canWrite?{progress:progress||{status:'unsolved',previous_status:'unsolved',review_count:0,row_version:0}}:{}),
-    capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId')}});
+    capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId'),
+      can_create_share:!!c.get('userId')&&(!!co!.allow_reshare||entry.contributor_id===c.get('userId'))}});
 });
 collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));

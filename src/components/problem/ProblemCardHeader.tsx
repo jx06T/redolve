@@ -167,7 +167,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
         {!readOnly && onOpenShareModal && <button
           type="button"
           onClick={onOpenShareModal}
-          aria-label="開啟公開分享設定"
+          aria-label="分享此題"
           className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
           title="分享題目"
         >
