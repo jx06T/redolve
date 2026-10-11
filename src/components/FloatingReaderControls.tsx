@@ -2,14 +2,22 @@ import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
 import { BackButton } from './ReaderNavigation';
 
-export function FloatingReaderControls({title, summary, open, onOpenChange, activeFilters, children}: {
+const CONTROL_TONES = {
+  neutral: { frame: 'border-border-subtle bg-surface', active: 'bg-primary/10 text-primary', dot: 'bg-primary', panel: 'border-border-subtle' },
+  extended: { frame: 'border-accent-sage/60 bg-accent-sage/15', active: 'bg-accent-sage/30 text-text-main', dot: 'bg-status-resolved', panel: 'border-accent-sage/60' },
+  explore: { frame: 'border-accent-rose/60 bg-accent-rose/15', active: 'bg-accent-rose/30 text-text-main', dot: 'bg-status-eraser', panel: 'border-accent-rose/60' },
+};
+
+export function FloatingReaderControls({title, summary, open, onOpenChange, activeFilters, children, tone = 'neutral'}: {
   title: string;
   summary: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   activeFilters: boolean;
   children: ReactNode;
+  tone?: keyof typeof CONTROL_TONES;
 }) {
+  const colors = CONTROL_TONES[tone];
   const panelId=useId();
   const root=useRef<HTMLDivElement>(null);
   const trigger=useRef<HTMLButtonElement>(null);
@@ -25,22 +33,22 @@ export function FloatingReaderControls({title, summary, open, onOpenChange, acti
     document.addEventListener('keydown',escape);
     return ()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
   },[open,onOpenChange]);
-  return <div ref={root} className="sticky top-0 z-30 shrink-0 rounded-2xl border border-border-subtle bg-surface px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+  return <div ref={root} className={`sticky top-0 z-30 shrink-0 rounded-2xl border px-3 py-2 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${colors.frame}`}>
     <div className="flex min-w-0 items-center gap-2">
       <div className="min-w-0 flex-1">
         <h1 className="text-base font-semibold sm:text-xl">{title}</h1>
         <p title={summary} className="truncate text-xs text-text-muted">{summary}</p>
       </div>
       {children&&<button ref={trigger} type="button" aria-label="搜尋與篩選" aria-expanded={open} aria-controls={panelId}
-        onClick={()=>onOpenChange(!open)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs ${open||activeFilters?'bg-primary/10 text-primary':'bg-page-bg text-text-main'}`}>
+        onClick={()=>onOpenChange(!open)} className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs ${open||activeFilters?colors.active:'bg-surface text-text-main'}`}>
         <SlidersHorizontal aria-hidden="true" size={16}/><span>搜尋／篩選</span>
-        {activeFilters&&<span aria-label="已套用搜尋或篩選" className="h-1.5 w-1.5 rounded-full bg-primary"/>}
+        {activeFilters&&<span aria-label="已套用搜尋或篩選" className={`h-1.5 w-1.5 rounded-full ${colors.dot}`}/>}
         {open?<ChevronUp aria-hidden="true" size={14}/>:<ChevronDown aria-hidden="true" size={14}/>}
       </button>}
       <BackButton/>
     </div>
     {children&&<section id={panelId} aria-label="題目閱讀選項" hidden={!open}
-      className="absolute inset-x-0 top-full mt-2 max-h-[calc(100dvh-14rem)] overflow-y-auto overscroll-contain rounded-2xl border border-border-subtle bg-surface p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] sm:left-auto sm:w-96">
+      className={`absolute inset-x-0 top-full mt-2 max-h-[calc(100dvh-14rem)] overflow-y-auto overscroll-contain rounded-2xl border bg-surface p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)] sm:left-auto sm:w-96 ${colors.panel}`}>
       {children}
       <div className="mt-4 flex justify-end border-t border-border-subtle pt-3">
         <button type="button" onClick={()=>{onOpenChange(false);trigger.current?.focus();}} className="min-h-11 rounded-xl bg-page-bg px-4 py-2 text-sm">收合</button>

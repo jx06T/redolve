@@ -107,6 +107,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
   const scopeTitle = co?.title || subs.find(s => s.collection_id === id)?.title || publicSets.find(c => c.id === id)?.title || (id ? '目前題目集' : mode === 'extended' ? '請選擇已訂閱的題目集' : '全部公開題目');
   return <div className="mx-auto flex h-full min-h-0 max-w-5xl flex-col gap-4">
     <FloatingReaderControls title={mode === 'extended' ? '延伸題目' : mode === 'explore' ? '公開探索' : '題目集觀看'}
+      tone={mode === 'collection' ? 'neutral' : mode}
       summary={scopeTitle} open={controlsOpen} onOpenChange={setControlsOpen} activeFilters={!!(query || filter)}>
       {(mode !== 'extended' || account) ? <>
       {mode === 'explore' && <label className="mt-3 block text-sm">公開題目集<select aria-label="選擇公開題目集" value={id} onChange={e => { patch({ collection_id: e.target.value, q: '', state: '' }); setControlsOpen(false); }} className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-surface p-3 text-sm">
