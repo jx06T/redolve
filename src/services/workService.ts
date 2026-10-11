@@ -3,8 +3,11 @@ import { API_BASE } from './api';
 import { sharingApi, savedImageUrl, imageUrl, type SavedDetail } from './sharingApi';
 import type { CollectionItemDetail, WorkContent, WorkTarget } from '../types/question';
 import type { DrawData } from '../types';
+import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
 
-export const blankInk:DrawData={strokes:[],eraserMasks:[],baseWidth:800,calcSpaceHeight:400};
+// An untouched workspace uses the card width, just like a newly uploaded item.
+// The canvas records baseWidth when drawing starts; existing coordinates stay intact.
+export const blankInk:DrawData={strokes:[],eraserMasks:[],calcSpaceHeight:DEFAULT_CALC_SPACE_HEIGHT};
 const segment=(value:string)=>encodeURIComponent(value);
 const workPath=(target:WorkTarget)=>target.kind==='saved'
   ?`/saved/${segment(target.savedRefId)}/workspace`
@@ -103,6 +106,8 @@ function createController(account:string,content:WorkContent) {
     }finally{running=false;notify();}
   };
   const schedule=()=>{clearTimeout(timer);timer=setTimeout(()=>void flush(),900);};
+  // Restored drafts resume automatically; waiting is not a manual retry state.
+  if(pendingInk!==undefined||pendingNotes!==undefined)schedule();
   return {
     getState:()=>state,
     subscribe:(fn:()=>void)=>{listeners.add(fn);return ()=>{listeners.delete(fn);};},

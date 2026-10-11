@@ -54,8 +54,10 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
     setBusy(true);setError('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'操作失敗');}finally{setBusy(false);}
   };
   const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(state.ink),typed_notes:state.notes,status:progress.status,review_count:progress.review_count,vector_clock:null,created_at:'',updated_at:''};
+  const syncMessage=state.status==='conflict'?'同步衝突':state.status==='error'?'同步失敗':state.status==='saving'?'正在同步存檔…':state.status==='pending'?(state.error?'尚未同步':'等待同步…'):savedFlash?'已同步':'支援即時打字';
   const work:ProblemCardWork={image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
+    syncStatus:<><span role="status" aria-atomic="true">{syncMessage}</span>{state.status==='error'&&<button type="button" onClick={controller.retry} className="text-text-muted underline underline-offset-2 hover:text-text-main">重試同步</button>}</>,
     copyText:async()=>[content.title,content.topic,content.collectionTitle,content.provider].filter(Boolean).join(' · '),
     reloadLabel:content.saved?'檢查來源更新':undefined,
     footerActions:content.saved?<button onClick={()=>setRemove(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-border-subtle bg-neutral-100 px-3.5 py-2 text-xs text-text-muted hover:text-status-eraser"><Trash2 size={14}/>移除我的已存版本</button>:undefined,
@@ -73,8 +75,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
       className="rounded-xl border border-border-subtle px-3 py-2 text-xs aria-pressed:bg-primary/10 aria-pressed:border-primary/20 aria-pressed:text-primary">{l.author} · 參考筆跡</button>)}</div>}
 </>,
     references:content.layers.filter(l=>l.ink&&!(hidden[l.id]??(content.shared?l.authorId!==content.shared.source.contributor_id:false))).map(l=>l.ink!),
-    afterNotes:<><p role="status" className="mt-2 text-xs text-text-muted">{state.status==='saving'?'儲存中…':state.status==='pending'?'尚未同步':savedFlash?'已儲存':''}</p>{(state.error||error)&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
-    {(state.status==='error'||state.status==='pending')&&<button onClick={controller.retry} className="mt-2 rounded-xl border border-border-subtle px-3 py-2 text-xs">重試同步</button>}
+    afterNotes:<>{(error||((state.status==='error'||state.status==='conflict'||state.storageFailed)&&state.error))&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
     {state.status==='conflict'&&<div className="mt-2 space-y-2 text-xs"><p className="text-text-muted">本機作業已保留；請核對另一裝置的內容。</p>
       <button onClick={()=>downloadWorkDraft(state.ink,state.notes)} className="rounded-xl border border-border-subtle px-3 py-2">下載本機作業</button>
       <button disabled={busy} onClick={()=>void act(async()=>{setCloud(content.saved?await workService.loadSaved(content.saved.saved.id):await workService.loadShared(content.collectionId!,content.shared!.entry.id,account));})} className="ml-2 rounded-xl border border-border-subtle px-3 py-2">核對雲端版本</button>

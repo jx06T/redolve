@@ -25,7 +25,7 @@ export type ProblemCardWork={
   image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
   toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
   copyText?:()=>Promise<string>;remove?:()=>void;share?:()=>void;
-  references?:DrawData[];label:React.ReactNode;notesLabel?:string;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;footerActions?:React.ReactNode;reloadLabel?:string;
+  references?:DrawData[];label:React.ReactNode;notesLabel?:string;syncStatus?:React.ReactNode;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;footerActions?:React.ReactNode;reloadLabel?:string;
 };
 interface ProblemCardProps {
   work?:ProblemCardWork;onAddToCollection?:()=>void;
@@ -486,7 +486,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         />
 
         {/* Scratchpad Height Controls */}
-        {!readOnly && (
+        {(!readOnly || work?.syncStatus) && (
           <ProblemCardScratchpadControls
             calcSpaceHeight={calcSpaceHeight}
             isCollapsed={isScratchpadCollapsed || calcSpaceHeight === 0}
@@ -495,6 +495,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
               else setIsScratchpadCollapsed((previous) => !previous);
             }}
             isSavingNotes={isSavingNotes}
+            syncStatus={work?.syncStatus}
+            readOnly={readOnly}
             onUpdateCalcHeight={updateCalcHeight}
           />
         )}

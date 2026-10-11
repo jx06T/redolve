@@ -14,6 +14,8 @@ interface ProblemCardScratchpadControlsProps {
   isCollapsed: boolean;
   onToggleCollapse: () => void;
   isSavingNotes: boolean;
+  syncStatus?: React.ReactNode;
+  readOnly?: boolean;
   onUpdateCalcHeight: (newHeight: number | ((prev: number) => number)) => void;
 }
 
@@ -22,18 +24,20 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
   isCollapsed,
   onToggleCollapse,
   isSavingNotes,
+  syncStatus,
+  readOnly = false,
   onUpdateCalcHeight,
 }) => {
   return (
-    <div className="mt-2 flex items-center justify-between px-1">
-      <div className="flex items-center space-x-1 pt-3">
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 px-1">
+      <div data-work-sync-status className="flex min-w-0 items-center gap-1 pt-3">
         <FileText className="w-3.5 h-3.5 text-primary" />
-        <span className="text-[11px] text-text-muted">
-          {isSavingNotes ? '正在同步存檔...' : '支援即時打字'}
-        </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-muted">
+          {syncStatus ?? <span role="status">{isSavingNotes ? '正在同步存檔...' : '支援即時打字'}</span>}
+        </div>
       </div>
 
-      <div className="flex items-center space-x-1.5">
+      {!readOnly && <div className="flex items-center space-x-1.5">
         {!isCollapsed ? (
           <button
             type="button"
@@ -89,7 +93,7 @@ export const ProblemCardScratchpadControls: React.FC<ProblemCardScratchpadContro
           <Plus className="w-3 h-3 text-primary" />
           <span className="hidden sm:inline">延伸</span>
         </button>
-      </div>
+      </div>}
     </div>
   );
 };
