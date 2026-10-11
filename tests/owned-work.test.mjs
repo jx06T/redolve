@@ -127,3 +127,51 @@ test('explicitly keeping local notes preserves the latest unedited cloud ink', a
     assert.equal(f.controller.getState().inkSeq,9);
   }finally{f.controller.stop();}
 });
+test('cloud adoption clears replayable work and rebases subsequent edits without discarded ink', async () => {
+  const f=fixture();try{
+    f.controller.ink(ink(9));f.controller.notes('discarded');
+    f.cloud={...f.cloud,draw_seq:12,notes_seq:8,draw_data:JSON.stringify(ink(2)),typed_notes:'remote'};
+    await f.controller.flush();assert.equal(f.controller.getState().status,'conflict');
+    f.controller.adoptCloud(f.cloud);
+    assert.equal(f.controller.pending(),false);assert.equal(f.values.has(f.key),false);
+    assert.equal(f.controller.getState().editorVersion,1);
+    assert.ok([...f.values.keys()].some(k=>k.includes(':backup:')));
+    const reopened=create(f.key,f.cloud,f.deps);
+    try{reopened.restoreLegacy();assert.equal(reopened.pending(),false);assert.equal(reopened.getState().notes,'remote');}finally{reopened.stop();}
+    f.controller.ink({...f.controller.getState().ink,calcSpaceHeight:140});f.controller.notes('new');
+    await f.controller.flush();
+    assert.deepEqual(f.writes.slice(1).map(x=>x.slice(0,2)),[['ink',13],['notes',8]]);
+    assert.equal(JSON.parse(f.cloud.draw_data).strokes.length,2);
+    assert.equal(f.controller.getState().editorVersion,1,'ordinary saves preserve editor history');
+  }finally{f.controller.stop();}
+});
+test('failed active-draft deletion leaves local content and conflict intact', async () => {
+  let failRemove=false;
+  const values=new Map();const f=fixture({storage:{getItem:k=>values.get(k)??null,
+    setItem:(k,v)=>values.set(k,v),removeItem:k=>{if(failRemove)throw Error('denied');values.delete(k);}}},values);
+  try{
+    f.controller.notes('discarded');f.cloud={...f.cloud,notes_seq:8,typed_notes:'remote'};
+    await f.controller.flush();failRemove=true;
+    assert.throws(()=>f.controller.adoptCloud(f.cloud),/無法清除/);
+    assert.equal(f.controller.getState().notes,'discarded');assert.equal(f.controller.getState().status,'conflict');
+    assert.equal(f.controller.getState().editorVersion,0);assert.ok(f.controller.pending());assert.ok(values.has(f.key));
+    failRemove=false;f.controller.adoptCloud(f.cloud);assert.equal(f.controller.pending(),false);
+  }finally{f.controller.stop();}
+});
+test('adoption cannot race a running save', async () => {
+  const gate=deferred();const f=fixture({saveNotes:async()=>{await gate.promise;return {notes_seq:4};}});
+  try{
+    f.controller.notes('local');const saving=f.controller.flush();
+    assert.throws(()=>f.controller.adoptCloud(f.cloud),/等待目前同步/);
+    assert.equal(f.controller.getState().notes,'local');gate.resolve();await saving;
+  }finally{gate.resolve();f.controller.stop();}
+});
+test('cloud adoption waits for legacy queue cleanup before discarding its recovered work', () => {
+  let ready=false;const f=fixture({canAdoptCloud:()=>ready});
+  try{
+    f.controller.notes('recovered legacy');
+    assert.throws(()=>f.controller.adoptCloud(f.cloud),/舊版草稿尚未清理/);
+    assert.equal(f.controller.pending(),true);assert.equal(f.controller.getState().notes,'recovered legacy');
+    ready=true;f.controller.adoptCloud(f.cloud);assert.equal(f.controller.pending(),false);
+  }finally{f.controller.stop();}
+});

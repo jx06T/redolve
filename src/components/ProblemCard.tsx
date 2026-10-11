@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import TextareaAutosize from 'react-textarea-autosize';
 import { Item, DrawData } from '../types';
 import { formatProblemCode } from './StatusBadge';
@@ -28,6 +28,7 @@ import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constan
 import { Link } from 'react-router-dom';
 
 export type ProblemCardWork={
+  editorVersion?:number;
   image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
   toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
   copyText?:()=>Promise<string>;remove?:()=>void;share?:()=>void;
@@ -208,23 +209,18 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     }
   }, [isActiveMatch]);
 
-  // Sync external draw_data changes on problem switch
-  useEffect(() => {
-    latestDrawDataRef.current = null;
+  // Explicit version adoption also resets geometry and the canvas history, even
+  // when the cloud ink is blank or identical to the last emitted drawing.
+  const editorVersion=work?.editorVersion??owned.state?.editorVersion??0;
+  useLayoutEffect(() => {
+    latestDrawDataRef.current = itemInk(problem);
+    offlineSeq.current = itemInkSeq(problem);
+    const height=getInitialCalcSpaceHeight();
+    calcSpaceHeightRef.current=height;
+    setCalcSpaceHeight(height);
+    setTypedNotes(problem.typed_notes||'');
     setIsScratchpadCollapsed(false);
-    if (problem.draw_data) {
-      try {
-        const parsed: DrawData =
-          typeof problem.draw_data === 'string'
-            ? JSON.parse(problem.draw_data)
-            : problem.draw_data;
-        if (typeof parsed.calcSpaceHeight === 'number' && parsed.calcSpaceHeight !== calcSpaceHeightRef.current) {
-          calcSpaceHeightRef.current = parsed.calcSpaceHeight;
-          setCalcSpaceHeight(parsed.calcSpaceHeight);
-        }
-      } catch { }
-    }
-  }, [problem.id]);
+  }, [problem.id,editorVersion]);
 
   useEffect(()=>{
     if((!work&&!owned.state)||!problem.draw_data)return;
@@ -468,6 +464,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         {work?.beforeWorkspace}
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
+          editorVersion={editorVersion}
           imageUrl={imageUrl}
           onImageReady={() => setReadyImage(imageUrl)}
           drawData={problem.draw_data}
@@ -503,6 +500,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
         {/* Typed Notes & Calculation Summary Section (Auto-resizing) */}
         <TextareaAutosize
+          key={editorVersion}
           aria-label={work?.notesLabel||'本題筆記'}
           value={typedNotes}
           onChange={(e) => handleTypedNotesChange(e.target.value)}
@@ -567,7 +565,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         <div className="relative mt-3 h-52 overflow-hidden rounded-xl border border-border-subtle bg-page-bg"><DrawCanvas initialDrawData={itemInk(cloudWork)} readOnly inkVisible/></div>
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={()=>downloadWorkDraft(owned.state!.ink,owned.state!.notes)} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">下載本機作業</button>
-          <button onClick={()=>{try{owned.controller?.adoptCloud(cloudWork);setCloudWork(null);setWorkError('');}catch{setWorkError('備份寫入失敗；尚未替換任何作業，請先下載本機作業。');}}} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">採用雲端作業</button>
+          <button onClick={()=>{try{owned.controller?.adoptCloud(cloudWork);updateProblemInStore(problem.id,cloudWork);setCloudWork(null);setWorkError('');}catch(e){setWorkError(e instanceof Error?e.message:'尚未替換任何作業，請先下載本機作業。');}}} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">採用雲端作業</button>
           <button onClick={()=>{try{owned.controller?.keepLocal(cloudWork);setCloudWork(null);setWorkError('');}catch{setWorkError('備份寫入失敗；尚未覆蓋任何作業，請先下載本機作業。');}}} className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">以本機作業更新雲端</button>
         </div>
         {workError&&<p role="alert" className="mt-3 text-xs text-text-muted">{workError}</p>}

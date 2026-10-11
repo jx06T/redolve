@@ -11,11 +11,13 @@ export function getOwnedWorkController(item: Item) {
   const key = ownedDraftKey(item.user_id, item.id);
   let controller = controllers.get(key);
   if (!controller) {
+    let legacyCleanupComplete=false;
     controller = createOwnedWorkController(key, item, {
       storage: {getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value),
         removeItem: key => localStorage.removeItem(key)},
       active: () => useStore.getState().currentUser?.id === item.user_id,
       online: () => navigator.onLine,
+      canAdoptCloud: () => legacyCleanupComplete,
       saveInk: (ink, seq) => updateProblemDrawData(item.id, ink, seq),
       saveNotes: (notes, seq) => updateProblemMetadata(item.id, {typed_notes: notes, expected_notes_seq: seq})
         .then(result => ({notes_seq: result.notes_seq!})),
@@ -38,7 +40,10 @@ export function getOwnedWorkController(item: Item) {
       if (controllers.get(key) !== created) return;
       // Ownerless legacy records require the authenticated item owner supplied by the API.
       const mine = legacy && (!legacy.ownerId || legacy.ownerId === item.user_id) ? legacy : undefined;
-      if (created.restoreLegacy(mine) && mine) void stripLegacyQueuedWork(mine).catch(console.error);
+      if (created.restoreLegacy(mine)) {
+        if (mine) await stripLegacyQueuedWork(mine);
+        legacyCleanupComplete=true;
+      }
     }).catch(() => {if (controllers.get(key) === created) created.restoreFailed();});
   }
   if (controllers.size > 80) for (const [oldKey, old] of controllers) {

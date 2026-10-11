@@ -4,13 +4,14 @@ import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
 export type OwnedWorkState = {
   ink: DrawData; notes: string; inkSeq: number; notesSeq: number;
   status: 'saved' | 'pending' | 'saving' | 'error' | 'conflict';
-  error: string; storageFailed: boolean; restoring: boolean;
+  error: string; storageFailed: boolean; restoring: boolean; editorVersion: number;
 };
 type Draft = { ink?: DrawData; notes?: string; inkSeq: number; notesSeq: number; blocked?: boolean;
   sentInk?: {value: DrawData; seq: number}; sentNotes?: {value: string; seq: number} };
 type Dependencies = {
   storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   active: () => boolean; online: () => boolean;
+  canAdoptCloud?: () => boolean;
   saveInk: (ink: DrawData, nextSeq: number) => Promise<{seq: number}>;
   saveNotes: (notes: string, expectedSeq: number) => Promise<{notes_seq: number}>;
   load: () => Promise<Item>;
@@ -39,7 +40,7 @@ export function createOwnedWorkController(key: string, initial: Item, deps: Depe
   let timer: ReturnType<typeof setTimeout> | undefined;
   let state: OwnedWorkState = { ink: itemInk(initial), notes: initial.typed_notes || '',
     inkSeq: itemInkSeq(initial), notesSeq: initial.notes_seq ?? 0,
-    status: 'saved', error: '', storageFailed: false, restoring: true };
+    status: 'saved', error: '', storageFailed: false, restoring: true, editorVersion: 0 };
   const listeners = new Set<() => void>();
   const notify = () => { state = {...state}; listeners.forEach(fn => fn()); };
   const changed = () => { deps.changed?.(state); notify(); };
@@ -196,10 +197,18 @@ export function createOwnedWorkController(key: string, initial: Item, deps: Depe
     },
     adoptCloud: (cloud: Item) => {
       if (running) throw new Error('請等待目前同步結束');
+      if (stopped || state.restoring) throw new Error('請等待題目草稿載入完成');
+      if (deps.canAdoptCloud && !deps.canAdoptCloud()) throw new Error('舊版草稿尚未清理完成；請稍後重試，暫勿重新整理。');
       if (pending()) backup(cloud);
+      // Delete replayable work before replacing memory. A failed deletion must not
+      // report success and resurrect the discarded draft on the next page load.
+      try { deps.storage.removeItem(key); }
+      catch { throw new Error('無法清除本機草稿；尚未替換作業，請先下載本機作業。'); }
+      clearTimeout(timer);
       pendingInk = undefined; pendingNotes = undefined; sentInk = undefined; sentNotes = undefined; blocked = false;
       state = {...state, ink: itemInk(cloud), notes: cloud.typed_notes || '', inkSeq: itemInkSeq(cloud),
-        notesSeq: cloud.notes_seq ?? 0, status: 'saved', error: ''}; persist(); changed();
+        notesSeq: cloud.notes_seq ?? 0, status: 'saved', error: '', storageFailed: false,
+        editorVersion: state.editorVersion + 1}; changed();
     },
     keepLocal: (cloud: Item) => {
       if (running) throw new Error('請等待目前同步結束');

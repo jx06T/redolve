@@ -54,7 +54,7 @@ export const workService={
 };
 
 type WorkState={ink:DrawData;notes:string;status:'saved'|'pending'|'saving'|'error'|'conflict';
-  error:string;revision:number;storageFailed:boolean};
+  error:string;revision:number;storageFailed:boolean;editorVersion:number};
 type Controller=ReturnType<typeof createController>;
 const controllers=new Map<string,Controller>();
 const keyFor=(account:string,target:WorkTarget)=>`rdv:work:v1:${account}:${JSON.stringify(target)}`;
@@ -63,7 +63,7 @@ function createController(account:string,content:WorkContent) {
   let inkSeq=content.work.inkSeq,notesSeq=content.work.notesSeq;
   let pendingInk:DrawData|undefined,pendingNotes:string|undefined;
   let blocked=false,running=false,timer:ReturnType<typeof setTimeout>|undefined;
-  let state:WorkState={ink:content.work.ink,notes:content.work.notes,status:'saved',error:'',revision:0,storageFailed:false};
+  let state:WorkState={ink:content.work.ink,notes:content.work.notes,status:'saved',error:'',revision:0,storageFailed:false,editorVersion:0};
   const listeners=new Set<()=>void>();
   try {
     const raw=localStorage.getItem(key);
@@ -128,13 +128,18 @@ function createController(account:string,content:WorkContent) {
       state={...state,ink:newerInk?cloud.work.ink:state.ink,notes:newerNotes?cloud.work.notes:state.notes};notify();
     },
     acceptCloud:(cloud:WorkContent)=>{
+      if(running)throw new Error('請等待目前同步結束');
       if(JSON.stringify(cloud.work.target)!==JSON.stringify(target))throw new Error('題目集合版本已變動，舊作業僅能另存取回。');
       if(pendingInk!==undefined||pendingNotes!==undefined){
         // Keep a recoverable copy before the explicit choice to replace the editor.
         localStorage.setItem(key+`:backup:${Date.now()}`,JSON.stringify({ink:state.ink,notes:state.notes,inkSeq,notesSeq}));
       }
+      try{localStorage.removeItem(key);}
+      catch{throw new Error('無法清除本機草稿；尚未替換作業，請先下載本機作業。');}
+      clearTimeout(timer);
       pendingInk=undefined;pendingNotes=undefined;inkSeq=cloud.work.inkSeq;notesSeq=cloud.work.notesSeq;blocked=false;
-      state={...state,ink:cloud.work.ink,notes:cloud.work.notes,status:'saved',error:''};persist();notify();
+      state={...state,ink:cloud.work.ink,notes:cloud.work.notes,status:'saved',error:'',storageFailed:false,editorVersion:state.editorVersion+1};
+      window.dispatchEvent(new Event('redolve:work-drafts'));notify();
     },
     stop:()=>{clearTimeout(timer);blocked=true;},
     pending:()=>pendingInk!==undefined||pendingNotes!==undefined,

@@ -4,6 +4,7 @@ import { DrawData } from '../../types';
 import { DrawCanvas } from '../DrawCanvas';
 
 interface ProblemCardWorkspaceProps {
+  editorVersion?:number;
   imageUrl: string;
   onImageReady?: () => void;
   referenceLayers?:DrawData[];
@@ -22,6 +23,7 @@ interface ProblemCardWorkspaceProps {
 }
 
 export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
+  editorVersion=0,
   imageUrl,onImageReady,referenceLayers=[],
   drawData,
   calcSpaceHeight,
@@ -81,6 +83,7 @@ export const ProblemCardWorkspace: React.FC<ProblemCardWorkspaceProps> = ({
       {/* Full Interactive Canvas Overlay */}
       <div className="absolute inset-0 pointer-events-auto">
         <DrawCanvas
+          key={editorVersion}
           initialDrawData={drawData}
           onSaveDrawData={onSaveDraw}
           calcSpaceHeight={calcSpaceHeight}
