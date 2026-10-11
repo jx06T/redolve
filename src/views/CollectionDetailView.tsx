@@ -130,7 +130,8 @@ export function CollectionDetailView(){
           className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/>
         <datalist id="collection-tags">{tagsFor(items).map(tag=><option key={tag} value={tag}/>)}</datalist>
       </div>
-      {items.length?<div className="mt-3 space-y-2">{items.map((item,index)=>
+      {items.length?<div role="region" aria-label="已加入集合的題目" tabIndex={0}
+        className="mt-3 max-h-[min(24rem,55dvh)] space-y-2 overflow-y-auto overscroll-y-contain pr-1">{items.map((item,index)=>
         <div key={item.id} className="rounded-2xl border border-border-subtle p-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-xs text-[#5F8670]">第 {item.display_order||index+1} 題
