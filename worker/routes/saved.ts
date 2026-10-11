@@ -50,10 +50,12 @@ async function cookieHash(c: AppContext,collectionId:string) {
 function snapshotInsert(db:D1Database) {
   return db.prepare(`INSERT INTO saved_snapshots
     (id,saved_ref_id,image_asset_id,source_title,source_label,source_tags,source_topic_label,
-     collection_title,provider_public_name,source_content_seq,source_shared_seq,reshare_allowed)
+     collection_title,provider_public_name,source_content_seq,source_shared_seq,reshare_allowed,source_text)
     SELECT ?,sr.id,i.image_url,COALESCE(i.source,'題目'),i.source,i.keywords,
       CASE WHEN t.user_id IS NULL THEN t.label ELSE NULL END,
-      co.title,COALESCE(p.display_name,co.public_name),i.content_seq,ci.shared_seq,co.allow_reshare
+      co.title,COALESCE(p.display_name,co.public_name),i.content_seq,ci.shared_seq,co.allow_reshare,
+      COALESCE((SELECT f.problem_text FROM items_fts f WHERE f.id=i.id AND f.user_id=i.user_id
+        ORDER BY f.rowid DESC LIMIT 1),'')
     FROM saved_refs sr JOIN collection_items ci ON ci.id=sr.entry_id
     JOIN collections co ON co.id=ci.collection_id
     JOIN items i ON i.id=ci.source_item_id AND i.user_id=ci.contributor_id
@@ -307,7 +309,9 @@ savedRouter.get('/saved/:id',authMiddleware,async c=>{
   const saved=await own(c.env.DB,c.req.param('id')||'',c.get('userId'));
   if(!saved) return c.json(apiError('NOT_FOUND','找不到個人題目'),404);
   const [snapshot,layers,workspace,available]=await Promise.all([
-    c.env.DB.prepare('SELECT * FROM saved_snapshots WHERE id=? AND saved_ref_id=?')
+    c.env.DB.prepare(`SELECT id,saved_ref_id,image_asset_id,source_title,source_label,source_tags,
+      source_topic_label,collection_title,provider_public_name,source_content_seq,source_shared_seq,
+      acquisition_policy_version,acquired_at,reshare_allowed FROM saved_snapshots WHERE id=? AND saved_ref_id=?`)
       .bind(saved.current_snapshot_id,saved.id).first(),
     c.env.DB.prepare('SELECT * FROM saved_snapshot_layers WHERE snapshot_id=?')
       .bind(saved.current_snapshot_id).all(),
@@ -318,6 +322,17 @@ savedRouter.get('/saved/:id',authMiddleware,async c=>{
   if(!snapshot||!workspace) return c.json(apiError('SNAPSHOT_MISSING','個人版本暫時無法讀取'),503);
   return c.json({saved,snapshot,layers:layers.results||[],workspace,
     source:{available:!!available},capabilities:{can_create_share:!!(snapshot as {reshare_allowed?:number}).reshare_allowed}});
+});
+savedRouter.get('/saved/:id/text',authMiddleware,async c=>{
+  const row=await c.env.DB.prepare(`SELECT ss.source_text FROM saved_refs sr
+    JOIN saved_snapshots ss ON ss.id=sr.current_snapshot_id AND ss.saved_ref_id=sr.id
+    JOIN asset_refs ar ON ar.snapshot_id=ss.id AND ar.asset_id=ss.image_asset_id AND ar.role='saved_image'
+    JOIN assets a ON a.id=ss.image_asset_id AND a.state='ready'
+    WHERE sr.id=? AND sr.user_id=?`).bind(c.req.param('id'),c.get('userId'))
+    .first<{source_text:string|null}>();
+  if(!row) return c.json(apiError('NOT_FOUND','找不到個人題目'),404);
+  c.header('Cache-Control','private, no-store');
+  return c.json({text:row.source_text||''});
 });
 savedRouter.get('/saved/:id/image',authMiddleware,async c=>{
   const row=await c.env.DB.prepare(`SELECT a.storage_key,a.mime_type FROM saved_refs sr

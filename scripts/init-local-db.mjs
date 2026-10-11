@@ -44,6 +44,7 @@ function missing(current) {
     ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs'].filter(name => !current.tables.has(name)),
     ...(!current.collections.has('allow_reshare') ? ['collections.allow_reshare'] : []),
     ...(!current.snapshots.has('reshare_allowed') ? ['saved_snapshots.reshare_allowed'] : []),
+    ...(!current.snapshots.has('source_text') ? ['saved_snapshots.source_text'] : []),
     ...['asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset'].filter(name=>!current.shareDdl.has(name)),
     ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
     ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes', 'progress_seq', 'previous_status'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
@@ -108,6 +109,7 @@ if (!current.tables.has('items')) {
   if(!current.snapshots.has('reshare_allowed'))execute(['--command','ALTER TABLE saved_snapshots ADD COLUMN reshare_allowed INTEGER NOT NULL DEFAULT 0 CHECK(reshare_allowed IN (0,1));']);
   const shareSql=readFileSync(path.join(root,'worker/migrations/0007_independent_question_shares.sql'),'utf8').replace(/^\s*--.*$/gm,'').replace(/^ALTER TABLE[^;]+;/gm,'').trim();
   execute(['--command',shareSql]);
+  if(!current.snapshots.has('source_text'))execute(['--file','worker/migrations/0008_saved_question_text.sql']);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

@@ -15,6 +15,12 @@ const workPath=(target:WorkTarget)=>target.kind==='saved'
   :`/collections/${segment(target.collectionId)}/items/${segment(target.entryId)}/layers`;
 const draw=async(path:string,signal?:AbortSignal)=>sharingApi<DrawData>(path,'GET',undefined,signal);
 export const workService={
+  async copyText(ref:WorkContent['ref']):Promise<string> {
+    const path=ref.kind==='saved'?`/saved/${segment(ref.savedRefId)}/text`
+      :`/collections/${segment(ref.collectionId)}/items/${segment(ref.entryId)}/text`;
+    const result=await sharingApi<{text:string}>(path);
+    return result.text;
+  },
   async loadSaved(id:string,signal?:AbortSignal):Promise<WorkContent> {
     const d=await sharingApi<SavedDetail>(`/saved/${segment(id)}`,'GET',undefined,signal);
     const target:WorkTarget={kind:'saved',savedRefId:id};

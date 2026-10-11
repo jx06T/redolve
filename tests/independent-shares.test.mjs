@@ -34,9 +34,10 @@ test('independent shares retain authorized versions without granting collection 
   await db.exec("INSERT INTO saved_refs(id,user_id,entry_id) VALUES('old-save','v','old-entry');");
   await db.exec("INSERT INTO saved_snapshots(id,saved_ref_id,image_asset_id,source_title,collection_title,provider_public_name,source_content_seq,source_shared_seq) VALUES('old-snapshot','old-save','image','Original','Hidden collection','Name a',1,0);");
   await sql(migration);
+  await sql(await readFile('worker/migrations/0008_saved_question_text.sql','utf8'));
   assert.equal((await db.prepare("SELECT allow_reshare FROM collections WHERE id='legacy'").first()).allow_reshare,0);
   assert.equal((await db.prepare("SELECT reshare_allowed FROM saved_snapshots WHERE id='old-snapshot'").first()).reshare_allowed,0);
-  assert.ok(schema.replace(/\r/g,'').endsWith(migration.replace(/\r/g,'')));
+  assert.ok(schema.replace(/\r/g,'').includes(migration.replace(/\r/g,'')));
   const call=async(path,uid='',method='GET',body)=>{
    const response=await mf.dispatchFetch('https://redolve.test'+path,{method,headers:{...(uid?{Authorization:'Bearer '+tokens[uid]}:{}),...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined});
    return {status:response.status,data:await response.json().catch(()=>null),headers:response.headers};

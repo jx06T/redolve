@@ -513,6 +513,17 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     capabilities:{can_contribute:canWrite,can_save:!!c.get('userId')&&entry.contributor_id!==c.get('userId'),
       can_create_share:!!c.get('userId')&&(!!co!.allow_reshare||entry.contributor_id===c.get('userId'))}});
 });
+collectionsRouter.get('/collections/:id/items/:entryId/text',optionalAuthMiddleware,async c=>{
+  const co=await loadCollection(c.env,c.req.param('id'));
+  if(!await reader(c,co)) return c.json(missing,404);
+  const entry=await liveEntry(c.env,c.req.param('entryId'),co!.id);
+  if(!entry) return c.json(missing,404);
+  const row=await c.env.DB.prepare(`SELECT problem_text FROM items_fts
+    WHERE id=? AND user_id=? ORDER BY rowid DESC LIMIT 1`)
+    .bind(entry.source_item_id,entry.contributor_id).first<{problem_text:string|null}>();
+  c.header('Cache-Control','private, no-store');
+  return c.json({text:row?.problem_text||''});
+});
 collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
   if(!await reader(c,co)) return c.json(missing,404);

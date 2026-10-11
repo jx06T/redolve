@@ -68,7 +68,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
     try {
       const success = await copy(textPromise);
       if (success) {
-        showToast(copyText?'已複製題目資訊':'已複製題目文字', 'success', 2000);
+        showToast('已複製題目文字', 'success', 2000);
       } else {
         showToast('複製失敗，請檢查瀏覽器權限', 'error', 3000);
       }
@@ -113,9 +113,9 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
           type="button"
           onClick={handleCopyText}
           disabled={isFetchingText}
-          aria-label={copyText?'複製題目資訊':'複製題目文字'}
+          aria-label="複製題目文字"
           className="p-2 rounded-xl text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"
-          title={copyText?'複製題目資訊':'複製題目文字'}
+          title="複製題目文字"
         >
           {isFetchingText ? (
             <Loader2 className="w-4 h-4 animate-spin text-primary" />
