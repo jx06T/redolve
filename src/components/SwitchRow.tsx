@@ -3,7 +3,7 @@ export function SwitchRow({label,description,checked,disabled,onChange}:{
   label:string;description?:string;checked:boolean;disabled?:boolean;onChange:(value:boolean)=>void;
 }) {
   const id=useId();
-  return <div className="flex items-center justify-between gap-5 rounded-2xl border border-border-subtle p-4">
+  return <div className="flex items-center justify-between gap-5 rounded-xl border border-border-subtle p-4 py-0">
     <div><p id={id} className="text-sm font-medium">{label}</p>
       {description&&<p className="mt-1 text-xs text-text-muted">{description}</p>}</div>
     <button type="button" role="switch" aria-checked={checked} aria-labelledby={id} disabled={disabled}
