@@ -1,7 +1,7 @@
 import { Hono, type Context } from 'hono';
 import type { Bindings, Variables } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
-import { sourceWork, sourceProgress, sourceLayerId, sourceWriteGate } from '../services/sharedSourceWork';
+import { sourceWork, sourceLayerWork, sourceProgress, sourceLayerId, sourceWriteGate } from '../services/sharedSourceWork';
 import { itemSearchIndexStatements } from '../services/itemSearchIndex';
 import {
   apiError, canContribute, canReadCollection, hashToken, liveEntry, loadCollection, randomToken,
@@ -453,8 +453,11 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     LEFT JOIN public_profiles p ON p.user_id=i.user_id WHERE i.id=?`)
     .bind(entry.source_item_id).first();
   const canWrite=Boolean(c.get('userId')&&await canContribute(c.env,co!,c.get('userId')));
-  const original=await sourceWork(c.env,entry.source_item_id!);
-  const progress=canWrite&&entry.contributor_id===c.get('userId')&&original?sourceProgress(original):canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
+  const ownWork=canWrite&&entry.contributor_id===c.get('userId')
+    ?await sourceWork(c.env,entry.source_item_id!):null;
+  const original=ownWork||(canWrite||co!.show_shared_ink||co!.show_shared_notes
+    ?await sourceLayerWork(c.env,entry.source_item_id!):null);
+  const progress=ownWork?sourceProgress(ownWork):canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
     .bind(c.get('userId'),entry.id).first():null;
   const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,COALESCE(p.display_name,sl.author_display) AS author_display,sl.draw_asset_id,
     sl.draw_seq,sl.typed_notes,sl.notes_seq FROM shared_layers sl

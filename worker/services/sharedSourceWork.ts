@@ -3,6 +3,12 @@ import type { Bindings, ItemRow } from '../types';
 export const sourceLayerId = (itemId:string) => 'source:'+itemId;
 export type SourceWork = {user_id:string;draw_seq:number;notes_seq:number;has_draw:number;typed_notes:string|null;
  status:string;review_count:number;progress_seq:number;previous_status:string};
+export type SourceLayerWork = Pick<SourceWork,'user_id'|'draw_seq'|'notes_seq'|'has_draw'|'typed_notes'>;
+// Viewer-visible content does not include the author's private progress.
+export function sourceLayerWork(env:Bindings,itemId:string) {
+ return env.DB.prepare(`SELECT user_id,draw_seq,notes_seq,draw_data IS NOT NULL AS has_draw,typed_notes
+ FROM items WHERE id=?`).bind(itemId).first<SourceLayerWork>();
+}
 export function sourceWork(env:Bindings,itemId:string) {
  return env.DB.prepare(`SELECT user_id,draw_seq,notes_seq,draw_data IS NOT NULL AS has_draw,typed_notes,
  status,review_count,progress_seq,previous_status FROM items WHERE id=?`).bind(itemId).first<SourceWork>();
