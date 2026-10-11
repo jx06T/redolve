@@ -27,7 +27,7 @@ import type { TaxonomyNode } from '../types';
 const topics = (nodes: TaxonomyNode[], depth = 0): { id: string; label: string }[] => nodes.flatMap(n => [
   { id: n.id, label: `${'　'.repeat(depth)}${n.label}` }, ...topics(n.children || [], depth + 1)]);
 const officialTree = (nodes: TaxonomyNode[]): TaxonomyNode[] => nodes.filter(n => !n.user_id).map(n => ({ ...n, children: officialTree(n.children || []) }));
-type LibraryPage = { key: string; items: SearchHit[]; next: number | null; rebase?: boolean; receivedAt: number; generation: number };
+type LibraryPage = { key: string; items: SearchHit[]; next: number | null; rebase?: boolean; receivedAt: number; generation: number; cacheVersion?: string };
 const pageCache = new Map<string, LibraryPage>();
 questionListCache.onInvalidate(() => pageCache.clear());
 let pageCacheAccount = '';
@@ -68,7 +68,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     void collectionService.listContributable(abort.signal).then(setSets).catch(e => { if (!abort.signal.aborted) setSetsError(e.message); });
     return () => abort.abort();
   }, [account, currentUser, revision, search, source]);
-  const load = async (offset = 0, append = false, restoreCount = 0) => {
+  const load = async (offset = 0, append = false, restoreCount = 0, restore?: LibraryPage) => {
     const epoch = mutationEpoch.current;
     const requestGeneration = questionListCache.version();
     if (pending.current?.key === scopeKey && pending.current.offset === offset && !abortRef.current?.signal.aborted) return;
@@ -80,18 +80,34 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
         projection: compactSearch ? 'compact' : 'full', signal: abort.signal, guest: isGuestUser(currentUser), taxonomies
       });
       let page = await readPage(offset);
-      // Returning to a shared scope restores the loaded range using freshly authorized rows.
+      if (abort.signal.aborted || active.current !== key) return;
+      // Losing the validator may mean revoked access. Never append an empty denial to old rows.
+      if (append && source === 'contributing' && data.cacheVersion && !page.cache_version) {
+        page = offset === 0 ? page : await readPage(0);
+        append = false; offset = 0;
+        if (abort.signal.aborted || active.current !== key) return;
+      }
+      // A current authorization + unchanged collection/user version validates the whole loaded range.
+      if (restore && !restore.rebase && page.cache_version && restore.cacheVersion === page.cache_version
+        && questionListCache.wasCached(page) && restore.generation === questionListCache.version()
+        && Date.now() - restore.receivedAt < LIST_FRESHNESS_MS) { setData(restore); return; }
+      let receivedAt = questionListCache.receivedAt(page), generation = questionListCache.versionOf(page) ?? requestGeneration;
       while (!abort.signal.aborted && page.items.length < restoreCount && page.next_offset !== null) {
         const next = await readPage(page.next_offset);
-        page = { ...next, items: [...page.items, ...next.items.filter(i => !page.items.some(p => p.id === i.id && p.origin === i.origin))] };
+        receivedAt = Math.min(receivedAt, questionListCache.receivedAt(next));
+        generation = Math.min(generation, questionListCache.versionOf(next) ?? requestGeneration);
+        page = { ...next, cache_version: page.cache_version === next.cache_version ? next.cache_version : undefined,
+          items: [...page.items, ...next.items.filter(i => !page.items.some(p => p.id === i.id && p.origin === i.origin))] };
       }
       if (abort.signal.aborted || active.current !== key) return;
-      const receivedAt = questionListCache.receivedAt(page), generation = questionListCache.versionOf(page) ?? requestGeneration;
+      const versionChanged = append && source === 'contributing' && data.key === key && data.cacheVersion !== page.cache_version;
+      if (versionChanged) setDirty(true);
       setData(previous => ({
         key, items: (offset || append) && previous.key === key ?
-          [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.origin === i.origin && p.id === i.id))] : page.items, next: page.next_offset, rebase: append && mutationEpoch.current !== epoch,
+          [...previous.items, ...page.items.filter(i => !previous.items.some(p => p.origin === i.origin && p.id === i.id))] : page.items, next: page.next_offset, rebase: append && (mutationEpoch.current !== epoch || versionChanged),
         receivedAt: append && previous.key === key ? Math.min(previous.receivedAt, receivedAt) : receivedAt,
         generation: append && previous.key === key ? Math.min(previous.generation, generation) : generation,
+        cacheVersion: append && previous.key === key && previous.cacheVersion !== page.cache_version ? undefined : page.cache_version,
       }));
       if (source === 'owned' && !compactSearch) {
         const existing = useStore.getState().problems;
@@ -114,7 +130,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
         useStore.getState().setProblems(cached.items.flatMap(i => i.problem ? [existing.find(p => p.id === i.id && p.user_id === i.problem?.user_id) || i.problem] : []), null);
       }
     }
-    else { setData({ key: scopeKey, items: [], next: null, receivedAt: 0, generation: -1 }); void load(0, false, source === 'contributing' && navType === 'POP' ? fresh?.items.length : 0); }
+    else { setData({ key: scopeKey, items: [], next: null, receivedAt: 0, generation: -1 }); void load(0, false, source === 'contributing' && navType === 'POP' ? fresh?.items.length : 0, source === 'contributing' ? fresh : undefined); }
     return () => abortRef.current?.abort();
   }, [scopeKey, revision]);
   useEffect(() => { if (data.key !== scopeKey || !data.receivedAt || isGuestUser(currentUser)) return; pageCache.set(scopeKey, data); if (pageCache.size > 20) pageCache.delete(pageCache.keys().next().value!); }, [data, scopeKey]);

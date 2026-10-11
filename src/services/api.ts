@@ -280,15 +280,22 @@ export async function searchProblems(query: string, options: URLSearchParams = n
   signal?: AbortSignal): Promise<SearchPage> {
   const params = new URLSearchParams(options);
   params.set('q', query.trim()); params.sort();
-  const load = async (requestSignal?: AbortSignal): Promise<SearchPage> => {
-    const res = await requestApi(`${API_BASE}/search?${params}`, { headers: getAuthHeaders(false), signal: requestSignal });
+  const validatedShared = params.get('scope') === 'shared' && params.get('contributing') === 'yes' && !!params.get('collection_id') && !params.get('subscribed');
+  const load = async (requestSignal?: AbortSignal, cached?: SearchPage): Promise<SearchPage> => {
+    const headers = new Headers(getAuthHeaders(false));
+    if (validatedShared && cached?.cache_validator) headers.set('If-None-Match', cached.cache_validator);
+    const res = await requestApi(`${API_BASE}/search?${params}`, { headers, signal: requestSignal });
+    if (res.status === 304 && cached?.cache_validator) return cached;
     if (!res.ok) {
       const data = await res.json().catch(() => ({})) as {error?: {message?: string}};
       throw new Error(data.error?.message || (res.status === 401 ? '登入已失效，請重新登入。' : '搜尋暫時無法使用，請稍後重試。'));
     }
-    return res.json();
+    const page: SearchPage = await res.json();
+    return validatedShared ? { ...page, cache_validator: res.headers.get('ETag') || undefined,
+      cache_version: res.headers.get('X-Redolve-Collection-Version') || undefined } : page;
   };
-  // Shared/explore reads must always reach the server for current access checks.
+  // Shared lists always reach the server: a 304 follows current contributor authorization.
+  if (validatedShared) return questionListCache.readValidated(`${API_BASE}/search?${params}`, load, signal);
   return params.get('scope') === 'mine' && ['owned', 'saved'].includes(params.get('origin') || '')
     ? questionListCache.read(`${API_BASE}/search?${params}`, load, signal) : load(signal);
 }

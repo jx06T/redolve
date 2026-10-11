@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Bindings, Variables, ItemRow } from '../types';
 import { optionalAuthMiddleware } from '../middleware/auth';
 import { apiError, hashToken } from '../services/collectionAccess';
+import { sharedSearchValidator } from '../services/sharedSearchValidator';
 
 export const searchRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 searchRouter.use('*', optionalAuthMiddleware);
@@ -45,6 +46,13 @@ searchRouter.get('/', async c => {
   if (!uid && scope !== 'public' && !(scope === 'shared' && collectionId))
     return c.json(apiError('UNAUTHORIZED', '請登入以搜尋個人或共用題庫'), 401);
   if (!query && c.req.query('browse')!=='1') return c.json({ items: [], next_offset: null, scope });
+  // Subscription-filtered requests have a separate relationship lifetime; do not validate them here.
+  const validator = contributing && !subscribed ? await sharedSearchValidator(c.env, collectionId, uid, new URL(c.req.url).searchParams) : null;
+  if (validator) {
+    c.header('ETag', validator.etag);
+    c.header('X-Redolve-Collection-Version', validator.scopeVersion);
+    if (c.req.header('If-None-Match') === validator.etag) return c.body(null, 304);
+  }
 
   // Numbered bindings let repeated ACL predicates share values without interpolating input.
   const values: (string | number)[] = [];

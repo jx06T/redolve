@@ -9,4 +9,6 @@ export type SearchHit = {
   collection_title: string | null; provider_name: string | null; saved_id: string | null;
   relevance_score: number; problem?: Item;
 };
-export type SearchPage = { items: SearchHit[]; next_offset: number | null; scope: SearchScope };
+export type SearchPage = { items: SearchHit[]; next_offset: number | null; scope: SearchScope;
+  /** Client transport metadata; never used as permission to read a question. */
+  cache_validator?: string; cache_version?: string };

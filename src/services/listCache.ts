@@ -28,15 +28,19 @@ export function createListCache({ now = Date.now, limit = 40 } = {}) {
     values.clear(); pending.clear();
     listeners.forEach(listener => listener());
   }
-  async function read<T extends object>(key: string, loader: (signal: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
+  function reuse<T extends object>(cached: { value: unknown; receivedAt: number; generation: number }): T {
+    const value = { ...(cached.value as T) };
+    stamps.set(value, { receivedAt: cached.receivedAt, generation: cached.generation }); cacheHits.add(value);
+    return value;
+  }
+  async function read<T extends object>(key: string, loader: (signal: AbortSignal, cached?: T) => Promise<T>, signal?: AbortSignal, validate = false): Promise<T> {
     if (signal?.aborted) throw abortError();
-    const cached = values.get(key);
-    if (cached && now() - cached.receivedAt < LIST_FRESHNESS_MS) {
+    const candidate = values.get(key);
+    const cached = candidate && now() - candidate.receivedAt < LIST_FRESHNESS_MS ? candidate : undefined;
+    if (cached && !validate) {
       // LRU access changes eviction order, never the freshness timestamp.
       values.delete(key); values.set(key, cached);
-      const value = { ...(cached.value as T) };
-      stamps.set(value, { receivedAt: cached.receivedAt, generation: cached.generation }); cacheHits.add(value);
-      return value;
+      return reuse<T>(cached);
     }
     values.delete(key);
     let request = pending.get(key) as Promise<T> | undefined;
@@ -45,11 +49,21 @@ export function createListCache({ now = Date.now, limit = 40 } = {}) {
       const controller = new AbortController(); controllers.add(controller);
       request = Promise.resolve().then(() => {
         if (controller.signal.aborted) throw abortError();
-        return loader(controller.signal);
+        return loader(controller.signal, cached?.value as T | undefined);
       }).then(value => {
         if (identity !== accountGeneration) throw abortError();
         // A successful mutation overtook this GET. Fetch current data instead of caching the old response.
-        if (epoch !== generation) return read(key, loader);
+        if (epoch !== generation) return read(key, loader, undefined, validate);
+        // A validated unchanged response keeps the original 40-second deadline.
+        if (validate && cached && value === cached.value) {
+          if (now() - cached.receivedAt >= LIST_FRESHNESS_MS) {
+            if (pending.get(key) === request) pending.delete(key);
+            return read(key, loader, undefined, true);
+          }
+          values.set(key, cached);
+          if (values.size > limit) values.delete(values.keys().next().value!);
+          return reuse<T>(cached);
+        }
         const receivedAt = now(); stamps.set(value, { receivedAt, generation: epoch });
         values.set(key, { value, receivedAt, generation: epoch });
         if (values.size > limit) values.delete(values.keys().next().value!);
@@ -64,6 +78,7 @@ export function createListCache({ now = Date.now, limit = 40 } = {}) {
   }
   return {
     read, invalidate,
+    readValidated: <T extends object>(key: string, loader: (signal: AbortSignal, cached?: T) => Promise<T>, signal?: AbortSignal) => read(key, loader, signal, true),
     onInvalidate(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
     version: () => generation,
     receivedAt: (value: object) => stamps.get(value)?.receivedAt ?? now(),

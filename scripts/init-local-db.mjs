@@ -22,9 +22,12 @@ function execute(options) {
 }
 
 function schema() {
-  const [tables, items, reads, saved] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs);"]);
+  const [tables, items, reads, saved, triggers] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%';"]);
+  const names = new Set(tables.results.map(row => row.name));
+  const config = names.has('collection_search_cache_config') ? execute(['--command', 'SELECT schema_version,ready FROM collection_search_cache_config WHERE id=1;'])[0].results[0] : null;
   return {
-    tables: new Set(tables.results.map(row => row.name)),
+    tables: names,
+    searchReady: config?.ready === 1 && config?.schema_version === 1 && triggers.results.length === 28,
     items: new Set(items.results.map(row => row.name)),
     reads: new Set(reads.results.map(row => row.name)),
     saved: new Set(saved.results.map(row => row.name)),
@@ -35,7 +38,8 @@ const sharingSql = readFileSync(path.join(root, 'worker/migrations/0002_sharing_
 const sharingTables = [...sharingSql.matchAll(/CREATE TABLE (\w+)\s*\(/g)].map(match => match[1]);
 function missing(current) {
   return [
-    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress'].filter(name => !current.tables.has(name)),
+    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config'].filter(name => !current.tables.has(name)),
+    ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
     ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
     ...(!current.reads.has('starred') ? ['collection_item_reads.starred'] : []),
     ...(!current.saved.has('classification_state') ? ['saved_refs.classification_state'] : []),
@@ -87,6 +91,7 @@ if (!current.tables.has('items')) {
   if (!current.reads.has('starred')) execute(['--command', 'ALTER TABLE collection_item_reads ADD COLUMN starred INTEGER NOT NULL DEFAULT 0 CHECK(starred IN (0,1));']);
   if (!current.saved.has('classification_state')) execute(['--command', "ALTER TABLE saved_refs ADD COLUMN classification_state TEXT NOT NULL DEFAULT 'ready' CHECK(classification_state IN ('ready','pending','failed','manual'));"]);
   execute(['--file', 'worker/migrations/0004_study_progress.sql']);
+  execute(['--file', 'worker/migrations/0005_shared_search_cache.sql']);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

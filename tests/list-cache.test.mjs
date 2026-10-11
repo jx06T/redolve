@@ -71,6 +71,53 @@ test('manual invalidation and bounded LRU do not renew timestamps', async () => 
   cache.invalidate(); await cache.read('b', load); assert.equal(calls, 5); assert.equal(cleared, 1);
 });
 
+test('shared validation always reaches server, deduplicates, preserves deadline and never falls back on error', async () => {
+  let time = 100, calls = 0;
+  const cache = createListCache({ now: () => time }), delayed = gate();
+  const initial = await cache.readValidated('shared', async (_signal, cached) => {
+    assert.equal(cached, undefined); return { revision: 1 };
+  });
+  time = 10_000;
+  const validate = async (_signal, cached) => { calls++; assert.equal(cached, initial); await delayed.promise; return cached; };
+  const a = cache.readValidated('shared', validate), b = cache.readValidated('shared', validate);
+  delayed.resolve(); const reused = await a; await b;
+  assert.equal(calls, 1); assert.equal(cache.wasCached(reused), true); assert.equal(cache.receivedAt(reused), 100);
+  await assert.rejects(cache.readValidated('shared', async () => { throw Error('permission check failed'); }), /permission check/);
+  await cache.readValidated('shared', async (_signal, cached) => { assert.equal(cached, undefined); return { revision: 2 }; });
+  time = 50_000;
+  await cache.readValidated('shared', async (_signal, cached) => { assert.equal(cached, undefined); return { revision: 3 }; });
+});
+
+test('a 304 received after the deadline forces a full read instead of renewing old data', async () => {
+  let time = 100, calls = 0;
+  const cache = createListCache({ now: () => time });
+  await cache.readValidated('shared', async () => ({ revision: 1 }));
+  time = 40_099;
+  const value = await cache.readValidated('shared', async (_signal, cached) => {
+    calls++; time = 40_100; return cached || { revision: 2 };
+  });
+  assert.equal(calls, 2); assert.equal(value.revision, 2); assert.equal(cache.wasCached(value), false);
+});
+
+test('shared API conditional headers are account/query-specific; mutations bypass the validator', async t => {
+  let revision = 1; const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    const tag = `W/"${revision}:${String(url)}"`, condition = new Headers(init?.headers).get('If-None-Match');
+    calls.push(condition);
+    return condition === tag ? new Response(null, { status: 304 }) : new Response(JSON.stringify({ items: [{ id: `v${revision}` }], next_offset: null, scope: 'shared' }),
+      { headers: { 'ETag': tag, 'X-Redolve-Collection-Version': String(revision), 'Content-Type': 'application/json' } });
+  });
+  questionListCache.setAccount('shared-a');
+  const params = new URLSearchParams({ scope: 'shared', contributing: 'yes', collection_id: 'c', browse: '1' });
+  const first = await searchProblems('', params), reused = await searchProblems('', params);
+  assert.equal(calls[0], null); assert.equal(calls[1], first.cache_validator); assert.equal(questionListCache.wasCached(reused), true);
+  revision++; const changed = await searchProblems('', params);
+  assert.equal(changed.items[0].id, 'v2'); assert.equal(questionListCache.wasCached(changed), false);
+  await searchProblems('', new URLSearchParams({ ...Object.fromEntries(params), tag: 'new' })); assert.equal(calls.at(-1), null);
+  await updateProblemStatus('q', 'resolved'); await searchProblems('', params); assert.equal(calls.at(-1), null);
+  questionListCache.setAccount('shared-b'); await searchProblems('', params); assert.equal(calls.at(-1), null);
+});
+
 test('actual API adapters partition scopes/projection/pages and invalidate only successful writes', async t => {
   const calls = []; let failWrite = false;
   t.mock.method(globalThis, 'fetch', async (url, init) => {

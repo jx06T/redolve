@@ -32,7 +32,8 @@ export const corsMiddleware = cors({
     // Reject unknown origins
     return null;
   },
-  allowHeaders: ['Content-Type', 'Authorization'],
+  allowHeaders: ['Content-Type', 'Authorization', 'If-None-Match'],
+  exposeHeaders: ['ETag', 'X-Redolve-Collection-Version'],
   allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   credentials: true,
 });
