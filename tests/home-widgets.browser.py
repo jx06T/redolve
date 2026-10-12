@@ -67,17 +67,24 @@ with sync_playwright() as pw:
             }''')
             page = context.new_page(); page.on('pageerror', lambda e: errors.append(str(e)))
             page.goto('http://127.0.0.1:4181/'); page.wait_for_load_state('networkidle')
+            def panel(kind):
+                label='日常工具' if width>=768 else '待辦' if kind=='todo' else '倒數／探索'
+                nav=page.get_by_role('navigation',name='總覽面板',exact=True)
+                nav.get_by_role('button',name=label,exact=True).click()
+                page.wait_for_function("index=>{const e=document.querySelector('[data-dashboard-carousel]');return Math.abs(e.scrollLeft-index*e.clientWidth)<2}",arg=nav.get_by_role('button').all_text_contents().index(label))
+            panel('todo')
             todo = page.get_by_role('region', name='待辦事項小組件', exact=True)
+            expect(todo).to_be_visible()
+            panel('countdown')
             countdown = page.get_by_role('region', name='事件倒數小組件', exact=True)
-            expect(todo).to_be_visible(); expect(countdown).to_be_visible()
+            expect(countdown).to_be_visible()
             public = page.get_by_role('region',name='公開探索動態',exact=True)
             secondary = page.locator('[data-home-widgets-secondary]')
             expect(public).to_be_visible()
-            assert abs(todo.bounding_box()['height']-secondary.bounding_box()['height']) < 2
+            assert abs(page.locator('section[aria-label="待辦事項小組件"]').bounding_box()['height']-secondary.bounding_box()['height']) < 2
             assert countdown.bounding_box()['height'] >= public.bounding_box()['height']*1.8, 'countdown gets more of the secondary column'
             assert public.bounding_box()['y'] >= countdown.bounding_box()['y']+countdown.bounding_box()['height']
-            assert page.get_by_text('各科目錯題訂正率',exact=True).evaluate('(el)=>!!(el.compareDocumentPosition(document.querySelector("[data-home-widgets]")) & Node.DOCUMENT_POSITION_FOLLOWING)')
-            page.locator('[data-home-widgets]').scroll_into_view_if_needed()
+            assert page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button').count()==(2 if width>=768 else 4)
             page.screenshot(path=f'.wrangler/qa/home-widgets-initial-{width}-{authenticated}.png', full_page=True)
             assert page.get_by_role('button', name='接續上次刷題').count() == 1
             assert not countdown.get_by_role('button', name='編輯倒數', exact=False).count()
@@ -87,6 +94,7 @@ with sync_playwright() as pw:
             expect(dialog.get_by_text('考試 6', exact=True)).to_be_visible()
             assert not dialog.get_by_role('button', name='編輯倒數', exact=False).count()
             dialog.get_by_role('button', name='關閉對話框').click()
+            panel('todo')
             # Today's completion stays in place; older completion stays above a scroll buffer.
             active = todo.locator('[data-todo-current]')
             expect(active.locator('input')).to_have_count(2)
@@ -114,6 +122,7 @@ with sync_playwright() as pw:
             expect(todo.get_by_role('checkbox', name='完成：第一件修改')).to_have_attribute('aria-checked', 'true')
             # A shared account channel avoids another widget GET on Home -> Settings -> Home.
             before = len(calls)
+            panel('countdown')
             countdown.get_by_role('button', name='事件倒數選單').click()
             page.get_by_role('dialog').get_by_role('link', name='前往設定管理倒數與顯示方式').click()
             page.wait_for_url('**/settings?widget=countdowns#profile'); page.wait_for_load_state('networkidle')
@@ -127,6 +136,7 @@ with sync_playwright() as pw:
             page.get_by_role('switch', name='顯示事件倒數').click()
             page.get_by_role('link', name='總覽', exact=True).first.click(); page.wait_for_load_state('networkidle')
             assert not page.get_by_role('region', name='事件倒數小組件', exact=True).count()
+            panel('todo')
             assert len(calls) == before
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'), 'horizontal overflow'
             if not authenticated: assert not calls and not writes, 'guest widgets must stay local'

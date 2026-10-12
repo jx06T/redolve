@@ -72,7 +72,7 @@ dashboardRouter.get('/', async (c) => {
     // Fallback if taxonomies table empty before seeding
   }
 
-  // 3. Top 3 Unsolved Topics (TDD04 Section 12.2)
+  // Five weakest units, with a stable tie order across refreshes.
   let topUnsolved: any[] = [];
   try {
     const { results } = await c.env.DB.prepare(
@@ -85,8 +85,8 @@ dashboardRouter.get('/', async (c) => {
        JOIN taxonomies t ON i.topic_id = t.id
        WHERE i.status = 'unsolved'
        GROUP BY t.id, t.label
-       ORDER BY unsolved_count DESC
-       LIMIT 3`
+       ORDER BY unsolved_count DESC,t.id ASC
+       LIMIT 5`
     )
       .bind(userId,userId)
       .all();

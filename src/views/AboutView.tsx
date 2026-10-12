@@ -4,7 +4,7 @@ import { SHOW_SHORTCUTS_EVENT } from '../config/constants';
 import { useSEO } from '../hooks/useSEO';
 
 const pages = [
-  { title: '總覽', icon: BookOpen, text: '查看題庫進度、共用與訂閱動態，並接續上次刷題。待辦可在首頁直接新增、編輯與勾選；倒數只供檢視，透過小組件三點菜單前往設定管理。', to: '/' },
+  { title: '總覽', icon: BookOpen, text: '左右滑動查看複習進度、待辦、倒數與公開探索，會記住上次查看的面板。也可點擊下方的面板名稱切換。待辦點擊文字即可編輯；倒數只供檢視，透過小組件三點菜單前往設定管理。共用與訂閱有更新時會顯示動態入口。', to: '/' },
   { title: '刷題', icon: PenTool, text: '在「我上傳／我存入／我共用中」切換來源。展開側欄，以科目樹、單元和狀態篩選，連續向下閱讀與書寫。', to: '/study' },
   { title: '搜尋', icon: Search, text: '找回個人題庫與可貢獻共用集中的題目。簡單檢視看題圖、來源及分類；完整檢視查閱筆跡與筆記。要訂正時，按「前往刷題」。', to: '/search' },
   { title: '探索', icon: Compass, text: '瀏覽與搜尋可公開探索的題目。明確訂閱題目集後，可在「延伸題目」持續觀看；存入題庫與訂閱是兩個不同操作。', to: '/explore' },

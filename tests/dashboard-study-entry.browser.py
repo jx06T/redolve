@@ -65,7 +65,10 @@ with sync_playwright() as pw:
         page = context.new_page(); page.on('pageerror', lambda error: errors.append(str(error)))
         def home():
             page.goto('http://127.0.0.1:4181/'); page.wait_for_load_state('networkidle')
+            page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button',name='複習進度' if width>=768 else '複習重點',exact=True).click()
         def verify(button, source, topic=None, focus=None, subject='math'):
+            if width<768 and not topic:
+                page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button',name='各科進度',exact=True).click()
             calls.clear(); button.click(); page.wait_for_url('**/study?**'); page.wait_for_load_state('networkidle')
             params = parse_qs(urlparse(page.url).query)
             assert params['source'] == [source] and params['subject_id'] == [subject] and params['status'] == ['unsolved'], params
@@ -95,7 +98,9 @@ with sync_playwright() as pw:
         home(); verify(page.get_by_role('button', name='#1 向量', exact=False), 'owned', 'vector', 'owned-dot')
         # Single saved update follows the user's classification, including resolved items.
         next(r for r in rows if r['id']=='saved-dot')['status']='resolved'
-        home(); link = page.get_by_role('link', name='已存題目 · 來源有更新 已存內積', exact=False)
+        home(); page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button',name='日常工具' if width>=768 else '倒數／探索',exact=True).click()
+        page.get_by_role('button',name='共用與訂閱動態 · 1 項更新',exact=True).click()
+        link = page.get_by_role('link', name='已存題目 · 來源有更新 已存內積', exact=False)
         params = parse_qs(urlparse(link.get_attribute('href')).query)
         assert params == {'source': ['saved'], 'subject_id': ['math'], 'topic_id': ['dot'], 'status': ['resolved'], 'focus': ['saved-dot']}, params
         link.click(); page.wait_for_url('**/study?**'); page.wait_for_load_state('networkidle')
@@ -131,6 +136,7 @@ with sync_playwright() as pw:
         }''')
         for label, topic in [('數學 1 題待複習', None), ('#1 內積', 'dot')]:
             page.goto('http://127.0.0.1:4181/'); page.wait_for_load_state('networkidle')
+            page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button',name='複習進度' if width>=768 else '各科進度' if topic is None else '複習重點',exact=True).click()
             page.get_by_role('button', name=label, exact=False).click(); page.wait_for_url('**/study?**')
             page.wait_for_load_state('networkidle'); params = parse_qs(urlparse(page.url).query)
             assert params['source'] == ['owned'] and params['subject_id'] == ['math'] and params['status'] == ['unsolved']
