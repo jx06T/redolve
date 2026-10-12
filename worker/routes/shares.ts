@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { authorizedImage } from '../services/authorizedImage';
 import { Bindings, Variables, ShareRow, ItemRow } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { createQuestionShare, loadQuestionShare, sourceCollectionHint, SharePolicyError, type ShareTarget } from '../services/questionSharing';
@@ -147,10 +148,9 @@ sharesRouter.get('/share/:token/image', async (c) => {
     try{
       const share=await loadQuestionShare(c.env,token);
       const asset=await c.env.DB.prepare("SELECT storage_key,mime_type FROM assets WHERE id=? AND state='ready'").bind(share.image_asset_id).first<{storage_key:string;mime_type:string}>();
-      const object=asset&&await c.env.STORAGE.get(asset.storage_key);
-      if(!object)return c.json({error:{code:'IMAGE_MISSING',message:'分享圖片暫時無法取得'}},503);
-      return new Response(object.body,{headers:{'Content-Type':object.httpMetadata?.contentType||asset!.mime_type,
-       'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
+      const response=asset&&await authorizedImage(c,asset.storage_key,asset.mime_type,{
+        'X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'});
+      return response || c.json({error:{code:'IMAGE_MISSING',message:'分享圖片暫時無法取得'}},503);
     }catch(e){if(e instanceof SharePolicyError)return c.json({error:{code:e.code,message:e.message}},e.status);throw e;}
   }
   const share = await c.env.DB.prepare('SELECT item_id, expires_at FROM shares WHERE token = ?').bind(token).first<ShareRow>();
@@ -171,17 +171,11 @@ sharesRouter.get('/share/:token/image', async (c) => {
 
   const asset=await c.env.DB.prepare('SELECT storage_key,state FROM assets WHERE id=?').bind(item.image_url).first<{storage_key:string;state:string}>();
   if(asset&&asset.state!=='ready')return c.json({error:{code:'CONTENT_UNAVAILABLE',message:'分享內容目前無法使用'}},410);
-  const object = await c.env.STORAGE.get(asset?.storage_key||item.image_url);
-  if (!object) {
+  const response = await authorizedImage(c,asset?.storage_key||item.image_url,'image/jpeg',{
+    'X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'});
+  if (!response) {
     return c.json({ error: { code: 'NOT_FOUND', message: '圖片檔案不存在' } }, 404);
   }
 
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': 'private, no-store',
-      'X-Robots-Tag': 'noindex, nofollow',
-      'Referrer-Policy': 'no-referrer',
-    },
-  });
+  return response;
 });

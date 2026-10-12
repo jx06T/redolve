@@ -57,7 +57,7 @@ Agent 契約：MUST＝必要驗收；MUST NOT＝禁止；LATER＝不實作、不
 
 ## 1. 不變條件與模型
 
-保留：公開／持連結／指定帳號觀看；單題與多題共用同一引擎；listed 與 visibility 分開；匿名唯讀；只共享已加入原題的作者作業與集合共用層；存入後可獨立讀圖；取消訂閱不刪已存資料；既有單題連結相容；訂閱頁色彩＋文字辨識；PWA 共用內容不持久快取；第一階段不保證題圖離線可用。
+保留：公開／持連結／指定帳號觀看；單題與多題共用同一引擎；listed 與 visibility 分開；匿名唯讀；只共享已加入原題的作者作業與集合共用層；存入後可獨立讀圖；取消訂閱不刪已存資料；既有單題連結相容；訂閱頁色彩＋文字辨識；PWA 不建立共用內容的持久離線快取；題圖可用必須重驗的瀏覽器 HTTP 快取，第一階段不保證題圖離線可用。
 
 保留：現有 viewport 限制、底部導覽貼底、Logo 操作、快捷鍵及觸控方式均為刻意設計，本功能不改造。
 
@@ -339,7 +339,7 @@ API 共通：列表預設30、上限100、穩定游標；名稱80字、簡介2,0
 - 回傳有明確 `origin`、collection provenance、本人 `saved_id`；同一原題在不同集合保留各自結果。筆跡不作文字搜尋。預覽只讀；原題的完整模式可訂正，saved／shared 透過各自詳情頁操作。
 - 每頁預設 30、最多 50，以 `offset`／`next_offset` 載入；排序為公開集合優先、相關度、時間、種類及 ID。搜尋期間有新增／編輯／撤權可能改變排序，重新搜尋刷新；每頁重新驗權，前端去除重複結果，不宣稱已載入筆數是全庫總數。
 - FTS5 的 UNINDEXED id 不具 UNIQUE：禁止靠 INSERT OR REPLACE 視為依 id 更新；同一 mutation batch 合併重複列、保留最新 OCR 並同步目前 metadata。訪客本機搜尋排除已有 cloudOwnerId／cloudId 的帳號草稿。切換帳號／範圍立即隱藏舊结果並取消舊請求。
-- API／共用 metadata／圖片／筆記 `private, no-store`，SW 不持久快取；R2 bucket 私有；內部 byte cache 命中前仍須驗權。頁面 noindex，站內探索不等於 SEO。
+- API／共用 metadata／筆記維持 no-store；圖片使用 `private, no-cache`＋ETag，當下驗權與資產檢查後才可回 304。SW 不建立持久離線圖片快取；R2 bucket 私有，不經共用的 HTTP bytes 快取繞過 ACL。瀏覽器快取不保證離線可用。詳見 [題圖重驗快取](./IMAGE_REVALIDATION_2026-10-13.md)。頁面 noindex，站內探索不等於 SEO。
 - 帳號刪除：先撤 session 與 grants；owner 需先轉交集合或刪集合；移出作為 contributor 的題目與共用層；清理本人私人根及本人 saved；其他人的 snapshots 及題圖保留，來源身分匿名化。
 - user ID 重用不得恢復舊授權：account_instance_id、刪除中狀態及離線隊列一起檢查；匿名 tombstone 不保留 Google sub 或 email。
 - 平台隔離有獨立授權／稽核／處理入口；普通建立者不能使用它收回已下載內容。

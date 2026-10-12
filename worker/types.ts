@@ -24,6 +24,8 @@ export interface Bindings {
 
 export interface Variables {
   userId: string;
+  /** Only set by authorizedImage after all route permission checks pass. */
+  revalidatedImage?: boolean;
   /** Authenticated user's Google email, resolved by authMiddleware. */
   userEmail: string | null;
 }

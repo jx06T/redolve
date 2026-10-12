@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { authorizedImage } from '../services/authorizedImage';
 import { bodyLimit } from 'hono/body-limit';
 import { Bindings, Variables, ItemRow, TaxonomyNode } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
@@ -496,9 +497,10 @@ problemsRouter.get('/:id/image', authMiddleware, async (c) => {
   const userId = c.get('userId');
   const problemId = c.req.param('id');
 
-  const item = await c.env.DB.prepare('SELECT image_url, user_id FROM items WHERE id = ?')
+  const item = await c.env.DB.prepare(`SELECT i.image_url,i.user_id,a.storage_key,a.mime_type,a.state
+    FROM items i LEFT JOIN assets a ON a.id=i.image_url WHERE i.id=?`)
     .bind(problemId)
-    .first<ItemRow>();
+    .first<{image_url:string;user_id:string;storage_key:string|null;mime_type:string|null;state:string|null}>();
 
   if (!item) {
     return c.json({ error: { code: 'NOT_FOUND', message: '題目或圖片不存在' } }, 404);
@@ -508,17 +510,15 @@ problemsRouter.get('/:id/image', authMiddleware, async (c) => {
     return c.json({ error: { code: 'FORBIDDEN', message: '無權限訪問此圖片' } }, 403);
   }
 
-  const object = await c.env.STORAGE.get(item.image_url);
-  if (!object) {
+  if (item.state && item.state !== 'ready') {
+    return c.json({ error: { code: 'CONTENT_UNAVAILABLE', message: '圖片目前無法使用' } }, 410);
+  }
+  const response = await authorizedImage(c, item.storage_key || item.image_url, item.mime_type || 'image/jpeg');
+  if (!response) {
     return c.json({ error: { code: 'NOT_FOUND', message: '圖片檔案不存在' } }, 404);
   }
 
-  return new Response(object.body, {
-    headers: {
-      'Content-Type': object.httpMetadata?.contentType || 'image/jpeg',
-      'Cache-Control': 'private, no-store',
-    },
-  });
+  return response;
 });
 
 // 5. Update Metadata / Status / Taxonomy

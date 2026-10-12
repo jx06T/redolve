@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { IMAGE_CACHE_CONTROL } from './services/authorizedImage';
 import { Bindings, Variables } from './types';
 import { errorHandler } from './middleware/error';
 import { corsMiddleware } from './middleware/cors';
@@ -25,7 +26,10 @@ app.use('*', async (c, next) => {
   c.header('X-Frame-Options', 'SAMEORIGIN');
   c.header('Referrer-Policy', c.req.path.startsWith('/share/') ? 'no-referrer' : 'strict-origin-when-cross-origin');
   if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/share/')) {
-    c.header('Cache-Control', 'no-store');
+    const image = c.get('revalidatedImage') === true &&
+      [200, 304].includes(c.res.status) &&
+      c.res.headers.get('Cache-Control') === IMAGE_CACHE_CONTROL;
+    if (!image) c.header('Cache-Control', 'no-store');
   }
 });
 app.onError(errorHandler);

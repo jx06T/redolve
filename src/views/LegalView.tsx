@@ -4,7 +4,7 @@ import { useSEO } from '../hooks/useSEO';
 
 const operatorName = 'Redolve 維護者 jx06T';
 const contactEmail = '50313tjx06@gmail.com';
-const updatedAt = '2026 年 10 月 12 日';
+const updatedAt = '2026 年 10 月 13 日';
 
 function Contact() {
   return <a href={`mailto:${contactEmail}`} className="break-all text-text-muted underline underline-offset-4">{contactEmail}</a>;
@@ -35,7 +35,7 @@ function PrivacyPolicy() {
       <p>你可以不登入而使用訪客題庫；不提供 Google 帳號資料就無法使用帳號雲端題庫、共用書寫與訂閱管理。不上傳圖片就無法進行圖片辨識；不公開或分享內容，就不會因這些操作提供給其他使用者。</p>
     </Section>
     <Section title="四、本機儲存與 Cookie">
-      <p>訪客題圖、筆跡與筆記主要保存在目前瀏覽器的 IndexedDB。網站也使用 localStorage 保存偏好、篩選條件及待同步草稿，並以 Service Worker 快取應用程式的靜態檔案。</p>
+      <p>訪客題圖、筆跡與筆記主要保存在目前瀏覽器的 IndexedDB。網站也使用 localStorage 保存偏好、篩選條件及待同步草稿，並以 Service Worker 快取應用程式的靜態檔案。瀏覽器可能快取已獲准讀取的題圖；再次請求時會驗證存取權與圖片版本，這不代表圖片可離線或永久保存。</p>
       <p>登入使用必要的 Cookie；登入 Cookie 有效期目前為 7 天，Google 登入流程的驗證 Cookie 為 10 分鐘。網站不以這些 Cookie 進行廣告追蹤。</p>
       <p><strong>登出不等於清除本機資料。</strong> 帳號草稿會按帳號區分並可能留在該瀏覽器。使用共用裝置時，請先確認內容已同步或匯出，再依瀏覽器提供的方式清除本站資料。清除資料、無痕模式、儲存空間不足或更換瀏覽器，可能使本機題目或尚未同步的草稿消失。</p>
     </Section>

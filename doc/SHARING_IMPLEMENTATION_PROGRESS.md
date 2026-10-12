@@ -1,8 +1,15 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-10-12。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-10-13。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
+
+### 2026-10-13 題圖重驗快取與探索並行載入
+
+- 修正圖片端點與 middleware 的 no-store；上傳／存入／集合／新舊單題分享統一授權後 conditional R2 GET，使用 private, no-cache＋ETag。每次仍驗當前權限、可用資產與分享期限；錯誤與其他 JSON 仍 no-store，不寫入公共或 SW 快取。
+- 探索／延伸圖片不再等待參考筆跡；明細完成保留原 img，重試可重建，明細重驗失權時移除圖片。原題圖片解析 assets.storage_key 並拒絕不可用資產。
+- 真實瀏覽器合成圖三次載入 200／304／304，圖片 body bytes 68／0／0，撤下後拒絕舊圖。D1/R2 驗證涵蓋撤權、帳號、下架、移除、隔離、過期、更新、存入保留；390／1280px 並行／重試／失權及原有分享與共用同步回歸通過。
+- 不新增 migration、secret、binding。詳細範圍與成效邊界：[IMAGE_REVALIDATION_2026-10-13.md](./IMAGE_REVALIDATION_2026-10-13.md)。仍有權限、明細及筆跡請求，不宣稱省去 D1；實體裝置與正式速度待確認。
 
 ### 2026-10-12 可左右滑動的響應式總覽
 

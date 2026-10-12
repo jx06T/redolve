@@ -3,6 +3,7 @@ import type { Bindings, Variables } from '../types';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { sourceWork, sourceLayerWork, sourceProgress, sourceLayerId, sourceWriteGate } from '../services/sharedSourceWork';
 import { itemSearchIndexStatements } from '../services/itemSearchIndex';
+import { authorizedImage } from '../services/authorizedImage';
 import {
   apiError, canContribute, canReadCollection, hashToken, liveEntry, loadCollection, randomToken,
   type CollectionRecord,
@@ -533,11 +534,9 @@ collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddle
     JOIN assets a ON a.id=i.image_url AND a.state='ready' WHERE i.id=?`)
     .bind(entry.source_item_id).first<{storage_key:string;mime_type:string}>();
   if(!a) return c.json(missing,404);
-  const object=await c.env.STORAGE.get(a.storage_key);
-  if(!object) return c.json(apiError('IMAGE_MISSING','圖片暫時無法取得'),503);
-  return new Response(object.body,{headers:{'Content-Type':object.httpMetadata?.contentType||a.mime_type,
-    'Cache-Control':'private, no-store','X-Robots-Tag':'noindex, nofollow',
-    'Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
+  const response=await authorizedImage(c,a.storage_key,a.mime_type,{
+    'X-Robots-Tag':'noindex, nofollow','Referrer-Policy':'no-referrer'});
+  return response || c.json(apiError('IMAGE_MISSING','圖片暫時無法取得'),503);
 });
 
 collectionsRouter.get('/collections/:id/grants',authMiddleware,async c=>{

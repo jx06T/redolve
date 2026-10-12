@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { authorizedImage } from '../services/authorizedImage';
 import type { Bindings, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { apiError, canContribute, canReadCollection, hashToken, loadCollection } from '../services/collectionAccess';
@@ -343,10 +344,8 @@ savedRouter.get('/saved/:id/image',authMiddleware,async c=>{
     WHERE sr.id=? AND sr.user_id=?`).bind(c.req.param('id'),c.get('userId'))
     .first<{storage_key:string;mime_type:string}>();
   if(!row) return c.json(apiError('NOT_FOUND','圖片不存在'),404);
-  const object=await c.env.STORAGE.get(row.storage_key);
-  if(!object) return c.json(apiError('IMAGE_MISSING','圖片暫時無法取得'),503);
-  return new Response(object.body,{headers:{'Content-Type':object.httpMetadata?.contentType||row.mime_type,
-    'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
+  const response=await authorizedImage(c,row.storage_key,row.mime_type);
+  return response || c.json(apiError('IMAGE_MISSING','圖片暫時無法取得'),503);
 });
 
 savedRouter.post('/saved/:id/refresh-source',authMiddleware,async c=>{

@@ -9,7 +9,7 @@ import { useStore } from '../store/useStore';
 import { workService } from '../services/workService';
 import { libraryService } from '../services/libraryService';
 import { subscriptionService } from '../services/questionService';
-import { sharingApi } from '../services/sharingApi';
+import { imageUrl, sharingApi } from '../services/sharingApi';
 import { savedStudyUrl } from '../services/navigationState';
 import type { WorkContent } from '../types/question';
 import { CollectionSubscriptionButton } from './CollectionSubscriptionButton';
@@ -62,14 +62,15 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
         <button aria-label="分享連結" title="分享此題" onClick={() => setDialog('share')} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-neutral-100"><Share2 size={16} /></button>
       </div>
     </header>
-    {content ? <>
-      <p className="mb-3 text-xs text-text-muted">{content.shared?.source.topic_label || '未提供官方分類'}{(() => { try { const tags = JSON.parse(content.shared?.source.keywords || '[]'); return Array.isArray(tags) && tags.length ? ' · ' + tags.join('、') : ''; } catch { return ''; } })()}</p>
-      <div ref={imageArea} className="relative overflow-hidden rounded-2xl border border-border-subtle">
-        <img src={content.image} alt={content.title} className="exam-paper-image block w-full h-auto" onLoad={() => { setImageReady(true); if ((subscribed || knownSubscribed) && account) void sharingApi(`/subscriptions/${collectionId}/items/${id}/read`, 'PUT', {}).then(() => onRead?.()).catch(() => { }); }} onError={() => { setImageReady(true); setFailure('題圖暫時無法載入，請重試。'); }} />
+    {content && <p className="mb-3 text-xs text-text-muted">{content.shared?.source.topic_label || '未提供官方分類'}{(() => { try { const tags = JSON.parse(content.shared?.source.keywords || '[]'); return Array.isArray(tags) && tags.length ? ' · ' + tags.join('、') : ''; } catch { return ''; } })()}</p>}
+    {!failure && <div ref={imageArea} className="relative overflow-hidden rounded-2xl border border-border-subtle">
+        {/* The image endpoint validates access itself; load it alongside reference work. */}
+        <img key={`${collectionId}:${id}:${account}:${retry}`} src={imageUrl(collectionId,id)} alt={content?.title || '題圖'} className="exam-paper-image block w-full h-auto" onLoad={() => { setImageReady(true); if ((subscribed || knownSubscribed) && account) void sharingApi(`/subscriptions/${collectionId}/items/${id}/read`, 'PUT', {}).then(() => onRead?.()).catch(() => { }); }} onError={() => { setImageReady(true); setFailure('題圖暫時無法載入，請重試。'); }} />
         {referenceHeight > 0 && <div aria-hidden style={{ height: referenceHeight }} className="border-t border-dashed border-border-subtle bg-page-bg" />}
         {referenceLayers.map(l => l.ink &&
           <div key={l.id} className="pointer-events-none absolute inset-0"><DrawCanvas initialDrawData={l.ink} readOnly inkVisible /></div>)}
-      </div>
+      </div>}
+    {content ? <>
       {content.layers.length > 0 && <details className="mt-3 rounded-2xl bg-page-bg p-3"><summary className="text-sm cursor-pointer">共用參考內容</summary>
         {content.layers.map(l => <div key={l.id} className="mt-2">
           {l.ink && <SwitchRow label={`${l.author}的筆跡`} checked={visible[l.id] ?? (!l.legacy && l.authorId === content.shared?.source.contributor_id)}
