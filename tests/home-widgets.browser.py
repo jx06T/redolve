@@ -86,7 +86,7 @@ with sync_playwright() as pw:
             assert public.bounding_box()['y'] >= countdown.bounding_box()['y']+countdown.bounding_box()['height']
             assert page.get_by_role('navigation',name='總覽面板',exact=True).get_by_role('button').count()==(2 if width>=768 else 4)
             page.screenshot(path=f'.wrangler/qa/home-widgets-initial-{width}-{authenticated}.png', full_page=True)
-            assert page.get_by_role('button', name='接續上次刷題').count() == 1
+            assert page.locator('[data-dashboard-hero]').get_by_text('接續上次刷題',exact=True).count() == 1
             assert not countdown.get_by_role('button', name='編輯倒數', exact=False).count()
             assert countdown.get_by_text('考試 6', exact=True).count() == 0
             countdown.get_by_role('button', name='查看其餘 1 個倒數').click()

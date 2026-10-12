@@ -67,7 +67,10 @@ with sync_playwright() as pw:
             swipe();settled('倒數／探索')
         expect(page.get_by_role('region',name='事件倒數小組件')).to_be_visible()
         assert not page.get_by_role('button',name='編輯倒數',exact=False).count()
-        assert abs(hero_before['y']-page.locator('[data-dashboard-hero]').bounding_box()['y'])<1
+        hero_after=page.locator('[data-dashboard-hero]').bounding_box()
+        assert hero_after['x']+hero_after['width']<=track.bounding_box()['x']+1,'hero scrolls out with the first panel'
+        assert not page.get_by_role('heading',name='保持心流，完成今日訂正').count(),'offscreen hero is not an active heading'
+        assert abs(track.bounding_box()['y']-hero_before['y'])<1,'other panels use the full dashboard height'
         assert calls==baseline,'panel switching must not request data'
         assert page.evaluate('history.length')==history,'panel switches must replace history'
         # Resize uses separate saved pages but retains the same mounted editor.

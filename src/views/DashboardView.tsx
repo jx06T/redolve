@@ -113,11 +113,11 @@ export const DashboardView: React.FC = () => {
   };
 
 
-  const summaryCards=[{Icon:BookOpen,value:summary.total,label:'總錯題張數',tone:'bg-primary-50 text-primary'},
-    {Icon:CheckCircle2,value:summary.resolved,label:'已完成訂正',tone:'bg-status-resolved/10 text-status-resolved'},
-    {Icon:HelpCircle,value:summary.unsolved,label:'待解決題目',tone:'bg-status-warning/10 text-status-warning'}];
+  const summaryCards=[{Icon:BookOpen,value:summary.total,label:'總錯題張數',tone:'bg-primary-50 text-primary',wash:'from-primary/10 via-primary/4 to-transparent'},
+    {Icon:CheckCircle2,value:summary.resolved,label:'已完成訂正',tone:'bg-status-resolved/10 text-status-resolved',wash:'from-status-resolved/10 via-status-resolved/4 to-transparent'},
+    {Icon:HelpCircle,value:summary.unsolved,label:'待解決題目',tone:'bg-status-warning/10 text-status-warning',wash:'from-status-warning/10 via-status-warning/4 to-transparent'}];
   const metrics=<div className="space-y-2 md:space-y-3">
-    <div data-dashboard-stats className="grid grid-cols-3 gap-2 md:gap-4">{summaryCards.map(({Icon,value,label,tone})=><div key={label} className="flex items-center gap-3 rounded-3xl border border-border-subtle bg-surface p-3 md:p-5">
+    <div data-dashboard-stats className="grid grid-cols-3 gap-2 md:gap-4">{summaryCards.map(({Icon,value,label,tone,wash})=><div key={label} className={'flex items-center gap-3 rounded-3xl border border-border-subtle bg-surface bg-linear-to-l p-3 py-2 md:p-5 '+wash}>
       <div className={'hidden shrink-0 rounded-2xl p-3 md:block '+tone}><Icon size={24}/></div>
       <div className="min-w-0"><div className="text-xl font-bold tabular-nums md:text-2xl">{loading||loadError?'—':value}</div><div className="mt-0.5 whitespace-nowrap text-[10px] text-text-muted md:text-xs">{label}</div></div>
     </div>)}</div>
@@ -157,16 +157,16 @@ export const DashboardView: React.FC = () => {
     </div>
   </section>;
   const resume=studyResumeUrl(widgets.channel.account);
-  return <div data-dashboard className="flex h-full min-h-0 flex-col gap-3">
-    <header data-dashboard-hero className="relative shrink-0 overflow-hidden rounded-3xl border border-border-subtle bg-surface p-4 md:p-5">
+  const hero=<header data-dashboard-hero className="relative shrink-0 overflow-hidden rounded-3xl border border-border-subtle bg-surface p-4 md:p-5">
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-2"><div className="space-y-1.5">
         <span className="inline-flex items-center gap-1.5 rounded-xl bg-primary-50 px-2.5 py-1 text-[10px] font-semibold text-primary md:text-xs"><Sparkles size={13}/>Overview</span>
         <h1 className="text-xl font-bold tracking-tight md:text-2xl">保持心流，完成今日訂正</h1>
         <p className="text-xs text-text-muted">{loading?<span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin"/>正在讀取進度…</span>:loadError?'進度暫時無法載入。':<>目前系統累積收錄 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。</>}</p>
       </div>{resume&&<button type="button" onClick={()=>navigate(resume)} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-xs hover:bg-neutral-100">接續上次刷題<ArrowRight size={14}/></button>}</div>
       <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent"/>
-    </header>
-    <DashboardPager account={widgets.channel.account} showTodo={widgets.snapshot.preferences.todos_visible} metrics={metrics} subjects={subjectCard} topics={topicCard}
+    </header>;
+  return <div data-dashboard className="flex h-full min-h-0 flex-col gap-3">
+    <DashboardPager account={widgets.channel.account} showTodo={widgets.snapshot.preferences.todos_visible} hero={hero} metrics={metrics} subjects={subjectCard} topics={topicCard}
       todos={<TodoWidget key={widgets.channel.account+':todo'} state={widgets} fit/>}
       tools={<div className="flex h-full min-h-0 flex-col gap-3"><div data-home-widgets-secondary className={'grid min-h-0 flex-1 gap-3 '+(widgets.snapshot.preferences.countdowns_visible?'grid-rows-[minmax(0,2fr)_minmax(0,1fr)]':'grid-rows-1')}>
         {widgets.snapshot.preferences.countdowns_visible&&<CountdownWidget key={widgets.channel.account+':countdown'} state={widgets}/>}<PublicExploreActivity compact/>
