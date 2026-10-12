@@ -14,8 +14,9 @@ import { SmartCTA } from './SmartCTA';
 import { useOwnedWork } from '../hooks/useOwnedWork';
 import { itemInk, itemInkSeq } from '../services/ownedWorkController';
 import { downloadWorkDraft } from '../services/workService';
-import { AppDialog } from './AppDialog';
-import { DrawCanvas } from './DrawCanvas';
+import { WorkConflictDialog } from './WorkConflictDialog';
+import {beginWorkInteraction,endWorkInteraction} from '../services/workInteraction';
+import {sameWork,rebaseTextPosition} from '../services/workMerge';
 
 import {
   getProblemImageUrl,
@@ -83,9 +84,9 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const problem = React.useMemo(() => owned.state ? {...inputProblem,
     draw_data: JSON.stringify(owned.state.ink), typed_notes: owned.state.notes,
     draw_seq: owned.state.inkSeq, notes_seq: owned.state.notesSeq} : inputProblem, [inputProblem, owned.state]);
-  const workspaceReadOnly = readOnly || ownedEnabled && (!owned.state || owned.state.restoring || owned.state.storageFailed);
+  const workspaceReadOnly = readOnly || ownedEnabled && (!owned.state || owned.state.restoring || owned.state.storageFailed || owned.state.status==='conflict');
   const [cloudWork, setCloudWork] = useState<Item | null>(null);
-  const [workError, setWorkError] = useState('');
+  useEffect(()=>{if(owned.state?.status==='conflict'&&owned.state.cloud)setCloudWork(owned.state.cloud);},[owned.state?.status,owned.state?.cloud]);
 
   const isActive = activeProblemId === problem.id;
 
@@ -164,14 +165,23 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
   const responsiveScale = containerWidth > 0 && baseWidth > 0 ? containerWidth / baseWidth : 1.0;
   const renderedCalcSpaceHeight = Math.round(calcSpaceHeight * responsiveScale);
   const [typedNotes, setTypedNotes] = useState<string>(problem.typed_notes || '');
+  const notesRef=useRef<HTMLTextAreaElement>(null),compositionToken=useRef({});
+  useEffect(()=>()=>endWorkInteraction(compositionToken.current),[]);
   const [isSavingInk,setIsSavingInk]=useState(false);
   const drawSavingSeq=useRef(0),notesSavingSeq=useRef(0);
   const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
 
   useEffect(() => {
     setIsResolved(problem.status === 'resolved');
-    setTypedNotes(problem.typed_notes || '');
-  }, [problem.status, problem.typed_notes]);
+  }, [problem.status]);
+  useLayoutEffect(()=>{
+    const el=notesRef.current,next=problem.typed_notes||'',previous=el?.value||'';
+    const focused=el===document.activeElement,start=el?.selectionStart??0,end=el?.selectionEnd??0;
+    setTypedNotes(next);
+    if(focused&&previous!==next)queueMicrotask(()=>{
+      if(notesRef.current===el&&el===document.activeElement)el?.setSelectionRange(rebaseTextPosition(previous,next,start),rebaseTextPosition(previous,next,end));
+    });
+  },[problem.typed_notes]);
 
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -500,6 +510,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
         {/* Typed Notes & Calculation Summary Section (Auto-resizing) */}
         <TextareaAutosize
+          ref={notesRef}
+          onCompositionStart={()=>beginWorkInteraction(compositionToken.current)}
+          onCompositionEnd={()=>endWorkInteraction(compositionToken.current)}
+          onBlur={()=>endWorkInteraction(compositionToken.current)}
           key={editorVersion}
           aria-label={work?.notesLabel||'本題筆記'}
           value={typedNotes}
@@ -559,17 +573,15 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         beforeCreate={async()=>{if(!navigator.onLine)throw new Error('需要連線才能建立分享');if(owned.controller?.pending())throw new Error('此題還有未同步作業');const drafts=await getQueuedDraws();if(drafts.some(d=>d.id===problem.id))throw new Error('此題還有未同步作業，請完成同步後再分享。');}}
         onClose={() => setIsShareModalOpen(false)}
       />
-      {cloudWork&&<AppDialog title="核對雲端與本機作業" onClose={()=>{setCloudWork(null);setWorkError('');}}>
-        <p className="text-xs text-text-muted">本機作業仍在題卡上。選擇任一版本前，系統會保留兩份內容的本機備份；筆跡不會自動合併。</p>
-        <h3 className="mt-3 text-sm font-medium">雲端筆記</h3><p className="mt-1 whitespace-pre-wrap text-sm">{cloudWork.typed_notes||'無筆記'}</p>
-        <div className="relative mt-3 h-52 overflow-hidden rounded-xl border border-border-subtle bg-page-bg"><DrawCanvas initialDrawData={itemInk(cloudWork)} readOnly inkVisible/></div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={()=>downloadWorkDraft(owned.state!.ink,owned.state!.notes)} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">下載本機作業</button>
-          <button onClick={()=>{try{owned.controller?.adoptCloud(cloudWork);updateProblemInStore(problem.id,cloudWork);setCloudWork(null);setWorkError('');}catch(e){setWorkError(e instanceof Error?e.message:'尚未替換任何作業，請先下載本機作業。');}}} className="rounded-xl border border-border-subtle px-3 py-2 text-sm">採用雲端作業</button>
-          <button onClick={()=>{try{owned.controller?.keepLocal(cloudWork);setCloudWork(null);setWorkError('');}catch{setWorkError('備份寫入失敗；尚未覆蓋任何作業，請先下載本機作業。');}}} className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">以本機作業更新雲端</button>
-        </div>
-        {workError&&<p role="alert" className="mt-3 text-xs text-text-muted">{workError}</p>}
-      </AppDialog>}
+      {cloudWork&&owned.state&&<WorkConflictDialog questionLabel={`${problemCode} · ${problem.source||'題目'}`} localInk={owned.state.ink} localNotes={owned.state.notes}
+        cloudInk={itemInk(cloudWork)} cloudNotes={cloudWork.typed_notes||''}
+        onClose={()=>setCloudWork(null)}
+        onCloud={async()=>{const fresh=await owned.controller!.loadCloud();
+          if(!sameWork(itemInk(fresh),itemInk(cloudWork))||(fresh.typed_notes||'')!==(cloudWork.typed_notes||'')){setCloudWork(fresh);throw Error('雲端作業已更新，請重新確認兩個版本。');}
+          owned.controller!.adoptCloud(fresh);updateProblemInStore(problem.id,fresh);setCloudWork(null);}}
+        onLocal={async()=>{const fresh=await owned.controller!.loadCloud();
+          if(!sameWork(itemInk(fresh),itemInk(cloudWork))||(fresh.typed_notes||'')!==(cloudWork.typed_notes||'')){setCloudWork(fresh);throw Error('雲端作業已更新，請重新確認兩個版本。');}
+          owned.controller!.keepLocal(fresh);setCloudWork(null);}}/>}
     </div>
   );
 };

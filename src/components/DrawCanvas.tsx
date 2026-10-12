@@ -5,6 +5,8 @@ import { useStore } from '../store/useStore';
 import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constants';
 import { getStrokeOptions } from '../utils/strokeOptions';
 import { activateDrawingCanvas, registerDrawingCommands } from '../services/drawingCommands';
+import {beginWorkInteraction,endWorkInteraction} from '../services/workInteraction';
+import {rebaseInkHistory} from '../services/workMerge';
 
 interface DrawCanvasProps {
   initialDrawData?: DrawData | string | null;
@@ -120,6 +122,8 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   const redoStackRef = useRef<Snapshot[]>([]);
   const erasingStartRef = useRef<Snapshot | null>(null);
   const drawingActiveRef = useRef(false);
+  const interactionToken=useRef({});
+  useEffect(()=>()=>endWorkInteraction(interactionToken.current),[]);
   const gestureTimerRef = useRef<number | null>(null);
   const pendingTouchCountRef = useRef<number>(0);
 
@@ -151,10 +155,17 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
   useEffect(() => {
     const currentJson = typeof initialDrawData === 'string' ? initialDrawData : JSON.stringify(initialDrawData || {});
     if (currentJson && currentJson !== lastSavedDataJsonRef.current) {
+      const before=parseDrawData(lastSavedDataJsonRef.current);
       lastSavedDataJsonRef.current = currentJson;
       const parsed = parseDrawData(initialDrawData);
-      undoStackRef.current = [];
-      redoStackRef.current = [];
+      const rebase=(snapshots:Snapshot[])=>{
+        const rebased=snapshots.map(snapshot=>rebaseInkHistory(before,parsed,snapshot));
+        return rebased.some(snapshot=>snapshot===null)?[]:rebased as Snapshot[];
+      };
+      undoStackRef.current = rebase(undoStackRef.current);
+      redoStackRef.current = rebase(redoStackRef.current);
+      allowFallbackUndoRef.current=false;
+      strokesRef.current=parsed.strokes;eraserMasksRef.current=parsed.eraserMasks;
       setStrokes(parsed.strokes);
       setEraserMasks(parsed.eraserMasks);
       if (parsed.baseWidth) {
@@ -238,13 +249,14 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
     undoStackRef.current = [...undoStackRef.current.slice(-99), snapshot];
     redoStackRef.current = [];
   };
+  const allowFallbackUndoRef=useRef(true);
   const changeHistory = (direction: 'undo' | 'redo') => {
     if(readOnly || !inkVisible || drawingActiveRef.current)return false;
     const current = {strokes: strokesRef.current, eraserMasks: eraserMasksRef.current};
     const from = direction==='undo'?undoStackRef:redoStackRef;
     const to = direction==='undo'?redoStackRef:undoStackRef;
     // Keep the existing gesture's ability to remove previously saved strokes.
-    const next = from.current.pop() || (direction==='undo' && current.strokes.length
+    const next = from.current.pop() || (direction==='undo' && allowFallbackUndoRef.current && current.strokes.length
       ? {...current, strokes: current.strokes.slice(0,-1)} : undefined);
     if(!next)return false;
     to.current = [...to.current.slice(-99), current];
@@ -465,6 +477,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
               : currentChunk;
             nextStrokes.push({
               ...stroke,
+              id:crypto.randomUUID(),
               points: finalChunk,
             });
             currentChunk = [];
@@ -478,6 +491,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
           : currentChunk;
         nextStrokes.push({
           ...stroke,
+          id:crypto.randomUUID(),
           points: finalChunk,
         });
       }
@@ -557,6 +571,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
     if(containerRef.current)activateDrawingCanvas(containerRef.current);
     drawingActiveRef.current = true;
+    beginWorkInteraction(interactionToken.current);
     try {
       e.currentTarget.setPointerCapture(e.pointerId);
     } catch {
@@ -624,6 +639,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
   const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     drawingActiveRef.current = false;
+    endWorkInteraction(interactionToken.current);
     try {
       if (e.currentTarget.hasPointerCapture(e.pointerId)) {
         e.currentTarget.releasePointerCapture(e.pointerId);
@@ -669,6 +685,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
         : currentPoints.map(([px, py, pr]) => [px / currentScale, py / currentScale, pr]);
 
       const newStroke: Stroke = {
+        id:crypto.randomUUID(),
         color: activeColor,
         width: activeWidth,
         points: basePoints,
@@ -687,6 +704,7 @@ export const DrawCanvas: React.FC<DrawCanvasProps> = ({
 
   const handlePointerCancel = (e: React.PointerEvent<HTMLCanvasElement>) => {
     drawingActiveRef.current = false;
+    endWorkInteraction(interactionToken.current);
     if(erasingStartRef.current && hasErasedChangeRef.current) {
       rememberChange(erasingStartRef.current);
       emitSave(strokesRef.current, eraserMasksRef.current);

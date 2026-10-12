@@ -76,9 +76,8 @@ with sync_playwright() as pw:
         expect(page.get_by_role('button', name='核對雲端版本', exact=True)).to_be_visible()
         page.reload(); page.wait_for_load_state('networkidle')
         expect(page.get_by_label('本題筆記')).to_have_value('需要保留的本機內容')
-        page.get_by_role('button', name='核對雲端版本', exact=True).click()
         dialog = page.get_by_role('dialog'); expect(dialog.get_by_text('另一份雲端內容', exact=True)).to_be_visible()
-        dialog.get_by_role('button', name='以本機作業更新雲端', exact=True).click(); page.wait_for_timeout(900)
+        dialog.get_by_role('button', name='保留本機版本', exact=True).click(); page.wait_for_timeout(900)
         assert cloud['typed_notes'] == '需要保留的本機內容'
         assert page.evaluate('Object.keys(localStorage).some(k=>k.startsWith("rdv:owned-work:v1:alice:q:backup:"))')
         page.evaluate('''async()=>{

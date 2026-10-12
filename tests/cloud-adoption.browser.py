@@ -81,9 +81,8 @@ with sync_playwright() as pw:
             # A legacy cloud drawing deliberately omits geometry. Adoption must
             # restore the default, not preserve local height/base-width or undo.
             cloud.update(ink={'strokes': [REMOTE], 'eraserMasks': []}, notes='採用的雲端筆記', inkSeq=9, notesSeq=7)
-            card.get_by_role('button', name='核對雲端版本', exact=True).click()
-            dialog = page.get_by_role('dialog'); expect(dialog.get_by_text('採用的雲端筆記', exact=True)).to_be_visible()
-            dialog.get_by_role('button', name='採用雲端作業', exact=True).click()
+            dialog = page.get_by_role('dialog'); expect(dialog).to_be_visible(timeout=6000); expect(dialog.get_by_text('採用的雲端筆記', exact=True)).to_be_visible()
+            dialog.get_by_role('button', name='保留雲端版本', exact=True).click()
             expect(dialog).to_have_count(0); expect(notes).to_have_value('採用的雲端筆記')
             expect(card.get_by_title('展開推導區 (100px)', exact=True)).to_have_count(0)
             expect(card.get_by_title('收合推導區（保留高度與筆跡）', exact=True)).to_be_visible()

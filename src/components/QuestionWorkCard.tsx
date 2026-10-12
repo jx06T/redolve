@@ -4,7 +4,10 @@ import { Trash2 } from 'lucide-react';
 import { ProblemCard, type ProblemCardWork } from './ProblemCard';
 import type { Item } from '../types';
 import type { ReviewProgress } from '../types/question';
-import { DrawCanvas } from './DrawCanvas';
+import {WorkConflictDialog} from './WorkConflictDialog';
+import {itemInk} from '../services/ownedWorkController';
+import {sameWork} from '../services/workMerge';
+import {formatProblemCode} from './StatusBadge';
 import { AppDialog } from './AppDialog';
 import { ShareModal } from './ShareModal';
 import { PersonalTopicSelect } from './PersonalTopicSelect';
@@ -30,7 +33,8 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   useEffect(()=>setTopic(content.topic||''),[content.topic]);
   useEffect(()=>{controller.observeCloud(content);},[controller,content]);
   useEffect(()=>{if(state.status!=='saved'){setSavedFlash(false);return;}if(state.revision>0){setSavedFlash(true);const timer=setTimeout(()=>setSavedFlash(false),2200);return ()=>clearTimeout(timer);}},[state.status,state.revision]);
-  const [cloud,setCloud]=useState<WorkContent|null>(null);const [name,setName]=useState('');
+  const [cloud,setCloud]=useState<Item|null>(null);const [name,setName]=useState('');
+  useEffect(()=>{if(state.status==='conflict'&&state.cloud)setCloud(state.cloud);},[state.status,state.cloud]);
   const [hasProfile,setHasProfile]=useState(!content.shared);const [profileError,setProfileError]=useState('');
   const initialProgress=()=>content.saved?{status:content.saved.saved.status as ReviewProgress['status'],previous_status:'unsolved' as const,review_count:content.saved.saved.review_count||0,row_version:content.saved.saved.row_version}:content.shared?.progress||{status:'unsolved' as const,previous_status:'unsolved' as const,review_count:0,row_version:0};
   const [progress,setProgress]=useState<ReviewProgress>(initialProgress);const progressRef=useRef(progress);const progressBusy=useRef(false);
@@ -80,9 +84,9 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
 </>,
     references:content.layers.filter(l=>l.ink&&!layerHidden(l)).map(l=>l.ink!),
     afterNotes:<>{(error||((state.status==='error'||state.status==='conflict'||state.storageFailed)&&state.error))&&<p role="alert" className="mt-3 text-sm text-[#95582F]">{error||state.error}</p>}
-    {state.status==='conflict'&&<div className="mt-2 space-y-2 text-xs"><p className="text-text-muted">本機作業已保留；請核對另一裝置的內容。</p>
+    {state.status==='conflict'&&<div className="mt-2 space-y-2 text-xs"><p className="text-text-muted">本機作業已保留；部分修改無法自動合併。</p>
       <button onClick={()=>downloadWorkDraft(state.ink,state.notes)} className="rounded-xl border border-border-subtle px-3 py-2">下載本機作業</button>
-      <button disabled={busy} onClick={()=>void act(async()=>{setCloud(content.saved?await workService.loadSaved(content.saved.saved.id):await workService.loadShared(content.collectionId!,content.shared!.entry.id,account));})} className="ml-2 rounded-xl border border-border-subtle px-3 py-2">核對雲端版本</button>
+      <button disabled={busy} onClick={()=>void act(async()=>{setCloud(await controller.loadCloud());})} className="ml-2 rounded-xl border border-border-subtle px-3 py-2">核對雲端版本</button>
     </div>}
     {content.layers.filter(l=>l.notes).map(l=><details key={l.id} className="mt-3 rounded-2xl bg-page-bg p-3">
       <summary className="cursor-pointer text-sm">{l.author} · {l.notes.slice(0,60)}{l.notes.length>60?'…':''}</summary>
@@ -119,14 +123,14 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
         await libraryService.remove(content.saved!.saved.id);forgetWork(account,content.work.target);setRemove(false);onRemoved?.();
       })} className="mt-4 rounded-xl bg-status-eraser px-4 py-2 text-sm text-white">移除我的版本</button>
     </AppDialog>}
-    {cloud&&<AppDialog title="核對另一裝置的作業" busy={busy} onClose={()=>setCloud(null)}>
-      <p className="text-sm">先下載本機作業，再決定是否採用雲端內容。此操作保留本機備份，不會將兩份筆跡自動合併。</p>
-      <h3 className="mt-3 text-sm font-medium">雲端筆記</h3><p className="mt-1 whitespace-pre-wrap text-sm">{cloud.work.notes||'無筆記'}</p>
-      <div className="relative mt-3 h-52 overflow-hidden rounded-xl border border-border-subtle bg-page-bg"><DrawCanvas initialDrawData={cloud.work.ink} readOnly inkVisible/></div>
-      <button onClick={()=>downloadWorkDraft(state.ink,state.notes)} className="mt-4 rounded-xl border border-border-subtle px-4 py-2 text-sm">下載本機作業</button>
-      <button disabled={busy} onClick={()=>void act(async()=>{controller.acceptCloud(cloud);setCloud(null);})} className="mt-4 ml-2 rounded-xl bg-primary px-4 py-2 text-sm text-white">採用雲端作業</button>
-      {error&&<p role="alert" className="mt-3 text-sm text-status-eraser">{error}</p>}
-    </AppDialog>}
+    {cloud&&<WorkConflictDialog questionLabel={`${formatProblemCode(item,useStore.getState().taxonomies)} · ${content.collectionTitle}`} localInk={state.ink} localNotes={state.notes}
+      cloudInk={itemInk(cloud)} cloudNotes={cloud.typed_notes||''} onClose={()=>setCloud(null)}
+      onCloud={async()=>{const fresh=await controller.loadCloud();
+        if(!sameWork(itemInk(fresh),itemInk(cloud))||(fresh.typed_notes||'')!==(cloud.typed_notes||'')){setCloud(fresh);throw Error('雲端作業已更新，請重新確認兩個版本。');}
+        controller.adoptCloud(fresh);setCloud(null);}}
+      onLocal={async()=>{const fresh=await controller.loadCloud();
+        if(!sameWork(itemInk(fresh),itemInk(cloud))||(fresh.typed_notes||'')!==(cloud.typed_notes||'')){setCloud(fresh);throw Error('雲端作業已更新，請重新確認兩個版本。');}
+        controller.keepLocal(fresh);setCloud(null);}}/>}
   </div>;
 
 }

@@ -1,4 +1,5 @@
 export interface Stroke {
+  id?: string;
   color: string;
   width: number;
   opacity?: number;

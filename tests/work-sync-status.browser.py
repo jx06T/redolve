@@ -117,7 +117,7 @@ with sync_playwright() as pw:
             # Conflicts remain visible even when editing/height controls are disabled.
             notes.fill('另一裝置衝突')
             route, _ = next_write()
-            route.fulfill(status=409, json={'error': {'message': '另一裝置已修改'}})
+            route.fulfill(status=409, json={'error': {'code': 'CONFLICT', 'message': '另一裝置已修改'}})
             expect(status.get_by_role('status')).to_have_text('同步衝突')
             expect(notes).to_be_disabled()
             expect(card.get_by_role('button', name='重試同步')).to_have_count(0)

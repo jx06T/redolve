@@ -2,7 +2,8 @@ import { useStore } from '../store/useStore';
 import { API_BASE } from './api';
 import { sharingApi, savedImageUrl, imageUrl, type SavedDetail } from './sharingApi';
 import type { CollectionItemDetail, WorkContent, WorkTarget } from '../types/question';
-import type { DrawData } from '../types';
+import type { DrawData, Item } from '../types';
+import {createOwnedWorkController} from './ownedWorkController';
 import { DEFAULT_CALC_SPACE_HEIGHT } from '../config/constants';
 import { hasUnsavedOwnedMemoryWork } from './ownedWorkService';
 
@@ -21,11 +22,11 @@ export const workService={
     const result=await sharingApi<{text:string}>(path);
     return result.text;
   },
-  async loadSaved(id:string,signal?:AbortSignal):Promise<WorkContent> {
+  async loadSaved(id:string,signal?:AbortSignal,includeReferences=true):Promise<WorkContent> {
     const d=await sharingApi<SavedDetail>(`/saved/${segment(id)}`,'GET',undefined,signal);
     const target:WorkTarget={kind:'saved',savedRefId:id};
     const ink=d.workspace.draw_asset_id?await draw(workPath(target)+'/draw',signal):blankInk;
-    const layers=await Promise.all(d.layers.map(async l=>({
+    const layers=await Promise.all((includeReferences?d.layers:[]).map(async l=>({
       id:l.layer_origin_key,author:l.author_display,legacy:l.author_display.endsWith(' · 舊共用作業'),notes:l.typed_notes||'',
       ink:l.draw_asset_id?await draw(`/saved/${segment(id)}/layers/${segment(l.layer_origin_key)}/draw`,signal):undefined,
     })));
@@ -34,11 +35,11 @@ export const workService={
       provider:d.snapshot.provider_public_name,work:{target,ink,notes:d.workspace.typed_notes||'',
         inkSeq:d.workspace.draw_seq,notesSeq:d.workspace.notes_seq},layers,saved:d};
   },
-  async loadShared(collectionId:string,entryId:string,account:string,signal?:AbortSignal):Promise<WorkContent> {
+  async loadShared(collectionId:string,entryId:string,account:string,signal?:AbortSignal,includeReferences=true):Promise<WorkContent> {
     const path=`/collections/${segment(collectionId)}/items/${segment(entryId)}`;
     const d=await sharingApi<CollectionItemDetail>(path,'GET',undefined,signal);
     const mine=d.layers.find(l=>l.user_id===account&&l.is_source)||d.layers.find(l=>l.user_id===account&&!l.legacy_source);
-    const loaded=await Promise.all(d.layers.map(async l=>({id:l.id,author:l.author_display,
+    const loaded=await Promise.all((includeReferences?d.layers:d.layers.filter(l=>l.id===mine?.id)).map(async l=>({id:l.id,author:l.author_display,
       authorId:l.user_id,legacy:l.legacy_source,notes:l.typed_notes||'',ink:l.draw_asset_id||l.has_draw?await draw(path+`/layers/${segment(l.id)}/draw`,signal):undefined})));
     return {ref:{kind:'collection',collectionId,entryId},title:d.source.source||'未命名題目',
       image:imageUrl(collectionId,entryId),topic:d.source.topic_id||null,collectionId,
@@ -59,98 +60,33 @@ export const workService={
     return result;},
 };
 
-type WorkState={ink:DrawData;notes:string;status:'saved'|'pending'|'saving'|'error'|'conflict';
-  error:string;revision:number;storageFailed:boolean;editorVersion:number};
 type Controller=ReturnType<typeof createController>;
 const controllers=new Map<string,Controller>();
 const keyFor=(account:string,target:WorkTarget)=>`rdv:work:v1:${account}:${JSON.stringify(target)}`;
+const workItem=(account:string,content:WorkContent):Item=>({id:content.saved?.saved.id||content.shared!.entry.id,
+ user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:null,keyword_tokens:null,
+ image_url:content.image,draw_data:JSON.stringify(content.work.ink),typed_notes:content.work.notes,
+ draw_seq:content.work.inkSeq,notes_seq:content.work.notesSeq,status:'unsolved',review_count:0,
+ vector_clock:null,created_at:'',updated_at:''});
 function createController(account:string,content:WorkContent) {
-  const {target}=content.work;const key=keyFor(account,target);
-  let inkSeq=content.work.inkSeq,notesSeq=content.work.notesSeq;
-  let pendingInk:DrawData|undefined,pendingNotes:string|undefined;
-  let blocked=false,running=false,timer:ReturnType<typeof setTimeout>|undefined;
-  let state:WorkState={ink:content.work.ink,notes:content.work.notes,status:'saved',error:'',revision:0,storageFailed:false,editorVersion:0};
-  const listeners=new Set<()=>void>();
-  try {
-    const raw=localStorage.getItem(key);
-    if(raw){
-      const d=JSON.parse(raw) as {ink?:DrawData;notes?:string;inkSeq:number;notesSeq:number};
-      pendingInk=d.ink;pendingNotes=d.notes;inkSeq=d.inkSeq;notesSeq=d.notesSeq;
-      state={...state,ink:d.ink||state.ink,notes:d.notes??state.notes,status:'pending',error:'這台裝置有尚未同步的作業。'};
-    }
-  }catch {state={...state,storageFailed:true};}
-  const notify=()=>{state={...state,revision:state.revision+1};listeners.forEach(l=>l());};
-  const persist=()=>{
-    try{
-      if(pendingInk===undefined&&pendingNotes===undefined)localStorage.removeItem(key);
-      else localStorage.setItem(key,JSON.stringify({ink:pendingInk,notes:pendingNotes,inkSeq,notesSeq}));
-      state={...state,storageFailed:false};
-    }catch {state={...state,storageFailed:true,error:'本機草稿儲存失敗，請保留此頁並重試。'};}
-    window.dispatchEvent(new Event('redolve:work-drafts'));
-  };
-  const flush=async()=>{
-    if(running||blocked||useStore.getState().currentUser?.id!==account)return;
-    if(!navigator.onLine){state={...state,status:'pending',error:'尚未同步；草稿保留在此裝置。'};notify();return;}
-    running=true;state={...state,status:'saving',error:''};notify();
-    try{
-      while((pendingInk!==undefined||pendingNotes!==undefined)&&useStore.getState().currentUser?.id===account){
-        if(pendingInk!==undefined){
-          const value=pendingInk;
-          const res=await workService.saveInk(target,value,inkSeq);inkSeq=res.draw_seq;
-          if(pendingInk===value)pendingInk=undefined;
-          persist();
-        }
-        if(pendingNotes!==undefined){
-          const value=pendingNotes;
-          const res=await workService.saveNotes(target,value,notesSeq);notesSeq=res.notes_seq;
-          if(pendingNotes===value)pendingNotes=undefined;
-          persist();
-        }
-      }
-      state={...state,status:pendingInk===undefined&&pendingNotes===undefined?'saved':'pending'};
-    }catch(e){
-      const status=typeof e==='object'&&e!==null&&'status' in e?Number(e.status):0;
-      blocked=status===409||status===403||status===404||status===401;
-      state={...state,status:status===409?'conflict':'error',
-        error:e instanceof Error?e.message:'儲存失敗；請重試。'};
-      persist();
-    }finally{running=false;notify();}
-  };
-  const schedule=()=>{clearTimeout(timer);timer=setTimeout(()=>void flush(),900);};
-  // Restored drafts resume automatically; waiting is not a manual retry state.
-  if(pendingInk!==undefined||pendingNotes!==undefined)schedule();
-  return {
-    getState:()=>state,
-    subscribe:(fn:()=>void)=>{listeners.add(fn);return ()=>{listeners.delete(fn);};},
-    ink:(value:DrawData)=>{state={...state,ink:value,status:'pending'};pendingInk=value;persist();notify();schedule();},
-    notes:(value:string)=>{state={...state,notes:value,status:'pending'};pendingNotes=value;persist();notify();schedule();},
-    retry:()=>void flush(),
-    observeCloud:(cloud:WorkContent)=>{
-      if(running||blocked||pendingInk!==undefined||pendingNotes!==undefined)return;
-      // A GET started before a completed write must never roll an acknowledged field back.
-      const newerInk=cloud.work.inkSeq>inkSeq,newerNotes=cloud.work.notesSeq>notesSeq;
-      if(!newerInk&&!newerNotes)return;
-      if(newerInk)inkSeq=cloud.work.inkSeq;if(newerNotes)notesSeq=cloud.work.notesSeq;
-      state={...state,ink:newerInk?cloud.work.ink:state.ink,notes:newerNotes?cloud.work.notes:state.notes};notify();
-    },
-    acceptCloud:(cloud:WorkContent)=>{
-      if(running)throw new Error('請等待目前同步結束');
-      if(JSON.stringify(cloud.work.target)!==JSON.stringify(target))throw new Error('題目集合版本已變動，舊作業僅能另存取回。');
-      if(pendingInk!==undefined||pendingNotes!==undefined){
-        // Keep a recoverable copy before the explicit choice to replace the editor.
-        localStorage.setItem(key+`:backup:${Date.now()}`,JSON.stringify({ink:state.ink,notes:state.notes,inkSeq,notesSeq}));
-      }
-      try{localStorage.removeItem(key);}
-      catch{throw new Error('無法清除本機草稿；尚未替換作業，請先下載本機作業。');}
-      clearTimeout(timer);
-      pendingInk=undefined;pendingNotes=undefined;inkSeq=cloud.work.inkSeq;notesSeq=cloud.work.notesSeq;blocked=false;
-      state={...state,ink:cloud.work.ink,notes:cloud.work.notes,status:'saved',error:'',storageFailed:false,editorVersion:state.editorVersion+1};
-      window.dispatchEvent(new Event('redolve:work-drafts'));notify();
-    },
-    stop:()=>{clearTimeout(timer);blocked=true;},
-    pending:()=>pendingInk!==undefined||pendingNotes!==undefined,
-    unused:()=>listeners.size===0&&pendingInk===undefined&&pendingNotes===undefined,
-  };
+ const target=content.work.target,key=keyFor(account,target);
+ const guarded=(cloud:WorkContent)=>{
+  if(JSON.stringify(cloud.work.target)!==JSON.stringify(target))throw Error('題目集合版本或作業對象已變更；舊草稿仍保留，請重新載入題目。');
+  return workItem(account,cloud);
+ };
+ const save=async<T>(action:()=>Promise<T>)=>{try{return await action();}catch(error){
+  if(typeof error==='object'&&error!==null&&'code' in error&&error.code==='CONFLICT')throw Error('CONFLICT: 作業版本已變更');
+  throw error;
+ }};
+ const controller=createOwnedWorkController(key,workItem(account,content),{
+  storage:localStorage,active:()=>useStore.getState().currentUser?.id===account,online:()=>navigator.onLine,delay:900,
+  load:async()=>guarded(target.kind==='saved'?await workService.loadSaved(target.savedRefId,undefined,false):await workService.loadShared(target.collectionId,target.entryId,account,undefined,false)),
+  saveInk:async(ink,nextSeq)=>{const result=await save(()=>workService.saveInk(target,ink,nextSeq-1));return{seq:result.draw_seq};},
+  saveNotes:(notes,seq)=>save(()=>workService.saveNotes(target,notes,seq)),
+  changed:()=>window.dispatchEvent(new Event('redolve:work-drafts')),
+ });
+ controller.restoreLegacy();
+ return{...controller,observeCloud:(cloud:WorkContent)=>controller.observeCloud(guarded(cloud))};
 }
 export function getWorkController(account:string,content:WorkContent) {
   const key=keyFor(account,content.work.target);
