@@ -158,11 +158,11 @@ export const DashboardView: React.FC = () => {
   </section>;
   const resume=studyResumeUrl(widgets.channel.account);
   const hero=<header data-dashboard-hero className="relative shrink-0 overflow-hidden rounded-3xl border border-border-subtle bg-surface p-4 md:p-5">
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2"><div className="space-y-1.5">
+      <div className="relative z-10 flex items-center justify-between gap-3"><div className="min-w-0 flex-1 space-y-1.5">
         <span className="inline-flex items-center gap-1.5 rounded-xl bg-primary-50 px-2.5 py-1 text-[10px] font-semibold text-primary md:text-xs"><Sparkles size={13}/>Overview</span>
         <h1 className="text-xl font-bold tracking-tight md:text-2xl">保持心流，完成今日訂正</h1>
         <p className="text-xs text-text-muted">{loading?<span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin"/>正在讀取進度…</span>:loadError?'進度暫時無法載入。':<>目前系統累積收錄 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。</>}</p>
-      </div>{resume&&<button type="button" onClick={()=>navigate(resume)} className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border-subtle bg-surface px-3 py-2 text-xs hover:bg-neutral-100">接續上次刷題<ArrowRight size={14}/></button>}</div>
+      </div>{resume&&<button type="button" aria-label="接續上次刷題" title="接續上次刷題" onClick={()=>navigate(resume)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border-subtle bg-primary-50 text-primary transition-colors hover:bg-primary/10"><ArrowRight size={20} aria-hidden="true"/></button>}</div>
       <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent"/>
     </header>;
   return <div data-dashboard className="flex h-full min-h-0 flex-col gap-3">
