@@ -24,9 +24,13 @@ function execute(options) {
 function schema() {
   const [tables, items, reads, saved, triggers, sourceTriggers, collections, snapshots, shareDdl] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('source_work_shared_update','source_progress_shared_update'); PRAGMA table_info(collections); PRAGMA table_info(saved_snapshots); SELECT name FROM sqlite_master WHERE name IN ('asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset');"]);
   const names = new Set(tables.results.map(row => row.name));
+  const [widgetItems,widgetPrefs,widgetIndexes]=execute(['--command',"PRAGMA table_info(home_widget_items); PRAGMA table_info(home_widget_preferences); SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_home_widgets_active','idx_home_widgets_expiry');"]);
   const config = names.has('collection_search_cache_config') ? execute(['--command', 'SELECT schema_version,ready FROM collection_search_cache_config WHERE id=1;'])[0].results[0] : null;
   return {
     tables: names,
+    widgetItems: new Set(widgetItems.results.map(row=>row.name)),
+    widgetPrefs: new Set(widgetPrefs.results.map(row=>row.name)),
+    widgetIndexes: new Set(widgetIndexes.results.map(row=>row.name)),
     collections: new Set(collections.results.map(row=>row.name)),
     snapshots: new Set(snapshots.results.map(row=>row.name)),
     shareDdl: new Set(shareDdl.results.map(row=>row.name)),
@@ -41,10 +45,13 @@ const sharingSql = readFileSync(path.join(root, 'worker/migrations/0002_sharing_
 const sharingTables = [...sharingSql.matchAll(/CREATE TABLE (\w+)\s*\(/g)].map(match => match[1]);
 function missing(current) {
   return [
-    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs'].filter(name => !current.tables.has(name)),
+    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs', 'home_widget_items', 'home_widget_preferences'].filter(name => !current.tables.has(name)),
     ...(!current.collections.has('allow_reshare') ? ['collections.allow_reshare'] : []),
     ...(!current.snapshots.has('reshare_allowed') ? ['saved_snapshots.reshare_allowed'] : []),
     ...(!current.snapshots.has('source_text') ? ['saved_snapshots.source_text'] : []),
+    ...['idx_home_widgets_active','idx_home_widgets_expiry'].filter(name=>!current.widgetIndexes.has(name)),
+    ...['id','user_id','kind','text','target_date','completed_at','created_at','updated_at','row_version','deleted_at'].filter(name=>!current.widgetItems.has(name)).map(name=>`home_widget_items.${name}`),
+    ...['user_id','todos_visible','countdowns_visible','row_version','updated_at'].filter(name=>!current.widgetPrefs.has(name)).map(name=>`home_widget_preferences.${name}`),
     ...['asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset'].filter(name=>!current.shareDdl.has(name)),
     ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
     ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes', 'progress_seq', 'previous_status'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
@@ -65,6 +72,7 @@ if (checkOnly) process.exit(1);
 
 // 0002 is deliberately one-time. Refuse partial states instead of guessing.
 if (current.tables.has('items')) {
+  if(current.tables.has('home_widget_items')&&current.widgetItems.size!==10||current.tables.has('home_widget_preferences')&&current.widgetPrefs.size!==5)throw new Error('Partial home widget schema detected. No changes made; inspect the local database before retrying.');
   const presentSharingTables = sharingTables.filter(name => current.tables.has(name));
   const seqCount = ['content_seq', 'draw_seq', 'notes_seq'].filter(name => current.items.has(name)).length;
   if ((presentSharingTables.length !== 0 && presentSharingTables.length !== sharingTables.length)
@@ -110,6 +118,7 @@ if (!current.tables.has('items')) {
   const shareSql=readFileSync(path.join(root,'worker/migrations/0007_independent_question_shares.sql'),'utf8').replace(/^\s*--.*$/gm,'').replace(/^ALTER TABLE[^;]+;/gm,'').trim();
   execute(['--command',shareSql]);
   if(!current.snapshots.has('source_text'))execute(['--file','worker/migrations/0008_saved_question_text.sql']);
+  execute(['--file','worker/migrations/0009_home_widgets.sql']);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

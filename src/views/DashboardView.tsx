@@ -21,6 +21,8 @@ import { OfflineSyncManager } from '../services/OfflineSyncManager';
 import { isGuestUser } from '../utils/guest';
 import { SharingActivity } from '../components/SharingActivity';
 import { resolveDashboardStudyUrl } from '../services/dashboardStudyService';
+import { studyResumeUrl } from '../services/navigationState';
+import { HomeWidgets } from '../components/HomeWidgets';
 
 export const DashboardView: React.FC = () => {
   useSEO({
@@ -98,7 +100,8 @@ export const DashboardView: React.FC = () => {
   }
 
   if (loadError) {
-    return <div className="rounded-3xl border border-border-subtle bg-surface p-8 text-sm text-text-muted">進度暫時無法載入，請確認連線後重新整理。</div>;
+    const resume = studyResumeUrl(isGuest ? 'guest' : currentUser!.id);
+    return <div className="space-y-5"><div className="rounded-3xl border border-border-subtle bg-surface p-8 text-sm text-text-muted">進度暫時無法載入，請確認連線後重新整理。{resume && <button className="ml-3 underline" onClick={() => navigate(resume)}>接續上次刷題</button>}</div><HomeWidgets /></div>;
   }
 
   const summary = data?.summary || { total: 0, resolved: 0, unsolved: 0, processing: 0, unclassified: 0 };
@@ -147,12 +150,15 @@ export const DashboardView: React.FC = () => {
           <p className="text-xs text-text-muted">
             目前系統累積收錄 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。
           </p>
+          {studyResumeUrl(isGuest ? 'guest' : currentUser!.id) && <button type="button" onClick={() => navigate(studyResumeUrl(isGuest ? 'guest' : currentUser!.id)!)}
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm hover:bg-neutral-100">接續上次刷題<ArrowRight size={15} /></button>}
         </div>
 
         {/* Decorative Wave Gradient */}
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent pointer-events-none" />
       </div>
 
+      <HomeWidgets />
       {/* Unclassified Alert Banner (if any unclassified problems exist) */}
       {unclassifiedCount > 0 && (
         <div className="bg-status-warning/10 border border-status-warning/30 rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">

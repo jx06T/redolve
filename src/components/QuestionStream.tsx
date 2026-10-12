@@ -2,7 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
-import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationKey } from '../services/navigationState';
+import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationKey, rememberStudyResume } from '../services/navigationState';
 
 // Retain measurements across remounts, never content or permissions. Nearby cards
 // stay mounted so reversing scroll does not fetch/decode the same question again.
@@ -60,8 +60,9 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     if(!location.pathname.startsWith('/study'))return;
     const row=v.getVirtualItems().find(r=>r.end>(parent.current?.scrollTop||0)+Math.min(100,(parent.current?.clientHeight||0)/4));
     if(row&&useStore.getState().activeProblemId!==items[row.index].id)useStore.getState().setActiveProblemId(items[row.index].id);
+    if(row)rememberStudyResume(account,location.search,items[row.index].id,location.pathname);
   };
-  useEffect(syncActive,[rows,items,location.pathname]);
+  useEffect(syncActive,[rows,items,location.pathname,location.search,account]);
   const advance=(id:string)=>{
     stopRestoration();
     const index=items.findIndex(item=>contains(item,id));

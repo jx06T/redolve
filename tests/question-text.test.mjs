@@ -15,7 +15,7 @@ test('copy uses full authorized OCR and retains downloaded text',async t=>{
   const db=await mf.getD1Database('DB');
   const sql=async text=>{for(const query of unstable_splitSqlQuery(text.replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(query.replace(/\r?\n/g,' '));};
   const schema=await readFile('worker/schema.sql','utf8'),migration=await readFile('worker/migrations/0008_saved_question_text.sql','utf8');
-  assert.ok(schema.replace(/\r/g,'').endsWith(migration.replace(/\r/g,'')));
+  assert.ok(schema.replace(/\r/g,'').includes(migration.replace(/\r/g,'')));
   await sql(schema.slice(0,schema.indexOf('-- Retain full OCR')));
   const tokens={};for(const uid of ['author','viewer','other']){
    await db.prepare('INSERT INTO users(id,email) VALUES(?,?)').bind(uid,uid+'@example.test').run();

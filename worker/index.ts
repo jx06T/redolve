@@ -13,6 +13,7 @@ import { taxonomyRouter } from './routes/taxonomy';
 import { collectionsRouter } from './routes/collections';
 import { subscriptionsRouter } from './routes/subscriptions';
 import { savedRouter } from './routes/saved';
+import { homeWidgetsRouter } from './routes/homeWidgets';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -47,6 +48,7 @@ app.route('/api/problems', problemsRouter);
 app.route('/api/keys', keysRouter);
 app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
+app.route('/api/home-widgets', homeWidgetsRouter);
 app.route('/api', collectionsRouter);
 app.route('/api/subscriptions', subscriptionsRouter);
 app.route('/api', savedRouter);

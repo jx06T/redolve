@@ -15,6 +15,7 @@ import { ApiKeyItem, TaxonomyNode } from '../types';
 import { PencilSettingsSection } from '../components/settings/PencilSettingsSection';
 import { TaxonomySettingsSection } from '../components/settings/TaxonomySettingsSection';
 import { ApiKeySettingsSection } from '../components/settings/ApiKeySettingsSection';
+import { HomeWidgetSettings } from '../components/HomeWidgets';
 
 type SettingsTab = 'pencil' | 'taxonomy' | 'profile' | 'collections' | 'subscriptions';
 const VALID_TABS: SettingsTab[] = ['pencil', 'taxonomy', 'profile', 'collections', 'subscriptions'];
@@ -117,7 +118,7 @@ export const SettingsView: React.FC = () => {
 
       {/* Tab 3: API Keys */}
       {activeTab === 'profile' && (
-        <ProfileSettingsSection><ApiKeySettingsSection keys={keys} loadingKeys={loadingKeys} loadKeys={loadKeys} /></ProfileSettingsSection>
+        <><ProfileSettingsSection><ApiKeySettingsSection keys={keys} loadingKeys={loadingKeys} loadKeys={loadKeys} /></ProfileSettingsSection><HomeWidgetSettings /></>
       )}
     </div>
   );

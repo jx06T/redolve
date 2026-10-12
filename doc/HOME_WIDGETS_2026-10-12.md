@@ -1,0 +1,77 @@
+# 首頁小組件：實作與發布
+
+## 操作規則
+
+| 位置 | 待辦 | 倒數 |
+|---|---|---|
+| 首頁 | 多行新增、直接編輯、勾選、取消勾選、刪除確認、查看歷史 | 只檢視前五個；「查看其餘」開啟唯讀清單 |
+| 小組件三點菜單 | 前往設定、重新同步 | 前往設定、重新同步 |
+| 設定 → 個人檔案 → 首頁小組件 | 同一套待辦操作、顯示開關 | 全部倒數、新增／編輯／刪除、學測預設、顯示開關 |
+
+- 不增加首頁置頂入口、自訂首頁按鈕或重複的待訂正區塊。
+- 「接續上次刷題」放在「保持心流」卡片；在此裝置記錄真正可見的題目、來源及篩選，不送 D1。沒有紀錄則不顯示。
+- 顯示設定與倒數管理只有設定頁提供；首頁直接互動限待辦。隱藏小組件不刪除資料，可於設定恢復。
+- 倒數先按未結束／已結束分組，再按日期排序。臺灣日期計算；今天顯示「就是今天」，過期顯示「已結束」，不自動刪除或推算下一年。
+- 學測預設 116 學年度第一天：2027-01-22，不自動建立。依[大考中心暫定日程](https://www.ceec.edu.tw/files/file_pool/1/0q134628314034791096/116%E5%AD%B8%E5%B9%B4%E5%BA%A6%E5%90%84%E9%A0%85%E8%80%83%E8%A9%A6%E6%9A%AB%E5%AE%9A%E5%A0%B1%E5%90%8D%E8%88%87%E8%80%83%E8%A9%A6%E6%97%A5%E6%9C%9F.pdf)；正式日程異動須自行調整。
+- 今日勾選留在原位，隔天才移到上方歷史。歷史與目前待辦間保留一段捲動距離；也可明確按「查看已完成」。含今天保留七個臺灣日曆日，未完成不過期。保留上限為 500 件有效待辦／100 個倒數，超過明確提示，不截斷未完成內容。
+
+## 資料與接口
+
+- `home_widget_items`：帳號、類型、文字、日期／完成時間、建立／修改時間、版本、刪除時間。本人索引與過期清理索引均只涵蓋有效項目。
+- `home_widget_preferences`：帳號、兩個顯示開關、版本、修改時間。無需增加 Worker binding 或密鑰。
+- `GET /api/home-widgets`：本人有效項目與顯示偏好；同一 batch 清除過期已完成的文字、查詢項目與設定。沒有偏好時回傳虛擬預設，不建立空設定。
+- `POST /items`：客戶端 ID 冪等建立；本人查詢，其他帳號不能取得已存在的項目。保留離線建立時間，批次貼上維持行順序。
+- `PATCH /items/:id`：欄位白名單＋共同欄位值比較＋目前 row_version CAS；文字與勾選可分別合併，同欄有新內容才回 409。
+- `DELETE /items/:id`：拒絕刪除未看過的變更；清除文字、日期及完成時間，保留最小識別墓碑，防止離線建立／修改重送復活。
+- `PATCH /preferences`：同樣按欄位合併，並以版本作條件更新。
+- 寫入主體 16 KiB 上限、每項文字 500 字上限；日期實際日曆驗證；沿用 Cookie origin 防護、authMiddleware、全域 no-store。
+
+## 前端同步
+
+- TypeScript 型別＋普通資料物件；`homeWidgetService` 統一讀寫與草稿，`useHomeWidgets` 訂閱資料；首頁、設定重用組件。
+- 40 秒記憶體快取＋in-flight 合併；無輪詢，切頁／視窗重新聚焦時才依期限重讀，手動可刷新。變更直接套用伺服器回應，不重新取得題庫／大綱。
+- 每次離線操作獨立 localStorage key；重新整理恢復待送列。支援 Web Locks 的瀏覽器以帳號鎖串行跨頁籤送出；舊瀏覽器由伺服器冪等與欄位 CAS 保護。
+- 409 彈出本機／雲端選擇；刪除／過期 410 不復活。連線失敗保留草稿，失敗才顯示重試，儲存空間無法寫入時明示並提示離頁。
+- 訪客只在本機；登入帳號只讀本人，切換帳號隔離，訪客資料不自動併入帳號。同步以重新開啟、聚焦、手動刷新與重連為界，沒有即時推播。
+- 過期清理由使用者再次開啟小組件觸發，不承諾在凌晨立即從所有裝置／備份消失。文字清除後僅留識別墓碑；隱私政策已補實際保存方式。
+
+## 發布步驟（由使用者執行）
+
+目前為本機實作，沒有操作正式 D1、推送或手動部署。
+
+1. 前置共用 migration 維持既有要求。上一批的 0008 內文欄位若尚未套用，先執行：
+
+```powershell
+Set-Location D:\Document_J\redolve
+& .\scripts\apply-saved-question-text.ps1 -CheckOnly
+# source_text=0 時執行；若已是 1 可跳過。
+& .\scripts\apply-saved-question-text.ps1
+```
+
+2. 本次新增 0009。腳本先取得 Time Travel bookmark，請保留輸出；只新增表與索引，不取代既有題庫。可重跑，已完整套用不重複寫入：
+
+```powershell
+& .\scripts\apply-home-widgets.ps1 -CheckOnly
+& .\scripts\apply-home-widgets.ps1
+& .\scripts\apply-home-widgets.ps1 -CheckOnly
+```
+
+最後應為 `widget_tables=2，widget_indexes=2，item_columns=10，pref_columns=5`。
+7403 時腳本停止：使用相同 CLI `node .\node_modules\wrangler\bin\wrangler.js whoami` 確認登入／帳號，修正 D1 token 權限或 OAuth 登入後重跑；不得在失敗狀態部署。
+
+3. 本地開發先停止 Worker，再套用本地增量（自動備份 .wrangler/state 的本地 D1，不讀寫正式 DB）：
+
+```powershell
+node .\scripts\init-local-db.mjs
+node .\scripts\init-local-db.mjs --check
+npm run worker:dev
+```
+
+4. 完成正式 schema 後才推送觸發 CI；不使用手動 wrangler deploy。
+
+## 驗證與剩餘邊界
+
+- 後端 `tests/home-widgets.test.mjs` 10/10 通過，驗證私有權限、冪等、欄位衝突、刪除墓碑、七天期限、日期、主體大小、設定隔離、索引計畫；0008 內文回歸與 PWA 共 19/19 通過。
+- 瀏覽器 `tests/home-widgets.browser.py` 390px／1280px、訪客／登入四組通過：唯讀更多倒數、設定操作、多行待辦、取消、勾選、40 秒切頁、離線重整與重試、衝突採用本機／雲端、橫向溢出；原有總覽科目／單元／單題入口亦回歸。
+- 發布腳本測試 `tests/home-widgets-release.test.ps1` 通過：CheckOnly 不寫入、bookmark 在先、套用後驗證、重跑不寫入、失敗停止；零正式 Cloudflare API 呼叫。本地 `init-local-db --check` 確認缺本次兩表，保留至停止本地 Worker 後套用，沒有直接改動現有本地資料。
+- 實體 iPhone／iPad、正式 D1 migration、正式跨裝置同步仍由發布後驗收確認。
