@@ -4,7 +4,6 @@ import { sharingApi } from '../services/sharingApi';
 import { libraryService } from '../services/libraryService';
 import { useStore } from '../store/useStore';
 import { isGuestUser } from '../utils/guest';
-import { PublicExploreActivity } from './PublicExploreActivity';
 import { dashboardStudyUrl } from '../services/dashboardStudyService';
 import type { Item } from '../types';
 type Activity = { id: string; title: string; to: string; label: string;study?:{topicId:string;status:Item['status']} };
@@ -28,5 +27,5 @@ export function SharingActivity() {
     {rows.map(r => <Link key={r.id} to={r.study?dashboardStudyUrl(r.study,{id:r.id,origin:'saved',topic_id:r.study.topicId},tree):r.to} className="block rounded-xl bg-page-bg p-3"><p className="text-xs text-text-muted">{r.label}</p><p className="mt-1 text-sm">{r.title}</p></Link>)}
     {error && <p role="alert" className="text-xs text-status-eraser">動態暫時無法取得：{error}</p>}
     <div className="flex flex-wrap gap-4 text-xs text-primary"><Link to="/extended">觀看訂閱題目</Link><Link to="/settings#collections">共用集管理</Link><Link to="/settings#subscriptions">管理訂閱</Link></div>
-  </section>}<PublicExploreActivity /></>;
+  </section>}</>;
 }

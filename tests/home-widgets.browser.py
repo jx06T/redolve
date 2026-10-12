@@ -28,10 +28,13 @@ with sync_playwright() as pw:
             failing = [False]
             def fixture(route):
                 request = route.request; path = urlparse(request.url).path
+                if path.endswith('/image'):
+                    return route.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="white"/><text x="8" y="35">Public question</text></svg>')
                 result = {'items': [], 'collections': [], 'subscriptions': [], 'keys': [], 'memberships': {}, 'invitations': [], 'subject_destinations': []}
                 if path == '/api/auth/me': result = {'user': {'id': account, 'name': '小組件測試'} if authenticated else None}
                 elif path == '/api/taxonomy': result = {'tree': [], 'customNodes': [], 'counts': {}}
                 elif path == '/api/dashboard': result = {'summary': {'total': 0, 'resolved': 0, 'unsolved': 0}, 'subjects': [], 'top_unsolved_topics': []}
+                elif path == '/api/public/items': result = {'items': [{'entry_id':'public-'+str(i),'collection_id':'public-collection','collection_title':'公開測試集','title':'公開題目 '+str(i),'topic_label':'數學','is_subscribed':0} for i in range(4)]}
                 elif path == '/api/home-widgets' and request.method == 'GET':
                     calls.append(path)
                     if failing[0]: return route.abort()
@@ -67,6 +70,14 @@ with sync_playwright() as pw:
             todo = page.get_by_role('region', name='待辦事項小組件', exact=True)
             countdown = page.get_by_role('region', name='事件倒數小組件', exact=True)
             expect(todo).to_be_visible(); expect(countdown).to_be_visible()
+            public = page.get_by_role('region',name='公開探索動態',exact=True)
+            secondary = page.locator('[data-home-widgets-secondary]')
+            expect(public).to_be_visible()
+            assert abs(todo.bounding_box()['height']-secondary.bounding_box()['height']) < 2
+            assert countdown.bounding_box()['height'] >= public.bounding_box()['height']*1.8, 'countdown gets more of the secondary column'
+            assert public.bounding_box()['y'] >= countdown.bounding_box()['y']+countdown.bounding_box()['height']
+            assert page.get_by_text('各科目錯題訂正率',exact=True).evaluate('(el)=>!!(el.compareDocumentPosition(document.querySelector("[data-home-widgets]")) & Node.DOCUMENT_POSITION_FOLLOWING)')
+            page.locator('[data-home-widgets]').scroll_into_view_if_needed()
             page.screenshot(path=f'.wrangler/qa/home-widgets-initial-{width}-{authenticated}.png', full_page=True)
             assert page.get_by_role('button', name='接續上次刷題').count() == 1
             assert not countdown.get_by_role('button', name='編輯倒數', exact=False).count()
@@ -84,10 +95,16 @@ with sync_playwright() as pw:
             todo.get_by_role('button', name='查看已完成', exact=True).click()
             expect(todo.locator('[data-todo-row="yesterday-123"]')).to_be_visible()
             todo.get_by_role('button', name='回到待辦', exact=True).click()
+            page.wait_for_timeout(350)  # Finish this explicit smooth navigation before checking insertion.
             # Bulk paste, edit, cancel and check do not create separate settings flows.
             add = todo.get_by_role('textbox', name='新增待辦', exact=True)
+            old_scroll = todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop')
             add.fill('第一件\n第二件'); todo.get_by_role('button', name='新增待辦事項').click()
             expect(todo.locator('[data-todo-current] input')).to_have_count(4)
+            page.wait_for_timeout(350)
+            new_scroll = todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop')
+            assert abs(new_scroll-old_scroll)<2, ('adding tasks must preserve scroll', old_scroll, new_scroll)
+            assert todo.locator('[data-todo-current] [data-todo-row]').first.bounding_box()['height'] <= 38, 'compact todo row'
             editable = todo.locator('[data-todo-current] input').nth(2)
             editable.fill('第一件修改'); editable.press('Enter')
             expect(editable).to_have_value('第一件修改')

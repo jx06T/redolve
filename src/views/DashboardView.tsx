@@ -158,7 +158,6 @@ export const DashboardView: React.FC = () => {
         <div className="absolute right-0 bottom-0 top-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent pointer-events-none" />
       </div>
 
-      <HomeWidgets />
       {/* Unclassified Alert Banner (if any unclassified problems exist) */}
       {unclassifiedCount > 0 && (
         <div className="bg-status-warning/10 border border-status-warning/30 rounded-3xl p-4 md:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in">
@@ -329,6 +328,7 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
       <SharingActivity />
+      <HomeWidgets />
       <div className=' w-full h-16'></div>
     </div>
   );
