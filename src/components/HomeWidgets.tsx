@@ -159,7 +159,7 @@ export function HomeWidgetSettings() {
     <section className="rounded-3xl border border-border-subtle bg-surface p-5"><h2 className="mb-4 font-semibold">首頁小組件</h2>
       <div className="space-y-3"><SwitchRow label="顯示待辦事項" checked={state.snapshot.preferences.todos_visible} onChange={todos_visible => state.service.preferences(state.channel, { todos_visible })} />
         <SwitchRow label="顯示事件倒數" checked={state.snapshot.preferences.countdowns_visible} onChange={countdowns_visible => state.service.preferences(state.channel, { countdowns_visible })} /></div>
-      <p className="mt-4 text-xs leading-relaxed text-text-muted">首頁可新增、編輯與勾選待辦；倒數只供檢視，管理操作集中於此。今日已完成留在原位，隔日移到上方歷史區，含今日保留七天。未完成不會自動移除。{state.channel.account === 'guest' ? '訪客資料僅保存在這個瀏覽器，清除網站資料後會消失，不會自動併入登入帳號。' : '資料僅本人可存取；離線修改先保存在本機，連線後同步。'}</p>
+      <p className="mt-4 text-xs leading-relaxed text-text-muted">首頁可新增、編輯與勾選待辦；倒數只供檢視，管理操作於此設定。</p>
     </section>
     {selected === 'countdowns' ? <><CountdownWidget key={state.channel.account + ':countdown'} state={state} management /><TodoWidget key={state.channel.account + ':todo'} state={state} management /></> : <><TodoWidget key={state.channel.account + ':todo'} state={state} management /><CountdownWidget key={state.channel.account + ':countdown'} state={state} management /></>}
     <WidgetConflict state={state} />
