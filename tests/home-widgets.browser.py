@@ -26,6 +26,7 @@ with sync_playwright() as pw:
             database = {'items': copy.deepcopy(INITIAL), 'preferences': copy.deepcopy(PREFS)}
             calls, writes, errors = [], [], []
             failing = [False]
+            schema_pending = [False]
             def fixture(route):
                 request = route.request; path = urlparse(request.url).path
                 if path.endswith('/image'):
@@ -43,6 +44,8 @@ with sync_playwright() as pw:
                     if failing[0]: return route.abort()
                     data = request.post_data_json; writes.append((path, copy.deepcopy(data)))
                     if path.endswith('/preferences'):
+                        if schema_pending[0] and 'countdown_order' in data['patch']:
+                            return route.fulfill(status=503,json={'error':'倒數排序暫時無法同步','code':'COUNTDOWN_SCHEMA_PENDING'})
                         database['preferences'].update(data['patch']); result = {'preferences': database['preferences']}
                     elif request.method == 'POST':
                         item = copy.deepcopy(data); item['row_version'] = 1
@@ -88,12 +91,18 @@ with sync_playwright() as pw:
             page.screenshot(path=f'.wrangler/qa/home-widgets-initial-{width}-{authenticated}.png', full_page=True)
             assert page.locator('[data-dashboard-hero] button[aria-label="接續上次刷題"]').count() == 1
             assert not countdown.get_by_role('button', name='編輯倒數', exact=False).count()
-            assert countdown.get_by_text('考試 6', exact=True).count() == 0
-            countdown.get_by_role('button', name='查看其餘 1 個倒數').click()
-            dialog = page.get_by_role('dialog', name='所有事件倒數')
-            expect(dialog.get_by_text('考試 6', exact=True)).to_be_visible()
-            assert not dialog.get_by_role('button', name='編輯倒數', exact=False).count()
-            dialog.get_by_role('button', name='關閉對話框').click()
+            assert countdown.get_by_text('考試 6', exact=True).count() == 1
+            assert countdown.locator('[data-countdown-size="large"]').count()==3
+            assert countdown.locator('[data-countdown-size="compact"]').count()==3
+            compact=countdown.locator('[data-countdown-size="compact"]')
+            boxes=[compact.nth(i).bounding_box() for i in range(3)]
+            assert max(b['y'] for b in boxes)-min(b['y'] for b in boxes)<1, 'three compact cards share one row on mobile too'
+            assert compact.locator('time').count()==0
+            assert compact.nth(0).get_attribute('title')=='考試 4 · 2027-01-25'
+            large=countdown.locator('[data-countdown-size="large"]').first
+            assert large.locator('time').inner_text()=='2027-01-22'
+            assert abs(large.locator('time').bounding_box()['y']-large.locator('p').first.bounding_box()['y'])<12
+            assert not countdown.get_by_role('button',name='查看其餘',exact=False).count()
             panel('todo')
             # Today's completion stays in place; older completion stays above a scroll buffer.
             active = todo.locator('[data-todo-current]')
@@ -124,13 +133,36 @@ with sync_playwright() as pw:
             before = len(calls)
             panel('countdown')
             countdown.get_by_role('button', name='事件倒數選單').click()
-            page.get_by_role('dialog').get_by_role('link', name='前往設定管理倒數與顯示方式').click()
+            page.get_by_role('dialog').get_by_role('link', name='前往設定管理組件').click()
             page.wait_for_url('**/settings?widget=countdowns#profile'); page.wait_for_load_state('networkidle')
             assert len(calls) == before, (before, calls)
             manager = page.get_by_role('region', name='事件倒數小組件', exact=True)
             expect(manager).to_be_visible()
+            schema_pending[0] = authenticated
+            manager.get_by_role('button',name='上移倒數：考試 2',exact=True).click()
+            assert manager.get_by_role('button',name='編輯倒數：',exact=False).first.inner_text().startswith('考試 2')
+            if authenticated:
+                expect(manager.get_by_role('button',name='重試同步')).to_be_visible()
+                settings_todo=page.get_by_role('region',name='待辦事項小組件',exact=True)
+                settings_todo.get_by_role('textbox',name='新增待辦',exact=True).fill('排序待同步時待辦仍可儲存')
+                settings_todo.get_by_role('button',name='新增待辦事項').click()
+                page.wait_for_function("Object.keys(localStorage).filter(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:')).length===1")
+                assert any(i['text']=='排序待同步時待辦仍可儲存' for i in database['items'])
+                page.get_by_role('switch',name='顯示待辦事項').click()
+                page.wait_for_function("Object.keys(localStorage).filter(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:')).length===1")
+                assert database['preferences']['todos_visible'] is False
+                page.get_by_role('switch',name='顯示待辦事項').click()
+                page.wait_for_function("Object.keys(localStorage).filter(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:')).length===1")
+                expect(manager.get_by_role('button',name='重試同步')).to_be_visible()
+                schema_pending[0]=False
+                manager.get_by_role('button',name='重試同步').click()
+                page.wait_for_function("!Object.keys(localStorage).some(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:'))")
+                assert database['preferences']['countdown_order'][0]=='countdown-2'
+                before += 1  # The explicit retry refreshes once; route changes still reuse it.
             manager.get_by_role('button', name='編輯倒數：考試 1', exact=True).click()
             editor = page.get_by_role('dialog', name='編輯倒數')
+            preset=editor.get_by_role('button',name='套用 116 學測 · 2027-01-22',exact=True)
+            assert preset.evaluate('(e)=>getComputedStyle(e).textDecorationLine')=='underline'
             editor.get_by_label('事件名稱').fill('新考試名稱'); editor.get_by_role('button', name='儲存', exact=True).click()
             expect(manager.get_by_role('button', name='編輯倒數：新考試名稱')).to_be_visible()
             page.get_by_role('switch', name='顯示事件倒數').click()

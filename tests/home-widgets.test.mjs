@@ -30,6 +30,21 @@ test('private widgets: authorization, retention, offline retries and concurrent 
       return { status: res.status, data: res.headers.get('Content-Type')?.includes('json') ? await res.json() : await res.text(), cache: res.headers.get('Cache-Control') };
     };
     const add = (id, kind = 'todo', text = '整理內積') => call('/items', 'POST', { id, kind, text, target_date: kind === 'countdown' ? '2027-01-22' : null });
+    await t.test('previous schema keeps widgets working until manual order migration', async () => {
+      assert.equal((await call()).status,200);
+      const event=(await call('/items','POST',{id:'legacy-countdown',kind:'countdown',text:'舊庫倒數',target_date:'2027-01-22'},'two')).data.item;
+      const pending=await call('/preferences','PATCH',{base:{countdown_order:[]},patch:{countdown_order:[event.id]}},'two');
+      assert.equal(pending.status,503);assert.equal(pending.data.code,'COUNTDOWN_SCHEMA_PENDING');
+      const later=await call('/preferences','PATCH',{base:{countdown_order:[event.id]},patch:{countdown_order:[]}},'two');
+      assert.equal(later.status,503,'pending sequences must not turn into false conflicts');
+      const visibility=await call('/preferences','PATCH',{base:{todos_visible:true},patch:{todos_visible:false}},'two');
+      assert.equal(visibility.status,200);assert.equal(visibility.data.preferences.row_version,1);
+      assert.equal((await call('','GET',undefined,'two')).data.preferences.todos_visible,false);
+      const todo=await call('/items','POST',{id:'legacy-todo-123',kind:'todo',text:'待辦仍可同步'},'two');assert.equal(todo.status,200);
+      await db.prepare('DELETE FROM home_widget_items WHERE user_id=?').bind('two').run();
+      await db.prepare('DELETE FROM home_widget_preferences WHERE user_id=?').bind('two').run();
+    });
+    for(const query of unstable_splitSqlQuery((await readFile('worker/migrations/0010_countdown_order.sql','utf8')).replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(query.replace(/\r?\n/g,' '));
     let row;
     await t.test('auth required and private reads use no-store', async () => {
       assert.equal((await call('', 'GET', undefined, '')).status, 401);
@@ -99,6 +114,25 @@ test('private widgets: authorization, retention, offline retries and concurrent 
       assert.match(JSON.stringify(active.results), /idx_home_widgets_active/);
       const expired = await db.prepare("EXPLAIN QUERY PLAN SELECT id FROM home_widget_items WHERE user_id=? AND kind='todo' AND deleted_at IS NULL AND completed_at IS NOT NULL AND completed_at<?").bind('one', Date.now()).all();
       assert.match(JSON.stringify(expired.results), /idx_home_widgets_expiry/);
+    });
+    await t.test('custom countdown order persists, merges with visibility and conflicts only on order',async()=>{
+      const a=(await add('count-order-a','countdown','事件 A')).data.item;
+      const b=(await add('count-order-b','countdown','事件 B')).data.item;
+      let result=await call('/preferences','PATCH',{base:{countdown_order:[]},patch:{countdown_order:[b.id,a.id]}});
+      assert.equal(result.status,200);assert.deepEqual(result.data.preferences.countdown_order,[b.id,a.id]);
+      const version=result.data.preferences.row_version;
+      result=await call('/preferences','PATCH',{base:{countdown_order:[]},patch:{countdown_order:[b.id,a.id]}});
+      assert.equal(result.status,200);assert.equal(result.data.preferences.row_version,version,'retry is idempotent');
+      result=await call('/preferences','PATCH',{base:{countdown_order:[]},patch:{countdown_order:[a.id,b.id]}});
+      assert.equal(result.status,409);assert.deepEqual(result.data.current.countdown_order,[b.id,a.id]);
+      const prefs=(await call()).data.preferences;
+      result=await call('/preferences','PATCH',{base:{todos_visible:prefs.todos_visible},patch:{todos_visible:!prefs.todos_visible}});
+      assert.equal(result.status,200);assert.deepEqual(result.data.preferences.countdown_order,[b.id,a.id]);
+      assert.deepEqual((await call('','GET',undefined,'two')).data.preferences.countdown_order,[]);
+      for(const ids of [[a.id,a.id],['not-my-event'],[123]])assert.equal((await call('/preferences','PATCH',{base:{countdown_order:[b.id,a.id]},patch:{countdown_order:ids}})).status,400);
+      await call('/items/'+a.id,'DELETE',{base:a});
+      assert.equal((await call('/preferences','PATCH',{base:{countdown_order:[b.id,a.id]},patch:{countdown_order:[a.id,b.id]}})).status,200,'offline order accepts own deleted references without reviving them');
+      assert.equal((await call('/preferences','PATCH',{base:{countdown_order:[a.id,b.id]},patch:{countdown_order:[b.id]}})).status,200,'removed IDs can be dropped without losing other order');
     });
   } finally { if (mf) await mf.dispose(); await rm(dir, { recursive: true, force: true }); }
 });

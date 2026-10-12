@@ -9,8 +9,12 @@ type Row = WidgetItem & { deleted_at: number | null };
 const fields = 'id,kind,text,target_date,completed_at,created_at,updated_at,row_version,deleted_at';
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const publicItem = ({ deleted_at: _deleted, ...item }: Row) => item;
+const validOrder = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 100
+  && value.every(id => typeof id === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(id)) && new Set(value).size === value.length;
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const readOrder = (value: unknown): string[] => { try { const ids=typeof value==='string'?JSON.parse(value):value; return validOrder(ids)?ids:[]; } catch { return []; } };
 const preferences = (row: Record<string, unknown> | null): WidgetPreferences => row ? {
-  todos_visible: !!row.todos_visible, countdowns_visible: !!row.countdowns_visible, row_version: Number(row.row_version),
+  todos_visible: !!row.todos_visible, countdowns_visible: !!row.countdowns_visible, countdown_order: readOrder(row.countdown_order), row_version: Number(row.row_version),
 } : { ...defaultWidgetPreferences };
 export const homeWidgetsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 homeWidgetsRouter.use('*', authMiddleware);
@@ -26,7 +30,7 @@ homeWidgetsRouter.get('/', async c => {
   const result = await c.env.DB.batch([
     c.env.DB.prepare("UPDATE home_widget_items SET text='',target_date=NULL,completed_at=NULL,deleted_at=?,updated_at=?,row_version=row_version+1 WHERE user_id=? AND kind='todo' AND deleted_at IS NULL AND completed_at IS NOT NULL AND completed_at<?").bind(now, now, user, completionCutoff(now)),
     c.env.DB.prepare(`SELECT ${fields} FROM home_widget_items WHERE user_id=? AND deleted_at IS NULL ORDER BY kind,created_at,id`).bind(user),
-    c.env.DB.prepare('SELECT todos_visible,countdowns_visible,row_version FROM home_widget_preferences WHERE user_id=?').bind(user),
+    c.env.DB.prepare('SELECT * FROM home_widget_preferences WHERE user_id=?').bind(user),
   ]);
   return c.json({ items: (result[1].results as Row[]).map(publicItem), preferences: preferences(result[2].results[0] as Record<string, unknown> || null) });
 });
@@ -90,15 +94,40 @@ homeWidgetsRouter.patch('/preferences', async c => {
   const b = await c.req.json().catch(() => null);
   if (!object(b) || !object(b.patch) || !object(b.base)) return c.json({ error: '設定格式無效' }, 400);
   const keys = Object.keys(b.patch), patch = b.patch, base = b.base;
-  if (!keys.length || keys.some(k => !['todos_visible', 'countdowns_visible'].includes(k) || typeof patch[k] !== 'boolean' || typeof base[k] !== 'boolean')) return c.json({ error: '設定欄位無效' }, 400);
+  if (!keys.length || keys.some(k => k==='countdown_order' ? !validOrder(patch[k]) || !validOrder(base[k])
+    : !['todos_visible', 'countdowns_visible'].includes(k) || typeof patch[k] !== 'boolean' || typeof base[k] !== 'boolean')) return c.json({ error: '設定欄位無效' }, 400);
   const user = c.get('userId');
+  if (keys.includes('countdown_order')) {
+    // Tombstones remain valid references for offline order drafts; rendering omits
+    // deleted events. Match only submitted IDs so long histories are not scanned.
+    const own=await c.env.DB.prepare("SELECT w.id FROM home_widget_items w JOIN json_each(?) ids ON w.id=ids.value WHERE w.user_id=? AND w.kind='countdown'").bind(JSON.stringify(patch.countdown_order),user).all<{id:string}>();
+    const allowed=new Set(own.results.map(item=>item.id));
+    if ((patch.countdown_order as string[]).some(id=>!allowed.has(id))) return c.json({error:'排序包含無法使用的事件，請重新同步'},400);
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
-    const raw = await c.env.DB.prepare('SELECT todos_visible,countdowns_visible,row_version FROM home_widget_preferences WHERE user_id=?').bind(user).first();
+    let raw;
+    try {
+      const columns = keys.includes('countdown_order') ? 'todos_visible,countdowns_visible,countdown_order,row_version' : '*';
+      raw = await c.env.DB.prepare(`SELECT ${columns} FROM home_widget_preferences WHERE user_id=?`).bind(user).first();
+    } catch (error) {
+      if (keys.includes('countdown_order') && /no such column:\s*countdown_order/i.test(String(error))) return c.json({ error: '倒數排序暫時無法同步，請稍後重試', code: 'COUNTDOWN_SCHEMA_PENDING' }, 503);
+      throw error;
+    }
     const current = preferences(raw);
-    if (keys.some(k => current[k as keyof WidgetPreferences] !== base[k] && current[k as keyof WidgetPreferences] !== patch[k])) return c.json({ error: '設定已變更', current }, 409);
+    if (keys.some(k => !same(current[k as keyof WidgetPreferences],base[k]) && !same(current[k as keyof WidgetPreferences],patch[k]))) return c.json({ error: '設定已變更', current }, 409);
+    if(keys.every(k=>same(current[k as keyof WidgetPreferences],patch[k])))return c.json({preferences:current});
     const next = { ...current, ...patch };
-    const result = raw ? await c.env.DB.prepare('UPDATE home_widget_preferences SET todos_visible=?,countdowns_visible=?,row_version=row_version+1,updated_at=? WHERE user_id=? AND row_version=?').bind(+next.todos_visible, +next.countdowns_visible, Date.now(), user, current.row_version).run()
-      : await c.env.DB.prepare('INSERT INTO home_widget_preferences(user_id,todos_visible,countdowns_visible,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO NOTHING').bind(user, +next.todos_visible, +next.countdowns_visible, Date.now()).run();
+    // Only validated fields enter SQL identifiers. Visibility writes remain usable
+    // on the previous schema until the manual countdown migration is applied.
+    const values = keys.map(k => k === 'countdown_order' ? JSON.stringify(patch[k]) : +(patch[k] as boolean));
+    let result;
+    try {
+      result = raw ? await c.env.DB.prepare(`UPDATE home_widget_preferences SET ${keys.map(k => k + '=?').join(',')},row_version=row_version+1,updated_at=? WHERE user_id=? AND row_version=?`).bind(...values, Date.now(), user, current.row_version).run()
+        : await c.env.DB.prepare(`INSERT INTO home_widget_preferences(user_id,${keys.join(',')},updated_at,row_version) VALUES(?,${keys.map(() => '?').join(',')},?,1) ON CONFLICT(user_id) DO NOTHING`).bind(user, ...values, Date.now()).run();
+    } catch (error) {
+      if (keys.includes('countdown_order') && /(?:no such column:\s*countdown_order|no column named countdown_order)/i.test(String(error))) return c.json({ error: '倒數排序暫時無法同步，請稍後重試', code: 'COUNTDOWN_SCHEMA_PENDING' }, 503);
+      throw error;
+    }
     if (result.meta.changes) return c.json({ preferences: { ...next, row_version: current.row_version + 1 } });
   }
   return c.json({ error: '設定正在更新，請重試' }, 503);

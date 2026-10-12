@@ -642,3 +642,6 @@ CREATE TABLE IF NOT EXISTS home_widget_preferences (
  row_version INTEGER NOT NULL DEFAULT 1,
  updated_at INTEGER NOT NULL
 );
+
+ALTER TABLE home_widget_preferences ADD COLUMN countdown_order TEXT NOT NULL DEFAULT '[]'
+  CHECK(json_valid(countdown_order) AND json_type(countdown_order)='array');

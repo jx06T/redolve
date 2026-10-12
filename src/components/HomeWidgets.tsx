@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CalendarDays, Check, ListTodo, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, Check, ListTodo, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
-import { countdownDays, GSAT_PRESET, taipeiDay, validTargetDate } from '../types/homeWidgets';
+import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
 
 const button = 'h-full rounded-xl border border-border-subtle px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40';
@@ -24,11 +24,13 @@ export function WidgetConflict({ state }: { state: Widgets }) {
   if (!conflict) return null;
   const localText = conflict.operation.patch.text ?? conflict.operation.item?.text;
   const cloudText = conflict.current && 'text' in conflict.current ? conflict.current.text : null;
+  const orderText = (ids: unknown) => Array.isArray(ids) && ids.length ? ids.map(id => state.snapshot.items.find(i => i.id === id)?.text || '已移除事件').join(' → ') : '依日期排列';
+  const orderConflict = Object.hasOwn(conflict.operation.patch, 'countdown_order');
   return <AppDialog title="小組件修改需要確認" onClose={() => { /* Keep unresolved work available. */ }}>
     <p className="text-sm text-text-muted">相同內容已在其他地方修改。請選擇保留的版本；其他項目不受影響。</p>
     <div className="mt-4 space-y-3 text-sm">
-      <div className="rounded-2xl bg-page-bg p-3"><p className="font-medium">本機修改</p><p className="mt-1 whitespace-pre-wrap break-words">{typeof localText === 'string' ? localText : conflict.operation.action === 'delete' ? '移除此項目' : JSON.stringify(conflict.operation.patch)}</p></div>
-      <div className="rounded-2xl bg-page-bg p-3"><p className="font-medium">雲端版本</p><p className="mt-1 whitespace-pre-wrap break-words">{cloudText ?? (conflict.current ? '設定已更新' : '項目已移除或超過保留期限')}</p></div>
+      <div className="rounded-2xl bg-page-bg p-3"><p className="font-medium">本機修改</p><p className="mt-1 whitespace-pre-wrap break-words">{orderConflict ? orderText(conflict.operation.patch.countdown_order) : typeof localText === 'string' ? localText : conflict.operation.action === 'delete' ? '移除此項目' : JSON.stringify(conflict.operation.patch)}</p></div>
+      <div className="rounded-2xl bg-page-bg p-3"><p className="font-medium">雲端版本</p><p className="mt-1 whitespace-pre-wrap break-words">{orderConflict && conflict.current && 'countdown_order' in conflict.current ? orderText(conflict.current.countdown_order) : cloudText ?? (conflict.current ? '設定已更新' : '項目已移除或超過保留期限')}</p></div>
     </div>
     <div className="mt-5 flex flex-wrap justify-end gap-2"><button className={button} onClick={() => service.resolve(channel, false)}>採用雲端版本</button>
       {conflict.current && <button className={button} onClick={() => service.resolve(channel, true)}>保留本機修改</button>}</div>
@@ -43,14 +45,14 @@ function WidgetHeader({ kind, state, management = false }: { kind: WidgetKind; s
       {!management && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label={`${name}選單`} onClick={() => setMenu(true)}><MoreHorizontal size={20} /></button>}
     </div>
     {menu && <AppDialog title={`${name}選單`} onClose={() => setMenu(false)}>
-      <div className="flex flex-col gap-2"><Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定{name === '事件倒數' ? '管理倒數與顯示方式' : '管理小組件'}</Link>
+      <div className="flex flex-col gap-2 text-center"><Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定管理組件</Link>
         <button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button></div>
     </AppDialog>}
   </>;
 }
 function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets; onEditing: (id: string | null) => void }) {
   const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState(false);
-  const editor=useRef<HTMLInputElement>(null);
+  const editor = useRef<HTMLInputElement>(null);
   const base = useRef(item.text), cancelled = useRef(false);
   useEffect(() => { if (!focused) setText(item.text); }, [item.text, focused]);
   const save = () => {
@@ -58,12 +60,12 @@ function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets;
     state.service.update(state.channel, item.id, { text: next }, { text: base.current });
   };
   return <div className="flex min-w-0 items-center gap-2 py-0.5" data-todo-row={item.id}
-    onClick={event=>{if(!focused&&event.target instanceof Element&&event.currentTarget.contains(event.target)&&!event.target.closest('button'))editor.current?.focus();}}>
+    onClick={event => { if (!focused && event.target instanceof Element && event.currentTarget.contains(event.target) && !event.target.closest('button')) editor.current?.focus(); }}>
     <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ' + (item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
       role="checkbox" aria-checked={item.completed_at !== null} aria-label={`完成：${item.text}`} onClick={() => state.service.update(state.channel, item.id, { completed_at: item.completed_at === null ? Date.now() : null })}>
       {item.completed_at !== null && <Check size={17} />}</button>
     {/* Readable rows pass swipes to the panel; tapping enters the normal text editor. */}
-    <input ref={editor} style={{pointerEvents:focused?'auto':'none'}} aria-label="待辦內容" maxLength={500} value={text} onChange={e => setText(e.target.value)}
+    <input ref={editor} style={{ pointerEvents: focused ? 'auto' : 'none' }} aria-label="待辦內容" maxLength={500} value={text} onChange={e => setText(e.target.value)}
       onFocus={() => { base.current = item.text; setFocused(true); onEditing(item.id); }} onBlur={save}
       onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.preventDefault(); cancelled.current = true; e.currentTarget.blur(); } }}
       className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (item.completed_at !== null ? 'text-text-muted line-through' : '')} />
@@ -71,7 +73,7 @@ function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets;
     {remove && <AppDialog title="刪除待辦？" onClose={() => setRemove(false)}><p className="break-words text-sm">{item.text}</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRemove(false)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(false); }}>刪除</button></div></AppDialog>}
   </div>;
 }
-export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?:boolean }) {
+export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?: boolean }) {
   const [draft, setDraft] = useState(''), [error, setError] = useState(''), [editing, setEditing] = useState<string | null>(null);
   const viewport = useRef<HTMLDivElement>(null), anchor = useRef<HTMLDivElement>(null), tail = useRef<HTMLDivElement>(null);
   const position = useRef<{ account: string; offset: number; initialized: boolean }>({ account: '', offset: 0, initialized: false });
@@ -101,7 +103,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     if (lines.some(l => l.length > 500) || todos.length + lines.length > 500) { setError('每行最多 500 字，未完成待辦最多 500 件。'); return; }
     lines.forEach(l => state.service.add(state.channel, 'todo', l)); setDraft(''); setError('');
   };
-  return <section aria-label="待辦事項小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : fit?'h-full min-h-0':'h-[34rem]')}>
+  return <section aria-label="待辦事項小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
     <WidgetHeader kind="todo" state={state} management={management} />
     {history.length > 0 && <div className="mb-2 flex justify-end gap-3 text-xs text-text-muted"><button className="underline" onClick={() => viewport.current?.scrollTo({ top: Math.max(0, (anchor.current?.offsetTop || 0) - 180), behavior: 'smooth' })}>查看已完成</button><button className="underline" onClick={() => viewport.current?.scrollTo({ top: Math.max(0, (anchor.current?.offsetTop || 0) - 36), behavior: 'smooth' })}>回到待辦</button></div>}
     <div ref={viewport} data-todo-scroll className={'relative overflow-y-auto overscroll-y-contain [overflow-anchor:none] ' + (management ? 'h-64' : 'min-h-0 flex-1')}>
@@ -115,13 +117,22 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     {error && <p role="alert" className="mt-2 text-xs text-status-eraser">{error}</p>}
   </section>;
 }
-function CountdownRows({ items, onEdit }: { items: WidgetItem[]; onEdit?: (item: WidgetItem) => void }) {
-  return <div className="space-y-2">{items.map(i => {
-    const days = countdownDays(i.target_date!);
-    const content = <><div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent" /><div className="relative z-10 min-w-0"><p className="break-words text-sm font-medium">{i.text}</p><p className="mt-1 text-xs text-text-muted">{i.target_date}</p></div><p className="relative z-10 shrink-0 whitespace-nowrap text-sm tabular-nums">{days > 0 ? <><strong className="text-xl font-semibold">{days}</strong> 天</> : days === 0 ? '就是今天' : '已結束'}</p></>;
-    const rowClass = 'relative flex items-center justify-between gap-4 overflow-hidden rounded-2xl bg-page-bg p-3';
-    return onEdit ? <button key={i.id} className={rowClass + ' w-full text-left hover:brightness-95'} onClick={() => onEdit(i)} aria-label={`編輯倒數：${i.text}`}>{content}</button> : <div key={i.id} className={rowClass}>{content}</div>;
-  })}</div>;
+function CountdownTile({ item, compact = false, onEdit }: { item: WidgetItem; compact?: boolean; onEdit?: (item: WidgetItem) => void }) {
+  const days = countdownDays(item.target_date!);
+  const content = <><div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent" />
+    <div className={'relative z-10 min-w-0 ' + (compact ? '' : 'flex flex-1 items-baseline gap-2')}><p className={'min-w-0 break-words font-medium ' + (compact ? 'text-xs sm:text-sm' : 'text-base sm:text-lg')}>{item.text}</p>{!compact && <time dateTime={item.target_date!} className="shrink-0 text-[11px] text-text-muted">{item.target_date}</time>}</div>
+    <p className={'relative z-10 shrink-0 whitespace-nowrap tabular-nums ' + (compact ? 'text-[10px] sm:text-xs' : 'text-sm')}>{days > 0 ? <><strong className={compact ? 'text-lg font-semibold sm:text-xl' : 'text-2xl font-semibold sm:text-3xl'}>{days}</strong> 天</> : days === 0 ? '就是今天' : '已結束'}</p></>;
+  const rowClass = 'relative min-w-0 overflow-hidden rounded-2xl bg-page-bg ' + (compact ? 'flex flex-col items-start justify-between gap-1.5 p-2.5' : 'flex items-center justify-between gap-3 p-3 py-2.5');
+  return onEdit ? <button className={rowClass + ' w-full text-left hover:brightness-95'} onClick={() => onEdit(item)} aria-label={`編輯倒數：${item.text}`}>{content}</button>
+    : <div data-countdown-item={item.id} data-countdown-size={compact ? 'compact' : 'large'} title={`${item.text} · ${item.target_date}`} className={rowClass}>{content}</div>;
+}
+function CountdownRows({ items, onEdit, onMove }: { items: WidgetItem[]; onEdit?: (item: WidgetItem) => void; onMove?: (index: number, direction: number) => void }) {
+  if (!onEdit) return <div className="space-y-2.5"><div className="space-y-2">{items.slice(0, 3).map(item => <CountdownTile key={item.id} item={item} />)}</div>
+    {items.length > 3 && <div className="grid min-w-0 grid-cols-3 gap-2">{items.slice(3).map(item => <CountdownTile key={item.id} item={item} compact />)}</div>}</div>;
+  return <div className="space-y-2">{items.map((item, index) => <div key={item.id} className="flex min-w-0 items-center gap-2"><CountdownTile item={item} onEdit={onEdit} />
+    <div className="flex shrink-0 flex-col"><button disabled={index === 0} aria-label={`上移倒數：${item.text}`} onClick={() => onMove?.(index, -1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 disabled:opacity-30"><ArrowUp size={16} /></button>
+      <button disabled={index === items.length - 1} aria-label={`下移倒數：${item.text}`} onClick={() => onMove?.(index, 1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 disabled:opacity-30"><ArrowDown size={16} /></button></div>
+  </div>)}</div>;
 }
 function CountdownEditor({ item, state, onClose }: { item: WidgetItem | null; state: Widgets; onClose: () => void }) {
   const [text, setText] = useState(item?.text || ''), [date, setDate] = useState(item?.target_date || ''), [error, setError] = useState(''), [remove, setRemove] = useState(false);
@@ -135,7 +146,7 @@ function CountdownEditor({ item, state, onClose }: { item: WidgetItem | null; st
   return <AppDialog title={item ? '編輯倒數' : '新增倒數'} onClose={onClose}>
     <div className="space-y-4"><label className="block text-sm">事件名稱<input autoFocus className={input + ' mt-2'} maxLength={500} value={text} onChange={e => setText(e.target.value)} /></label>
       <label className="block text-sm">日期<input type="date" min="2000-01-01" max="2199-12-31" className={input + ' mt-2'} value={date} onChange={e => setDate(e.target.value)} /></label>
-      <button className={button} onClick={() => { setText(GSAT_PRESET.text); setDate(GSAT_PRESET.target_date); }}>套用 116 學測 · 2027-01-22</button><p className="text-xs text-text-muted">預設日期依大考中心暫定日程，日程變更時請自行調整。倒數以臺灣日期計算。</p>
+      <button type="button" className="text-xs text-text-muted underline underline-offset-4" onClick={() => { setText(GSAT_PRESET.text); setDate(GSAT_PRESET.target_date); }}>套用 116 學測 · 2027-01-22</button><p className="text-xs text-text-muted">預設日期依大考中心暫定日程，日程變更時請自行調整。倒數以臺灣日期計算。</p>
       {error && <p role="alert" className="text-sm text-status-eraser">{error}</p>}
       {remove && <p className="text-sm">確定刪除此倒數？</p>}
       <div className="flex flex-wrap justify-end gap-2">{item && <button className={button + ' mr-auto'} onClick={() => remove ? (state.service.remove(state.channel, item.id), onClose()) : setRemove(true)}>{remove ? '確認刪除' : '刪除'}</button>}<button className={button} onClick={onClose}>取消</button><button className={button} onClick={save}>儲存</button></div>
@@ -143,20 +154,22 @@ function CountdownEditor({ item, state, onClose }: { item: WidgetItem | null; st
   </AppDialog>;
 }
 export function CountdownWidget({ state, management = false }: { state: Widgets; management?: boolean }) {
-  const [all, setAll] = useState(false), [editing, setEditing] = useState<WidgetItem | null | undefined>();
-  const items = state.snapshot.items.filter(i => i.kind === 'countdown').sort((a, b) => {
-    const aPast = countdownDays(a.target_date!) < 0, bPast = countdownDays(b.target_date!) < 0;
-    return Number(aPast) - Number(bPast) || a.target_date!.localeCompare(b.target_date!) || a.created_at - b.created_at;
-  });
+  const [editing, setEditing] = useState<WidgetItem | null | undefined>();
+  const items = orderedCountdowns(state.snapshot.items, state.snapshot.preferences.countdown_order);
+  const move = (index: number, direction: number) => {
+    const ids = items.map(item => item.id), target = index + direction;
+    if (target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    state.service.preferences(state.channel, { countdown_order: ids });
+  };
   return <section aria-label="事件倒數小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : 'min-h-0')}>
     <WidgetHeader kind="countdown" state={state} management={management} />
     <div className={management ? '' : 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain'}>
-      <CountdownRows items={management ? items : items.slice(0, 5)} onEdit={management ? setEditing : undefined} />
+      {management && items.length > 1 && <p className="mb-3 text-xs text-text-muted">用右側箭頭調整首頁順序；自訂後前三個放大顯示，新事件加入末尾。</p>}
+      <CountdownRows items={items} onEdit={management ? setEditing : undefined} onMove={management ? move : undefined} />
       {!items.length && <p className="py-4 text-sm text-text-muted">尚未設定倒數。{!management && <Link to={settingsUrl('countdown')} className="ml-2 text-text-muted underline">前往設定新增</Link>}</p>}
     </div>
-    {!management && items.length > 5 && <button className="mt-3 shrink-0 self-start text-sm text-text-muted underline" onClick={() => setAll(true)}>查看其餘 {items.length - 5} 個倒數</button>}
     {management && <button className={button + ' mt-4 flex items-center gap-2'} onClick={() => setEditing(null)}><Plus size={16} />新增倒數</button>}
-    {all && <AppDialog title="所有事件倒數" onClose={() => setAll(false)}><CountdownRows items={items} /><Link className="mt-4 block text-sm text-text-muted underline" to={settingsUrl('countdown')} onClick={() => setAll(false)}>前往設定管理倒數</Link></AppDialog>}
     {management && editing !== undefined && <CountdownEditor item={editing} state={state} onClose={() => setEditing(undefined)} />}
   </section>;
 }

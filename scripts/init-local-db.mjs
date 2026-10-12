@@ -51,7 +51,7 @@ function missing(current) {
     ...(!current.snapshots.has('source_text') ? ['saved_snapshots.source_text'] : []),
     ...['idx_home_widgets_active','idx_home_widgets_expiry'].filter(name=>!current.widgetIndexes.has(name)),
     ...['id','user_id','kind','text','target_date','completed_at','created_at','updated_at','row_version','deleted_at'].filter(name=>!current.widgetItems.has(name)).map(name=>`home_widget_items.${name}`),
-    ...['user_id','todos_visible','countdowns_visible','row_version','updated_at'].filter(name=>!current.widgetPrefs.has(name)).map(name=>`home_widget_preferences.${name}`),
+    ...['user_id','todos_visible','countdowns_visible','countdown_order','row_version','updated_at'].filter(name=>!current.widgetPrefs.has(name)).map(name=>`home_widget_preferences.${name}`),
     ...['asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset'].filter(name=>!current.shareDdl.has(name)),
     ...(!current.searchReady ? ['shared_search_cache.not_ready'] : []),
     ...['content_seq', 'draw_seq', 'notes_seq', 'typed_notes', 'progress_seq', 'previous_status'].filter(name => !current.items.has(name)).map(name => `items.${name}`),
@@ -72,7 +72,7 @@ if (checkOnly) process.exit(1);
 
 // 0002 is deliberately one-time. Refuse partial states instead of guessing.
 if (current.tables.has('items')) {
-  if(current.tables.has('home_widget_items')&&current.widgetItems.size!==10||current.tables.has('home_widget_preferences')&&current.widgetPrefs.size!==5)throw new Error('Partial home widget schema detected. No changes made; inspect the local database before retrying.');
+  if(current.tables.has('home_widget_items')&&current.widgetItems.size!==10||current.tables.has('home_widget_preferences')&&![5,6].includes(current.widgetPrefs.size))throw new Error('Partial home widget schema detected. No changes made; inspect the local database before retrying.');
   const presentSharingTables = sharingTables.filter(name => current.tables.has(name));
   const seqCount = ['content_seq', 'draw_seq', 'notes_seq'].filter(name => current.items.has(name)).length;
   if ((presentSharingTables.length !== 0 && presentSharingTables.length !== sharingTables.length)
@@ -119,6 +119,8 @@ if (!current.tables.has('items')) {
   execute(['--command',shareSql]);
   if(!current.snapshots.has('source_text'))execute(['--file','worker/migrations/0008_saved_question_text.sql']);
   execute(['--file','worker/migrations/0009_home_widgets.sql']);
+  current=schema();
+  if(!current.widgetPrefs.has('countdown_order'))execute(['--file','worker/migrations/0010_countdown_order.sql']);
 }
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);

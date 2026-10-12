@@ -88,7 +88,7 @@ export function DashboardPager({ account, showTodo, hero, metrics, topics, subje
   };
   return <div className="flex min-h-0 flex-1 flex-col gap-2" data-dashboard-pager data-layout={wide ? 'wide' : 'compact'}>
     <div ref={viewport} data-dashboard-carousel tabIndex={0} aria-label="總覽面板，左右滑動切換"
-      className="dashboard-carousel min-h-0 flex-1 outline-none"
+      className="dashboard-carousel -mx-2 min-h-0 flex-1 outline-none sm:-mx-4"
       onKeyDown={e => { if (e.target === e.currentTarget) keys(e); }}
       onPointerDown={() => { interacted.current = true; programmatic.current = null; }} onWheel={() => { programmatic.current = null; }}
       onScroll={() => { clearTimeout(timer.current); timer.current = window.setTimeout(settle, 140); }}>
@@ -96,13 +96,13 @@ export function DashboardPager({ account, showTodo, hero, metrics, topics, subje
         {[0, 1, 2, ...(showTodo ? [3] : [])].map(index => <span key={index} aria-hidden="true" className="dashboard-snap" style={{ left: `${index * (100 / (showTodo ? 4 : 3))}%` }} />)}
         {/* Snap positions on wide layouts always represent two complete dashboard screens. */}
         <span aria-hidden="true" className="dashboard-wide-snap" style={{ left: 0 }} /><span aria-hidden="true" className="dashboard-wide-snap" />
-        <div data-dashboard-segment="overview" {...inactive('overview')} className="col-start-1 row-span-2 flex min-h-0 flex-col gap-3 md:contents">
-          <div className="shrink-0 space-y-3 md:col-span-2 md:col-start-1 md:row-start-1 md:pb-3">{hero}{metrics}</div>
-          <div className="min-h-0 flex-1 md:col-start-2 md:row-start-2 md:pl-3">{topics}</div>
+        <div data-dashboard-segment="overview" {...inactive('overview')} className="col-start-1 row-span-2 flex min-h-0 flex-col gap-3 px-2 sm:px-4 md:contents">
+          <div className="shrink-0 space-y-3 md:col-span-2 md:col-start-1 md:row-start-1 md:px-4 md:pb-3">{hero}{metrics}</div>
+          <div className="min-h-0 flex-1 md:col-start-2 md:row-start-2 md:pl-3 md:pr-4">{topics}</div>
         </div>
-        <div data-dashboard-segment="subjects" {...inactive('subjects')} className="col-start-2 row-span-2 min-h-0 md:col-start-1 md:row-span-1 md:row-start-2 md:pr-3">{subjects}</div>
-        {showTodo && <div data-dashboard-segment="todos" {...inactive('todos')} className="col-start-3 row-span-2 min-h-0 md:pr-3">{todos}</div>}
-        <div data-dashboard-segment="tools" {...inactive('tools')} className={'row-span-2 min-h-0 md:pl-3 ' + (showTodo ? 'col-start-4' : 'col-start-3 md:col-span-2')}>{tools}</div>
+        <div data-dashboard-segment="subjects" {...inactive('subjects')} className="col-start-2 row-span-2 min-h-0 px-2 sm:px-4 md:col-start-1 md:row-span-1 md:row-start-2 md:pr-3">{subjects}</div>
+        {showTodo && <div data-dashboard-segment="todos" {...inactive('todos')} className="col-start-3 row-span-2 min-h-0 px-2 sm:px-4 md:pr-3">{todos}</div>}
+        <div data-dashboard-segment="tools" {...inactive('tools')} className={'row-span-2 min-h-0 px-2 sm:px-4 md:pl-3 ' + (showTodo ? 'col-start-4' : 'col-start-3 md:col-span-2')}>{tools}</div>
       </div>
     </div>
     <nav aria-label="總覽面板" className="flex mb-2 z-30 shrink-0 items-center justify-center gap-1" onKeyDown={keys}>

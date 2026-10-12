@@ -62,7 +62,7 @@ export function widgetChannel(account: string): Channel {
   if (!c) {
     let data = empty(), queue: Operation[] = [];
     try { const saved = JSON.parse(localStorage.getItem(key(account)) || 'null');
-      if (saved?.data && Array.isArray(saved.data.items) && saved.data.preferences) { data = saved.data; queue = readQueue(account); }
+      if (saved?.data && Array.isArray(saved.data.items) && saved.data.preferences) { data = { ...saved.data, preferences: { ...defaultWidgetPreferences, ...saved.data.preferences } }; queue = readQueue(account); }
     } catch { /* Keep the empty view if browser storage is unavailable. */ }
     c = { account, data, queue, listeners: new Set(), snapshot: null!, fetched: 0, loading: false, running: false, error: '', storageError: false, conflict: null };
     channels.set(account, c); publish(c);
@@ -73,7 +73,7 @@ async function request(c: Channel, path: string, method = 'GET', body?: unknown)
   if (!isActive(c)) throw new Error('帳號已切換');
   const response = await fetch(API_BASE + '/home-widgets' + path + '?account_id=' + encodeURIComponent(c.account), { method, credentials: 'include', cache: 'no-store',
     headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
-  const result = await response.json() as WidgetData & { item: WidgetItem | null; current: WidgetItem | WidgetPreferences | null; error?: string };
+  const result = await response.json() as WidgetData & { item: WidgetItem | null; current: WidgetItem | WidgetPreferences | null; error?: string; code?: string };
   if (!isActive(c)) throw new Error('帳號已切換');
   return { response, result };
 }
@@ -95,7 +95,7 @@ export async function loadWidgets(c: Channel, force = false): Promise<void> {
       const { response, result } = await request(c, '');
       if (!response.ok) throw new Error(response.status === 401 ? '請重新登入後同步' : '小組件暫時無法同步');
       if (!Array.isArray(result.items) || !result.preferences || typeof result.preferences.todos_visible !== 'boolean' || typeof result.preferences.countdowns_visible !== 'boolean') throw new Error('小組件資料格式無效，請重試同步');
-      c.data = result; c.fetched = Date.now();
+      c.data = { ...result, preferences: { ...defaultWidgetPreferences, ...result.preferences } }; c.fetched = Date.now();
     } catch (e) { if (isActive(c)) c.error = e instanceof Error ? e.message : '同步失敗'; }
     finally { c.loading = false; c.request = undefined; publish(c, true); }
   })();
@@ -113,20 +113,27 @@ async function drain(c: Channel) {
     if (!c.storageError) c.queue = readQueue(c.account);
   } catch { c.storageError = true; }
   c.running = true; c.error = ''; publish(c);
+  const deferred = new Set<string>();
   try {
     while (c.queue.length && isActive(c)) {
-      const op = c.queue[0];
+      const op = c.queue.find(operation => !deferred.has(operation.key));
+      if (!op) break;
       const path = op.action === 'preferences' ? '/preferences' : '/items' + (op.action === 'create' ? '' : '/' + encodeURIComponent(op.id!));
       const method = op.action === 'delete' ? 'DELETE' : op.action === 'create' ? 'POST' : 'PATCH';
       const body = op.action === 'create' ? op.item : { patch: op.patch, base: op.base };
       const { response, result } = await request(c, path, method, body);
+      if (response.status === 503 && result.code === 'COUNTDOWN_SCHEMA_PENDING' && op.action === 'preferences' && Object.hasOwn(op.patch, 'countdown_order')) {
+        // Keep order drafts durable while the database upgrade is pending. Other
+        // widget writes can still sync; retry each order only once per flush.
+        deferred.add(op.key); c.error = result.error || '倒數排序暫時無法同步'; continue;
+      }
       if ((response.status === 409 || response.status === 410) && Object.hasOwn(result, 'current')) {
         c.conflict = { operation: op, current: result.current }; break;
       }
       if (!response.ok) throw new Error(response.status === 401 ? '請重新登入後同步' : result.error || '同步失敗');
       if (op.action === 'preferences') c.data.preferences = result.preferences;
       else { c.data.items = c.data.items.filter(i => i.id !== op.id); if (result.item) c.data.items.push(result.item); }
-      forget(c, op); c.queue.shift(); c.fetched = Date.now(); publish(c, true);
+      forget(c, op); c.queue = c.queue.filter(operation => operation.key !== op.key); c.fetched = Date.now(); publish(c, true);
     }
   } catch (e) { if (isActive(c)) c.error = e instanceof Error ? e.message : '同步失敗'; }
   finally { c.running = false; publish(c); }
@@ -161,8 +168,8 @@ export const homeWidgetService = {
     const item = c.snapshot.items.find(i => i.id === id); if (!item) return;
     enqueue(c, { key: createClientId(), action: 'delete', id, patch: {}, base: { text: item.text, target_date: item.target_date, completed_at: item.completed_at } });
   },
-  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible'>>) {
-    const base = Object.fromEntries(Object.keys(patch).map(k => [k, c.snapshot.preferences[k as keyof WidgetPreferences]]));
+  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible' | 'countdown_order'>>) {
+    const base = Object.fromEntries(Object.keys(patch).map(k => [k, k === 'countdown_order' ? c.snapshot.preferences.countdown_order || [] : c.snapshot.preferences[k as keyof WidgetPreferences]]));
     enqueue(c, { key: createClientId(), action: 'preferences', patch, base });
   },
   resolve(c: Channel, local: boolean) {
@@ -173,6 +180,10 @@ export const homeWidgetService = {
     if (local && conflict.current) {
       op.base = Object.fromEntries(Object.keys(op.base).map(k => [k, (conflict.current as unknown as Record<string, unknown>)[k]]));
     } else c.queue = c.queue.filter(q => {
+      if(op.action==='preferences'&&q.action==='preferences'){
+        const fields=Object.keys(q.patch).filter(k=>!Object.hasOwn(op.patch,k));
+        if(fields.length){q.patch=Object.fromEntries(fields.map(k=>[k,q.patch[k]]));q.base=Object.fromEntries(fields.map(k=>[k,q.base[k]]));return true;}
+      }
       const drop = op.action === 'preferences' ? q.action === 'preferences' : q.id === op.id;
       if (drop) forget(c, q); return !drop;
     });

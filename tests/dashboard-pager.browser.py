@@ -48,6 +48,10 @@ with sync_playwright() as pw:
         assert not any('/' in label and label.replace(' ','').replace('/','').isdigit() for label in nav.all_text_contents()),'panel labels already identify each page'
         stats_box=page.locator('[data-dashboard-stats]').bounding_box()
         assert abs(stats_box['x']-hero_before['x'])<1 and abs(stats_box['width']-hero_before['width'])<1,'panels align with the hero edges'
+        left_card=page.locator('section[aria-label="最需複習單元 Top 5"]').bounding_box()
+        right_card=page.locator('section[aria-label="待辦事項小組件"]' if width>=768 else 'section[aria-label="各科目錯題訂正率"]').bounding_box()
+        gap=right_card['x']-left_card['x']-left_card['width']
+        assert abs(gap-(track.bounding_box()['width']-hero_before['width']))<2 and gap>=16,'adjacent pages retain the combined edge gutters'
         assert page.get_by_role('region',name='最需複習單元 Top 5').get_by_role('button').count()==5
         stats=page.locator('[data-dashboard-stats] > div').all();ys=[s.bounding_box()['y'] for s in stats]
         assert max(ys)-min(ys)<2,'three horizontal statistics'
