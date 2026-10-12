@@ -32,7 +32,7 @@ export function Navbar() {
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-1 sm:gap-2">
         <div className="flex shrink-0 items-center gap-1 sm:gap-2"><button aria-label="開啟導覽選單" aria-expanded={menu} aria-controls="header-mobile-navigation" onClick={() => setMenu(v => !v)} className="lg:hidden rounded-xl p-1.5 sm:p-2"><Menu size={20} /></button>
           <span onClick={() => setTimeout(() => window.location.reload(), 200)} onDoubleClick={() => navigate(lastStudyUrl(account))}
-            title="重新整理 (雙擊前往刷題)" className="flex cursor-pointer select-none items-center gap-1.5 font-semibold sm:gap-2"><span className="shrink-0 rounded-2xl bg-primary/10 p-2 text-primary sm:p-2.5"><PenTool size={20} /></span><span className="flex flex-col whitespace-nowrap leading-none"><span className="text-base sm:text-lg">Redolve</span><span className="mt-[-0.35rem] text-[0.7rem] font-normal text-text-muted">redo &amp; solve</span></span></span></div>
+            title="重新整理 (雙擊前往刷題)" className="flex cursor-pointer select-none items-center gap-1.5 font-semibold sm:gap-2"><span className="shrink-0 rounded-2xl bg-primary/10 p-2 text-primary sm:p-2.5"><PenTool size={20} /></span><span className="flex flex-col whitespace-nowrap leading-none"><span className="text-base sm:text-lg">Redolve</span><span className="mt-[-0.3rem] text-[0.72rem] font-normal text-text-muted">redo &amp; solve</span></span></span></div>
         <nav aria-label="主要導覽" className="hidden lg:flex gap-1">{links}</nav>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <button onClick={() => setShortcuts(true)} title="快捷鍵" className="hidden lg:block rounded-xl border border-border-subtle p-2"><Command size={16} /></button>
