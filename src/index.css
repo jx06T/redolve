@@ -307,7 +307,7 @@ a.underline, button.underline {
 .dashboard-wide-snap { display: none; }
 .dashboard-carousel :is(input, textarea, [contenteditable="true"]) { touch-action: pan-y; }
 @media (min-width: 768px) {
-  .dashboard-grid { width: 200%; grid-template-columns: minmax(0,2fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.5fr); }
+  .dashboard-grid { width: calc(var(--dashboard-wide-pages, 2) * 100%); grid-template-columns: var(--dashboard-wide-columns, minmax(0,2fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.5fr)); }
   .dashboard-snap { display: none; }
-  .dashboard-wide-snap { display: block; left: 50%; width: 50%; }
+  .dashboard-wide-snap { display: block; width: calc(100% / var(--dashboard-wide-pages, 2)); }
 }

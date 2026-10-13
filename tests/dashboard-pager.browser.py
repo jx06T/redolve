@@ -13,7 +13,8 @@ with sync_playwright() as pw:
         def fixture(route):
             req=route.request;path=urlparse(req.url).path;calls.append((path,req.method))
             result={'items':[],'collections':[],'subscriptions':[],'keys':[],'memberships':{},'invitations':[]}
-            if path=='/api/auth/me':result={'user':account[0]}
+            if path=='/api/progress-plans':result={'plans':[],'preferences':{'visible':False,'order':[],'row_version':0}}
+            elif path=='/api/auth/me':result={'user':account[0]}
             elif path=='/api/taxonomy':result={'tree':[],'customNodes':[],'counts':{}}
             elif path=='/api/dashboard':result={'summary':{'total':60,'resolved':20,'unsolved':40,'unclassified':2},
                 'subjects':[{'subject_id':'s'+str(i),'subject_label':'科目 '+str(i),'total':10,'resolved':i%5} for i in range(12)],

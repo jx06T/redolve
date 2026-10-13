@@ -5,6 +5,8 @@ import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
+import { useProgressPlans } from '../hooks/useProgressPlans';
+import { ProgressPlansWidget, ProgressPlansVisibility, ProgressPlansConflict } from './ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
@@ -189,16 +191,19 @@ export function HomeWidgets() {
   </div><WidgetConflict state={state} /></>;
 }
 export function HomeWidgetSettings() {
+  const progress = useProgressPlans();
   const state = useHomeWidgets(), location = useLocation(), root = useRef<HTMLDivElement>(null);
   const selected = new URLSearchParams(location.search).get('widget');
   useEffect(() => { if (selected) root.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, [selected]);
   return <div ref={root} id="home-widgets" className="scroll-mt-24 space-y-5">
     <section className="rounded-3xl border border-border-subtle bg-surface p-5"><h2 className="mb-4 font-semibold">首頁小組件</h2>
       <div className="space-y-3"><SwitchRow label="顯示待辦事項" checked={state.snapshot.preferences.todos_visible} onChange={todos_visible => state.service.preferences(state.channel, { todos_visible })} />
-        <SwitchRow label="顯示事件倒數" checked={state.snapshot.preferences.countdowns_visible} onChange={countdowns_visible => state.service.preferences(state.channel, { countdowns_visible })} /></div>
-      <p className="mt-4 text-xs leading-relaxed text-text-muted">首頁可新增、編輯與勾選待辦；倒數只供檢視，管理操作於此設定。</p>
+        <SwitchRow label="顯示事件倒數" checked={state.snapshot.preferences.countdowns_visible} onChange={countdowns_visible => state.service.preferences(state.channel, { countdowns_visible })} /><ProgressPlansVisibility state={progress} /></div>
+      <p className="mt-4 text-xs leading-relaxed text-text-muted">首頁可新增、編輯與勾選待辦、登記學習進度；倒數只供檢視，計畫內容與倒數於此管理。</p>
     </section>
+    {selected === 'progress' && <ProgressPlansWidget key={progress.channel.account} state={progress} management />}
     {selected === 'countdowns' ? <><CountdownWidget key={state.channel.account + ':countdown'} state={state} management /><TodoWidget key={state.channel.account + ':todo'} state={state} management /></> : <><TodoWidget key={state.channel.account + ':todo'} state={state} management /><CountdownWidget key={state.channel.account + ':countdown'} state={state} management /></>}
-    <WidgetConflict state={state} />
+    {selected !== 'progress' && <ProgressPlansWidget key={progress.channel.account} state={progress} management />}
+    <ProgressPlansConflict state={progress} /><WidgetConflict state={state} />
   </div>;
 }

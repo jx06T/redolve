@@ -25,9 +25,14 @@ function schema() {
   const [tables, items, reads, saved, triggers, sourceTriggers, collections, snapshots, shareDdl] = execute(['--command', "SELECT name FROM sqlite_master WHERE type='table'; PRAGMA table_info(items); PRAGMA table_info(collection_item_reads); PRAGMA table_info(saved_refs); SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'search_version_%'; SELECT name FROM sqlite_master WHERE type='trigger' AND name IN ('source_work_shared_update','source_progress_shared_update'); PRAGMA table_info(collections); PRAGMA table_info(saved_snapshots); SELECT name FROM sqlite_master WHERE name IN ('asset_reference_inventory','independent_share_asset_ready','idx_independent_shares_owner','idx_independent_shares_list','idx_independent_shares_expiry','idx_share_asset_refs_asset');"]);
   const names = new Set(tables.results.map(row => row.name));
   const [widgetItems,widgetPrefs,widgetIndexes]=execute(['--command',"PRAGMA table_info(home_widget_items); PRAGMA table_info(home_widget_preferences); SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_home_widgets_active','idx_home_widgets_expiry');"]);
+  const [progressPlans,progressPreferences,progressOperations,progressIndexes]=execute(['--command',"PRAGMA table_info(study_progress_plans); PRAGMA table_info(study_progress_preferences); PRAGMA table_info(study_progress_operations); SELECT name FROM sqlite_master WHERE type='index' AND name IN ('idx_study_progress_active','idx_study_progress_operations_plan');"]);
   const config = names.has('collection_search_cache_config') ? execute(['--command', 'SELECT schema_version,ready FROM collection_search_cache_config WHERE id=1;'])[0].results[0] : null;
   return {
     tables: names,
+    progressPlans: new Set(progressPlans.results.map(row=>row.name)),
+    progressPreferences: new Set(progressPreferences.results.map(row=>row.name)),
+    progressOperations: new Set(progressOperations.results.map(row=>row.name)),
+    progressIndexes: new Set(progressIndexes.results.map(row=>row.name)),
     widgetItems: new Set(widgetItems.results.map(row=>row.name)),
     widgetPrefs: new Set(widgetPrefs.results.map(row=>row.name)),
     widgetIndexes: new Set(widgetIndexes.results.map(row=>row.name)),
@@ -45,10 +50,14 @@ const sharingSql = readFileSync(path.join(root, 'worker/migrations/0002_sharing_
 const sharingTables = [...sharingSql.matchAll(/CREATE TABLE (\w+)\s*\(/g)].map(match => match[1]);
 function missing(current) {
   return [
-    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs', 'home_widget_items', 'home_widget_preferences'].filter(name => !current.tables.has(name)),
+    ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs', 'home_widget_items', 'home_widget_preferences','study_progress_plans','study_progress_preferences','study_progress_operations'].filter(name => !current.tables.has(name)),
     ...(!current.collections.has('allow_reshare') ? ['collections.allow_reshare'] : []),
     ...(!current.snapshots.has('reshare_allowed') ? ['saved_snapshots.reshare_allowed'] : []),
     ...(!current.snapshots.has('source_text') ? ['saved_snapshots.source_text'] : []),
+    ...['id','user_id','name','unit','target_count','completed_count','created_at','updated_at','row_version','deleted_at'].filter(name=>!current.progressPlans.has(name)).map(name=>'study_progress_plans.'+name),
+    ...['user_id','visible','plan_order','row_version','updated_at'].filter(name=>!current.progressPreferences.has(name)).map(name=>'study_progress_preferences.'+name),
+    ...['id','user_id','plan_id','delta','effect','applied','created_at'].filter(name=>!current.progressOperations.has(name)).map(name=>'study_progress_operations.'+name),
+    ...['idx_study_progress_active','idx_study_progress_operations_plan'].filter(name=>!current.progressIndexes.has(name)),
     ...['idx_home_widgets_active','idx_home_widgets_expiry'].filter(name=>!current.widgetIndexes.has(name)),
     ...['id','user_id','kind','text','target_date','completed_at','created_at','updated_at','row_version','deleted_at'].filter(name=>!current.widgetItems.has(name)).map(name=>`home_widget_items.${name}`),
     ...['user_id','todos_visible','countdowns_visible','countdown_order','row_version','updated_at'].filter(name=>!current.widgetPrefs.has(name)).map(name=>`home_widget_preferences.${name}`),
@@ -122,6 +131,7 @@ if (!current.tables.has('items')) {
   current=schema();
   if(!current.widgetPrefs.has('countdown_order'))execute(['--file','worker/migrations/0010_countdown_order.sql']);
 }
+execute(['--file','worker/migrations/0012_study_progress.sql']);
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);
 console.log('Local schema is ready. Start npm run worker:dev and npm run dev in separate terminals.');

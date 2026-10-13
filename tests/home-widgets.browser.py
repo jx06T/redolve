@@ -32,7 +32,8 @@ with sync_playwright() as pw:
                 if path.endswith('/image'):
                     return route.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="white"/><text x="8" y="35">Public question</text></svg>')
                 result = {'items': [], 'collections': [], 'subscriptions': [], 'keys': [], 'memberships': {}, 'invitations': [], 'subject_destinations': []}
-                if path == '/api/auth/me': result = {'user': {'id': account, 'name': '小組件測試'} if authenticated else None}
+                if path == '/api/progress-plans': result={'plans':[],'preferences':{'visible':False,'order':[],'row_version':0}}
+                elif path == '/api/auth/me': result = {'user': {'id': account, 'name': '小組件測試'} if authenticated else None}
                 elif path == '/api/taxonomy': result = {'tree': [], 'customNodes': [], 'counts': {}}
                 elif path == '/api/dashboard': result = {'summary': {'total': 0, 'resolved': 0, 'unsolved': 0}, 'subjects': [], 'top_unsolved_topics': []}
                 elif path == '/api/public/items': result = {'items': [{'entry_id':'public-'+str(i),'collection_id':'public-collection','collection_title':'公開測試集','title':'公開題目 '+str(i),'topic_label':'數學','is_subscribed':0} for i in range(4)]}
@@ -62,6 +63,7 @@ with sync_playwright() as pw:
                 route.fulfill(json=result)
             context.route('**/api/**', fixture)
             context.add_init_script('Date.now = () => '+str(NOW))
+            context.add_init_script("localStorage.setItem('rdv:study-progress:v1:guest',JSON.stringify({data:{plans:[],preferences:{visible:false,order:[],row_version:0}}}))")
             initial = json.dumps({'data': database, 'format': 2}, ensure_ascii=False)
             context.add_init_script('''if (!localStorage.getItem('widget-test-seeded')) {
               localStorage.setItem('rdv:home-widgets:v1:''' + account + '''', ''' + json.dumps(initial) + ''');

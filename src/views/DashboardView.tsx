@@ -25,6 +25,8 @@ import { studyResumeUrl } from '../services/navigationState';
 import { TodoWidget, CountdownWidget, WidgetConflict } from '../components/HomeWidgets';
 import { PublicExploreActivity } from '../components/PublicExploreActivity';
 import { DashboardPager } from '../components/DashboardPager';
+import { useProgressPlans } from '../hooks/useProgressPlans';
+import { ProgressPlansWidget, ProgressPlansConflict } from '../components/ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 
 export const DashboardView: React.FC = () => {
@@ -40,6 +42,7 @@ export const DashboardView: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [loadError, setLoadError] = useState<boolean>(false);
   const [opening, setOpening] = useState(false);
+  const progress = useProgressPlans();
   const widgets = useHomeWidgets(); const [revision, setRevision] = useState(0);
   const entryRequest = useRef<AbortController>();
   useEffect(() => () => entryRequest.current?.abort(), [currentUser?.id]);
@@ -171,11 +174,11 @@ export const DashboardView: React.FC = () => {
     <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent" />
   </header>;
   return <div data-dashboard className="flex h-full min-h-0 flex-col gap-3">
-    <DashboardPager account={widgets.channel.account} showTodo={widgets.snapshot.preferences.todos_visible} hero={hero} metrics={metrics} subjects={subjectCard} topics={topicCard}
+    <DashboardPager progress={<ProgressPlansWidget key={progress.channel.account} state={progress} />} showProgress={progress.snapshot.preferences.visible} account={widgets.channel.account} showTodo={widgets.snapshot.preferences.todos_visible} hero={hero} metrics={metrics} subjects={subjectCard} topics={topicCard}
       todos={<TodoWidget key={widgets.channel.account + ':todo'} state={widgets} fit />}
       tools={<div className="flex h-full min-h-0 flex-col gap-3"><div data-home-widgets-secondary className={'grid min-h-0 flex-1 gap-3 ' + (widgets.snapshot.preferences.countdowns_visible ? 'grid-rows-[minmax(0,2fr)_minmax(0,1fr)]' : 'grid-rows-1')}>
         {widgets.snapshot.preferences.countdowns_visible && <CountdownWidget key={widgets.channel.account + ':countdown'} state={widgets} />}<PublicExploreActivity compact />
       </div><SharingActivity compact /></div>} />
-    <WidgetConflict state={widgets} />
+    <ProgressPlansConflict state={progress} /><WidgetConflict state={widgets} />
   </div>;
 };

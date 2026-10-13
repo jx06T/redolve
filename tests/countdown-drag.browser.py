@@ -13,7 +13,8 @@ with sync_playwright() as pw:
         def fixture(route):
             path=urlparse(route.request.url).path
             result={'items':[],'collections':[],'subscriptions':[],'keys':[],'invitations':[],'subject_destinations':[]}
-            if path=='/api/auth/me':result={'user':None}
+            if path=='/api/progress-plans':result={'plans':[],'preferences':{'visible':False,'order':[],'row_version':0}}
+            elif path=='/api/auth/me':result={'user':None}
             elif path=='/api/taxonomy':result={'tree':[],'customNodes':[],'counts':{}}
             route.fulfill(json=result)
         context.route('**/api/**',fixture)
