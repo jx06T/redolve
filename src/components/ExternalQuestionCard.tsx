@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, Share2, Star } from 'lucide-react';
 import { ShareModal } from './ShareModal';
@@ -24,7 +24,13 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
   const { setAuthModalOpen, showToast } = useStore();
   const [content, setContent] = useState<WorkContent>(); const [failure, setFailure] = useState('');
   const [retry, setRetry] = useState(0); const [saved, setSaved] = useState(savedId || '');
-  const [imageReady, setImageReady] = useState(false);
+  const imageKey = JSON.stringify([collectionId, id, account, retry]);
+  const [readyImage, setReadyImage] = useState('');
+  const imageReady = readyImage === imageKey;
+  const imageRef = useCallback((node: HTMLImageElement | null) => {
+    // A decoded cached image can be ready before passive effects run.
+    if (node?.complete && node.naturalWidth > 0) setReadyImage(imageKey);
+  }, [imageKey]);
   const [star, setStar] = useState(starred); const [busy, setBusy] = useState(false);
   const [dialog, setDialog] = useState<'report' | 'share' | 'duplicate' | null>(null);
   const [reason, setReason] = useState(''); const [existing, setExisting] = useState('');
@@ -36,7 +42,7 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
   useEffect(() => setSaved(savedId || ''), [savedId]);
   useEffect(() => setStar(starred), [starred]);
   useEffect(() => {
-    const abort = new AbortController(); setContent(undefined); setImageReady(false); setFailure('');
+    const abort = new AbortController(); setContent(undefined); setFailure('');
     void workService.loadShared(collectionId, id, '', abort.signal).then(d => {
       if (abort.signal.aborted) return; setContent(d);
     }).catch(e => { if (!abort.signal.aborted) setFailure(e.message); });
@@ -65,7 +71,7 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
     {content && <p className="mb-3 text-xs text-text-muted">{content.shared?.source.topic_label || '未提供官方分類'}{(() => { try { const tags = JSON.parse(content.shared?.source.keywords || '[]'); return Array.isArray(tags) && tags.length ? ' · ' + tags.join('、') : ''; } catch { return ''; } })()}</p>}
     {!failure && <div ref={imageArea} className="relative overflow-hidden rounded-2xl border border-border-subtle">
         {/* The image endpoint validates access itself; load it alongside reference work. */}
-        <img key={`${collectionId}:${id}:${account}:${retry}`} src={imageUrl(collectionId,id)} alt={content?.title || '題圖'} className="exam-paper-image block w-full h-auto" onLoad={() => { setImageReady(true); if ((subscribed || knownSubscribed) && account) void sharingApi(`/subscriptions/${collectionId}/items/${id}/read`, 'PUT', {}).then(() => onRead?.()).catch(() => { }); }} onError={() => { setImageReady(true); setFailure('題圖暫時無法載入，請重試。'); }} />
+        <img ref={imageRef} key={imageKey} src={imageUrl(collectionId,id)} alt={content?.title || '題圖'} className="exam-paper-image block w-full h-auto" onLoad={() => { setReadyImage(imageKey); if ((subscribed || knownSubscribed) && account) void sharingApi(`/subscriptions/${collectionId}/items/${id}/read`, 'PUT', {}).then(() => onRead?.()).catch(() => { }); }} onError={() => { setFailure('題圖暫時無法載入，請重試。'); }} />
         {referenceHeight > 0 && <div aria-hidden style={{ height: referenceHeight }} className="border-t border-dashed border-border-subtle bg-page-bg" />}
         {referenceLayers.map(l => l.ink &&
           <div key={l.id} className="pointer-events-none absolute inset-0"><DrawCanvas initialDrawData={l.ink} readOnly inkVisible /></div>)}

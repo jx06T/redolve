@@ -2,6 +2,8 @@
 
 ## 已修復
 
+- 後續切頁空白修正：ExternalQuestionCard 以題圖識別保存 ready 狀態，重新讀取參考內容不清除已載入的同一 img；ref 檢查瀏覽器已解碼的快取圖片。避免 data-reader-loading 錯誤保留虛擬列表預留高度。回歸：`tests/reader-cached-image-height.browser.mjs`，涵蓋保留圖片節點的情境更新与 390／1280px 多輪 SPA 切換、實際 HTTP 快取。此修正無新 migration。
+
 - 原因：所有題圖 `no-store`，全域 middleware 也再次覆寫成 `no-store`；探索題卡又等待全部參考筆跡後才建立 img。
 - 上傳、集合（探索／延伸／共用）、存入、新舊單題分享圖片統一走 `authorizedImage`。使用 `private, no-cache`、R2 `httpEtag`、`Vary: Cookie, Authorization`。
 - 每次請求仍先檢查當前登入／ownership／集合觀看權／entry 狀態／資產可用狀態／分享期限。檢查通過才做 R2 conditional GET；未變更回 304，不取回圖片 body。更新的 R2 內容回 200 與新 ETag。

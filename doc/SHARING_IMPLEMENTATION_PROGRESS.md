@@ -4,6 +4,13 @@
 
 ## 目前狀態
 
+### 2026-10-13 探索／延伸題卡切頁後保留空白
+
+- 已重現：同一 img 已載入並保留掛載，訂閱情境變更重新讀取明細時，effect 把 imageReady 清為 false。圖片沒有換節點／網址，不會再次觸發 load；data-reader-loading 持續為 true，虛擬列表的預留高度便一直套在已完成題卡上。
+- 修正為以 collection／entry／account／retry 的題圖識別保存載入狀態，明細讀取不清除。ref 也檢查 complete 與 naturalWidth，涵蓋快取題圖在 effect 前完成；沿用圖片錯誤重試與授權重驗流程。
+- 新增 `tests/reader-cached-image-height.browser.mjs`：舊碼於保留題圖、切換訂閱情境的 fixture 失敗（loading=true）；修正後通過。直接使用 HTTP 圖片快取，390／1280px 各五輪探索／延伸／關於的 SPA 切換，檢查圖片已完成、題卡底部空白及快取重用；不使用會關閉 HTTP 快取的 route 攔截。
+- TypeScript、正式建置／SW、PWA 通過；只調整題圖載入狀態，無 migration、secret 或 binding。實體 iPad 的最終驗收仍由使用者確認。
+
 ### 2026-10-13 學習計畫進度小組件（已實作，本地 migration 完成）
 
 - 最新版面：平板以上第二頁三欄等分待辦、倒數／公開探索、學習計畫，總覽回到兩頁；手機計畫仍獨立，共五頁。隱藏工具時其餘欄等分；舊寬版 progress 網址／記憶轉至 tools，保留手機記憶與掛載資料。倒數名稱／日期於窄欄自然換行，避免被壓成直排。只改前端，無新 migration。
