@@ -62,7 +62,7 @@ with sync_playwright() as pw:
             page=context.new_page();page.on('pageerror',lambda e:errors.append(str(e)))
             page.goto('http://127.0.0.1:4181/');page.wait_for_load_state('networkidle')
             nav=page.get_by_role('navigation',name='總覽面板',exact=True)
-            label='學習計畫' if width>=768 else '計畫'
+            label='日常工具' if width>=768 else '計畫'
             def choose():
                 nav.get_by_role('button',name=label,exact=True).click()
                 index=nav.get_by_role('button').all_text_contents().index(label)
@@ -70,7 +70,7 @@ with sync_playwright() as pw:
             choose()
             widget=page.get_by_role('region',name='學習計畫小組件',exact=True)
             card=widget.locator('[data-progress-plan="plan-one-123"]');bar=card.get_by_role('progressbar')
-            assert nav.get_by_role('button').count()==(3 if width>=768 else 5)
+            assert nav.get_by_role('button').count()==(2 if width>=768 else 5)
             expect(bar).to_have_attribute('aria-valuenow','2')
             left=card.get_by_role('button',name='減少進度：數學講義',exact=True);right=card.get_by_role('button',name='增加進度：數學講義',exact=True)
             box=card.bounding_box()
@@ -85,13 +85,17 @@ with sync_playwright() as pw:
             # A small mouse drag must never turn into a click.
             page.mouse.move(box['x']+box['width']*.9,box['y']+20);page.mouse.down();page.mouse.move(box['x']+box['width']*.9-22,box['y']+20,steps=5);page.mouse.up()
             expect(bar).to_have_attribute('aria-valuenow','3')
-            # Native horizontal swipe begins inside the decrement zone and returns to tools.
+            # Mobile swipe starts in the decrement zone; wide layouts swipe across the shared tools page.
             cdp=context.new_cdp_session(page);x=box['x']+box['width']*.12;y=box['y']+box['height']*.5
+            swipe_distance=box['width']*.75
+            if width>=768:
+                track_box=page.locator('[data-dashboard-carousel]').bounding_box()
+                x=track_box['x']+track_box['width']*.18;swipe_distance=track_box['width']*.64
             cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
             for step in range(1,9):
-                cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x+box['width']*.75*step/8,'y':y}]});page.wait_for_timeout(20)
+                cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x+swipe_distance*step/8,'y':y}]});page.wait_for_timeout(20)
             cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]});cdp.detach()
-            expect(nav.get_by_role('button',name='日常工具' if width>=768 else '倒數／探索',exact=True)).to_have_attribute('aria-current','page')
+            expect(nav.get_by_role('button',name='複習進度' if width>=768 else '倒數／探索',exact=True)).to_have_attribute('aria-current','page')
             choose();expect(bar).to_have_attribute('aria-valuenow','3')
             page.reload();page.wait_for_load_state('networkidle');expect(bar).to_have_attribute('aria-valuenow','3')
             if authenticated:

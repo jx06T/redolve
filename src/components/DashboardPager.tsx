@@ -10,7 +10,7 @@ const hashPanel = (hash: string): Panel | null => {
   return ['overview', 'subjects', 'todos', 'tools', 'progress'].includes(id) ? id as Panel : null;
 };
 const project = (id: Panel, wide: boolean, showTodo: boolean, showProgress: boolean): Panel => id === 'progress' && !showProgress ? 'tools' : wide ?
-  id === 'subjects' ? 'overview' : id === 'todos' ? 'tools' : id : id === 'todos' && !showTodo ? 'overview' : id;
+  id === 'subjects' ? 'overview' : id === 'todos' || id === 'progress' ? 'tools' : id : id === 'todos' && !showTodo ? 'overview' : id;
 function read(account: string, wide: boolean, showTodo: boolean, showProgress: boolean): Panel {
   const key = storageKey(account, wide);
   let id = memory.get(key);
@@ -27,15 +27,17 @@ export function DashboardPager({ account, showTodo, hero, metrics, topics, subje
   const [active, setActive] = useState<Panel>(() => initialHash.current ? project(initialHash.current, wide, showTodo, showProgress) : read(account, wide, showTodo, showProgress));
   const viewport = useRef<HTMLDivElement>(null), context = useRef(''), identity = useRef(account);
   const current = useRef(active), timer = useRef<number>(), programmatic = useRef<Panel | null>(null), expectedHash = useRef<string | null>(null);
-  const panels: Panel[] = wide ? ['overview', 'tools', ...(showProgress ? ['progress' as const] : [])] : ['overview', 'subjects', ...(showTodo ? ['todos' as const] : []), 'tools', ...(showProgress ? ['progress' as const] : [])];
-  const signature = panels.join('|'); const live = useRef({ panels, account, wide, showTodo, showProgress }); live.current = { panels, account, wide, showTodo, showProgress };
+  const panels: Panel[] = wide ? ['overview', 'tools'] : ['overview', 'subjects', ...(showTodo ? ['todos' as const] : []), 'tools', ...(showProgress ? ['progress' as const] : [])];
+  const signature = panels.join('|') + ':' + showTodo + ':' + showProgress; const live = useRef({ panels, account, wide, showTodo, showProgress }); live.current = { panels, account, wide, showTodo, showProgress };
+  const toolShare = 3 / (1 + Number(showTodo) + Number(showProgress));
+  const wideColumns = `minmax(0,2fr) minmax(0,1fr) minmax(0,${showTodo ? toolShare : 0}fr) minmax(0,${toolShare}fr) minmax(0,${showProgress ? toolShare : 0}fr)`;
   const labels: Record<Panel, string> = { overview: wide ? '複習進度' : '複習重點', subjects: '各科進度', todos: '待辦', tools: wide ? '日常工具' : '倒數／探索', progress: wide ? '學習計畫' : '計畫' };
-  const isVisible = (id: Panel) => wide ? (active === 'progress' ? id === 'progress' : active === 'overview' ? id === 'overview' || id === 'subjects' : id === 'todos' || id === 'tools') : active === id;
+  const isVisible = (id: Panel) => wide ? (active === 'overview' ? id === 'overview' || id === 'subjects' : id === 'todos' || id === 'tools' || id === 'progress') : active === id;
   const inactive = (id: Panel) => isVisible(id) ? {} : { inert: '', 'aria-hidden': true as const };
   const select = (id: Panel) => {
     const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const segment = focused?.closest<HTMLElement>('[data-dashboard-segment]')?.dataset.dashboardSegment;
-    const visible = live.current.wide ? (id === 'progress' ? ['progress'] : id === 'overview' ? ['overview', 'subjects'] : ['todos', 'tools']) : [id];
+    const visible = live.current.wide ? (id === 'overview' ? ['overview', 'subjects'] : ['todos', 'tools', 'progress']) : [id];
     if (segment && !visible.includes(segment)) focused?.blur();
     current.current = id; setActive(id);
     const key = storageKey(live.current.account, live.current.wide); memory.set(key, id);
@@ -71,7 +73,7 @@ export function DashboardPager({ account, showTodo, hero, metrics, topics, subje
     if (expectedHash.current && location.hash !== expectedHash.current) return;
     expectedHash.current = null; const id = hashPanel(location.hash);
     if (id && project(id, wide, showTodo, showProgress) !== current.current) go(id, false);
-  }, [location.hash, wide, showTodo]);
+  }, [location.hash, wide, showTodo, showProgress]);
   useEffect(() => {
     const el = viewport.current; if (!el) return; let width = el.clientWidth;
     const resize = new ResizeObserver(() => { if (el.clientWidth && el.clientWidth !== width) { width = el.clientWidth; go(current.current, false); } });
@@ -92,18 +94,18 @@ export function DashboardPager({ account, showTodo, hero, metrics, topics, subje
       onKeyDown={e => { if (e.target === e.currentTarget) keys(e); }}
       onPointerDown={() => { interacted.current = true; programmatic.current = null; }} onWheel={() => { programmatic.current = null; }}
       onScroll={() => { clearTimeout(timer.current); timer.current = window.setTimeout(settle, 140); }}>
-      <div className="dashboard-grid" style={{ '--dashboard-mobile-pages': 3 + Number(showTodo) + Number(showProgress), '--dashboard-wide-pages': showProgress ? 3 : 2, '--dashboard-wide-columns': 'minmax(0,2fr) minmax(0,1fr) minmax(0,1.5fr) minmax(0,1.5fr)' + (showProgress ? ' minmax(0,3fr)' : '') } as React.CSSProperties}>
+      <div className="dashboard-grid" style={{ '--dashboard-mobile-pages': 3 + Number(showTodo) + Number(showProgress), '--dashboard-wide-columns': wideColumns } as React.CSSProperties}>
         {Array.from({ length: 3 + Number(showTodo) + Number(showProgress) }, (_, index) => <span key={index} aria-hidden="true" className="dashboard-snap" style={{ left: `${index * (100 / (3 + Number(showTodo) + Number(showProgress)))}%` }} />)}
         {/* Stable semantic segments regroup across viewport sizes without remounting. */}
-        {Array.from({ length: showProgress ? 3 : 2 }, (_, index) => <span key={index} aria-hidden="true" className="dashboard-wide-snap" style={{ left: `${index * 100 / (showProgress ? 3 : 2)}%` }} />)}
+        {[0, 1].map(index => <span key={index} aria-hidden="true" className="dashboard-wide-snap" style={{ left: `${index * 50}%` }} />)}
         <div data-dashboard-segment="overview" {...inactive('overview')} className="col-start-1 row-span-2 flex min-h-0 flex-col gap-3 px-2 sm:px-4 md:contents">
           <div className="shrink-0 space-y-3 md:col-span-2 md:col-start-1 md:row-start-1 md:px-4 md:pb-3">{hero}{metrics}</div>
           <div className="min-h-0 flex-1 md:col-start-2 md:row-start-2 md:pl-3 md:pr-4">{topics}</div>
         </div>
         <div data-dashboard-segment="subjects" {...inactive('subjects')} className="col-start-2 row-span-2 min-h-0 px-2 sm:px-4 md:col-start-1 md:row-span-1 md:row-start-2 md:pr-3">{subjects}</div>
         {showTodo && <div data-dashboard-segment="todos" {...inactive('todos')} className="col-start-3 row-span-2 min-h-0 px-2 sm:px-4 md:pr-3">{todos}</div>}
-        <div data-dashboard-segment="tools" {...inactive('tools')} className={'row-span-2 min-h-0 px-2 sm:px-4 md:pl-3 ' + (showTodo ? 'col-start-4' : 'col-start-3 md:col-span-2')}>{tools}</div>
-        {showProgress && <div data-dashboard-segment="progress" {...inactive('progress')} className={'row-span-2 min-h-0 px-2 sm:px-4 md:col-start-5 ' + (showTodo ? 'col-start-5' : 'col-start-4')}>{progress}</div>}
+        <div data-dashboard-segment="tools" {...inactive('tools')} className={'row-span-2 min-h-0 px-2 sm:px-4 md:col-start-4 ' + (showTodo ? 'col-start-4 md:pl-3 ' : 'col-start-3 ') + (showProgress ? 'md:pr-3' : '')}>{tools}</div>
+        {showProgress && <div data-dashboard-segment="progress" {...inactive('progress')} className={'row-span-2 min-h-0 px-2 sm:px-4 md:col-start-5 md:pl-3 ' + (showTodo ? 'col-start-5' : 'col-start-4')}>{progress}</div>}
       </div>
     </div>
     <nav aria-label="總覽面板" className="flex mb-2 z-30 shrink-0 items-center justify-center gap-1" onKeyDown={keys}>
