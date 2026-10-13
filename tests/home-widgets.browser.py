@@ -21,7 +21,7 @@ with sync_playwright() as pw:
     for width in [1280, 390]:
         for authenticated in [False, True]:
             if os.environ.get('WIDGET_AUTH') and str(authenticated) != os.environ['WIDGET_AUTH']: continue
-            context = browser.new_context(viewport={'width': width, 'height': 1000}, service_workers='block')
+            context = browser.new_context(viewport={'width': width, 'height': 1000}, service_workers='block',has_touch=True)
             account = 'widget-user' if authenticated else 'guest'
             database = {'items': copy.deepcopy(INITIAL), 'preferences': copy.deepcopy(PREFS)}
             calls, writes, errors = [], [], []
@@ -138,8 +138,39 @@ with sync_playwright() as pw:
             assert len(calls) == before, (before, calls)
             manager = page.get_by_role('region', name='事件倒數小組件', exact=True)
             expect(manager).to_be_visible()
+            # Countdown management reorders with mouse and touch; edit buttons stay independent.
+            def drag_countdown(touch=False):
+                handle=manager.get_by_role('button',name='拖曳排序倒數：考試 2',exact=True)
+                handle.scroll_into_view_if_needed();start=handle.bounding_box();target=manager.locator('[data-reorder-id]').first.bounding_box()
+                x=start['x']+start['width']/2;y=start['y']+start['height']/2;end=target['y']+4
+                old_writes=len(writes)
+                if touch:
+                    cdp=context.new_cdp_session(page)
+                    cdp.send('Input.dispatchTouchEvent',{'type':'touchStart','touchPoints':[{'x':x,'y':y}]})
+                    for step in range(1,9):
+                        cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':x,'y':y+(end-y)*step/8}]});page.wait_for_timeout(20)
+                    assert len(writes)==old_writes
+                    cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]});cdp.detach()
+                else:
+                    page.mouse.move(x,y);page.mouse.down();page.mouse.move(x,end,steps=8);page.wait_for_timeout(80)
+                    assert len(writes)==old_writes
+                    page.mouse.up()
+                assert manager.get_by_role('button',name='編輯倒數：',exact=False).first.inner_text().startswith('考試 2')
+                assert not page.get_by_role('dialog',name='編輯倒數',exact=True).count()
+                if authenticated:
+                    page.wait_for_function("!Object.keys(localStorage).some(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:'))")
+                    assert len(writes)==old_writes+1
+                manager.get_by_role('button',name='拖曳排序倒數：考試 2',exact=True).press('ArrowDown')
+                assert manager.get_by_role('button',name='編輯倒數：',exact=False).first.inner_text().startswith('考試 1')
+                if authenticated:page.wait_for_function("!Object.keys(localStorage).some(k=>k.startsWith('rdv:home-widgets:v1:widget-user:operation:'))")
+            drag_countdown();drag_countdown(touch=True)
+            start=manager.get_by_role('button',name='拖曳排序倒數：考試 2',exact=True).bounding_box()
+            target=manager.locator('[data-reorder-id]').first.bounding_box()
+            page.mouse.move(start['x']+start['width']/2,start['y']+start['height']/2);page.mouse.down();page.mouse.move(start['x']+start['width']/2,target['y']+4,steps=8)
+            page.keyboard.press('Escape');page.mouse.up()
+            assert manager.get_by_role('button',name='編輯倒數：',exact=False).first.inner_text().startswith('考試 1')
             schema_pending[0] = authenticated
-            manager.get_by_role('button',name='上移倒數：考試 2',exact=True).click()
+            manager.get_by_role('button',name='拖曳排序倒數：考試 2',exact=True).press('ArrowUp')
             assert manager.get_by_role('button',name='編輯倒數：',exact=False).first.inner_text().startswith('考試 2')
             if authenticated:
                 expect(manager.get_by_role('button',name='重試同步')).to_be_visible()

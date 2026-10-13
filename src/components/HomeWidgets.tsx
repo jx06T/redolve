@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowDown, ArrowUp, CalendarDays, Check, ListTodo, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
+import { useListReorder } from '../hooks/useListReorder';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
@@ -126,13 +127,23 @@ function CountdownTile({ item, compact = false, onEdit }: { item: WidgetItem; co
   return onEdit ? <button className={rowClass + ' w-full text-left hover:brightness-95'} onClick={() => onEdit(item)} aria-label={`編輯倒數：${item.text}`}>{content}</button>
     : <div data-countdown-item={item.id} data-countdown-size={compact ? 'compact' : 'large'} title={`${item.text} · ${item.target_date}`} className={rowClass}>{content}</div>;
 }
-function CountdownRows({ items, onEdit, onMove }: { items: WidgetItem[]; onEdit?: (item: WidgetItem) => void; onMove?: (index: number, direction: number) => void }) {
-  if (!onEdit) return <div className="space-y-2.5"><div className="space-y-2">{items.slice(0, 3).map(item => <CountdownTile key={item.id} item={item} />)}</div>
+function CountdownRows({ items }: { items: WidgetItem[] }) {
+  return <div className="space-y-2.5"><div className="space-y-2">{items.slice(0, 3).map(item => <CountdownTile key={item.id} item={item} />)}</div>
     {items.length > 3 && <div className="grid min-w-0 grid-cols-3 gap-2">{items.slice(3).map(item => <CountdownTile key={item.id} item={item} compact />)}</div>}</div>;
-  return <div className="space-y-2">{items.map((item, index) => <div key={item.id} className="flex min-w-0 items-center gap-2"><CountdownTile item={item} onEdit={onEdit} />
-    <div className="flex shrink-0 flex-col"><button disabled={index === 0} aria-label={`上移倒數：${item.text}`} onClick={() => onMove?.(index, -1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 disabled:opacity-30"><ArrowUp size={16} /></button>
-      <button disabled={index === items.length - 1} aria-label={`下移倒數：${item.text}`} onClick={() => onMove?.(index, 1)} className="flex h-11 w-11 items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 disabled:opacity-30"><ArrowDown size={16} /></button></div>
-  </div>)}</div>;
+}
+function CountdownManager({ items, state, onEdit }: { items: WidgetItem[]; state: Widgets; onEdit: (item: WidgetItem) => void }) {
+  const root = useRef<HTMLDivElement>(null), base = useRef<string[]>([]);
+  const sorting = useListReorder(items.map(item => item.id), root, root,
+    () => { base.current = [...state.snapshot.preferences.countdown_order || []]; },
+    ids => state.service.preferences(state.channel, { countdown_order: ids }, { countdown_order: base.current }));
+  const byId = new Map(items.map(item => [item.id, item]));
+  return <div ref={root} {...sorting.surface} className="space-y-2" aria-label="倒數排序清單">{sorting.order.map(id => {
+    const item = byId.get(id); if (!item) return null;
+    return <div key={id} data-reorder-id={id} className={'flex min-w-0 items-center gap-2 rounded-2xl ' + (sorting.active === id ? 'bg-neutral-100' : '')}>
+      <CountdownTile item={item} onEdit={onEdit} />
+      <button type="button" aria-label={'拖曳排序倒數：' + item.text} aria-pressed={sorting.active === id} title="拖曳排序；也可用上下鍵、Home／End 調整" className="flex h-11 w-11 shrink-0 touch-none select-none items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 cursor-grab active:cursor-grabbing" {...sorting.handle(id)}><GripVertical size={18} /></button>
+    </div>;
+  })}</div>;
 }
 function CountdownEditor({ item, state, onClose }: { item: WidgetItem | null; state: Widgets; onClose: () => void }) {
   const [text, setText] = useState(item?.text || ''), [date, setDate] = useState(item?.target_date || ''), [error, setError] = useState(''), [remove, setRemove] = useState(false);
@@ -156,17 +167,11 @@ function CountdownEditor({ item, state, onClose }: { item: WidgetItem | null; st
 export function CountdownWidget({ state, management = false }: { state: Widgets; management?: boolean }) {
   const [editing, setEditing] = useState<WidgetItem | null | undefined>();
   const items = orderedCountdowns(state.snapshot.items, state.snapshot.preferences.countdown_order);
-  const move = (index: number, direction: number) => {
-    const ids = items.map(item => item.id), target = index + direction;
-    if (target < 0 || target >= ids.length) return;
-    [ids[index], ids[target]] = [ids[target], ids[index]];
-    state.service.preferences(state.channel, { countdown_order: ids });
-  };
   return <section aria-label="事件倒數小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : 'min-h-0')}>
     <WidgetHeader kind="countdown" state={state} management={management} />
     <div className={management ? '' : 'min-h-0 flex-1 overflow-y-auto overscroll-y-contain'}>
-      {management && items.length > 1 && <p className="mb-3 text-xs text-text-muted">用右側箭頭調整首頁順序；自訂後前三個放大顯示，新事件加入末尾。</p>}
-      <CountdownRows items={items} onEdit={management ? setEditing : undefined} onMove={management ? move : undefined} />
+      {management && items.length > 1 && <p className="mb-3 text-xs text-text-muted">拖曳右側把手調整首頁順序；自訂後前三個放大顯示，新事件加入末尾。</p>}
+      <>{management ? <CountdownManager items={items} state={state} onEdit={setEditing} /> : <CountdownRows items={items} />}</>
       {!items.length && <p className="py-4 text-sm text-text-muted">尚未設定倒數。{!management && <Link to={settingsUrl('countdown')} className="ml-2 text-text-muted underline">前往設定新增</Link>}</p>}
     </div>
     {management && <button className={button + ' mt-4 flex items-center gap-2'} onClick={() => setEditing(null)}><Plus size={16} />新增倒數</button>}

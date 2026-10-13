@@ -168,8 +168,8 @@ export const homeWidgetService = {
     const item = c.snapshot.items.find(i => i.id === id); if (!item) return;
     enqueue(c, { key: createClientId(), action: 'delete', id, patch: {}, base: { text: item.text, target_date: item.target_date, completed_at: item.completed_at } });
   },
-  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible' | 'countdown_order'>>) {
-    const base = Object.fromEntries(Object.keys(patch).map(k => [k, k === 'countdown_order' ? c.snapshot.preferences.countdown_order || [] : c.snapshot.preferences[k as keyof WidgetPreferences]]));
+  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible' | 'countdown_order'>>, original?: Partial<WidgetPreferences>) {
+    const base = Object.fromEntries(Object.keys(patch).map(k => [k, original && Object.hasOwn(original, k) ? original[k as keyof WidgetPreferences] : k === 'countdown_order' ? c.snapshot.preferences.countdown_order || [] : c.snapshot.preferences[k as keyof WidgetPreferences]]));
     enqueue(c, { key: createClientId(), action: 'preferences', patch, base });
   },
   resolve(c: Channel, local: boolean) {
