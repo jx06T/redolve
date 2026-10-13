@@ -76,9 +76,9 @@ function PlanManager({ state, onEdit }: { state: ProgressState; onEdit: (p: Prog
   const byId = new Map(plans.map(p => [p.id, p]));
   return <div ref={root} {...sorting.surface} className="space-y-2">{sorting.order.map(id => {
     const plan = byId.get(id); if (!plan) return null;
-    return <div key={id} data-reorder-id={id} className={'flex min-w-0 items-center gap-2 rounded-2xl ' + (sorting.active === id ? 'bg-neutral-100' : '')}>
+    return <div key={id} data-reorder-id={id} data-reordering={sorting.active === id ? 'true' : undefined} className={'widget-reorder-row flex min-w-0 items-center gap-1 rounded-2xl ' + (sorting.active === id ? 'bg-neutral-100' : '')}>
       <button type="button" className="min-w-0 flex-1 rounded-2xl border border-border-subtle bg-neutral-50 p-3 text-left hover:bg-neutral-100" aria-label={'編輯學習計畫：' + plan.name} onClick={() => onEdit(plan)}><PlanContent plan={plan} /></button>
-      <button type="button" aria-label={'拖曳排序計畫：' + plan.name} aria-pressed={sorting.active === id} title="拖曳排序；也可用上下鍵、Home／End 調整" className="flex h-11 w-11 shrink-0 touch-none select-none items-center justify-center rounded-xl text-text-muted cursor-grab active:cursor-grabbing" {...sorting.handle(id)}><GripVertical size={18} /></button>
+      <button type="button" aria-label={'拖曳排序計畫：' + plan.name} aria-pressed={sorting.active === id} title="拖曳排序；也可用上下鍵、Home／End 調整" className="flex h-11 w-8 shrink-0 touch-none select-none items-center justify-center rounded-xl text-text-muted cursor-grab active:cursor-grabbing" {...sorting.handle(id)}><GripVertical size={16} /></button>
     </div>;
   })}</div>;
 }
@@ -86,7 +86,7 @@ export function ProgressPlansWidget({ state, management = false }: { state: Prog
   const [menu, setMenu] = useState(false), [editing, setEditing] = useState<ProgressPlan | null | undefined>();
   return <section aria-label="學習計畫小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : 'h-full min-h-0')}>
     <header className="mb-3 flex items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 font-semibold"><TrendingUp size={18} className="text-text-muted" />學習計畫</h2><ProgressStatus state={state} /></div>{!management && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label="學習計畫選單" onClick={() => setMenu(true)}><MoreHorizontal size={20} /></button>}</header>
-    <p className="mb-3 text-xs text-text-muted">{management ? '點計畫修改名稱、目標或單位；拖曳把手調整首頁順序。' : '左側減一 · 中間不變 · 右側加一'}</p>
+    {management && <p className="mb-3 text-xs text-text-muted">點計畫修改名稱、目標或單位；拖曳把手調整首頁順序。</p>}
     <div className={management ? '' : 'min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-y-contain'}>
       {management ? <PlanManager state={state} onEdit={setEditing} /> : state.snapshot.plans.map(plan => <div key={plan.id} data-progress-plan={plan.id} className="relative rounded-2xl border border-border-subtle bg-neutral-50 p-3 md:p-3.5"><PlanContent plan={plan} /><ProgressTapZone plan={plan} state={state} delta={-1} /><ProgressTapZone plan={plan} state={state} delta={1} /></div>)}
       {!state.snapshot.plans.length && <p className="py-4 text-sm text-text-muted">尚未建立學習計畫。{!management && <Link to={settingsUrl} className="ml-2 underline">前往設定新增</Link>}</p>}

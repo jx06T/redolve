@@ -304,6 +304,18 @@ a.underline, button.underline {
   scroll-snap-align: start;
   scroll-snap-stop: always;
 }
+.widget-reorder-row {
+  position: relative;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out;
+}
+.widget-reorder-row[data-reordering="true"] {
+  z-index: 10;
+  transform: scale(1.02);
+  box-shadow: 0 4px 20px rgb(0 0 0 / 0.03);
+}
+@media (prefers-reduced-motion: reduce) {
+  .widget-reorder-row { transition: none; }
+}
 .dashboard-wide-snap { display: none; }
 .dashboard-carousel :is(input, textarea, [contenteditable="true"]) { touch-action: pan-y; }
 @media (min-width: 768px) {

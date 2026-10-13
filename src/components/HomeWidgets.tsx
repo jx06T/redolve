@@ -141,9 +141,9 @@ function CountdownManager({ items, state, onEdit }: { items: WidgetItem[]; state
   const byId = new Map(items.map(item => [item.id, item]));
   return <div ref={root} {...sorting.surface} className="space-y-2" aria-label="倒數排序清單">{sorting.order.map(id => {
     const item = byId.get(id); if (!item) return null;
-    return <div key={id} data-reorder-id={id} className={'flex min-w-0 items-center gap-2 rounded-2xl ' + (sorting.active === id ? 'bg-neutral-100' : '')}>
+    return <div key={id} data-reorder-id={id} data-reordering={sorting.active === id ? 'true' : undefined} className={'widget-reorder-row flex min-w-0 items-center gap-1 rounded-2xl ' + (sorting.active === id ? 'bg-neutral-100' : '')}>
       <CountdownTile item={item} onEdit={onEdit} />
-      <button type="button" aria-label={'拖曳排序倒數：' + item.text} aria-pressed={sorting.active === id} title="拖曳排序；也可用上下鍵、Home／End 調整" className="flex h-11 w-11 shrink-0 touch-none select-none items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 cursor-grab active:cursor-grabbing" {...sorting.handle(id)}><GripVertical size={18} /></button>
+      <button type="button" aria-label={'拖曳排序倒數：' + item.text} aria-pressed={sorting.active === id} title="拖曳排序；也可用上下鍵、Home／End 調整" className="flex h-11 w-8 shrink-0 touch-none select-none items-center justify-center rounded-xl text-text-muted hover:bg-neutral-100 cursor-grab active:cursor-grabbing" {...sorting.handle(id)}><GripVertical size={16} /></button>
     </div>;
   })}</div>;
 }
