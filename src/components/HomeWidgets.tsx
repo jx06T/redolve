@@ -54,7 +54,8 @@ function WidgetHeader({ kind, state, management = false }: { kind: WidgetKind; s
   </>;
 }
 function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets; onEditing: (id: string | null) => void }) {
-  const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState(false);
+  const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState(false), [restore, setRestore] = useState(false);
+  const historical = item.completed_at !== null && taipeiDay(item.completed_at) < taipeiDay();
   const editor = useRef<HTMLInputElement>(null);
   const base = useRef(item.text), cancelled = useRef(false);
   useEffect(() => { if (!focused) setText(item.text); }, [item.text, focused]);
@@ -65,17 +66,18 @@ function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets;
   return <div className="flex min-w-0 items-center gap-2 py-0.5" data-todo-row={item.id}
     onClick={event => { if (!focused && event.target instanceof Element && event.currentTarget.contains(event.target) && !event.target.closest('button')) editor.current?.focus(); }}>
     <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ' + (item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
-      type="button" role="checkbox" aria-checked={item.completed_at !== null} aria-label={`完成：${item.text}`} disabled={item.completed_at !== null}
-      onClick={() => { if (item.completed_at === null) state.service.update(state.channel, item.id, { completed_at: Date.now() }); }}>
+      type="button" role="checkbox" aria-checked={item.completed_at !== null} aria-label={`完成：${item.text}`} disabled={historical}
+      onClick={() => { if (!historical) state.service.update(state.channel, item.id, { completed_at: item.completed_at === null ? Date.now() : null }, { completed_at: item.completed_at }); }}>
       {item.completed_at !== null && <Check size={17} />}</button>
     {/* Readable rows pass swipes to the panel; tapping enters the normal text editor. */}
     <input ref={editor} style={{ pointerEvents: focused ? 'auto' : 'none' }} aria-label="待辦內容" maxLength={500} value={text} onChange={e => setText(e.target.value)}
       onFocus={() => { base.current = item.text; setFocused(true); onEditing(item.id); }} onBlur={save}
       onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.preventDefault(); cancelled.current = true; e.currentTarget.blur(); } }}
       className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (item.completed_at !== null ? 'text-text-muted line-through' : '')} />
-    {item.completed_at !== null && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" onClick={() => state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at })}><RotateCcw size={15} /></button>}
+    {historical && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" onClick={() => setRestore(true)}><RotateCcw size={15} /></button>}
     <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`刪除待辦：${item.text}`} onClick={() => setRemove(true)}><Trash2 size={15} /></button>
     {remove && <AppDialog title="刪除待辦？" onClose={() => setRemove(false)}><p className="break-words text-sm">{item.text}</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRemove(false)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(false); }}>刪除</button></div></AppDialog>}
+    {restore && <AppDialog title="恢復為未完成？" onClose={() => setRestore(false)}><p className="break-words text-sm">{item.text}</p><p className="mt-2 text-sm text-text-muted">此事項將移回目前待辦清單。</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRestore(false)}>取消</button><button className={button} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(false); }}>恢復待辦</button></div></AppDialog>}
   </div>;
 }
 export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?: boolean }) {
