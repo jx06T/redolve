@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
+import { useTodoHistory } from '../hooks/useTodoHistory';
 import { useProgressPlans } from '../hooks/useProgressPlans';
 import { ProgressPlansWidget, ProgressPlansVisibility, ProgressPlansConflict } from './ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
@@ -39,7 +40,7 @@ export function WidgetConflict({ state }: { state: Widgets }) {
       {conflict.current && <button className={button} onClick={() => service.resolve(channel, true)}>保留本機修改</button>}</div>
   </AppDialog>;
 }
-function WidgetHeader({ kind, state, management = false }: { kind: WidgetKind; state: Widgets; management?: boolean }) {
+function WidgetHeader({ kind, state, management = false, historyAction }: { kind: WidgetKind; state: Widgets; management?: boolean; historyAction?: { label: string; onSelect: () => void } }) {
   const [menu, setMenu] = useState(false), name = kind === 'todo' ? '待辦事項' : '事件倒數';
   const Icon = kind === 'todo' ? ListTodo : CalendarDays;
   return <>
@@ -49,6 +50,7 @@ function WidgetHeader({ kind, state, management = false }: { kind: WidgetKind; s
     </div>
     {menu && <AppDialog title={`${name}選單`} onClose={() => setMenu(false)}>
       <div className="flex flex-col gap-2 text-center"><Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定管理組件</Link>
+        {historyAction && <button className={button} onClick={() => { setMenu(false); historyAction.onSelect(); }}>{historyAction.label}</button>}
         <button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button></div>
     </AppDialog>}
   </>;
@@ -82,28 +84,13 @@ function TodoRow({ item, state, onEditing }: { item: WidgetItem; state: Widgets;
 }
 export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?: boolean }) {
   const [draft, setDraft] = useState(''), [error, setError] = useState(''), [editing, setEditing] = useState<string | null>(null);
-  const viewport = useRef<HTMLDivElement>(null), anchor = useRef<HTMLDivElement>(null), tail = useRef<HTMLDivElement>(null);
-  const position = useRef<{ account: string; offset: number; initialized: boolean }>({ account: '', offset: 0, initialized: false });
   const todos = state.snapshot.items.filter(i => i.kind === 'todo'), today = taipeiDay();
-  const history = todos.filter(i => i.id !== editing && i.completed_at !== null && taipeiDay(i.completed_at) < today)
+  const history = todos.filter(i => i.completed_at !== null && taipeiDay(i.completed_at) < today)
     .sort((a, b) => a.completed_at! - b.completed_at! || a.created_at - b.created_at);
   const current = todos.filter(i => !history.some(h => h.id === i.id));
   const groups = new Map<number, WidgetItem[]>();
   history.forEach(i => { const day = taipeiDay(i.completed_at!); groups.set(day, [...groups.get(day) || [], i]); });
-  // Only reserve the space needed to start at current tasks. Never scroll into an empty tail on add.
-  useLayoutEffect(() => {
-    const el = viewport.current, start = anchor.current, end = tail.current; if (!el || !start || !end) return;
-    const resize = () => { end.style.height = history.length ? `${Math.max(0, el.clientHeight - start.getBoundingClientRect().height - 36)}px` : '0px'; };
-    resize(); const observer = new ResizeObserver(resize); observer.observe(el); observer.observe(start);
-    return () => observer.disconnect();
-  }, [history.length, management]);
-  useLayoutEffect(() => {
-    const el = viewport.current, start = anchor.current; if (!el || !start) return;
-    const offset = start.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop, previous = position.current;
-    if (previous.account !== state.channel.account || !previous.initialized) {
-      el.scrollTop = Math.max(0, offset - 36); position.current = { account: state.channel.account, offset, initialized: true };
-    } else { el.scrollTop += offset - previous.offset; previous.offset = offset; }
-  }, [state.channel.account, state.snapshot.loading, history.length, today]);
+  const historyView = useTodoHistory(state.channel.account, today + ':' + history.map(i => i.id + ':' + i.completed_at).join('|'), history.length > 0, history.some(i => i.id === editing));
   const add = () => {
     const lines = draft.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) return;
@@ -111,13 +98,19 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     lines.forEach(l => state.service.add(state.channel, 'todo', l)); setDraft(''); setError('');
   };
   return <section aria-label="待辦事項小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
-    <WidgetHeader kind="todo" state={state} management={management} />
-    {history.length > 0 && <div className="mb-2 flex justify-end gap-3 text-xs text-text-muted"><button className="underline" onClick={() => viewport.current?.scrollTo({ top: Math.max(0, (anchor.current?.offsetTop || 0) - 180), behavior: 'smooth' })}>查看已完成</button><button className="underline" onClick={() => viewport.current?.scrollTo({ top: Math.max(0, (anchor.current?.offsetTop || 0) - 36), behavior: 'smooth' })}>回到待辦</button></div>}
-    <div ref={viewport} data-todo-scroll className={'relative overflow-y-auto overscroll-y-contain [overflow-anchor:none] ' + (management ? 'h-64' : 'min-h-0 flex-1')}>
-      {[...groups.entries()].map(([day, rows]) => <div key={day} className="pb-3"><p className="text-xs text-text-muted">{new Date(day * 86400000).toISOString().slice(5, 10)} 已完成</p>{rows.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} />)}</div>)}
-      {history.length > 0 && <div className="flex h-24 items-center justify-center border-t border-dashed border-border-subtle text-xs text-text-muted">向上滑動查看近七天已完成事項</div>}
-      <div ref={anchor} data-todo-current>{current.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} />)}{!current.length && <p className="py-4 text-sm text-text-muted">目前沒有待辦，從下方新增。</p>}</div>
-      <div ref={tail} aria-hidden="true" />
+    <WidgetHeader kind="todo" state={state} management={management} historyAction={history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
+    <div className={'relative min-h-0 ' + (management ? 'h-64' : 'flex-1')}>
+      <div ref={historyView.hint} aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-10 rounded-xl bg-surface/95 px-3 py-2 text-center text-xs text-text-muted transition-opacity duration-150 motion-reduce:transition-none" style={{ opacity: 0 }}>
+        <span>繼續滾動以查看過去事項</span><div className="mt-1 h-0.5 origin-left rounded-full bg-primary/20" style={{ transform: 'scaleX(var(--todo-pull, 0))' }} />
+      </div>
+      <div ref={historyView.viewport} data-todo-scroll data-history-open={historyView.expanded} tabIndex={0} aria-label="待辦清單；在頂端按 Page Up 查看過去事項" className="relative h-full overflow-y-auto overscroll-y-contain [overflow-anchor:none]">
+        <div ref={historyView.history} data-todo-history hidden={!historyView.expanded}>
+          {[...groups.entries()].map(([day, rows]) => <div key={day} className="pb-3"><p className="text-xs text-text-muted">{new Date(day * 86400000).toISOString().slice(5, 10)} 已完成</p>{rows.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} />)}</div>)}
+          <p className="mb-2 border-t border-dashed border-border-subtle py-2 text-center text-xs text-text-muted">目前待辦</p>
+        </div>
+        <div ref={historyView.current} data-todo-current>{current.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} />)}{!current.length && <p className="py-4 text-sm text-text-muted">目前沒有待辦，從下方新增。</p>}</div>
+        <div ref={historyView.tail} aria-hidden="true" />
+      </div>
     </div>
     <div className="mt-3 flex items-end gap-2 border-t border-border-subtle pt-3"><textarea aria-label="新增待辦" placeholder="新增待辦；每行一件事" rows={2} value={draft} onChange={e => setDraft(e.target.value)} className={input + ' resize-none'}
       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} /><button className={button + ' shrink-0'} disabled={!draft.trim()} onClick={add}><Plus size={18} aria-label="新增待辦事項" /></button></div>

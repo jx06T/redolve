@@ -106,15 +106,15 @@ with sync_playwright() as pw:
             assert abs(large.locator('time').bounding_box()['y']-large.locator('p').first.bounding_box()['y'])<12
             assert not countdown.get_by_role('button',name='查看其餘',exact=False).count()
             panel('todo')
-            # Today's completion stays in place; older completion stays above a scroll buffer.
+            # Today's completion stays in place; history opens deliberately from the real top.
             active = todo.locator('[data-todo-current]')
             expect(active.locator('input')).to_have_count(2)
             assert active.locator('input').evaluate_all('(els)=>els.map(e=>e.value)') == ['一直未完成', '今日已完成']
-            assert todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop') > 0
-            todo.get_by_role('button', name='查看已完成', exact=True).click()
+            assert todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop') == 0
+            todo.locator('[data-todo-scroll]').focus(); todo.locator('[data-todo-scroll]').press('PageUp')
             expect(todo.locator('[data-todo-row="yesterday-123"]')).to_be_visible()
-            todo.get_by_role('button', name='回到待辦', exact=True).click()
-            page.wait_for_timeout(350)  # Finish this explicit smooth navigation before checking insertion.
+            todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop=el.scrollHeight')
+            expect(todo.locator('[data-todo-scroll]')).to_have_attribute('data-history-open','false')
             # Bulk paste, edit, cancel and check do not create separate settings flows.
             add = todo.get_by_role('textbox', name='新增待辦', exact=True)
             old_scroll = todo.locator('[data-todo-scroll]').evaluate('(el)=>el.scrollTop')
