@@ -56,6 +56,7 @@ try{
   await viewport.hover();
   await page.mouse.wheel(0,-100);await page.waitForTimeout(60);assert.equal(await viewport.getAttribute('data-history-open'),'false');
   await page.mouse.wheel(0,-100);await page.waitForTimeout(60);assert.equal(await viewport.getAttribute('data-history-open'),'false');
+  await page.mouse.wheel(0,-100);await page.waitForTimeout(60);assert.equal(await viewport.getAttribute('data-history-open'),'false');
   await page.mouse.wheel(0,-100);await waitOpen(true);
   await page.waitForTimeout(350);
   const peek=await viewport.evaluate(e=>e.querySelector('[data-todo-current]').getBoundingClientRect().top-e.getBoundingClientRect().top);
@@ -69,7 +70,8 @@ try{
   };
   await pull(70);assert.equal(await viewport.getAttribute('data-history-open'),'false');
   await pull(70,true);assert.equal(await viewport.getAttribute('data-history-open'),'false');
-  await pull(170);await waitOpen(true);
+  await pull(140);assert.equal(await viewport.getAttribute('data-history-open'),'false');
+  await pull(200);await waitOpen(true);
   const touchPeek=await viewport.evaluate(e=>e.querySelector('[data-todo-current]').getBoundingClientRect().top-e.getBoundingClientRect().top);
   assert(touchPeek>=70&&touchPeek<160,'continuing the claimed pull must scroll into history');
   const beforeNative=await viewport.evaluate(e=>e.scrollTop);await pull(60);await page.waitForTimeout(200);

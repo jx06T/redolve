@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-const WHEEL_THRESHOLD = 250, TOUCH_THRESHOLD = 120;
+const WHEEL_THRESHOLD = 320, TOUCH_THRESHOLD = 150;
 type TouchDrag = { id: number; x: number; y: number; lastY: number; axis: '' | 'x' | 'y'; eligible: boolean; claimed: boolean };
 type Transition = { open: boolean; offset: number; peek: number; smooth: boolean };
 
