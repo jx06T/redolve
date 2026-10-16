@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-export const popoverActionClass = 'block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-[#E2E5E1] dark:hover:bg-[#3A3A3F] focus-visible:outline-2 focus-visible:outline-primary';
+export const popoverActionClass = 'block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-[#DEE9F6] dark:hover:bg-[#36465B] focus-visible:outline-2 focus-visible:outline-primary';
 
 type Position = { left: number; top: number; width: number; maxHeight: number };
 const controls = 'button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]';
@@ -57,7 +57,7 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
   }, [anchor]);
   return createPortal(<div ref={root} id={id} role="dialog" aria-labelledby={id + '-title'} tabIndex={-1} data-anchored-popover={variant}
     style={position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, width: variant === 'actions' ? 200 : 112, visibility: 'hidden' }}
-    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg bg-[#ECEEEB] dark:bg-[#303034] shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
+    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg bg-[linear-gradient(135deg,#FBFBFB_0%,#EAF1FA_100%)] dark:bg-[linear-gradient(135deg,#28282C_0%,#293344_100%)] shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
     onClick={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(true); }
