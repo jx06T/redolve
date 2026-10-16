@@ -30,13 +30,17 @@ export function useTodoReorderAnimation(list: RefObject<HTMLDivElement>, viewpor
     if (before.target !== signature || Math.abs(before.scrollTop - scroll.scrollTop) > 1 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const bounds = scroll.getBoundingClientRect();
     // Finish every geometry read before starting animations.
-    const moves = [...root.querySelectorAll<HTMLElement>('[data-todo-row]')].map(row => ({ row, old: before.positions.get(row.dataset.todoRow!), next: row.getBoundingClientRect() }));
-    for (const { row, old, next } of moves) {
+    const moves = [...root.querySelectorAll<HTMLElement>('[data-todo-row]')].map(row => ({ row, old: before.positions.get(row.dataset.todoRow!), next: row.getBoundingClientRect(), background: getComputedStyle(row).backgroundColor }));
+    for (const { row, old, next, background } of moves) {
       if (!old || typeof row.animate !== 'function') continue;
       const delta = old.top - next.top;
       const nearby = old.bottom > bounds.top && old.top < bounds.bottom || next.bottom > bounds.top && next.top < bounds.bottom;
       if (!nearby || Math.abs(delta) < 1 || Math.abs(delta) > bounds.height) continue;
-      const animation = row.animate([{ transform: 'translateY(' + delta + 'px)' }, { transform: 'translateY(0px)' }], { duration: 220, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
+      const animation = row.animate([
+        { transform: 'translateY(' + delta + 'px)', backgroundColor: 'rgba(168, 197, 189, 0.22)', offset: 0 },
+        { backgroundColor: 'rgba(168, 197, 189, 0.22)', offset: 0.85 },
+        { transform: 'translateY(0px)', backgroundColor: background, offset: 1 },
+      ], { duration: 300, easing: 'cubic-bezier(0.2, 0, 0, 1)' });
       active.current.set(row, animation);
       animation.onfinish = () => { if (active.current.get(row) === animation) active.current.delete(row); };
     }

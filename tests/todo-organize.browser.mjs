@@ -61,9 +61,10 @@ try{
   await enter();assert.equal(await todo.getAttribute('data-todo-organizing'),'true');
   assert.deepEqual(await order(),['完成','A','B','C','D','E'],'completed tasks are grouped before any numbering');
   assert(await page.evaluate(()=>window.todoMotion.length>0),'entry cleanup has real native row animations');
-  const frames=await page.evaluate(()=>{const record=window.todoMotion[0],animation=record.animation;animation.currentTime=0;const start=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;animation.currentTime=110;const middle=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;return {start,middle,duration:animation.effect.getTiming().duration};});
-  assert.equal(frames.duration,220);assert(Math.abs(frames.start)>Math.abs(frames.middle)&&Math.abs(frames.middle)>0,'the row moves continuously between old and new positions');
+  const frames=await page.evaluate(()=>{const record=window.todoMotion[0],animation=record.animation;animation.currentTime=0;const startColor=getComputedStyle(record.node).backgroundColor;const start=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;animation.currentTime=150;const middleColor=getComputedStyle(record.node).backgroundColor;const middle=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;return {start,middle,startColor,middleColor,duration:animation.effect.getTiming().duration};});
+  assert.equal(frames.duration,300);assert(frames.startColor.includes('168, 197, 189')&&frames.middleColor.includes('168, 197, 189'),'moving tasks keep the pale green highlight');assert(Math.abs(frames.start)>Math.abs(frames.middle)&&Math.abs(frames.middle)>0,'the row moves continuously between old and new positions');
   await page.evaluate(()=>{window.holdTodoMotion=false;window.todoMotion.forEach(record=>record.animation.finish());});await settle();
+  assert(await page.evaluate(()=>window.todoMotion.every(record=>getComputedStyle(record.node).backgroundColor===record.frames.at(-1).backgroundColor)),'finished motion restores the original row background');
   assert.deepEqual(geometry(await layout()),geometry(originalLayout),'entry cleanup changes order without resizing the list');
   const organizedLayout=await layout(),organizedOriginal=['完成','A','B','C','D','E'];
   assert.equal(await todo.getByText('依序選取現在或稍後想做的事。',{exact:true}).count(),0);
@@ -179,6 +180,7 @@ try{
    await page.evaluate(()=>window.holdTodoMotion=true);await enter();
    assert(await page.evaluate(()=>window.todoMotion.some(record=>record.animation.playState==='paused')),'long-list cleanup starts row animations');
    await viewport.evaluate(e=>e.scrollTop=80);await settle();await page.evaluate(()=>window.holdTodoMotion=false);
+   assert(await current.locator('[data-todo-row]').evaluateAll(rows=>rows.every(row=>getComputedStyle(row).backgroundColor==='rgba(0, 0, 0, 0)')),'scroll cancellation also removes the moving highlight');
    assert.equal(await todo.getAttribute('data-todo-organize-step'),'selection','scrolling cancels motion without cancelling organization');
    await todo.getByRole('button',{name:'取消',exact:true}).click();await settle();await todo.getByRole('checkbox',{name:'完成：長清單1',exact:true}).click();
 

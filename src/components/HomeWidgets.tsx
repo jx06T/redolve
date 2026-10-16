@@ -71,7 +71,7 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
     setFocused(false); onEditing(null); if (cancelled.current) { cancelled.current = false; setText(item.text); return; } const next = text.trim(); if (!next) { setText(item.text); return; }
     state.service.update(state.channel, item.id, { text: next }, { text: base.current });
   };
-  return <div className="flex min-w-0 items-center gap-2 py-0.5" data-todo-row={item.id}
+  return <div className="flex min-w-0 items-center gap-2 rounded-xl py-0.5" data-todo-row={item.id}
     onClick={event => { if (!organize && !focused && event.target instanceof Element && event.currentTarget.contains(event.target) && !event.target.closest('button')) editor.current?.focus(); }}>
     <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm tabular-nums ' + (organize?.position ? 'border-[#A8C5BD] bg-[#A8C5BD]/30 font-semibold text-text-main' : item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
       type="button" role={organize ? undefined : 'checkbox'} aria-checked={organize ? undefined : item.completed_at !== null} aria-pressed={organize && item.completed_at === null ? organize.position !== null : undefined}
