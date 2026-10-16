@@ -12,6 +12,10 @@ export function orderedCurrentTodos(items: WidgetItem[], order: string[] = [], t
     (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity)
     || a.created_at - b.created_at || a.id.localeCompare(b.id));
 }
+// Preview completion grouping before numbered selection starts. No write yet.
+export function groupedTodoOrder(items: WidgetItem[]): string[] {
+  return [...items.filter(i => i.completed_at !== null), ...items.filter(i => i.completed_at === null)].map(i => i.id);
+}
 // Each remaining task is a unique "before" destination; null means the end.
 // When everything is selected, there is only one meaningful destination.
 export function todoInsertionTargets(items: WidgetItem[], selection: string[]): (string | null)[] {

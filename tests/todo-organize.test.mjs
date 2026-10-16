@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { applyTodoOrganize } from '../scripts/apply-todo-organize.mjs';
 const compiled=await build({entryPoints:['src/types/todoOrder.ts'],bundle:true,write:false,format:'esm',platform:'node'});
-const {orderedCurrentTodos,organizeTodoOrder,todoInsertionTargets}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const {groupedTodoOrder,orderedCurrentTodos,organizeTodoOrder,todoInsertionTargets}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
 const items='ABCDE'.split('').map((id,index)=>({id,kind:'todo',text:id,completed_at:null,created_at:index}));
 test('explicit destinations support top, middle, bottom, single moves and adjacent swaps',()=>{
  assert.deepEqual(organizeTodoOrder(items,['C','B','E'],'A'),['C','B','E','A','D']);
@@ -38,6 +38,7 @@ test('completion and undo remain in place until an explicit organization',()=>{
  const now=Date.now(),today=Math.floor((now+8*3600000)/86400000),rank=['C','A','D','B','E'];
  const done=items.map(i=>i.id==='D'?{...i,completed_at:now}:i);
  assert.deepEqual(orderedCurrentTodos(done,rank,today).map(i=>i.id),rank);
+ assert.deepEqual(groupedTodoOrder(orderedCurrentTodos(done,rank,today)),['D','C','A','B','E'],'entry preview puts completed tasks first before selecting anything');
  const grouped=organizeTodoOrder(orderedCurrentTodos(done,rank,today),['E'],'C');
  assert.deepEqual(grouped,['D','E','C','A','B']);
  const undone=done.map(i=>({...i,completed_at:null}));

@@ -30,6 +30,8 @@ try{
    await route.fulfill({status,json:result});
   });
   await context.addInitScript(({account,data,now})=>{
+   const nativeAnimate=Element.prototype.animate;window.todoMotion=[];
+   Element.prototype.animate=function(frames,options){const animation=nativeAnimate.call(this,frames,options);if(this.hasAttribute('data-todo-row')){window.todoMotion.push({node:this,frames,animation});if(window.holdTodoMotion)animation.pause();}return animation;};
    Date.now=()=>now;if(!localStorage.getItem('rdv:home-widgets:v1:'+account))localStorage.setItem('rdv:home-widgets:v1:'+account,JSON.stringify({data,format:2}));
    localStorage.setItem('rdv:study-progress:v1:guest',JSON.stringify({data:{plans:[],preferences:{visible:false,order:[],row_version:0}}}));
   },{account,data,now});
@@ -49,12 +51,21 @@ try{
   const insertBefore=text=>todo.locator('[data-todo-insert-before="'+data.items.find(i=>i.text===text).id+'"]').click();
   const moveTop=async()=>{await sortTo();await destinations().first().click({position:{x:100,y:28}});};
   const layout=()=>todo.evaluate(root=>{const viewport=root.querySelector('[data-todo-scroll]'),current=root.querySelector('[data-todo-current]');const box=viewport.getBoundingClientRect();return {top:box.top,height:box.height,scrollHeight:viewport.scrollHeight,currentHeight:current.getBoundingClientRect().height,rows:[...current.querySelectorAll('[data-todo-row]')].map(row=>({id:row.dataset.todoRow,top:row.getBoundingClientRect().top-box.top+viewport.scrollTop,height:row.getBoundingClientRect().height}))};});
+  const settle=()=>page.waitForFunction(()=>![...document.querySelectorAll('[data-todo-current] [data-todo-row]')].some(row=>row.getAnimations().some(a=>a.playState==='running'||a.playState==='paused')));
+  const geometry=value=>({...value,rows:value.rows.map(({top,height})=>({top,height})).sort((a,b)=>a.top-b.top)});
   const originalLayout=await layout();
   const original=await order();assert.deepEqual(original,['A','B','完成','C','D','E']);
   const draft=todo.getByRole('textbox',{name:'新增待辦',exact:true});await draft.fill('未送出的草稿');
   const before=await todo.evaluate(e=>getComputedStyle(e).backgroundColor);
+  await page.evaluate(()=>{window.holdTodoMotion=true;window.todoMotion=[];});
   await enter();assert.equal(await todo.getAttribute('data-todo-organizing'),'true');
-  assert.deepEqual(await layout(),originalLayout,'entering organization does not move or resize the list');
+  assert.deepEqual(await order(),['完成','A','B','C','D','E'],'completed tasks are grouped before any numbering');
+  assert(await page.evaluate(()=>window.todoMotion.length>0),'entry cleanup has real native row animations');
+  const frames=await page.evaluate(()=>{const record=window.todoMotion[0],animation=record.animation;animation.currentTime=0;const start=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;animation.currentTime=110;const middle=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;return {start,middle,duration:animation.effect.getTiming().duration};});
+  assert.equal(frames.duration,220);assert(Math.abs(frames.start)>Math.abs(frames.middle)&&Math.abs(frames.middle)>0,'the row moves continuously between old and new positions');
+  await page.evaluate(()=>{window.holdTodoMotion=false;window.todoMotion.forEach(record=>record.animation.finish());});await settle();
+  assert.deepEqual(geometry(await layout()),geometry(originalLayout),'entry cleanup changes order without resizing the list');
+  const organizedLayout=await layout(),organizedOriginal=['完成','A','B','C','D','E'];
   assert.equal(await todo.getByText('依序選取現在或稍後想做的事。',{exact:true}).count(),0);
   await page.waitForTimeout(220);assert.notEqual(await todo.evaluate(e=>getComputedStyle(e).backgroundColor),before);
   assert(await todo.getByRole('button',{name:'已完成：完成',exact:true}).isDisabled());assert(await draft.isDisabled());
@@ -62,28 +73,31 @@ try{
   assert.equal(await current.getByRole('textbox').first().isEditable(),false);
   assert(await todo.getByRole('button',{name:'Sort to…',exact:true}).isDisabled());
   for(const text of ['C','B','E'])await choose(text).click();
-  await selected('C',1);await selected('B',2);await selected('E',3);assert.deepEqual(await order(),original);
+  await selected('C',1);await selected('B',2);await selected('E',3);assert.deepEqual(await order(),organizedOriginal);
   await choose('B').click();await selected('E',2);assert.equal(await choose('B').getAttribute('aria-pressed'),'false');
   await choose('B').click();await selected('B',3);
   assert.equal(calls.length,0,'numbering never mutates task state or order');
   await page.screenshot({path:'.wrangler/qa/todo-organize-'+width+'-'+authenticated+'.png'});
   await sortTo();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
-  assert.deepEqual(await order(),original,'showing destinations keeps every original row in place');
-  assert.deepEqual(await layout(),originalLayout,'virtual insertion targets do not add row gaps or scroll height');
+  assert.deepEqual(await order(),organizedOriginal,'showing destinations keeps every preview row in place');
+  assert.deepEqual(await layout(),organizedLayout,'virtual insertion targets do not add row gaps or scroll height');
   await todo.getByRole('button',{name:'待辦事項選單',exact:true}).click();
   await page.getByRole('dialog',{name:'待辦事項選單',exact:true}).getByRole('button',{name:'查看整理說明',exact:true}).click();
   const help=page.getByRole('dialog',{name:'待辦整理說明',exact:true});await help.waitFor();
   assert((await help.innerText()).includes('插入線'));
   await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('[role="dialog"]'));
   assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination','closing help must not cancel selection or destination mode');
-  await selected('C',1);await selected('E',2);await selected('B',3);assert.deepEqual(await layout(),originalLayout);
+  await selected('C',1);await selected('E',2);await selected('B',3);assert.deepEqual(await layout(),organizedLayout);
   assert(await choose('C').isDisabled());assert.equal(await destinations().count(),3);
   assert.equal((await destinations().allTextContents()).join('').trim(),'','destinations have no per-location visible labels');
   await page.screenshot({path:'.wrangler/qa/todo-sort-to-'+width+'-'+authenticated+'.png'});
   await todo.getByRole('button',{name:'返回選取',exact:true}).click();await selected('C',1);await selected('E',2);await selected('B',3);
-  await todo.getByRole('button',{name:'取消',exact:true}).click();assert.deepEqual(await order(),original);assert.equal(await draft.inputValue(),'未送出的草稿');
+  const beforeCancelMotion=await page.evaluate(()=>window.todoMotion.length);
+  await todo.getByRole('button',{name:'取消',exact:true}).click();assert.deepEqual(await order(),original);assert((await page.evaluate(()=>window.todoMotion.length))>beforeCancelMotion,'cancelling animates completion grouping back to its original order');assert.equal(await draft.inputValue(),'未送出的草稿');
   await enter();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal(calls.length,0);
-  await enter();for(const text of ['C','B','E'])await choose(text).click();await sortTo();assert.deepEqual(await order(),original);assert.equal(await destinations().count(),3);await insertBefore('D');
+  await enter();for(const text of ['C','B','E'])await choose(text).click();await sortTo();assert.deepEqual(await order(),organizedOriginal);assert.equal(await destinations().count(),3);const beforeApplyMotion=await page.evaluate(()=>{window.holdTodoMotion=true;return window.todoMotion.length;});await insertBefore('D');
+  assert((await page.evaluate(()=>window.todoMotion.length))>beforeApplyMotion,'applying the selected move has real row animations');
+  await page.evaluate(()=>{window.holdTodoMotion=false;window.todoMotion.forEach(record=>{if(record.animation.playState==='paused')record.animation.finish();});});await settle();
   await waitOrder(['完成','A','C','B','E','D']);assert.equal(await todo.getAttribute('data-todo-organizing'),'false');
   if(authenticated)await page.waitForFunction(()=>JSON.parse(localStorage.getItem('rdv:home-widgets:v1:organize-test-user')).data.preferences.todo_order.length>0);
   await enter();await choose('B').click();await sortTo();await insertBefore('C');await waitOrder(['完成','A','B','C','E','D']);
@@ -99,10 +113,14 @@ try{
   if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
   // Completion itself, cancellation and a reload must not regroup the list.
   const stableOrder=await order();
-  await todo.getByRole('checkbox',{name:'完成：C',exact:true}).click();await waitOrder(stableOrder);
+  const beforeCompleteMotion=await page.evaluate(()=>window.todoMotion.length);
+  await todo.getByRole('checkbox',{name:'完成：C',exact:true}).click();await waitOrder(stableOrder);assert.equal(await page.evaluate(()=>window.todoMotion.length),beforeCompleteMotion,'ordinary completion does not trigger reorder animation');
   if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
   await page.reload();await page.waitForLoadState('networkidle');await openPanel();await waitOrder(stableOrder);
-  await enter();await choose('B').click();await todo.getByRole('button',{name:'取消',exact:true}).click();await waitOrder(stableOrder);
+  await page.emulateMedia({reducedMotion:'reduce'});const priorMotion=await page.evaluate(()=>window.todoMotion.length);
+  await enter();assert.deepEqual((await order()).slice(0,2),['完成','C']);await choose('B').click();assert.equal(await choose('B').innerText(),'1');
+  assert.equal(await page.evaluate(()=>window.todoMotion.length),priorMotion,'reduced motion skips entry animation');
+  await todo.getByRole('button',{name:'取消',exact:true}).click();await waitOrder(stableOrder);assert.equal(await page.evaluate(()=>window.todoMotion.length),priorMotion);await page.emulateMedia({reducedMotion:'no-preference'});
   await enter();await choose('B').click();await moveTop();await waitOrder(['完成','C','B','D','E','A','新事項']);
   await todo.getByRole('checkbox',{name:'完成：C',exact:true}).click();await waitOrder(['完成','C','B','D','E','A','新事項']);
   await enter();for(const text of ['D','E','A','C','B','新事項'])await choose(text).click();await moveTop();await waitOrder(stableOrder);
@@ -155,11 +173,20 @@ try{
    await openPanel();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');await selected('B',1);
    // Keyboard activation applies at the exact same target as pointer activation.
    const target=destinations().last();await target.focus();await page.keyboard.press('Enter');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal((await order()).at(-1),'B');
+   // A native scroll cancels in-flight row transforms without changing the preview.
+   await viewport.evaluate(e=>e.scrollTop=0);await page.waitForTimeout(100);
+   await todo.getByRole('checkbox',{name:'完成：長清單1',exact:true}).click();
+   await page.evaluate(()=>window.holdTodoMotion=true);await enter();
+   assert(await page.evaluate(()=>window.todoMotion.some(record=>record.animation.playState==='paused')),'long-list cleanup starts row animations');
+   await viewport.evaluate(e=>e.scrollTop=80);await settle();await page.evaluate(()=>window.holdTodoMotion=false);
+   assert.equal(await todo.getAttribute('data-todo-organize-step'),'selection','scrolling cancels motion without cancelling organization');
+   await todo.getByRole('button',{name:'取消',exact:true}).click();await settle();await todo.getByRole('checkbox',{name:'完成：長清單1',exact:true}).click();
+
   }
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(errors.length,0,errors.join('\n'));
   await page.goto('http://127.0.0.1:4181/settings?widget=todos#profile');await page.waitForLoadState('networkidle');await page.waitForTimeout(400);
-  const managementLayout=await layout();await enter();assert.deepEqual(await layout(),managementLayout,'settings organization keeps list geometry');
-  const firstText=(await order()).find(text=>!['完成','A'].includes(text));await choose(firstText).click();await sortTo();assert.deepEqual(await layout(),managementLayout,'settings insertion markers do not expand the list');
+  const managementLayout=await layout();await enter();await settle();assert.deepEqual(geometry(await layout()),geometry(managementLayout),'settings organization keeps list geometry');const managementPreview=await layout();
+  const firstText=(await order()).find(text=>!['完成','A'].includes(text));await choose(firstText).click();await sortTo();assert.deepEqual(await layout(),managementPreview,'settings insertion markers do not expand the list');
   await todo.getByRole('button',{name:'待辦事項選單',exact:true}).click();await page.getByRole('dialog',{name:'待辦事項選單',exact:true}).getByRole('button',{name:'查看整理說明',exact:true}).click();await page.getByRole('dialog',{name:'待辦整理說明',exact:true}).waitFor();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
   await todo.getByRole('button',{name:'取消',exact:true}).click();
   await context.close();console.log('PASS Sort to destinations, stable geometry, help, swaps, back/cancel and sync',width,authenticated);

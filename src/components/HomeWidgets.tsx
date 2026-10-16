@@ -6,12 +6,13 @@ import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
 import { useTodoHistory } from '../hooks/useTodoHistory';
+import { useTodoReorderAnimation } from '../hooks/useTodoReorderAnimation';
 import { useTodoInsertPreference } from '../hooks/useTodoInsertPreference';
 import { useProgressPlans } from '../hooks/useProgressPlans';
 import { ProgressPlansWidget, ProgressPlansVisibility, ProgressPlansConflict } from './ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
-import { orderedCurrentTodos, organizeTodoOrder, todoInsertionTargets } from '../types/todoOrder';
+import { groupedTodoOrder, orderedCurrentTodos, organizeTodoOrder, todoInsertionTargets } from '../types/todoOrder';
 import type { TodoInsertDirection } from '../types/todoOrder';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
 
@@ -167,6 +168,11 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     if (organizing && selected.length !== organizing.selected.length) setOrganizing(previous => previous ? { ...previous, selected: previous.selected.filter(id => eligible.has(id)), choosing: previous.choosing && selected.length > 0 } : null);
   }, [selected.join('|'), organizing?.selected.length]);
   const exitOrganizing = () => { setOrganizing(null); requestAnimationFrame(() => organizeButton.current?.focus({ preventScroll: true })); };
+  const cancelOrganizing = () => { motion.prepare(normal.map(i => i.id)); exitOrganizing(); };
+  const beginOrganizing = () => {
+    const ids = groupedTodoOrder(current); motion.prepare(ids); historyView.close();
+    setOrganizing({ ids, selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false });
+  };
   const select = (id: string) => setOrganizing(previous => !previous ? null : { ...previous, selected: previous.selected.includes(id) ? previous.selected.filter(value => value !== id) : [...previous.selected, id] });
   const setDestinationStep = (choosing: boolean) => {
     const viewport = historyView.viewport.current;
@@ -188,6 +194,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     if (!organizing?.choosing || !selected.length) return;
     const order = organizeTodoOrder(current, selected, beforeId);
     if (!order) { setError('清單已更新，請重新選擇插入位置。'); return; }
+    motion.prepare(order);
     state.service.preferences(state.channel, { todo_order: order }, { todo_order: organizing.base });
     exitOrganizing();
   };
@@ -203,15 +210,16 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
   useLayoutEffect(() => {
     if (organizing) historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true });
   }, [!!organizing]);
-  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return; if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
+  const motion = useTodoReorderAnimation(historyView.current, historyView.viewport, current.map(i => i.id));
+  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return; if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else cancelOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
     <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing}
       status={organizing ? <span className="block whitespace-nowrap text-xs text-text-muted" aria-live="polite">已選 {selected.length} 項</span> : undefined}
       actions={organizing ? <div className="flex items-center gap-1" role="group" aria-label="待辦整理操作">
         {organizing.choosing ? <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={() => setDestinationStep(false)}>返回選取</button>
           : <button ref={sortToButton} type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100 disabled:opacity-40" disabled={!selected.length} onClick={() => setDestinationStep(true)}>Sort to…</button>}
-        <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={exitOrganizing}>取消</button>
-      </div> : <button ref={organizeButton} type="button" aria-pressed={false} disabled={!eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); }}>整理</button>}
-      help={<><p>按「整理」，依希望的順序點選未完成事項的左框。再次點選可取消，其他編號會依序遞補。</p><p>按「Sort to…」，點清單中的插入線移動整組事項；第一條放到最前，最後一條放到最末。沒有選取的事項保留原有順序。</p><p>「返回選取」保留編號；「取消」不變更清單。今日勾選或取消勾選不會移動事項；只有套用整理時才將今日完成事項集中到上方，過去完成事項不參與排序。</p><p>整理時仍可捲動清單或左右滑頁。鍵盤可用 Tab／空白選取、Enter 選擇插入位置；Escape 返回選取，再按一次取消。</p></>}
+        <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={cancelOrganizing}>取消</button>
+      </div> : <button ref={organizeButton} type="button" aria-pressed={false} disabled={!eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={beginOrganizing}>整理</button>}
+      help={<><p>按「整理」會先將今日完成事項移到前面，再依希望的順序點選未完成事項的左框。再次點選可取消，其他編號會依序遞補。</p><p>按「Sort to…」，點清單中的插入線移動整組事項；第一條放到最前，最後一條放到最末。沒有選取的事項保留原有順序。</p><p>「返回選取」保留編號；「取消」還原進入整理前的順序，完成事項置前也會還原。選好插入位置才儲存；今日勾選或取消勾選不會移動事項，過去完成事項不參與排序。</p><p>整理時仍可捲動清單或左右滑頁。鍵盤可用 Tab／空白選取、Enter 選擇插入位置；Escape 返回選取，再按一次取消。</p></>}
       historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
     <div className={'relative min-h-0 ' + (management ? 'h-64' : 'flex-1')}>
       <div ref={historyView.hint} aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-10 rounded-xl bg-surface/95 px-3 py-2 text-center text-xs text-text-muted transition-opacity duration-150 motion-reduce:transition-none" style={{ opacity: 0 }}>
