@@ -94,7 +94,7 @@ export function ProgressPlansWidget({ state, management = false }: { state: Prog
     </div>
     {management && <button className={button + ' mt-4 flex self-start items-center gap-2'} onClick={() => setEditing(null)}><Plus size={16} />新增計畫</button>}
     {editing !== undefined && management && <PlanEditor state={state} plan={editing} onClose={() => setEditing(undefined)} />}
-    {menu && <AnchoredPopover anchor={menu} title="學習計畫選單" onClose={() => setMenu(null)}><div className="space-y-1"><Link className={popoverActionClass} to={settingsUrl} onClick={() => setMenu(null)}>前往設定管理組件</Link><button className={popoverActionClass} onClick={() => { setMenu(null); void state.service.refresh(state.channel, true); }}>重新同步</button></div></AnchoredPopover>}
+    {menu && <AnchoredPopover anchor={menu} title="學習計畫選單" onClose={() => setMenu(null)}><div><Link className={popoverActionClass} to={settingsUrl} onClick={() => setMenu(null)}>前往設定管理組件</Link><button className={popoverActionClass} onClick={() => { setMenu(null); void state.service.refresh(state.channel, true); }}>重新同步</button></div></AnchoredPopover>}
   </section>;
 }
 export function ProgressPlansVisibility({ state }: { state: ProgressState }) {

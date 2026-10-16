@@ -2,7 +2,6 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } f
 import { createPortal } from 'react-dom';
 
 export const popoverActionClass = 'block w-full rounded-xl px-2 py-2 text-left text-sm hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-primary';
-export const popoverConfirmButtonClass = 'rounded-xl border border-border-subtle px-2.5 py-1.5 text-sm hover:bg-neutral-100';
 
 type Position = { left: number; top: number; width: number; maxHeight: number };
 const controls = 'button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]';
@@ -16,7 +15,7 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
     const el = root.current; if (!el) return;
     const measure = () => {
       if (!anchor.isConnected) { dismiss(false); return; }
-      const visual = window.visualViewport, margin = 12, gap = 2;
+      const visual = window.visualViewport, margin = 12, gap = -4;
       const left = (visual?.offsetLeft || 0) + margin, right = (visual?.offsetLeft || 0) + (visual?.width || innerWidth) - margin;
       let top = (visual?.offsetTop || 0) + margin, bottom = (visual?.offsetTop || 0) + (visual?.height || innerHeight) - margin;
       for (const edge of document.querySelectorAll<HTMLElement>('[data-overlay-edge]')) {
@@ -26,9 +25,9 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
       }
       const box = anchor.getBoundingClientRect();
       if (box.bottom < top || box.top > bottom || box.right < left || box.left > right) { dismiss(false); return; }
-      const width = Math.max(0, Math.min(variant === 'actions' ? 200 : 176, right - left));
+      const width = Math.max(0, Math.min(variant === 'actions' ? 200 : 112, right - left));
       const below = Math.max(0, bottom - box.bottom - gap), above = Math.max(0, box.top - top - gap);
-      const height = el.scrollHeight + 2, down = below >= height || below >= above;
+      const height = el.scrollHeight, down = below >= height || below >= above;
       const maxHeight = down ? below : above;
       const next = { width, maxHeight, left: Math.max(left, Math.min(box.left + width <= right ? box.left : box.right - width, right - width)), top: down ? box.bottom + gap : Math.max(top, box.top - gap - Math.min(height, maxHeight)) };
       setPosition(previous => previous && Object.keys(next).every(key => previous[key as keyof Position] === next[key as keyof Position]) ? previous : next);
@@ -57,17 +56,17 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
     };
   }, [anchor]);
   return createPortal(<div ref={root} id={id} role="dialog" aria-labelledby={id + '-title'} tabIndex={-1} data-anchored-popover={variant}
-    style={position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, width: variant === 'actions' ? 200 : 176, visibility: 'hidden' }}
-    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-2xl border border-border-subtle bg-surface shadow-[0_4px_20px_rgba(0,0,0,0.03)]" + (variant === 'actions' ? ' p-1.5' : ' p-2.5')}
+    style={position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, width: variant === 'actions' ? 200 : 112, visibility: 'hidden' }}
+    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-xl bg-surface shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
     onClick={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(true); }
-      else if (variant === 'actions' && ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+      else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
         const buttons = [...event.currentTarget.querySelectorAll<HTMLElement>(controls)], index = buttons.indexOf(document.activeElement as HTMLElement);
         const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
         event.preventDefault(); event.stopPropagation(); buttons[next]?.focus();
       }
     }}>
-    <h2 id={id + '-title'} className={variant === 'actions' ? 'sr-only' : 'text-sm font-semibold'}>{title}</h2>{children}
+    <h2 id={id + '-title'} className="sr-only">{title}</h2>{children}
   </div>, document.body);
 }

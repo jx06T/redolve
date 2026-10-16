@@ -28,7 +28,7 @@ try {
    const top=await page.locator('[data-overlay-edge="top"]').boundingBox(),bottom=page.locator('[data-overlay-edge="bottom"]');
    assert(p.y>=top.y+top.height+11,'popover leaves the top navigation visible');
    const limit=await bottom.isVisible()?(await bottom.boundingBox()).y:820;assert(p.y+p.height<=limit-11,'popover leaves bottom navigation visible');
-   assert(Math.min(Math.abs(p.y-b.y-b.height),Math.abs(b.y-p.y-p.height))<=3,'popover is attached to its triggering button');
+   assert(Math.min(Math.abs(p.y-b.y-b.height+4),Math.abs(b.y-p.y-p.height+4))<1,'popover is attached to its triggering button');
    const expectedX=b.x+p.width<=width-12?b.x:Math.max(12,b.x+b.width-p.width);
    assert(Math.abs(p.x-expectedX)<1,'prefer extending right from the trigger; flip left only near the edge');
    assert.equal(await anchored.getAttribute('aria-modal'),null,'local actions are nonmodal');
@@ -51,7 +51,12 @@ try {
   await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);await page.waitForTimeout(100);
   const last=current.locator('[data-todo-row]').last(),remove=last.getByRole('button',{name:'刪除待辦：'+lastText,exact:true});
   await remove.click();await assertNear(remove);assert.equal(await anchored.getByRole('button',{name:'取消',exact:true}).evaluate(el=>el===document.activeElement),true);
-  assert((await anchored.boundingBox()).width<=176);
+  assert((await anchored.boundingBox()).width<=112);
+  const cancelBox=await anchored.getByRole('button',{name:'取消',exact:true}).boundingBox(),deleteButton=anchored.getByRole('button',{name:'刪除',exact:true}),deleteBox=await deleteButton.boundingBox();
+  assert(deleteBox.y>=cancelBox.y+cancelBox.height,'confirmation actions are stacked');
+  assert.equal(await deleteButton.evaluate(el=>getComputedStyle(el).color),'rgb(169, 111, 111)');
+  assert(await anchored.getByRole('heading').evaluate(el=>el.classList.contains('sr-only')),'title is accessible but visually hidden');
+  assert(await anchored.evaluate(el=>{const css=getComputedStyle(el);return css.paddingTop==='0px'&&css.paddingLeft==='0px'&&css.borderTopWidth==='0px';}),'no outer padding or border');
   assert((await anchored.boundingBox()).height<=100,'simple confirmation remains compact even for long tasks');
   assert.equal(await anchored.getByText(lastText,{exact:true}).count(),0,'the adjacent confirmation does not repeat task contents');
   assert((await last.evaluate(el=>getComputedStyle(el).backgroundColor)).includes('244, 160, 160'),'the targeted task is marked pale red');
@@ -60,7 +65,7 @@ try {
   assert.equal(await last.evaluate(el=>getComputedStyle(el).backgroundColor),'rgba(0, 0, 0, 0)','closing clears the target highlight');
   // Simulate a reduced available area (e.g. an on-screen keyboard); a small confirmation can still flip up.
   const anchorBox=await remove.boundingBox();await page.evaluate(y=>{const boundary=document.createElement('div');boundary.dataset.overlayEdge='bottom';boundary.id='popover-test-boundary';Object.assign(boundary.style,{position:'fixed',left:'0',right:'0',top:y+'px',bottom:'0',pointerEvents:'none'});document.body.append(boundary);},anchorBox.y+anchorBox.height+30);
-  await remove.click();const flipped=await anchored.boundingBox();assert(flipped.y+flipped.height<=anchorBox.y,'insufficient space below flips the confirmation upward');await page.keyboard.press('Escape');await page.evaluate(()=>document.getElementById('popover-test-boundary').remove());
+  await remove.click();const flipped=await anchored.boundingBox();assert(flipped.y+flipped.height<=anchorBox.y+4,'insufficient space below flips the confirmation upward');await page.keyboard.press('Escape');await page.evaluate(()=>document.getElementById('popover-test-boundary').remove());
   await remove.click();await anchored.getByRole('button',{name:'刪除',exact:true}).click();assert.equal(await current.locator('[data-todo-row]').count(),21);assert.equal(await anchored.count(),0);
   assert(await viewport.evaluate(el=>el===document.activeElement),'deleting a focused row returns focus to its list');
   for(const [kind,name] of [['countdown','事件倒數選單'],['progress','學習計畫選單']]){
