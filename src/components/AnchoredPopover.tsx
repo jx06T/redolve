@@ -27,7 +27,7 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
       if (box.bottom < top || box.top > bottom || box.right < left || box.left > right) { dismiss(false); return; }
       const width = Math.max(0, Math.min(variant === 'actions' ? 200 : 112, right - left));
       const below = Math.max(0, bottom - box.bottom - gap), above = Math.max(0, box.top - top - gap);
-      const height = el.scrollHeight, down = below >= height || below >= above;
+      const height = el.scrollHeight + 2, down = below >= height || below >= above;
       const maxHeight = down ? below : above;
       const next = { width, maxHeight, left: Math.max(left, Math.min(box.left + width <= right ? box.left : box.right - width, right - width)), top: down ? box.bottom + gap : Math.max(top, box.top - gap - Math.min(height, maxHeight)) };
       setPosition(previous => previous && Object.keys(next).every(key => previous[key as keyof Position] === next[key as keyof Position]) ? previous : next);
@@ -57,7 +57,7 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
   }, [anchor]);
   return createPortal(<div ref={root} id={id} role="dialog" aria-labelledby={id + '-title'} tabIndex={-1} data-anchored-popover={variant}
     style={position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, width: variant === 'actions' ? 200 : 112, visibility: 'hidden' }}
-    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg bg-surface bg-linear-to-br from-transparent via-primary/4 to-primary/10 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
+    className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg border border-primary/20 bg-surface bg-linear-to-br from-transparent via-primary/4 to-primary/10 shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
     onClick={event => event.stopPropagation()}
     onKeyDown={event => {
       if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); dismiss(true); }

@@ -56,7 +56,7 @@ try {
   assert(deleteBox.y>=cancelBox.y+cancelBox.height,'confirmation actions are stacked');
   assert.equal(await deleteButton.evaluate(el=>getComputedStyle(el).color),'rgb(169, 111, 111)');
   assert(await anchored.getByRole('heading').evaluate(el=>el.classList.contains('sr-only')),'title is accessible but visually hidden');
-  assert(await anchored.evaluate(el=>{const css=getComputedStyle(el);return css.paddingTop==='0px'&&css.paddingLeft==='0px'&&css.borderTopWidth==='0px';}),'no outer padding or border');
+  assert(await anchored.evaluate(el=>{const css=getComputedStyle(el);return css.paddingTop==='0px'&&css.paddingLeft==='0px'&&css.borderTopWidth==='1px';}),'no outer padding and a thin brand border');
   assert((await anchored.boundingBox()).height<=100,'simple confirmation remains compact even for long tasks');
   assert.equal(await anchored.getByText(lastText,{exact:true}).count(),0,'the adjacent confirmation does not repeat task contents');
   assert((await last.evaluate(el=>getComputedStyle(el).backgroundColor)).includes('244, 160, 160'),'the targeted task is marked pale red');
