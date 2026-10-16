@@ -122,10 +122,10 @@ async function drain(c: Channel) {
       const method = op.action === 'delete' ? 'DELETE' : op.action === 'create' ? 'POST' : 'PATCH';
       const body = op.action === 'create' ? op.item : { patch: op.patch, base: op.base };
       const { response, result } = await request(c, path, method, body);
-      if (response.status === 503 && result.code === 'COUNTDOWN_SCHEMA_PENDING' && op.action === 'preferences' && Object.hasOwn(op.patch, 'countdown_order')) {
+      if (response.status === 503 && op.action === 'preferences' && (result.code === 'COUNTDOWN_SCHEMA_PENDING' && Object.hasOwn(op.patch, 'countdown_order') || result.code === 'TODO_ORDER_SCHEMA_PENDING' && Object.hasOwn(op.patch, 'todo_order'))) {
         // Keep order drafts durable while the database upgrade is pending. Other
         // widget writes can still sync; retry each order only once per flush.
-        deferred.add(op.key); c.error = result.error || '倒數排序暫時無法同步'; continue;
+        deferred.add(op.key); c.error = result.error || '排序暫時無法同步'; continue;
       }
       if ((response.status === 409 || response.status === 410) && Object.hasOwn(result, 'current')) {
         c.conflict = { operation: op, current: result.current }; break;
@@ -168,8 +168,8 @@ export const homeWidgetService = {
     const item = c.snapshot.items.find(i => i.id === id); if (!item) return;
     enqueue(c, { key: createClientId(), action: 'delete', id, patch: {}, base: { text: item.text, target_date: item.target_date, completed_at: item.completed_at } });
   },
-  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible' | 'countdown_order'>>, original?: Partial<WidgetPreferences>) {
-    const base = Object.fromEntries(Object.keys(patch).map(k => [k, original && Object.hasOwn(original, k) ? original[k as keyof WidgetPreferences] : k === 'countdown_order' ? c.snapshot.preferences.countdown_order || [] : c.snapshot.preferences[k as keyof WidgetPreferences]]));
+  preferences(c: Channel, patch: Partial<Pick<WidgetPreferences, 'todos_visible' | 'countdowns_visible' | 'countdown_order' | 'todo_order'>>, original?: Partial<WidgetPreferences>) {
+    const base = Object.fromEntries(Object.keys(patch).map(k => [k, original && Object.hasOwn(original, k) ? original[k as keyof WidgetPreferences] : k === 'countdown_order' || k === 'todo_order' ? c.snapshot.preferences[k] || [] : c.snapshot.preferences[k as keyof WidgetPreferences]]));
     enqueue(c, { key: createClientId(), action: 'preferences', patch, base });
   },
   resolve(c: Channel, local: boolean) {

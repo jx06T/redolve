@@ -86,3 +86,7 @@ npm run worker:dev
 - 發布腳本測試 `tests/home-widgets-release.test.ps1` 通過：CheckOnly 不寫入、bookmark 在先、套用後驗證、重跑不寫入、失敗停止；零正式 Cloudflare API 呼叫。後續本地套用與唯讀檢查已完成；備份／套用後的兩個本地 DB 題數分別維持 0／21。
 - 後續瀏覽器回歸四組通過：卡片位置與欄高、倒數／探索約 2:1、緊湊待辦列、新增後捲動位置不變，並保留唯讀倒數、離線還原、衝突選擇、跨日歷史與設定管理流程。
 - 實體 iPhone／iPad、正式 D1 migration、正式跨裝置同步仍由發布後驗收確認。
+
+## 待辦整理（2026-10-16）
+
+已新增點選編號的 Top／Sort，沒有拖曳排序；規格、0013 migration 與發布指令集中在 [TODO_ORGANIZE_2026-10-16.md](./TODO_ORGANIZE_2026-10-16.md)。0011 仍維持撤回，不得重用。

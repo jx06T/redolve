@@ -45,6 +45,16 @@ test('private widgets: authorization, retention, offline retries and concurrent 
       await db.prepare('DELETE FROM home_widget_preferences WHERE user_id=?').bind('two').run();
     });
     for(const query of unstable_splitSqlQuery((await readFile('worker/migrations/0010_countdown_order.sql','utf8')).replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(query.replace(/\r?\n/g,' '));
+    await t.test('todo order migration pending does not block countdowns or visibility', async () => {
+      const todo = (await call('/items','POST',{id:'legacy-todo-order',kind:'todo',text:'待辦'},'two')).data.item;
+      const pending = await call('/preferences','PATCH',{base:{todo_order:[]},patch:{todo_order:[todo.id]}},'two');
+      assert.equal(pending.status,503); assert.equal(pending.data.code,'TODO_ORDER_SCHEMA_PENDING');
+      assert.equal((await call('/preferences','PATCH',{base:{todos_visible:true},patch:{todos_visible:false}},'two')).status,200);
+      assert.deepEqual((await call('','GET',undefined,'two')).data.preferences.todo_order,[]);
+      await db.prepare('DELETE FROM home_widget_items WHERE user_id=?').bind('two').run();
+      await db.prepare('DELETE FROM home_widget_preferences WHERE user_id=?').bind('two').run();
+    });
+    for(const query of unstable_splitSqlQuery((await readFile('worker/migrations/0013_todo_organize.sql','utf8')).replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(query.replace(/\r?\n/g,' '));
     let row;
     await t.test('auth required and private reads use no-store', async () => {
       assert.equal((await call('', 'GET', undefined, '')).status, 401);
@@ -133,6 +143,41 @@ test('private widgets: authorization, retention, offline retries and concurrent 
       await call('/items/'+a.id,'DELETE',{base:a});
       assert.equal((await call('/preferences','PATCH',{base:{countdown_order:[b.id,a.id]},patch:{countdown_order:[a.id,b.id]}})).status,200,'offline order accepts own deleted references without reviving them');
       assert.equal((await call('/preferences','PATCH',{base:{countdown_order:[a.id,b.id]},patch:{countdown_order:[b.id]}})).status,200,'removed IDs can be dropped without losing other order');
+    });
+    await t.test('todo order is private, idempotent, field-scoped and conflict-safe', async () => {
+      const a=(await add('todo-order-a')).data.item,b=(await add('todo-order-b')).data.item;
+      const foreign=(await call('/items','POST',{id:'foreign-todo-order',kind:'todo',text:'他人'},'two')).data.item;
+      const before=(await call()).data.preferences, order=[b.id,a.id];
+      let result=await call('/preferences','PATCH',{base:{todo_order:[]},patch:{todo_order:order}});
+      assert.equal(result.status,200);assert.deepEqual(result.data.preferences.todo_order,order);
+      assert.deepEqual(result.data.preferences.countdown_order,before.countdown_order);
+      const version=result.data.preferences.row_version;
+      result=await call('/preferences','PATCH',{base:{todo_order:[]},patch:{todo_order:order}});
+      assert.equal(result.status,200);assert.equal(result.data.preferences.row_version,version);
+      result=await call('/preferences','PATCH',{base:{todo_order:[]},patch:{todo_order:[a.id,b.id]}});
+      assert.equal(result.status,409);assert.deepEqual(result.data.current.todo_order,order);
+      const cloud=result.data.current;
+      result=await call('/preferences','PATCH',{base:{todo_order:cloud.todo_order},patch:{todo_order:[a.id,b.id]}});
+      assert.equal(result.status,200);
+      result=await call('/preferences','PATCH',{base:{countdown_order:before.countdown_order},patch:{countdown_order:[]}});
+      assert.equal(result.status,200);assert.deepEqual(result.data.preferences.todo_order,[a.id,b.id],'countdown responses preserve todo order');
+      for(const ids of [[foreign.id],['count-order-b'],[a.id,a.id],[123]]) assert.equal((await call('/preferences','PATCH',{base:{todo_order:[a.id,b.id]},patch:{todo_order:ids}})).status,400);
+      assert.deepEqual((await call('','GET',undefined,'two')).data.preferences.todo_order,[]);
+      await call('/items/'+a.id,'DELETE',{base:a});
+      result=await call('/preferences','PATCH',{base:{todo_order:[a.id,b.id]},patch:{todo_order:[b.id,a.id]}});
+      assert.equal(result.status,200,'own deleted IDs remain valid for offline order without resurrecting tasks');
+      assert.ok(!(await call()).data.items.some(i=>i.id===a.id));
+    });
+    await t.test('500 valid 80-character IDs fit both order and conflict base without lifting item limits',async()=>{
+      const ids=Array.from({length:500},(_,i)=>'long-todo-'+String(i).padStart(4,'0')+'-'.repeat(66));
+      await db.batch(ids.map(id=>db.prepare("INSERT INTO home_widget_items(id,user_id,kind,text,created_at,updated_at,deleted_at) VALUES(?,'one','todo','',0,0,1)").bind(id)));
+      const plan=await db.prepare("EXPLAIN QUERY PLAN SELECT w.id FROM home_widget_items w JOIN json_each(?) ids ON w.id=ids.value WHERE w.user_id=? AND w.kind=?").bind(JSON.stringify(ids),'one','todo').all();
+      assert.match(JSON.stringify(plan.results),/SEARCH w USING INDEX sqlite_autoindex_home_widget_items/,'order validation must use item IDs, not scan every user');
+      const base=(await call()).data.preferences.todo_order;
+      assert.equal((await call('/preferences','PATCH',{base:{todo_order:base},patch:{todo_order:ids}})).status,200);
+      const result=await call('/preferences','PATCH',{base:{todo_order:ids},patch:{todo_order:[...ids].reverse()}});
+      assert.equal(result.status,200);assert.equal(result.data.preferences.todo_order.length,500);
+      assert.equal((await call('/preferences','PATCH',{base:{todo_order:[]},patch:{todo_order:[...ids,'too-many-todos']}})).status,400);
     });
   } finally { if (mf) await mf.dispose(); await rm(dir, { recursive: true, force: true }); }
 });

@@ -677,3 +677,7 @@ CREATE TABLE IF NOT EXISTS study_progress_operations (
  created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_study_progress_operations_plan ON study_progress_operations(plan_id);
+
+-- Todo organization (0013).
+ALTER TABLE home_widget_preferences ADD COLUMN todo_order TEXT NOT NULL DEFAULT '[]'
+  CHECK(json_valid(todo_order) AND json_type(todo_order)='array');

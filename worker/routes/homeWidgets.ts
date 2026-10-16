@@ -9,12 +9,12 @@ type Row = WidgetItem & { deleted_at: number | null };
 const fields = 'id,kind,text,target_date,completed_at,created_at,updated_at,row_version,deleted_at';
 const object = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const publicItem = ({ deleted_at: _deleted, ...item }: Row) => item;
-const validOrder = (value: unknown): value is string[] => Array.isArray(value) && value.length <= 100
+const validOrder = (value: unknown, limit = 100): value is string[] => Array.isArray(value) && value.length <= limit
   && value.every(id => typeof id === 'string' && /^[a-zA-Z0-9-]{8,80}$/.test(id)) && new Set(value).size === value.length;
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
-const readOrder = (value: unknown): string[] => { try { const ids=typeof value==='string'?JSON.parse(value):value; return validOrder(ids)?ids:[]; } catch { return []; } };
+const readOrder = (value: unknown, limit = 100): string[] => { try { const ids=typeof value==='string'?JSON.parse(value):value; return validOrder(ids,limit)?ids:[]; } catch { return []; } };
 const preferences = (row: Record<string, unknown> | null): WidgetPreferences => row ? {
-  todos_visible: !!row.todos_visible, countdowns_visible: !!row.countdowns_visible, countdown_order: readOrder(row.countdown_order), row_version: Number(row.row_version),
+  todos_visible: !!row.todos_visible, countdowns_visible: !!row.countdowns_visible, countdown_order: readOrder(row.countdown_order), todo_order: readOrder(row.todo_order,500), row_version: Number(row.row_version),
 } : { ...defaultWidgetPreferences };
 export const homeWidgetsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 homeWidgetsRouter.use('*', authMiddleware);
@@ -23,7 +23,7 @@ homeWidgetsRouter.use('*', async (c, next) => {
   if (expected && expected !== c.get('userId')) return c.json({ error: '登入帳號已切換，請重新登入後同步' }, 401);
   await next();
 });
-homeWidgetsRouter.use('*', bodyLimit({ maxSize: 16384, onError: c => c.json({ error: '內容過大' }, 413) }));
+homeWidgetsRouter.use('*', (c, next) => bodyLimit({ maxSize: c.req.path.replace(/\/$/, '').endsWith('/preferences') ? 98304 : 16384, onError: c => c.json({ error: '內容過大' }, 413) })(c, next));
 
 homeWidgetsRouter.get('/', async c => {
   const user = c.get('userId'), now = Date.now();
@@ -94,23 +94,29 @@ homeWidgetsRouter.patch('/preferences', async c => {
   const b = await c.req.json().catch(() => null);
   if (!object(b) || !object(b.patch) || !object(b.base)) return c.json({ error: '設定格式無效' }, 400);
   const keys = Object.keys(b.patch), patch = b.patch, base = b.base;
-  if (!keys.length || keys.some(k => k==='countdown_order' ? !validOrder(patch[k]) || !validOrder(base[k])
+  const isOrder = (key: string) => key === 'countdown_order' || key === 'todo_order';
+  if (!keys.length || keys.some(k => isOrder(k) ? !validOrder(patch[k], k === 'todo_order' ? 500 : 100) || !validOrder(base[k], k === 'todo_order' ? 500 : 100)
     : !['todos_visible', 'countdowns_visible'].includes(k) || typeof patch[k] !== 'boolean' || typeof base[k] !== 'boolean')) return c.json({ error: '設定欄位無效' }, 400);
   const user = c.get('userId');
-  if (keys.includes('countdown_order')) {
-    // Tombstones remain valid references for offline order drafts; rendering omits
-    // deleted events. Match only submitted IDs so long histories are not scanned.
-    const own=await c.env.DB.prepare("SELECT w.id FROM home_widget_items w JOIN json_each(?) ids ON w.id=ids.value WHERE w.user_id=? AND w.kind='countdown'").bind(JSON.stringify(patch.countdown_order),user).all<{id:string}>();
-    const allowed=new Set(own.results.map(item=>item.id));
-    if ((patch.countdown_order as string[]).some(id=>!allowed.has(id))) return c.json({error:'排序包含無法使用的事件，請重新同步'},400);
+  for (const key of keys.filter(isOrder)) {
+    // Check only submitted IDs through the PK; own tombstones remain valid for
+    // offline drafts. Rendering omits deleted/expired tasks without reviving them.
+    const own = await c.env.DB.prepare("SELECT w.id FROM home_widget_items w JOIN json_each(?) ids ON w.id=ids.value WHERE w.user_id=? AND w.kind=?")
+      .bind(JSON.stringify(patch[key]), user, key === 'todo_order' ? 'todo' : 'countdown').all<{id:string}>();
+    const allowed = new Set(own.results.map(item => item.id));
+    if ((patch[key] as string[]).some(id => !allowed.has(id))) return c.json({ error: '排序包含無法使用的項目，請重新同步' }, 400);
   }
+  const pendingSchema = (error: unknown) => {
+    const field = keys.filter(isOrder).find(key => new RegExp('(?:no such column:\\s*|no column named )' + key, 'i').test(String(error)));
+    return field ? { error: field === 'todo_order' ? '待辦排序暫時無法同步，請稍後重試' : '倒數排序暫時無法同步，請稍後重試', code: field === 'todo_order' ? 'TODO_ORDER_SCHEMA_PENDING' : 'COUNTDOWN_SCHEMA_PENDING' } : null;
+  };
   for (let attempt = 0; attempt < 3; attempt++) {
     let raw;
     try {
-      const columns = keys.includes('countdown_order') ? 'todos_visible,countdowns_visible,countdown_order,row_version' : '*';
+      const columns = ['*', ...keys.filter(isOrder)].join(',');
       raw = await c.env.DB.prepare(`SELECT ${columns} FROM home_widget_preferences WHERE user_id=?`).bind(user).first();
     } catch (error) {
-      if (keys.includes('countdown_order') && /no such column:\s*countdown_order/i.test(String(error))) return c.json({ error: '倒數排序暫時無法同步，請稍後重試', code: 'COUNTDOWN_SCHEMA_PENDING' }, 503);
+      const pending = pendingSchema(error); if (pending) return c.json(pending, 503);
       throw error;
     }
     const current = preferences(raw);
@@ -118,14 +124,14 @@ homeWidgetsRouter.patch('/preferences', async c => {
     if(keys.every(k=>same(current[k as keyof WidgetPreferences],patch[k])))return c.json({preferences:current});
     const next = { ...current, ...patch };
     // Only validated fields enter SQL identifiers. Visibility writes remain usable
-    // on the previous schema until the manual countdown migration is applied.
-    const values = keys.map(k => k === 'countdown_order' ? JSON.stringify(patch[k]) : +(patch[k] as boolean));
+    // on the previous schema until the corresponding manual order migration is applied.
+    const values = keys.map(k => isOrder(k) ? JSON.stringify(patch[k]) : +(patch[k] as boolean));
     let result;
     try {
       result = raw ? await c.env.DB.prepare(`UPDATE home_widget_preferences SET ${keys.map(k => k + '=?').join(',')},row_version=row_version+1,updated_at=? WHERE user_id=? AND row_version=?`).bind(...values, Date.now(), user, current.row_version).run()
         : await c.env.DB.prepare(`INSERT INTO home_widget_preferences(user_id,${keys.join(',')},updated_at,row_version) VALUES(?,${keys.map(() => '?').join(',')},?,1) ON CONFLICT(user_id) DO NOTHING`).bind(user, ...values, Date.now()).run();
     } catch (error) {
-      if (keys.includes('countdown_order') && /(?:no such column:\s*countdown_order|no column named countdown_order)/i.test(String(error))) return c.json({ error: '倒數排序暫時無法同步，請稍後重試', code: 'COUNTDOWN_SCHEMA_PENDING' }, 503);
+      const pending = pendingSchema(error); if (pending) return c.json(pending, 503);
       throw error;
     }
     if (result.meta.changes) return c.json({ preferences: { ...next, row_version: current.row_version + 1 } });
