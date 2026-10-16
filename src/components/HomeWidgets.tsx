@@ -137,7 +137,7 @@ function TodoComposer({ state, disabled }: { state: Widgets; disabled: boolean }
             if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
             if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) { event.preventDefault(); choose(event.key === 'ArrowUp' ? 'top' : 'bottom'); }
             else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); add(); }
-          }} className={input.replace(' text-sm', '') + ' block resize-none text-base sm:text-sm'} />
+          }} className={input.replace(' text-sm', '').replace(' py-2', ' py-1') + ' block resize-none text-base sm:text-sm'} />
         {choosing && <div aria-hidden="true" data-todo-input-hints className={'pointer-events-none absolute inset-0 flex items-center text-xs text-text-muted ' + (disabled ? 'opacity-40' : '')}>
           <span className="flex min-w-0 flex-1 items-center justify-center gap-1"><ArrowDown size={14} />新增至下</span>
           <span className="h-6 w-px bg-border-subtle" />
