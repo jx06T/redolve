@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
@@ -10,7 +10,7 @@ import { useProgressPlans } from '../hooks/useProgressPlans';
 import { ProgressPlansWidget, ProgressPlansVisibility, ProgressPlansConflict } from './ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
-import { orderedCurrentTodos, organizeTodoOrder } from '../types/todoOrder';
+import { orderedCurrentTodos, organizeTodoOrder, todoInsertionTargets } from '../types/todoOrder';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
 
 const button = 'h-full rounded-xl border border-border-subtle px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40';
@@ -56,7 +56,7 @@ function WidgetHeader({ kind, state, management = false, historyAction, actions,
     </AppDialog>}
   </>;
 }
-function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state: Widgets; onEditing: (id: string | null) => void; organize?: { position: number | null; onSelect: () => void } }) {
+function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state: Widgets; onEditing: (id: string | null) => void; organize?: { position: number | null; onSelect: () => void; choosing: boolean } }) {
   const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState(false), [restore, setRestore] = useState(false);
   const historical = item.completed_at !== null && taipeiDay(item.completed_at) < taipeiDay();
   const editor = useRef<HTMLInputElement>(null);
@@ -71,24 +71,37 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
     <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm tabular-nums ' + (organize?.position ? 'border-[#A8C5BD] bg-[#A8C5BD]/30 font-semibold text-text-main' : item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
       type="button" role={organize ? undefined : 'checkbox'} aria-checked={organize ? undefined : item.completed_at !== null} aria-pressed={organize && item.completed_at === null ? organize.position !== null : undefined}
       aria-label={organize ? item.completed_at !== null ? '已完成：' + item.text : '排序選取：' + item.text : '完成：' + item.text}
-      disabled={historical || !!organize && item.completed_at !== null}
+      disabled={historical || !!organize && (item.completed_at !== null || organize.choosing)}
       onClick={() => { if (organize) organize.onSelect(); else if (!historical) state.service.update(state.channel, item.id, { completed_at: item.completed_at === null ? Date.now() : null }, { completed_at: item.completed_at }); }}>
       {organize?.position ?? (item.completed_at !== null ? <Check size={17} /> : null)}</button>
     {/* Readable rows pass swipes to the panel; tapping enters the normal text editor. */}
     <input ref={editor} style={{ pointerEvents: focused ? 'auto' : 'none' }} aria-label="待辦內容" readOnly={!!organize} tabIndex={organize ? -1 : 0} maxLength={500} value={text} onChange={e => setText(e.target.value)}
       onFocus={() => { base.current = item.text; setFocused(true); onEditing(item.id); }} onBlur={save}
       onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.preventDefault(); cancelled.current = true; e.currentTarget.blur(); } }}
-      className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (item.completed_at !== null ? 'text-text-muted line-through' : '')} />
+      className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (organize?.choosing && organize.position ? 'opacity-60 ' : '') + (item.completed_at !== null ? 'text-text-muted line-through' : '')} />
     {historical && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" disabled={!!organize} onClick={() => setRestore(true)}><RotateCcw size={15} /></button>}
     <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`刪除待辦：${item.text}`} disabled={!!organize} onClick={() => setRemove(true)}><Trash2 size={15} /></button>
     {remove && <AppDialog title="刪除待辦？" onClose={() => setRemove(false)}><p className="break-words text-sm">{item.text}</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRemove(false)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(false); }}>刪除</button></div></AppDialog>}
     {restore && <AppDialog title="恢復為未完成？" onClose={() => setRestore(false)}><p className="break-words text-sm">{item.text}</p><p className="mt-2 text-sm text-text-muted">此事項將移回目前待辦清單。</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRestore(false)}>取消</button><button className={button} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(false); }}>恢復待辦</button></div></AppDialog>}
   </div>;
 }
+function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | null; index: number; onInsert: (beforeId: string | null) => void }) {
+  const gesture = useRef<{ x: number; y: number; moved: boolean; scroll: HTMLElement | null; top: number; pager: HTMLElement | null; left: number } | null>(null);
+  return <button type="button" data-todo-insert-before={beforeId ?? ''} data-todo-insert-index={index} aria-label={'插入位置 ' + (index + 1)}
+    className="group flex h-9 w-full touch-manipulation items-center gap-2 rounded-xl px-2 text-[#7E9F94] hover:bg-[#A8C5BD]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    onPointerDown={event => { const scroll = event.currentTarget.closest<HTMLElement>('[data-todo-scroll]'), pager = event.currentTarget.closest<HTMLElement>('[data-dashboard-carousel]'); gesture.current = { x: event.clientX, y: event.clientY, moved: false, scroll, top: scroll?.scrollTop || 0, pager, left: pager?.scrollLeft || 0 }; }}
+    onPointerMove={event => { const g = gesture.current; if (g && Math.hypot(event.clientX - g.x, event.clientY - g.y) > 8) g.moved = true; }}
+    onPointerLeave={() => { if (gesture.current) gesture.current.moved = true; }}
+    onPointerCancel={() => { if (gesture.current) gesture.current.moved = true; }}
+    onClick={event => { const g = gesture.current; gesture.current = null; if (event.detail !== 0 && g && (g.moved || Math.abs((g.scroll?.scrollTop || 0) - g.top) > 1 || Math.abs((g.pager?.scrollLeft || 0) - g.left) > 1)) return; onInsert(beforeId); }}>
+    <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><Plus size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
+  </button>;
+}
 export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?: boolean }) {
   const [draft, setDraft] = useState(''), [error, setError] = useState(''), [editing, setEditing] = useState<string | null>(null);
-  const [organizing, setOrganizing] = useState<{ ids: string[]; selected: string[]; base: string[] } | null>(null);
-  const organizeButton = useRef<HTMLButtonElement>(null);
+  const [organizing, setOrganizing] = useState<{ ids: string[]; selected: string[]; base: string[]; choosing: boolean } | null>(null);
+  const organizeButton = useRef<HTMLButtonElement>(null), sortToButton = useRef<HTMLButtonElement>(null);
+  const scrollAnchor = useRef<{ id: string; offset: number } | null>(null);
   const todos = state.snapshot.items.filter(i => i.kind === 'todo'), today = taipeiDay();
   const history = todos.filter(i => i.completed_at !== null && taipeiDay(i.completed_at) < today)
     .sort((a, b) => a.completed_at! - b.completed_at! || a.created_at - b.created_at);
@@ -97,33 +110,58 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
   const current = organizing ? [...normal].sort((a, b) => (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity)) : normal;
   const eligible = new Set(current.filter(i => i.completed_at === null).map(i => i.id));
   const selected = organizing?.selected.filter(id => eligible.has(id)) || [];
+  const targets = todoInsertionTargets(current, selected), targetIndexes = new Map(targets.map((id, index) => [id, index]));
+  const firstUnfinished = current.find(i => i.completed_at === null)?.id;
   useEffect(() => {
-    if (organizing && selected.length !== organizing.selected.length) setOrganizing(previous => previous ? { ...previous, selected: previous.selected.filter(id => eligible.has(id)) } : null);
+    if (organizing && selected.length !== organizing.selected.length) setOrganizing(previous => previous ? { ...previous, selected: previous.selected.filter(id => eligible.has(id)), choosing: previous.choosing && selected.length > 0 } : null);
   }, [selected.join('|'), organizing?.selected.length]);
   const exitOrganizing = () => { setOrganizing(null); requestAnimationFrame(() => organizeButton.current?.focus({ preventScroll: true })); };
   const select = (id: string) => setOrganizing(previous => !previous ? null : { ...previous, selected: previous.selected.includes(id) ? previous.selected.filter(value => value !== id) : [...previous.selected, id] });
-  const applyOrder = (mode: 'top' | 'sort') => {
-    if (!organizing || !selected.length) return;
-    state.service.preferences(state.channel, { todo_order: organizeTodoOrder(current, selected, mode) }, { todo_order: organizing.base });
+  const setDestinationStep = (choosing: boolean) => {
+    const viewport = historyView.viewport.current;
+    if (viewport) {
+      const top = viewport.getBoundingClientRect().top;
+      const row = [...viewport.querySelectorAll<HTMLElement>('[data-todo-current] [data-todo-row]')].find(node => node.getBoundingClientRect().bottom > top + 1);
+      scrollAnchor.current = row ? { id: row.dataset.todoRow!, offset: row.getBoundingClientRect().top - top } : null;
+    }
+    setOrganizing(previous => previous ? { ...previous, choosing } : null);
+    requestAnimationFrame(() => {
+      if (!choosing) { sortToButton.current?.focus({ preventScroll: true }); return; }
+      const viewport = historyView.viewport.current; if (!viewport) return;
+      const bounds = viewport.getBoundingClientRect(), points = [...viewport.querySelectorAll<HTMLButtonElement>('[data-todo-insert-index]')];
+      const visible = points.find(point => { const rect = point.getBoundingClientRect(); return rect.top >= bounds.top && rect.bottom <= bounds.bottom; });
+      (visible || points[0])?.focus({ preventScroll: !!visible });
+    });
+  };
+  const applyOrder = (beforeId: string | null) => {
+    if (!organizing?.choosing || !selected.length) return;
+    const order = organizeTodoOrder(current, selected, beforeId);
+    if (!order) { setError('清單已更新，請重新選擇插入位置。'); return; }
+    state.service.preferences(state.channel, { todo_order: order }, { todo_order: organizing.base });
     exitOrganizing();
-    if (mode === 'top') requestAnimationFrame(() => { if (historyView.viewport.current) historyView.viewport.current.scrollTop = 0; });
   };
   const groups = new Map<number, WidgetItem[]>();
   history.forEach(i => { const day = taipeiDay(i.completed_at!); groups.set(day, [...groups.get(day) || [], i]); });
   const historyView = useTodoHistory(state.channel.account, today + ':' + history.map(i => i.id + ':' + i.completed_at).join('|'), !organizing && history.length > 0, history.some(i => i.id === editing));
+  useLayoutEffect(() => {
+    const anchor = scrollAnchor.current, viewport = historyView.viewport.current; scrollAnchor.current = null;
+    if (!anchor || !viewport) return;
+    const row = [...viewport.querySelectorAll<HTMLElement>('[data-todo-current] [data-todo-row]')].find(node => node.dataset.todoRow === anchor.id);
+    if (row) viewport.scrollTop += row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset;
+  }, [organizing?.choosing]);
   const add = () => {
     const lines = draft.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) return;
     if (lines.some(l => l.length > 500) || todos.length + lines.length > 500) { setError('每行最多 500 字，未完成待辦最多 500 件。'); return; }
     lines.forEach(l => state.service.add(state.channel, 'todo', l)); setDraft(''); setError('');
   };
-  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} onKeyDown={event => { if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
-    <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing} actions={<button ref={organizeButton} type="button" aria-pressed={!!organizing} disabled={!!organizing || !eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []] }); requestAnimationFrame(() => historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true })); }}>{organizing ? '整理中' : '整理'}</button>} historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
+  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
+    <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing} actions={<button ref={organizeButton} type="button" aria-pressed={!!organizing} disabled={!!organizing || !eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); requestAnimationFrame(() => historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true })); }}>{organizing ? '整理中' : '整理'}</button>} historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
     {organizing && <div className="mb-3 space-y-2" role="group" aria-label="待辦整理操作">
-      <p className="text-xs text-text-muted">依序點選未完成事項，再選擇置頂或排序。</p>
+      <p className="text-xs text-text-muted">{organizing.choosing ? '點選清單中的插入位置。' : '依序選取現在或稍後想做的事。'}</p>
       <div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-xs text-text-muted" aria-live="polite">已選 {selected.length} 項</span>
-        <button type="button" className={button + ' text-xs'} disabled={!selected.length} onClick={() => applyOrder('top')}>置頂 Top</button>
-        <button type="button" className={button + ' text-xs'} disabled={!selected.length} onClick={() => applyOrder('sort')}>排序 Sort</button>
+        {organizing.choosing ? <button type="button" className={button + ' text-xs'} onClick={() => setDestinationStep(false)}>返回選取</button>
+          : <button ref={sortToButton} type="button" className={button + ' text-xs'} disabled={!selected.length} onClick={() => setDestinationStep(true)}>Sort to…</button>}
         <button type="button" className={button + ' text-xs'} onClick={exitOrganizing}>取消</button></div>
     </div>}
     <div className={'relative min-h-0 ' + (management ? 'h-64' : 'flex-1')}>
@@ -132,10 +170,14 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
       </div>
       <div ref={historyView.viewport} data-todo-scroll data-history-open={historyView.expanded} tabIndex={0} aria-label={organizing ? "待辦清單；整理中" : "待辦清單；在頂端按 Page Up 查看過去事項"} className="relative h-full overflow-y-auto overscroll-y-contain [overflow-anchor:none]">
         <div ref={historyView.history} data-todo-history hidden={!historyView.expanded}>
-          {[...groups.entries()].map(([day, rows]) => <div key={day} className="pb-3"><p className="text-xs text-text-muted">{new Date(day * 86400000).toISOString().slice(5, 10)} 已完成</p>{rows.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id) } : undefined} />)}</div>)}
+          {[...groups.entries()].map(([day, rows]) => <div key={day} className="pb-3"><p className="text-xs text-text-muted">{new Date(day * 86400000).toISOString().slice(5, 10)} 已完成</p>{rows.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id), choosing: organizing.choosing } : undefined} />)}</div>)}
           <p className="mb-2 border-t border-dashed border-border-subtle py-2 text-center text-xs text-text-muted">目前待辦</p>
         </div>
-        <div ref={historyView.current} data-todo-current>{current.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id) } : undefined} />)}{!current.length && <p className="py-4 text-sm text-text-muted">目前沒有待辦，從下方新增。</p>}</div>
+        <div ref={historyView.current} data-todo-current>{current.map(i => <Fragment key={i.id}>
+          {organizing?.choosing && targets.length > 0 && (i.id === firstUnfinished || targetIndexes.has(i.id) && targetIndexes.get(i.id)! > 0) && <TodoInsertPoint beforeId={i.id === firstUnfinished ? targets[0] : i.id} index={i.id === firstUnfinished ? 0 : targetIndexes.get(i.id)!} onInsert={applyOrder} />}
+          <TodoRow item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id), choosing: organizing.choosing } : undefined} />
+        </Fragment>)}{organizing?.choosing && targets.length > 1 && <TodoInsertPoint beforeId={null} index={targets.length - 1} onInsert={applyOrder} />}
+        {!current.length && <p className="py-4 text-sm text-text-muted">目前沒有待辦，從下方新增。</p>}</div>
         <div ref={historyView.tail} aria-hidden="true" />
       </div>
     </div>

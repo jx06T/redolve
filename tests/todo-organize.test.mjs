@@ -3,24 +3,36 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { applyTodoOrganize } from '../scripts/apply-todo-organize.mjs';
 const compiled=await build({entryPoints:['src/types/todoOrder.ts'],bundle:true,write:false,format:'esm',platform:'node'});
-const {orderedCurrentTodos,organizeTodoOrder}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
+const {orderedCurrentTodos,organizeTodoOrder,todoInsertionTargets}=await import('data:text/javascript;base64,'+Buffer.from(compiled.outputFiles[0].text).toString('base64'));
 const items='ABCDE'.split('').map((id,index)=>({id,kind:'todo',text:id,completed_at:null,created_at:index}));
-test('Top and Sort preserve unselected relative order and only move the selected block',()=>{
- assert.deepEqual(organizeTodoOrder(items,['C','B','E'],'top'),['C','B','E','A','D']);
- assert.deepEqual(organizeTodoOrder(items,['C','B','E'],'sort'),['A','C','B','E','D']);
- assert.deepEqual(organizeTodoOrder(items,['E','C'],'sort'),['A','B','E','C','D']);
- assert.deepEqual(organizeTodoOrder(items,['C','C','missing'],'sort'),['A','B','C','D','E']);
- assert.deepEqual(organizeTodoOrder(items,[],'top'),['A','B','C','D','E']);
+test('explicit destinations support top, middle, bottom, single moves and adjacent swaps',()=>{
+ assert.deepEqual(organizeTodoOrder(items,['C','B','E'],'A'),['C','B','E','A','D']);
+ assert.deepEqual(organizeTodoOrder(items,['C','B','E'],'D'),['A','C','B','E','D']);
+ assert.deepEqual(organizeTodoOrder(items,['C','E'],null),['A','B','D','C','E']);
+ assert.deepEqual(organizeTodoOrder(items,['C'],'B'),['A','C','B','D','E']);
+ assert.deepEqual(organizeTodoOrder(items,['C','B'],'D'),['A','C','B','D','E']);
+ assert.deepEqual(organizeTodoOrder(items,['E','C'],'A'),['E','C','A','B','D']);
+ assert.equal(organizeTodoOrder(items,[],'A'),null);
+ assert.equal(organizeTodoOrder(items,['C'],'C'),null,'selected tasks cannot be destinations');
+ assert.equal(organizeTodoOrder(items,['C'],'missing'),null,'a removed destination must not become an accidental top move');
 });
-test('completion partition applies after organization; history excluded and new tasks append',()=>{
+test('destination markers are unique after logically removing the selected tasks',()=>{
+ assert.deepEqual(todoInsertionTargets(items,['C','E']),['A','B','D',null]);
+ assert.deepEqual(todoInsertionTargets(items,['A','B']),['C','D','E',null]);
+ assert.deepEqual(todoInsertionTargets(items,['E','D','C','B','A']),[null]);
+ assert.deepEqual(organizeTodoOrder(items,['E','D','C','B','A'],null),['E','D','C','B','A']);
+ assert.deepEqual(todoInsertionTargets(items,[]),[]);
+});
+test('completed tasks stay above the unfinished destination range, history is excluded',()=>{
  const now=Date.now(),today=Math.floor((now+8*3600000)/86400000);
  const complete=items.map(i=>i.id==='D'?{...i,completed_at:now}:i);
  const past={...items[0],id:'past',completed_at:now-86400000};
  assert.deepEqual(orderedCurrentTodos([...complete,past],[],today).map(i=>i.id),['A','B','C','D','E']);
- const order=organizeTodoOrder(complete,['C','B','E'],'sort');
+ const order=organizeTodoOrder(complete,['C','B','E'],null);
  assert.deepEqual(order,['D','A','C','B','E']);
+ assert.deepEqual(todoInsertionTargets(complete,['C']),['A','B','E',null]);
+ assert.equal(organizeTodoOrder(complete,['C'],'D'),null);
  assert.deepEqual(orderedCurrentTodos([...complete,{...items[0],id:'new',created_at:99},past],order,today).map(i=>i.id),['D','A','C','B','E','new']);
- assert.deepEqual(organizeTodoOrder(complete,['D','C'],'top'),['D','C','A','B','E']);
 });
 test('0013 runner checks, backs up, verifies, repeats safely and stops on failures',()=>{
  const json=values=>JSON.stringify(values.map(value=>({success:true,results:[value]})));

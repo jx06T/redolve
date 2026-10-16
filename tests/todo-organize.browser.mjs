@@ -44,6 +44,10 @@ try{
   const enter=()=>todo.getByRole('button',{name:'整理',exact:true}).click();
   const choose=text=>todo.getByRole('button',{name:'排序選取：'+text,exact:true});
   const selected=async(text,number)=>assert.equal(await choose(text).innerText(),String(number));
+  const destinations=()=>todo.locator('[data-todo-insert-index]');
+  const sortTo=()=>todo.getByRole('button',{name:'Sort to…',exact:true}).click();
+  const insertBefore=text=>todo.locator('[data-todo-insert-before="'+data.items.find(i=>i.text===text).id+'"]').click();
+  const moveTop=async()=>{await sortTo();await destinations().first().click();};
   const original=await order();assert.deepEqual(original,['A','B','完成','C','D','E']);
   const draft=todo.getByRole('textbox',{name:'新增待辦',exact:true});await draft.fill('未送出的草稿');
   const before=await todo.evaluate(e=>getComputedStyle(e).backgroundColor);
@@ -52,28 +56,38 @@ try{
   assert(await todo.getByRole('button',{name:'已完成：完成',exact:true}).isDisabled());assert(await draft.isDisabled());
   assert(await todo.getByRole('button',{name:'刪除待辦：A',exact:true}).isDisabled());
   assert.equal(await current.getByRole('textbox').first().isEditable(),false);
-  assert(await todo.getByRole('button',{name:'置頂 Top',exact:true}).isDisabled());
+  assert(await todo.getByRole('button',{name:'Sort to…',exact:true}).isDisabled());
   for(const text of ['C','B','E'])await choose(text).click();
   await selected('C',1);await selected('B',2);await selected('E',3);assert.deepEqual(await order(),original);
   await choose('B').click();await selected('E',2);assert.equal(await choose('B').getAttribute('aria-pressed'),'false');
   await choose('B').click();await selected('B',3);
   assert.equal(calls.length,0,'numbering never mutates task state or order');
   await page.screenshot({path:'.wrangler/qa/todo-organize-'+width+'-'+authenticated+'.png'});
+  await sortTo();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
+  assert.deepEqual(await order(),original,'showing destinations keeps every original row in place');
+  assert(await choose('C').isDisabled());assert.equal(await destinations().count(),3);
+  assert.equal((await destinations().allTextContents()).join('').trim(),'','destinations have no per-location visible labels');
+  await page.screenshot({path:'.wrangler/qa/todo-sort-to-'+width+'-'+authenticated+'.png'});
+  await todo.getByRole('button',{name:'返回選取',exact:true}).click();await selected('C',1);await selected('E',2);await selected('B',3);
   await todo.getByRole('button',{name:'取消',exact:true}).click();assert.deepEqual(await order(),original);assert.equal(await draft.inputValue(),'未送出的草稿');
   await enter();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal(calls.length,0);
-  await enter();for(const text of ['C','B','E'])await choose(text).click();await todo.getByRole('button',{name:'排序 Sort',exact:true}).click();
+  await enter();for(const text of ['C','B','E'])await choose(text).click();await sortTo();assert.deepEqual(await order(),original);assert.equal(await destinations().count(),3);await insertBefore('D');
   await waitOrder(['完成','A','C','B','E','D']);assert.equal(await todo.getAttribute('data-todo-organizing'),'false');
   if(authenticated)await page.waitForFunction(()=>JSON.parse(localStorage.getItem('rdv:home-widgets:v1:organize-test-user')).data.preferences.todo_order.length>0);
+  await enter();await choose('B').click();await sortTo();await insertBefore('C');await waitOrder(['完成','A','B','C','E','D']);
+  await enter();for(const text of ['C','B'])await choose(text).click();await sortTo();await insertBefore('E');await waitOrder(['完成','A','C','B','E','D']);
+  await enter();for(const text of ['A','C','B','E','D'])await choose(text).click();await sortTo();assert.equal(await destinations().count(),1,'all selected tasks have only one distinct destination');
+  await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organize-step'),'selection');await selected('A',1);await page.keyboard.press('Escape');
   assert(!calls.some(c=>c.path.includes('/items')),'organizing only changes order preferences');
   const times=Object.fromEntries(initial.map(i=>[i.id,i.completed_at]));for(const item of data.items)assert.equal(item.completed_at,times[item.id]);
   await page.reload();await page.waitForLoadState('networkidle');await openPanel();await waitOrder(['完成','A','C','B','E','D']);
-  await enter();for(const text of ['D','E'])await choose(text).click();await todo.getByRole('button',{name:'置頂 Top',exact:true}).click();
+  await enter();for(const text of ['D','E'])await choose(text).click();await moveTop();
   await waitOrder(['完成','D','E','A','C','B']);
   await draft.fill('新事項');await todo.getByRole('button',{name:'新增待辦事項',exact:true}).click();await waitOrder(['完成','D','E','A','C','B','新事項']);
   if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
   if(width===1280&&authenticated){
    // Missing migration keeps the order durable and lets independent item edits sync.
-   pendingSchema=true;await enter();await choose('B').click();await todo.getByRole('button',{name:'置頂 Top',exact:true}).click();await waitOrder(['完成','B','D','E','A','C','新事項']);
+   pendingSchema=true;await enter();await choose('B').click();await moveTop();await waitOrder(['完成','B','D','E','A','C','新事項']);
    await todo.getByText('待辦排序暫時無法同步，請稍後重試；草稿仍保留。',{exact:true}).waitFor();
    await todo.getByRole('checkbox',{name:'完成：A',exact:true}).click();
    await page.waitForFunction(()=>!Object.keys(localStorage).filter(k=>k.includes(':operation:')).some(k=>JSON.parse(localStorage.getItem(k)).id==='todo-organize-0'));
@@ -81,15 +95,46 @@ try{
    pendingSchema=false;await todo.getByRole('button',{name:'重試同步',exact:true}).click();await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
    await waitOrder(['完成','A','B','D','E','C','新事項']);
    const cloud=[...data.preferences.todo_order].reverse();data.preferences.todo_order=cloud;data.preferences.row_version++;
-   await enter();await choose('C').click();await todo.getByRole('button',{name:'置頂 Top',exact:true}).click();
+   await enter();await choose('C').click();await moveTop();
    const dialog=page.getByRole('dialog',{name:'小組件修改需要確認',exact:true});await dialog.waitFor();assert(!(await dialog.innerText()).includes('todo-organize-'));
    await dialog.getByRole('button',{name:'採用雲端版本',exact:true}).click();await page.waitForFunction(()=>!document.querySelector('[role="dialog"]'));
    assert.equal(await todo.getAttribute('data-todo-organizing'),'false');
    await enter();await choose('B').click();data.preferences.todo_order=[...cloud].reverse();data.preferences.row_version++;
-   await todo.getByRole('button',{name:'置頂 Top',exact:true}).click();await dialog.waitFor();await dialog.getByRole('button',{name:'保留本機修改',exact:true}).click();
+   await moveTop();await dialog.waitFor();await dialog.getByRole('button',{name:'保留本機修改',exact:true}).click();
    await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));assert((await order()).indexOf('B')<(await order()).indexOf('D'));
   }
+  if(width===390&&!authenticated){
+   // Long lists keep the visible row anchored across destination/back transitions.
+   await draft.fill(Array.from({length:30},(_,i)=>'長清單'+i).join('\n'));await todo.getByRole('button',{name:'新增待辦事項',exact:true}).click();
+   await enter();await choose('B').click();const viewport=todo.locator('[data-todo-scroll]');
+   await viewport.evaluate(e=>e.scrollTop=260);
+   const anchor=await viewport.evaluate(e=>{const top=e.getBoundingClientRect().top;const row=[...e.querySelectorAll('[data-todo-current] [data-todo-row]')].find(n=>n.getBoundingClientRect().bottom>top+1);return {id:row.dataset.todoRow,offset:row.getBoundingClientRect().top-top};});
+   const offset=()=>viewport.evaluate((e,id)=>e.querySelector('[data-todo-row="'+id+'"]').getBoundingClientRect().top-e.getBoundingClientRect().top,anchor.id);
+   await sortTo();assert(Math.abs(await offset()-anchor.offset)<2,'destination step preserves visible row');
+   await todo.getByRole('button',{name:'返回選取',exact:true}).click();assert(Math.abs(await offset()-anchor.offset)<2,'back preserves visible row');await sortTo();
+   const visiblePoint=async()=>{const bounds=await viewport.boundingBox();for(const point of await destinations().all()){const b=await point.boundingBox();if(b.y>bounds.y+40&&b.y+b.height<bounds.y+bounds.height-10)return {point,box:b};}throw new Error('no visible insertion target');};
+   const cdp=await context.newCDPSession(page);
+   let {point,box}=await visiblePoint();
+   // A real touch scroll beginning on an insertion marker must not reorder.
+   const top=await viewport.evaluate(e=>e.scrollTop);let x=box.x+box.width/2,y=box.y+box.height/2;
+   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+   for(let i=1;i<=6;i++){await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y-i*14}]});await page.waitForTimeout(30);}
+   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(800);
+   assert((await viewport.evaluate(e=>e.scrollTop))>top,'touch scroll remains native');assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
+   // Dragging out and back with a mouse also must not apply on release.
+   ({point,box}=await visiblePoint());x=box.x+box.width/2;y=box.y+box.height/2;
+   await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+30,y+2,{steps:5});await page.mouse.move(x,y,{steps:5});await page.mouse.up();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
+   // Horizontal swipe from a marker still navigates the Dashboard, without applying.
+   ({box}=await visiblePoint());x=box.x+box.width*.8;y=box.y+box.height/2;
+   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y}]});
+   for(let i=1;i<=8;i++){await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-i*30,y:y+2}]});await page.waitForTimeout(25);}
+   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+   await page.waitForFunction(()=>[...document.querySelectorAll('nav[aria-label="總覽面板"] button')].some(e=>e.textContent==='倒數／探索'&&e.getAttribute('aria-current')==='page'));
+   await openPanel();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');await selected('B',1);
+   // Keyboard activation applies at the exact same target as pointer activation.
+   const target=destinations().last();await target.focus();await page.keyboard.press('Enter');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal((await order()).at(-1),'B');
+  }
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(errors.length,0,errors.join('\n'));
-  await context.close();console.log('PASS organize numbering, cancel, Top/Sort, persistence and sync',width,authenticated);
+  await context.close();console.log('PASS Sort to destinations, swaps, back/cancel and sync',width,authenticated);
  }
 }finally{await browser.close();}

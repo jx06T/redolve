@@ -10,12 +10,20 @@ export function orderedCurrentTodos(items: WidgetItem[], order: string[] = [], t
     || (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity)
     || a.created_at - b.created_at || a.id.localeCompare(b.id));
 }
-export function organizeTodoOrder(items: WidgetItem[], selection: string[], mode: 'top' | 'sort'): string[] {
+// Each remaining task is a unique "before" destination; null means the end.
+// When everything is selected, there is only one meaningful destination.
+export function todoInsertionTargets(items: WidgetItem[], selection: string[]): (string | null)[] {
+  const selected = new Set(selection);
+  if (!items.some(i => i.completed_at === null && selected.has(i.id))) return [];
+  return [...items.filter(i => i.completed_at === null && !selected.has(i.id)).map(i => i.id), null];
+}
+export function organizeTodoOrder(items: WidgetItem[], selection: string[], beforeId: string | null): string[] | null {
   const unfinished = items.filter(i => i.completed_at === null).map(i => i.id), allowed = new Set(unfinished);
   const selected = [...new Set(selection)].filter(id => allowed.has(id)), chosen = new Set(selected);
-  if (!selected.length) return items.map(i => i.id);
-  const first = mode === 'top' ? 0 : unfinished.findIndex(id => chosen.has(id));
+  if (!selected.length) return null;
   const remaining = unfinished.filter(id => !chosen.has(id));
+  const first = beforeId === null ? remaining.length : remaining.indexOf(beforeId);
+  if (first < 0) return null; // A missing/selected destination must never silently become "top".
   remaining.splice(first, 0, ...selected);
   return [...items.filter(i => i.completed_at !== null).map(i => i.id), ...remaining];
 }

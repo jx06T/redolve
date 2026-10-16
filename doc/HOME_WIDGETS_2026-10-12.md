@@ -89,4 +89,4 @@ npm run worker:dev
 
 ## 待辦整理（2026-10-16）
 
-已新增點選編號的 Top／Sort，沒有拖曳排序；規格、0013 migration 與發布指令集中在 [TODO_ORGANIZE_2026-10-16.md](./TODO_ORGANIZE_2026-10-16.md)。0011 仍維持撤回，不得重用。
+已改為點選編號 → Sort to… → 點插入位置；返回保留編號，沒有拖曳排序，本次無新 migration。規格、0013 migration 與發布指令集中在 [TODO_ORGANIZE_2026-10-16.md](./TODO_ORGANIZE_2026-10-16.md)。0011 仍維持撤回，不得重用。
