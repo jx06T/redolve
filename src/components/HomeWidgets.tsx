@@ -197,7 +197,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     if (!organizing?.choosing || !selected.length) return;
     const order = organizeTodoOrder(current, selected, beforeId);
     if (!order) { setError('清單已更新，請重新選擇插入位置。'); return; }
-    motion.prepare(order);
+    motion.prepare(order, selected);
     state.service.preferences(state.channel, { todo_order: order }, { todo_order: organizing.base });
     exitOrganizing();
   };

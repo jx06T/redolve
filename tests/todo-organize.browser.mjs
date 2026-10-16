@@ -31,7 +31,7 @@ try{
   });
   await context.addInitScript(({account,data,now})=>{
    const nativeAnimate=Element.prototype.animate;window.todoMotion=[];
-   Element.prototype.animate=function(frames,options){const animation=nativeAnimate.call(this,frames,options);if(this.hasAttribute('data-todo-row')){window.todoMotion.push({node:this,frames,animation});if(window.holdTodoMotion)animation.pause();}return animation;};
+   Element.prototype.animate=function(frames,options){const background=getComputedStyle(this).backgroundColor,animation=nativeAnimate.call(this,frames,options);if(this.hasAttribute('data-todo-row')){window.todoMotion.push({node:this,frames,animation,background});if(window.holdTodoMotion)animation.pause();}return animation;};
    Date.now=()=>now;if(!localStorage.getItem('rdv:home-widgets:v1:'+account))localStorage.setItem('rdv:home-widgets:v1:'+account,JSON.stringify({data,format:2}));
    localStorage.setItem('rdv:study-progress:v1:guest',JSON.stringify({data:{plans:[],preferences:{visible:false,order:[],row_version:0}}}));
   },{account,data,now});
@@ -62,9 +62,9 @@ try{
   assert.deepEqual(await order(),['完成','A','B','C','D','E'],'completed tasks are grouped before any numbering');
   assert(await page.evaluate(()=>window.todoMotion.length>0),'entry cleanup has real native row animations');
   const frames=await page.evaluate(()=>{const record=window.todoMotion[0],animation=record.animation;animation.currentTime=0;const startColor=getComputedStyle(record.node).backgroundColor;const start=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;animation.currentTime=150;const middleColor=getComputedStyle(record.node).backgroundColor;const middle=new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42;return {start,middle,startColor,middleColor,duration:animation.effect.getTiming().duration};});
-  assert.equal(frames.duration,300);assert(frames.startColor.includes('168, 197, 189')&&frames.middleColor.includes('168, 197, 189'),'moving tasks keep the pale green highlight');assert(Math.abs(frames.start)>Math.abs(frames.middle)&&Math.abs(frames.middle)>0,'the row moves continuously between old and new positions');
+  assert.equal(frames.duration,300);assert.equal(frames.startColor,'rgba(0, 0, 0, 0)');assert.equal(frames.middleColor,'rgba(0, 0, 0, 0)','automatic completion grouping moves without highlighting unselected tasks');assert(Math.abs(frames.start)>Math.abs(frames.middle)&&Math.abs(frames.middle)>0,'the row moves continuously between old and new positions');
   await page.evaluate(()=>{window.holdTodoMotion=false;window.todoMotion.forEach(record=>record.animation.finish());});await settle();
-  assert(await page.evaluate(()=>window.todoMotion.every(record=>getComputedStyle(record.node).backgroundColor===record.frames.at(-1).backgroundColor)),'finished motion restores the original row background');
+  assert(await page.evaluate(()=>window.todoMotion.every(record=>getComputedStyle(record.node).backgroundColor===record.background)),'finished motion restores the original row background');
   assert.deepEqual(geometry(await layout()),geometry(originalLayout),'entry cleanup changes order without resizing the list');
   const organizedLayout=await layout(),organizedOriginal=['完成','A','B','C','D','E'];
   assert.equal(await todo.getByText('依序選取現在或稍後想做的事。',{exact:true}).count(),0);
@@ -98,6 +98,10 @@ try{
   await enter();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal(calls.length,0);
   await enter();for(const text of ['C','B','E'])await choose(text).click();await sortTo();assert.deepEqual(await order(),organizedOriginal);assert.equal(await destinations().count(),3);const beforeApplyMotion=await page.evaluate(()=>{window.holdTodoMotion=true;return window.todoMotion.length;});await insertBefore('D');
   assert((await page.evaluate(()=>window.todoMotion.length))>beforeApplyMotion,'applying the selected move has real row animations');
+  const appliedMotion=await page.evaluate(start=>window.todoMotion.slice(start).map(record=>{record.animation.currentTime=150;return {text:record.node.querySelector('input').value,moving:Math.abs(new DOMMatrixReadOnly(getComputedStyle(record.node).transform).m42)>0,color:getComputedStyle(record.node).backgroundColor};}),beforeApplyMotion);
+  assert(appliedMotion.some(record=>record.text==='D'),'the displaced task also has a position animation');
+  assert(appliedMotion.some(record=>['C','B','E'].includes(record.text)),'selected tasks have position animations');
+  for(const record of appliedMotion){assert(record.moving,'every moved task is in motion halfway through');assert.equal(record.color.includes('168, 197, 189'),['C','B','E'].includes(record.text),'only explicitly selected moving tasks receive the green highlight');}
   await page.evaluate(()=>{window.holdTodoMotion=false;window.todoMotion.forEach(record=>{if(record.animation.playState==='paused')record.animation.finish();});});await settle();
   await waitOrder(['完成','A','C','B','E','D']);assert.equal(await todo.getAttribute('data-todo-organizing'),'false');
   if(authenticated)await page.waitForFunction(()=>JSON.parse(localStorage.getItem('rdv:home-widgets:v1:organize-test-user')).data.preferences.todo_order.length>0);
