@@ -28,7 +28,7 @@ export function Navbar() {
       className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-3 text-xs md:px-2 lg:px-3 ${active ? 'bg-primary/10 text-primary' : 'text-text-main'}`}><Icon size={16} /><span>{l.label}</span></Link>;
   })}</>;
   return <>
-    <header style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }} className="z-30 shrink-0 border-b border-border-subtle bg-surface px-2 pb-3 sm:px-3">
+    <header data-overlay-edge="top" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }} className="z-30 shrink-0 border-b border-border-subtle bg-surface px-2 pb-3 sm:px-3">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-1 sm:gap-2">
         <div className="flex shrink-0 items-center gap-1 sm:gap-2"><button aria-label="開啟導覽選單" aria-expanded={menu} aria-controls="header-mobile-navigation" onClick={() => setMenu(v => !v)} className="lg:hidden rounded-xl p-1.5 sm:p-2"><Menu size={20} /></button>
           <span onClick={() => setTimeout(() => window.location.reload(), 200)} onDoubleClick={() => navigate(lastStudyUrl(account))}

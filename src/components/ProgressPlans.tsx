@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { GripVertical, MoreHorizontal, Plus, TrendingUp } from 'lucide-react';
 import { AppDialog } from './AppDialog';
+import { AnchoredPopover, popoverActionClass } from './AnchoredPopover';
 import { SwitchRow } from './SwitchRow';
 import { useProgressPlans } from '../hooks/useProgressPlans';
 import { useListReorder } from '../hooks/useListReorder';
@@ -83,9 +84,9 @@ function PlanManager({ state, onEdit }: { state: ProgressState; onEdit: (p: Prog
   })}</div>;
 }
 export function ProgressPlansWidget({ state, management = false }: { state: ProgressState; management?: boolean }) {
-  const [menu, setMenu] = useState(false), [editing, setEditing] = useState<ProgressPlan | null | undefined>();
+  const [menu, setMenu] = useState<HTMLElement | null>(null), [editing, setEditing] = useState<ProgressPlan | null | undefined>();
   return <section aria-label="學習計畫小組件" className={'flex min-w-0 flex-col rounded-3xl border border-border-subtle bg-surface p-5 ' + (management ? '' : 'h-full min-h-0')}>
-    <header className="mb-3 flex items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 font-semibold"><TrendingUp size={18} className="text-text-muted" />學習計畫</h2><ProgressStatus state={state} /></div>{!management && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label="學習計畫選單" onClick={() => setMenu(true)}><MoreHorizontal size={20} /></button>}</header>
+    <header className="mb-3 flex items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 font-semibold"><TrendingUp size={18} className="text-text-muted" />學習計畫</h2><ProgressStatus state={state} /></div>{!management && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label="學習計畫選單" aria-haspopup="dialog" aria-expanded={!!menu} onClick={event => setMenu(menu ? null : event.currentTarget)}><MoreHorizontal size={20} /></button>}</header>
     {management && <p className="mb-3 text-xs text-text-muted">點計畫修改名稱、目標或單位；拖曳把手調整首頁順序。</p>}
     <div className={management ? '' : 'min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-y-contain'}>
       {management ? <PlanManager state={state} onEdit={setEditing} /> : state.snapshot.plans.map(plan => <div key={plan.id} data-progress-plan={plan.id} className="relative rounded-2xl border border-border-subtle bg-neutral-50 p-3 md:p-3.5"><PlanContent plan={plan} /><ProgressTapZone plan={plan} state={state} delta={-1} /><ProgressTapZone plan={plan} state={state} delta={1} /></div>)}
@@ -93,7 +94,7 @@ export function ProgressPlansWidget({ state, management = false }: { state: Prog
     </div>
     {management && <button className={button + ' mt-4 flex self-start items-center gap-2'} onClick={() => setEditing(null)}><Plus size={16} />新增計畫</button>}
     {editing !== undefined && management && <PlanEditor state={state} plan={editing} onClose={() => setEditing(undefined)} />}
-    {menu && <AppDialog title="學習計畫選單" onClose={() => setMenu(false)}><div className="flex flex-col gap-2 text-center"><Link className={button} to={settingsUrl} onClick={() => setMenu(false)}>前往設定管理組件</Link><button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button></div></AppDialog>}
+    {menu && <AnchoredPopover anchor={menu} title="學習計畫選單" onClose={() => setMenu(null)}><div className="space-y-1"><Link className={popoverActionClass} to={settingsUrl} onClick={() => setMenu(null)}>前往設定管理組件</Link><button className={popoverActionClass} onClick={() => { setMenu(null); void state.service.refresh(state.channel, true); }}>重新同步</button></div></AnchoredPopover>}
   </section>;
 }
 export function ProgressPlansVisibility({ state }: { state: ProgressState }) {

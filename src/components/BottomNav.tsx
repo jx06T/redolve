@@ -6,7 +6,7 @@ import { lastStudyUrl, searchUrl } from '../services/navigationState';
 export function BottomNav() {
   const location=useLocation();const account=useStore(s=>s.currentUser?.id||'guest');
   const {mobileDrawerOpen,setMobileDrawerOpen}=useStore();
-  return <nav aria-label="主要導覽" className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid h-16 grid-cols-5 gap-1 border-t border-border-subtle bg-surface px-1 py-2 shadow-lg">
+  return <nav data-overlay-edge="bottom" aria-label="主要導覽" className="md:hidden fixed bottom-0 left-0 right-0 z-40 grid h-16 grid-cols-5 gap-1 border-t border-border-subtle bg-surface px-1 py-2 shadow-lg">
     {NAV_LINKS.map(l=>{const Icon=l.icon;const active=l.path==='/'?location.pathname==='/':location.pathname.startsWith(l.path);
       const style=`flex min-w-0 flex-col items-center justify-center rounded-xl py-1 ${active?'bg-primary/10 text-primary':'text-text-muted'}`;
       if(l.path==='/study'&&active){

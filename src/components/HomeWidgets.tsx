@@ -2,6 +2,7 @@ import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type Rea
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowDown, ArrowDownLeft, ArrowUp, CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
+import { AnchoredPopover, popoverActionClass } from './AnchoredPopover';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
@@ -45,24 +46,24 @@ export function WidgetConflict({ state }: { state: Widgets }) {
   </AppDialog>;
 }
 function WidgetHeader({ kind, state, management = false, historyAction, actions, menuDisabled, status, help }: { kind: WidgetKind; state: Widgets; management?: boolean; historyAction?: { label: string; onSelect: () => void }; actions?: ReactNode; menuDisabled?: boolean; status?: ReactNode; help?: ReactNode }) {
-  const [menu, setMenu] = useState(false), [showHelp, setShowHelp] = useState(false), name = kind === 'todo' ? '待辦事項' : '事件倒數';
+  const [menu, setMenu] = useState<HTMLElement | null>(null), [showHelp, setShowHelp] = useState<HTMLElement | null>(null), name = kind === 'todo' ? '待辦事項' : '事件倒數';
   const Icon = kind === 'todo' ? ListTodo : CalendarDays;
   return <>
     <div data-widget-header className="mb-3 flex items-start justify-between gap-3">
       <div className="min-w-0"><h2 className="flex min-w-0 items-center gap-2 font-semibold"><Icon size={18} className="shrink-0 text-text-muted" /><span className="truncate">{name}</span></h2><div className="mt-1">{status ?? <WidgetStatus state={state} />}</div></div>
-      <div className="flex shrink-0 items-center gap-1">{actions}{(!management || help) && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label={name + '選單'} onClick={() => { setShowHelp(false); setMenu(true); }}><MoreHorizontal size={20} /></button>}</div>
+      <div className="flex shrink-0 items-center gap-1">{actions}{(!management || help) && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label={name + '選單'} aria-haspopup="dialog" aria-expanded={!!menu} onClick={event => setMenu(menu ? null : event.currentTarget)}><MoreHorizontal size={20} /></button>}</div>
     </div>
-    {menu && <AppDialog title={showHelp ? '待辦整理說明' : name + '選單'} onClose={() => setMenu(false)}>
-      {showHelp ? <><div className="space-y-3 text-sm leading-relaxed text-text-muted">{help}</div><div className="mt-5 flex justify-end"><button className={button} onClick={() => setShowHelp(false)}>返回選單</button></div></>
-        : <div className="flex flex-col gap-2 text-center">{!menuDisabled && <Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定管理組件</Link>}
-          {help && <button className={button} onClick={() => setShowHelp(true)}>查看整理說明</button>}
-          {!menuDisabled && historyAction && <button className={button} onClick={() => { setMenu(false); historyAction.onSelect(); }}>{historyAction.label}</button>}
-          {!menuDisabled && <button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button>}</div>}
-    </AppDialog>}
+    {menu && <AnchoredPopover anchor={menu} title={name + '選單'} onClose={() => setMenu(null)}>
+      <div className="space-y-1">{!menuDisabled && <Link className={popoverActionClass} to={settingsUrl(kind)} onClick={() => setMenu(null)}>前往設定管理組件</Link>}
+        {help && <button className={popoverActionClass} onClick={() => { setShowHelp(menu); setMenu(null); }}>查看整理說明</button>}
+        {!menuDisabled && historyAction && <button className={popoverActionClass} onClick={() => { setMenu(null); historyAction.onSelect(); }}>{historyAction.label}</button>}
+        {!menuDisabled && <button className={popoverActionClass} onClick={() => { setMenu(null); void state.service.refresh(state.channel, true); }}>重新同步</button>}</div>
+    </AnchoredPopover>}
+    {showHelp && <AppDialog title="待辦整理說明" onClose={() => setShowHelp(null)}><div className="space-y-3 text-sm leading-relaxed text-text-muted">{help}</div><div className="mt-5 flex justify-end"><button className={button} onClick={() => { setMenu(showHelp); setShowHelp(null); }}>返回選單</button></div></AppDialog>}
   </>;
 }
 function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state: Widgets; onEditing: (id: string | null) => void; organize?: { position: number | null; onSelect: () => void; choosing: boolean } }) {
-  const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState(false), [restore, setRestore] = useState(false);
+  const [text, setText] = useState(item.text), [focused, setFocused] = useState(false), [remove, setRemove] = useState<HTMLElement | null>(null), [restore, setRestore] = useState<HTMLElement | null>(null);
   const historical = item.completed_at !== null && taipeiDay(item.completed_at) < taipeiDay();
   const editor = useRef<HTMLInputElement>(null);
   const base = useRef(item.text), cancelled = useRef(false);
@@ -71,7 +72,7 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
     setFocused(false); onEditing(null); if (cancelled.current) { cancelled.current = false; setText(item.text); return; } const next = text.trim(); if (!next) { setText(item.text); return; }
     state.service.update(state.channel, item.id, { text: next }, { text: base.current });
   };
-  return <div className="flex min-w-0 items-center gap-2 rounded-xl py-0.5" data-todo-row={item.id}
+  return <div className={'flex min-w-0 items-center gap-2 rounded-xl py-0.5 ' + (remove ? 'bg-[#F4A0A0]/15' : restore ? 'bg-[#A8C5BD]/15' : '')} data-todo-row={item.id}
     onClick={event => { if (!organize && !focused && event.target instanceof Element && event.currentTarget.contains(event.target) && !event.target.closest('button')) editor.current?.focus(); }}>
     <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm tabular-nums ' + (organize?.position ? 'border-[#A8C5BD] bg-[#A8C5BD]/30 font-semibold text-text-main' : item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
       type="button" role={organize ? undefined : 'checkbox'} aria-checked={organize ? undefined : item.completed_at !== null} aria-pressed={organize && item.completed_at === null ? organize.position !== null : undefined}
@@ -83,11 +84,11 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
     <input ref={editor} style={{ pointerEvents: focused ? 'auto' : 'none' }} aria-label="待辦內容" readOnly={!!organize} tabIndex={organize ? -1 : 0} maxLength={500} value={text} onChange={e => setText(e.target.value)}
       onFocus={() => { base.current = item.text; setFocused(true); onEditing(item.id); }} onBlur={save}
       onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { e.preventDefault(); cancelled.current = true; e.currentTarget.blur(); } }}
-      className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (organize?.choosing && organize.position ? 'opacity-60 ' : '') + (item.completed_at !== null ? 'text-text-muted line-through' : '')} />
-    {historical && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" disabled={!!organize} onClick={() => setRestore(true)}><RotateCcw size={15} /></button>}
-    <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`刪除待辦：${item.text}`} disabled={!!organize} onClick={() => setRemove(true)}><Trash2 size={15} /></button>
-    {remove && <AppDialog title="刪除待辦？" onClose={() => setRemove(false)}><p className="break-words text-sm">{item.text}</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRemove(false)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(false); }}>刪除</button></div></AppDialog>}
-    {restore && <AppDialog title="恢復為未完成？" onClose={() => setRestore(false)}><p className="break-words text-sm">{item.text}</p><p className="mt-2 text-sm text-text-muted">此事項將移回目前待辦清單。</p><div className="mt-5 flex justify-end gap-2"><button className={button} onClick={() => setRestore(false)}>取消</button><button className={button} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(false); }}>恢復待辦</button></div></AppDialog>}
+      className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (organize?.choosing && organize.position ? 'opacity-60 ' : '') + (item.completed_at !== null ? 'line-through ' : '') + (remove ? 'text-[#A96F6F]' : item.completed_at !== null ? 'text-text-muted' : '')} />
+    {historical && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" disabled={!!organize} aria-haspopup="dialog" aria-expanded={!!restore} onClick={event => setRestore(event.currentTarget)}><RotateCcw size={15} /></button>}
+    <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`刪除待辦：${item.text}`} disabled={!!organize} aria-haspopup="dialog" aria-expanded={!!remove} onClick={event => setRemove(event.currentTarget)}><Trash2 size={15} /></button>
+    {remove && <AnchoredPopover anchor={remove} variant="confirmation" title="刪除待辦？" onClose={() => setRemove(null)}><div className="mt-3 flex flex-wrap justify-end gap-2"><button className={button} onClick={() => setRemove(null)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(null); }}>刪除</button></div></AnchoredPopover>}
+    {restore && <AnchoredPopover anchor={restore} variant="confirmation" title="恢復為未完成？" onClose={() => setRestore(null)}><div className="mt-3 flex flex-wrap justify-end gap-2"><button className={button} onClick={() => setRestore(null)}>取消</button><button className={button} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(null); }}>恢復待辦</button></div></AnchoredPopover>}
   </div>;
 }
 function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | null; index: number; onInsert: (beforeId: string | null) => void }) {
