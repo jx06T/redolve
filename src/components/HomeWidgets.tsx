@@ -43,18 +43,20 @@ export function WidgetConflict({ state }: { state: Widgets }) {
       {conflict.current && <button className={button} onClick={() => service.resolve(channel, true)}>保留本機修改</button>}</div>
   </AppDialog>;
 }
-function WidgetHeader({ kind, state, management = false, historyAction, actions, menuDisabled }: { kind: WidgetKind; state: Widgets; management?: boolean; historyAction?: { label: string; onSelect: () => void }; actions?: ReactNode; menuDisabled?: boolean }) {
-  const [menu, setMenu] = useState(false), name = kind === 'todo' ? '待辦事項' : '事件倒數';
+function WidgetHeader({ kind, state, management = false, historyAction, actions, menuDisabled, status, help }: { kind: WidgetKind; state: Widgets; management?: boolean; historyAction?: { label: string; onSelect: () => void }; actions?: ReactNode; menuDisabled?: boolean; status?: ReactNode; help?: ReactNode }) {
+  const [menu, setMenu] = useState(false), [showHelp, setShowHelp] = useState(false), name = kind === 'todo' ? '待辦事項' : '事件倒數';
   const Icon = kind === 'todo' ? ListTodo : CalendarDays;
   return <>
-    <div className="mb-3 flex items-start justify-between gap-3">
-      <div><h2 className="flex items-center gap-2 font-semibold"><Icon size={18} className="text-text-muted" />{name}</h2><div className="mt-1"><WidgetStatus state={state} /></div></div>
-      <div className="flex shrink-0 items-center gap-1">{actions}{!management && <button disabled={menuDisabled} className="rounded-xl p-2 hover:bg-neutral-100 disabled:opacity-40" aria-label={`${name}選單`} onClick={() => setMenu(true)}><MoreHorizontal size={20} /></button>}</div>
+    <div data-widget-header className="mb-3 flex items-start justify-between gap-3">
+      <div className="min-w-0"><h2 className="flex min-w-0 items-center gap-2 font-semibold"><Icon size={18} className="shrink-0 text-text-muted" /><span className="truncate">{name}</span></h2><div className="mt-1">{status ?? <WidgetStatus state={state} />}</div></div>
+      <div className="flex shrink-0 items-center gap-1">{actions}{(!management || help) && <button className="rounded-xl p-2 hover:bg-neutral-100" aria-label={name + '選單'} onClick={() => { setShowHelp(false); setMenu(true); }}><MoreHorizontal size={20} /></button>}</div>
     </div>
-    {menu && <AppDialog title={`${name}選單`} onClose={() => setMenu(false)}>
-      <div className="flex flex-col gap-2 text-center"><Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定管理組件</Link>
-        {historyAction && <button className={button} onClick={() => { setMenu(false); historyAction.onSelect(); }}>{historyAction.label}</button>}
-        <button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button></div>
+    {menu && <AppDialog title={showHelp ? '待辦整理說明' : name + '選單'} onClose={() => setMenu(false)}>
+      {showHelp ? <><div className="space-y-3 text-sm leading-relaxed text-text-muted">{help}</div><div className="mt-5 flex justify-end"><button className={button} onClick={() => setShowHelp(false)}>返回選單</button></div></>
+        : <div className="flex flex-col gap-2 text-center">{!menuDisabled && <Link className={button} to={settingsUrl(kind)} onClick={() => setMenu(false)}>前往設定管理組件</Link>}
+          {help && <button className={button} onClick={() => setShowHelp(true)}>查看整理說明</button>}
+          {!menuDisabled && historyAction && <button className={button} onClick={() => { setMenu(false); historyAction.onSelect(); }}>{historyAction.label}</button>}
+          {!menuDisabled && <button className={button} onClick={() => { setMenu(false); void state.service.refresh(state.channel, true); }}>重新同步</button>}</div>}
     </AppDialog>}
   </>;
 }
@@ -89,15 +91,15 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
 }
 function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | null; index: number; onInsert: (beforeId: string | null) => void }) {
   const gesture = useRef<{ x: number; y: number; moved: boolean; scroll: HTMLElement | null; top: number; pager: HTMLElement | null; left: number } | null>(null);
-  return <button type="button" data-todo-insert-before={beforeId ?? ''} data-todo-insert-index={index} aria-label={'插入位置 ' + (index + 1)}
-    className="group flex h-9 w-full touch-manipulation items-center gap-2 rounded-xl px-2 text-[#7E9F94] hover:bg-[#A8C5BD]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+  return <div className="relative z-10 h-0"><button type="button" data-todo-insert-before={beforeId ?? ''} data-todo-insert-index={index} aria-label={'插入位置 ' + (index + 1)}
+    className="absolute inset-x-0 -top-4 flex h-8 w-full touch-manipulation items-center gap-2 rounded-xl px-2 text-[#7E9F94] hover:bg-[#A8C5BD]/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
     onPointerDown={event => { const scroll = event.currentTarget.closest<HTMLElement>('[data-todo-scroll]'), pager = event.currentTarget.closest<HTMLElement>('[data-dashboard-carousel]'); gesture.current = { x: event.clientX, y: event.clientY, moved: false, scroll, top: scroll?.scrollTop || 0, pager, left: pager?.scrollLeft || 0 }; }}
     onPointerMove={event => { const g = gesture.current; if (g && Math.hypot(event.clientX - g.x, event.clientY - g.y) > 8) g.moved = true; }}
     onPointerLeave={() => { if (gesture.current) gesture.current.moved = true; }}
     onPointerCancel={() => { if (gesture.current) gesture.current.moved = true; }}
     onClick={event => { const g = gesture.current; gesture.current = null; if (event.detail !== 0 && g && (g.moved || Math.abs((g.scroll?.scrollTop || 0) - g.top) > 1 || Math.abs((g.pager?.scrollLeft || 0) - g.left) > 1)) return; onInsert(beforeId); }}>
     <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><Plus size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
-  </button>;
+  </button></div>;
 }
 function TodoComposer({ state, disabled }: { state: Widgets; disabled: boolean }) {
   const preference = useTodoInsertPreference(state.channel.account);
@@ -198,15 +200,19 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     const row = [...viewport.querySelectorAll<HTMLElement>('[data-todo-current] [data-todo-row]')].find(node => node.dataset.todoRow === anchor.id);
     if (row) viewport.scrollTop += row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset;
   }, [organizing?.choosing]);
-  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
-    <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing} actions={<button ref={organizeButton} type="button" aria-pressed={!!organizing} disabled={!!organizing || !eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); requestAnimationFrame(() => historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true })); }}>{organizing ? '整理中' : '整理'}</button>} historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
-    {organizing && <div className="mb-3 space-y-2" role="group" aria-label="待辦整理操作">
-      <p className="text-xs text-text-muted">{organizing.choosing ? '點選清單中的插入位置。' : '依序選取現在或稍後想做的事。'}</p>
-      <div className="flex flex-wrap items-center gap-2"><span className="mr-auto text-xs text-text-muted" aria-live="polite">已選 {selected.length} 項</span>
-        {organizing.choosing ? <button type="button" className={button + ' text-xs'} onClick={() => setDestinationStep(false)}>返回選取</button>
-          : <button ref={sortToButton} type="button" className={button + ' text-xs'} disabled={!selected.length} onClick={() => setDestinationStep(true)}>Sort to…</button>}
-        <button type="button" className={button + ' text-xs'} onClick={exitOrganizing}>取消</button></div>
-    </div>}
+  useLayoutEffect(() => {
+    if (organizing) historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true });
+  }, [!!organizing]);
+  return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (event.target instanceof Element && event.target.closest('[role="dialog"]')) return; if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
+    <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing}
+      status={organizing ? <span className="block whitespace-nowrap text-xs text-text-muted" aria-live="polite">已選 {selected.length} 項</span> : undefined}
+      actions={organizing ? <div className="flex items-center gap-1" role="group" aria-label="待辦整理操作">
+        {organizing.choosing ? <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={() => setDestinationStep(false)}>返回選取</button>
+          : <button ref={sortToButton} type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100 disabled:opacity-40" disabled={!selected.length} onClick={() => setDestinationStep(true)}>Sort to…</button>}
+        <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={exitOrganizing}>取消</button>
+      </div> : <button ref={organizeButton} type="button" aria-pressed={false} disabled={!eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); }}>整理</button>}
+      help={<><p>按「整理」，依希望的順序點選未完成事項的左框。再次點選可取消，其他編號會依序遞補。</p><p>按「Sort to…」，點清單中的插入線移動整組事項；第一條放到最前，最後一條放到最末。沒有選取的事項保留原有順序。</p><p>「返回選取」保留編號；「取消」不變更清單。今日完成事項在套用後排於上方，過去完成事項不參與排序。</p><p>整理時仍可捲動清單或左右滑頁。鍵盤可用 Tab／空白選取、Enter 選擇插入位置；Escape 返回選取，再按一次取消。</p></>}
+      historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
     <div className={'relative min-h-0 ' + (management ? 'h-64' : 'flex-1')}>
       <div ref={historyView.hint} aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-10 rounded-xl bg-surface/95 px-3 py-2 text-center text-xs text-text-muted transition-opacity duration-150 motion-reduce:transition-none" style={{ opacity: 0 }}>
         <span>繼續滾動以查看過去事項</span><div className="mt-1 h-0.5 origin-left rounded-full bg-primary/20" style={{ transform: 'scaleX(var(--todo-pull, 0))' }} />
@@ -216,7 +222,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
           {[...groups.entries()].map(([day, rows]) => <div key={day} className="pb-3"><p className="text-xs text-text-muted">{new Date(day * 86400000).toISOString().slice(5, 10)} 已完成</p>{rows.map(i => <TodoRow key={i.id} item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id), choosing: organizing.choosing } : undefined} />)}</div>)}
           <p className="mb-2 border-t border-dashed border-border-subtle py-2 text-center text-xs text-text-muted">目前待辦</p>
         </div>
-        <div ref={historyView.current} data-todo-current>{current.map(i => <Fragment key={i.id}>
+        <div ref={historyView.current} data-todo-current className="overflow-clip py-2.5">{current.map(i => <Fragment key={i.id}>
           {organizing?.choosing && targets.length > 0 && (i.id === firstUnfinished || targetIndexes.has(i.id) && targetIndexes.get(i.id)! > 0) && <TodoInsertPoint beforeId={i.id === firstUnfinished ? targets[0] : i.id} index={i.id === firstUnfinished ? 0 : targetIndexes.get(i.id)!} onInsert={applyOrder} />}
           <TodoRow item={i} state={state} onEditing={setEditing} organize={organizing ? { position: selected.includes(i.id) ? selected.indexOf(i.id) + 1 : null, onSelect: () => select(i.id), choosing: organizing.choosing } : undefined} />
         </Fragment>)}{organizing?.choosing && targets.length > 1 && <TodoInsertPoint beforeId={null} index={targets.length - 1} onInsert={applyOrder} />}

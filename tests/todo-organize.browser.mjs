@@ -47,11 +47,15 @@ try{
   const destinations=()=>todo.locator('[data-todo-insert-index]');
   const sortTo=()=>todo.getByRole('button',{name:'Sort to…',exact:true}).click();
   const insertBefore=text=>todo.locator('[data-todo-insert-before="'+data.items.find(i=>i.text===text).id+'"]').click();
-  const moveTop=async()=>{await sortTo();await destinations().first().click();};
+  const moveTop=async()=>{await sortTo();await destinations().first().click({position:{x:100,y:28}});};
+  const layout=()=>todo.evaluate(root=>{const viewport=root.querySelector('[data-todo-scroll]'),current=root.querySelector('[data-todo-current]');const box=viewport.getBoundingClientRect();return {top:box.top,height:box.height,scrollHeight:viewport.scrollHeight,currentHeight:current.getBoundingClientRect().height,rows:[...current.querySelectorAll('[data-todo-row]')].map(row=>({id:row.dataset.todoRow,top:row.getBoundingClientRect().top-box.top+viewport.scrollTop,height:row.getBoundingClientRect().height}))};});
+  const originalLayout=await layout();
   const original=await order();assert.deepEqual(original,['A','B','完成','C','D','E']);
   const draft=todo.getByRole('textbox',{name:'新增待辦',exact:true});await draft.fill('未送出的草稿');
   const before=await todo.evaluate(e=>getComputedStyle(e).backgroundColor);
   await enter();assert.equal(await todo.getAttribute('data-todo-organizing'),'true');
+  assert.deepEqual(await layout(),originalLayout,'entering organization does not move or resize the list');
+  assert.equal(await todo.getByText('依序選取現在或稍後想做的事。',{exact:true}).count(),0);
   await page.waitForTimeout(220);assert.notEqual(await todo.evaluate(e=>getComputedStyle(e).backgroundColor),before);
   assert(await todo.getByRole('button',{name:'已完成：完成',exact:true}).isDisabled());assert(await draft.isDisabled());
   assert(await todo.getByRole('button',{name:'刪除待辦：A',exact:true}).isDisabled());
@@ -65,6 +69,14 @@ try{
   await page.screenshot({path:'.wrangler/qa/todo-organize-'+width+'-'+authenticated+'.png'});
   await sortTo();assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
   assert.deepEqual(await order(),original,'showing destinations keeps every original row in place');
+  assert.deepEqual(await layout(),originalLayout,'virtual insertion targets do not add row gaps or scroll height');
+  await todo.getByRole('button',{name:'待辦事項選單',exact:true}).click();
+  await page.getByRole('dialog',{name:'待辦事項選單',exact:true}).getByRole('button',{name:'查看整理說明',exact:true}).click();
+  const help=page.getByRole('dialog',{name:'待辦整理說明',exact:true});await help.waitFor();
+  assert((await help.innerText()).includes('插入線'));
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('[role="dialog"]'));
+  assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination','closing help must not cancel selection or destination mode');
+  await selected('C',1);await selected('E',2);await selected('B',3);assert.deepEqual(await layout(),originalLayout);
   assert(await choose('C').isDisabled());assert.equal(await destinations().count(),3);
   assert.equal((await destinations().allTextContents()).join('').trim(),'','destinations have no per-location visible labels');
   await page.screenshot({path:'.wrangler/qa/todo-sort-to-'+width+'-'+authenticated+'.png'});
@@ -135,6 +147,11 @@ try{
    const target=destinations().last();await target.focus();await page.keyboard.press('Enter');assert.equal(await todo.getAttribute('data-todo-organizing'),'false');assert.equal((await order()).at(-1),'B');
   }
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(errors.length,0,errors.join('\n'));
-  await context.close();console.log('PASS Sort to destinations, swaps, back/cancel and sync',width,authenticated);
+  await page.goto('http://127.0.0.1:4181/settings?widget=todos#profile');await page.waitForLoadState('networkidle');await page.waitForTimeout(400);
+  const managementLayout=await layout();await enter();assert.deepEqual(await layout(),managementLayout,'settings organization keeps list geometry');
+  const firstText=(await order()).find(text=>!['完成','A'].includes(text));await choose(firstText).click();await sortTo();assert.deepEqual(await layout(),managementLayout,'settings insertion markers do not expand the list');
+  await todo.getByRole('button',{name:'待辦事項選單',exact:true}).click();await page.getByRole('dialog',{name:'待辦事項選單',exact:true}).getByRole('button',{name:'查看整理說明',exact:true}).click();await page.getByRole('dialog',{name:'待辦整理說明',exact:true}).waitFor();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
+  await todo.getByRole('button',{name:'取消',exact:true}).click();
+  await context.close();console.log('PASS Sort to destinations, stable geometry, help, swaps, back/cancel and sync',width,authenticated);
  }
 }finally{await browser.close();}
