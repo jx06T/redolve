@@ -28,7 +28,9 @@ try {
    const top=await page.locator('[data-overlay-edge="top"]').boundingBox(),bottom=page.locator('[data-overlay-edge="bottom"]');
    assert(p.y>=top.y+top.height+11,'popover leaves the top navigation visible');
    const limit=await bottom.isVisible()?(await bottom.boundingBox()).y:820;assert(p.y+p.height<=limit-11,'popover leaves bottom navigation visible');
-   assert(Math.min(Math.abs(p.y-b.y-b.height),Math.abs(b.y-p.y-p.height))<8,'popover is attached to its triggering button');
+   assert(Math.min(Math.abs(p.y-b.y-b.height),Math.abs(b.y-p.y-p.height))<=3,'popover is attached to its triggering button');
+   const expectedX=b.x+p.width<=width-12?b.x:Math.max(12,b.x+b.width-p.width);
+   assert(Math.abs(p.x-expectedX)<1,'prefer extending right from the trigger; flip left only near the edge');
    assert.equal(await anchored.getAttribute('aria-modal'),null,'local actions are nonmodal');
    assert(await anchored.evaluate(el=>el.contains(document.activeElement)),'focus enters the visible popover');
   };
@@ -49,7 +51,8 @@ try {
   await viewport.evaluate(el=>el.scrollTop=el.scrollHeight);await page.waitForTimeout(100);
   const last=current.locator('[data-todo-row]').last(),remove=last.getByRole('button',{name:'刪除待辦：'+lastText,exact:true});
   await remove.click();await assertNear(remove);assert.equal(await anchored.getByRole('button',{name:'取消',exact:true}).evaluate(el=>el===document.activeElement),true);
-  assert((await anchored.boundingBox()).height<=120,'simple confirmation remains compact even for long tasks');
+  assert((await anchored.boundingBox()).width<=176);
+  assert((await anchored.boundingBox()).height<=100,'simple confirmation remains compact even for long tasks');
   assert.equal(await anchored.getByText(lastText,{exact:true}).count(),0,'the adjacent confirmation does not repeat task contents');
   assert((await last.evaluate(el=>getComputedStyle(el).backgroundColor)).includes('244, 160, 160'),'the targeted task is marked pale red');
   await page.screenshot({path:'.wrangler/qa/dashboard-popover-confirm-'+width+'.png'});

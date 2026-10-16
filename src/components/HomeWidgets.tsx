@@ -2,7 +2,7 @@ import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type Rea
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowDown, ArrowDownLeft, ArrowUp, CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
-import { AnchoredPopover, popoverActionClass } from './AnchoredPopover';
+import { AnchoredPopover, popoverActionClass, popoverConfirmButtonClass } from './AnchoredPopover';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
@@ -87,8 +87,8 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
       className={'min-w-0 flex-1 rounded-xl bg-transparent px-2 py-1 text-sm focus:bg-page-bg ' + (organize?.choosing && organize.position ? 'opacity-60 ' : '') + (item.completed_at !== null ? 'line-through ' : '') + (remove ? 'text-[#A96F6F]' : item.completed_at !== null ? 'text-text-muted' : '')} />
     {historical && <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`恢復待辦：${item.text}`} title="恢復為未完成" disabled={!!organize} aria-haspopup="dialog" aria-expanded={!!restore} onClick={event => setRestore(event.currentTarget)}><RotateCcw size={15} /></button>}
     <button type="button" className="shrink-0 rounded-xl p-1.5 text-text-muted hover:bg-neutral-100" aria-label={`刪除待辦：${item.text}`} disabled={!!organize} aria-haspopup="dialog" aria-expanded={!!remove} onClick={event => setRemove(event.currentTarget)}><Trash2 size={15} /></button>
-    {remove && <AnchoredPopover anchor={remove} variant="confirmation" title="刪除待辦？" onClose={() => setRemove(null)}><div className="mt-3 flex flex-wrap justify-end gap-2"><button className={button} onClick={() => setRemove(null)}>取消</button><button className={button} onClick={() => { state.service.remove(state.channel, item.id); setRemove(null); }}>刪除</button></div></AnchoredPopover>}
-    {restore && <AnchoredPopover anchor={restore} variant="confirmation" title="恢復為未完成？" onClose={() => setRestore(null)}><div className="mt-3 flex flex-wrap justify-end gap-2"><button className={button} onClick={() => setRestore(null)}>取消</button><button className={button} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(null); }}>恢復待辦</button></div></AnchoredPopover>}
+    {remove && <AnchoredPopover anchor={remove} variant="confirmation" title="刪除待辦？" onClose={() => setRemove(null)}><div className="mt-2 flex flex-wrap justify-end gap-1.5"><button className={popoverConfirmButtonClass} onClick={() => setRemove(null)}>取消</button><button className={popoverConfirmButtonClass} onClick={() => { state.service.remove(state.channel, item.id); setRemove(null); }}>刪除</button></div></AnchoredPopover>}
+    {restore && <AnchoredPopover anchor={restore} variant="confirmation" title="恢復為未完成？" onClose={() => setRestore(null)}><div className="mt-2 flex flex-wrap justify-end gap-1.5"><button className={popoverConfirmButtonClass} onClick={() => setRestore(null)}>取消</button><button className={popoverConfirmButtonClass} onClick={() => { state.service.update(state.channel, item.id, { completed_at: null }, { completed_at: item.completed_at }); setRestore(null); }}>恢復待辦</button></div></AnchoredPopover>}
   </div>;
 }
 function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | null; index: number; onInsert: (beforeId: string | null) => void }) {
