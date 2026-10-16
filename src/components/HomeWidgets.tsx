@@ -1,16 +1,18 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
 import { useListReorder } from '../hooks/useListReorder';
 import { useTodoHistory } from '../hooks/useTodoHistory';
+import { useTodoInsertPreference } from '../hooks/useTodoInsertPreference';
 import { useProgressPlans } from '../hooks/useProgressPlans';
 import { ProgressPlansWidget, ProgressPlansVisibility, ProgressPlansConflict } from './ProgressPlans';
 import { useHomeWidgets } from '../hooks/useHomeWidgets';
 import { countdownDays, GSAT_PRESET, orderedCountdowns, taipeiDay, validTargetDate } from '../types/homeWidgets';
 import { orderedCurrentTodos, organizeTodoOrder, todoInsertionTargets } from '../types/todoOrder';
+import type { TodoInsertDirection } from '../types/todoOrder';
 import type { WidgetItem, WidgetKind } from '../types/homeWidgets';
 
 const button = 'h-full rounded-xl border border-border-subtle px-3 py-2 text-sm hover:bg-neutral-100 disabled:opacity-40';
@@ -97,8 +99,55 @@ function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | nul
     <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><Plus size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
   </button>;
 }
+function TodoComposer({ state, disabled }: { state: Widgets; disabled: boolean }) {
+  const preference = useTodoInsertPreference(state.channel.account);
+  const [draft, setDraft] = useState(''), [focused, setFocused] = useState(false), [error, setError] = useState('');
+  const [direction, setDirection] = useState<TodoInsertDirection>(preference.direction);
+  const editor = useRef<HTMLTextAreaElement>(null), pointerChoice = useRef<TodoInsertDirection | null>(null);
+  const description = useId(), choosing = !draft && !focused, currentDirection = choosing ? preference.direction : direction;
+  const label = currentDirection === 'top' ? '新增至上' : '新增至下', Icon = currentDirection === 'top' ? ArrowUp : ArrowDown;
+  const choose = (next: TodoInsertDirection) => { setDirection(next); preference.remember(next); };
+  const add = () => {
+    if (disabled || !draft.trim()) return;
+    try { state.service.addTodos(state.channel, draft.split(/\r?\n/), currentDirection); setDraft(''); setError(''); }
+    catch (e) { setError(e instanceof Error ? e.message : '新增失敗，請重試'); }
+  };
+  return <div className="mt-3 border-t border-border-subtle pt-3" data-todo-composer data-todo-insert-direction={currentDirection}>
+    <div className="flex items-end gap-2">
+      <div className="relative min-w-0 flex-1">
+        <textarea ref={editor} disabled={disabled} aria-label="新增待辦" aria-describedby={description} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" placeholder={choosing ? '' : '新增待辦；每行一件事'} rows={2} value={draft}
+          onPointerDown={event => {
+            pointerChoice.current = null;
+            if (!draft && document.activeElement !== event.currentTarget && event.isPrimary && event.button === 0) {
+              const rect = event.currentTarget.getBoundingClientRect();
+              pointerChoice.current = event.clientX < rect.left + rect.width / 2 ? 'bottom' : 'top';
+            }
+          }}
+          onPointerCancel={() => { pointerChoice.current = null; }}
+          onFocus={() => { if (!draft) choose(pointerChoice.current || preference.direction); pointerChoice.current = null; setFocused(true); }}
+          onBlur={() => { pointerChoice.current = null; setFocused(false); }}
+          onChange={event => { setDraft(event.target.value); setError(''); }}
+          onKeyDown={event => {
+            if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+            if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) { event.preventDefault(); choose(event.key === 'ArrowUp' ? 'top' : 'bottom'); }
+            else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); add(); }
+          }} className={input.replace(' text-sm', '') + ' block resize-none text-base sm:text-sm'} />
+        {choosing && <div aria-hidden="true" data-todo-input-hints className={'pointer-events-none absolute inset-0 flex items-center text-xs text-text-muted ' + (disabled ? 'opacity-40' : '')}>
+          <span className="flex min-w-0 flex-1 items-center justify-center gap-1"><ArrowDown size={14} />新增至下</span>
+          <span className="h-6 w-px bg-border-subtle" />
+          <span className="flex min-w-0 flex-1 items-center justify-center gap-1"><ArrowUp size={14} />新增至上</span>
+        </div>}
+      </div>
+      <button type="button" aria-label="新增待辦事項" aria-describedby={description} title={label} disabled={disabled || !draft.trim()} className="flex w-11 shrink-0 self-stretch items-center justify-center rounded-xl border border-border-subtle hover:bg-neutral-100 disabled:opacity-40"
+        onMouseDown={event => { if (document.activeElement === editor.current) event.preventDefault(); }}
+        onClick={() => { add(); editor.current?.focus({ preventScroll: true }); }}><Icon size={18} aria-hidden="true" /></button>
+    </div>
+    <span id={description} className="sr-only" aria-live="polite">{label}；Enter 新增，Shift+Enter 換行；Alt+向上或向下鍵切換新增方向。</span>
+    {error && <p role="alert" className="mt-2 text-xs text-text-muted">{error}</p>}
+  </div>;
+}
 export function TodoWidget({ state, management = false, fit = false }: { state: Widgets; management?: boolean; fit?: boolean }) {
-  const [draft, setDraft] = useState(''), [error, setError] = useState(''), [editing, setEditing] = useState<string | null>(null);
+  const [error, setError] = useState(''), [editing, setEditing] = useState<string | null>(null);
   const [organizing, setOrganizing] = useState<{ ids: string[]; selected: string[]; base: string[]; choosing: boolean } | null>(null);
   const organizeButton = useRef<HTMLButtonElement>(null), sortToButton = useRef<HTMLButtonElement>(null);
   const scrollAnchor = useRef<{ id: string; offset: number } | null>(null);
@@ -149,12 +198,6 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
     const row = [...viewport.querySelectorAll<HTMLElement>('[data-todo-current] [data-todo-row]')].find(node => node.dataset.todoRow === anchor.id);
     if (row) viewport.scrollTop += row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - anchor.offset;
   }, [organizing?.choosing]);
-  const add = () => {
-    const lines = draft.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    if (!lines.length) return;
-    if (lines.some(l => l.length > 500) || todos.length + lines.length > 500) { setError('每行最多 500 字，未完成待辦最多 500 件。'); return; }
-    lines.forEach(l => state.service.add(state.channel, 'todo', l)); setDraft(''); setError('');
-  };
   return <section aria-label="待辦事項小組件" data-todo-organizing={!!organizing} data-todo-organize-step={organizing ? organizing.choosing ? 'destination' : 'selection' : undefined} onKeyDown={event => { if (organizing && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (organizing.choosing) setDestinationStep(false); else exitOrganizing(); } }} className={'flex min-w-0 flex-col rounded-3xl border p-5 transition-colors ' + (organizing ? 'border-[#A8C5BD] bg-[#A8C5BD]/10 ' : 'border-border-subtle bg-surface ') + (management ? '' : fit ? 'h-full min-h-0' : 'h-[34rem]')}>
     <WidgetHeader kind="todo" state={state} management={management} menuDisabled={!!organizing} actions={<button ref={organizeButton} type="button" aria-pressed={!!organizing} disabled={!!organizing || !eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); requestAnimationFrame(() => historyView.viewport.current?.querySelector<HTMLButtonElement>('[data-todo-current] button:not(:disabled)')?.focus({ preventScroll: true })); }}>{organizing ? '整理中' : '整理'}</button>} historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
     {organizing && <div className="mb-3 space-y-2" role="group" aria-label="待辦整理操作">
@@ -181,8 +224,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
         <div ref={historyView.tail} aria-hidden="true" />
       </div>
     </div>
-    <div className="mt-3 flex items-end gap-2 border-t border-border-subtle pt-3"><textarea disabled={!!organizing} aria-label="新增待辦" placeholder="新增待辦；每行一件事" rows={2} value={draft} onChange={e => setDraft(e.target.value)} className={input + ' resize-none'}
-      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); add(); } }} /><button className={button + ' shrink-0'} disabled={!!organizing || !draft.trim()} onClick={add}><Plus size={18} aria-label="新增待辦事項" /></button></div>
+    <TodoComposer state={state} disabled={!!organizing} />
     {error && <p role="alert" className="mt-2 text-xs text-status-eraser">{error}</p>}
   </section>;
 }

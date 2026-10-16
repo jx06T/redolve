@@ -1,6 +1,8 @@
 import type { WidgetItem } from './homeWidgets';
 import { taipeiDay } from './homeWidgets';
 
+export type TodoInsertDirection = 'top' | 'bottom';
+
 // Missing IDs (new tasks) append in stable creation order. Historical tasks are
 // displayed separately and never participate in today's organization.
 export function orderedCurrentTodos(items: WidgetItem[], order: string[] = [], today = taipeiDay()): WidgetItem[] {

@@ -3,6 +3,8 @@ import { isGuestUser } from '../utils/guest';
 import { createClientId } from '../utils/clientId';
 import { API_BASE } from './api';
 import { completionCutoff, defaultWidgetPreferences } from '../types/homeWidgets';
+import { orderedCurrentTodos } from '../types/todoOrder';
+import type { TodoInsertDirection } from '../types/todoOrder';
 import type { ItemPatch, WidgetData, WidgetItem, WidgetKind, WidgetPreferences } from '../types/homeWidgets';
 
 type Operation = { key: string; order?: number; action: 'create' | 'update' | 'delete' | 'preferences'; id?: string;
@@ -154,9 +156,25 @@ export const homeWidgetService = {
   add(c: Channel, kind: WidgetKind, text: string, target_date: string | null = null) {
     const count = c.snapshot.items.filter(i => i.kind === kind).length;
     if (count >= (kind === 'todo' ? 500 : 100)) throw new Error('已達小組件數量上限');
-    const now = creationTime = Math.max(Date.now(), creationTime + 1), id = createClientId();
+    const now = creationTime = c.snapshot.items.reduce((latest, item) => item.kind === kind ? Math.max(latest, item.created_at + 1) : latest, Math.max(Date.now(), creationTime + 1)), id = createClientId();
     const item: WidgetItem = { id, kind, text: text.trim(), target_date, completed_at: null, created_at: now, updated_at: now, row_version: 0 };
     enqueue(c, { key: createClientId(), action: 'create', id, item, patch: {}, base: {} });
+    return id;
+  },
+  addTodos(c: Channel, lines: string[], direction: TodoInsertDirection) {
+    if (!isActive(c)) throw new Error('帳號已切換，請重新登入後新增');
+    const texts = lines.map(line => line.trim()).filter(Boolean);
+    if (!texts.length) return;
+    if (texts.some(text => text.length > 500)) throw new Error('部分待辦內容過長，請縮短後再新增。');
+    if (c.snapshot.items.filter(i => i.kind === 'todo').length + texts.length > 500) throw new Error('暫時無法新增更多待辦，請先移除不需要的事項。');
+    const base = [...c.snapshot.preferences.todo_order || []];
+    const current = orderedCurrentTodos(c.snapshot.items, base);
+    const ids = texts.map(text => homeWidgetService.add(c, 'todo', text));
+    const unfinished = current.filter(i => i.completed_at === null).map(i => i.id);
+    if (direction === 'top' || base.length) homeWidgetService.preferences(c, { todo_order: [
+      ...current.filter(i => i.completed_at !== null).map(i => i.id),
+      ...(direction === 'top' ? [...ids, ...unfinished] : [...unfinished, ...ids]),
+    ] }, { todo_order: base });
   },
   update(c: Channel, id: string, patch: ItemPatch, original?: ItemPatch) {
     const item = c.snapshot.items.find(i => i.id === id); if (!item) return;
