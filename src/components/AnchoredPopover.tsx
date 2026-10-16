@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 
 export const popoverActionClass = 'block w-full rounded-lg px-2 py-2 text-left text-sm hover:bg-neutral-100 focus-visible:outline-2 focus-visible:outline-primary';
 
-type Position = { left: number; top: number; width: number; maxHeight: number };
+type Position = { left: number; top: number; maxWidth: number; maxHeight: number };
 const controls = 'button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),select:not(:disabled),[tabindex="0"]';
 
 // Nonmodal local actions: portalled out of clipped cards, with native outside interaction.
@@ -25,11 +25,11 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
       }
       const box = anchor.getBoundingClientRect();
       if (box.bottom < top || box.top > bottom || box.right < left || box.left > right) { dismiss(false); return; }
-      const width = Math.max(0, Math.min(variant === 'actions' ? 200 : 112, right - left));
+      const width = Math.max(0, Math.min(el.getBoundingClientRect().width, right - left));
       const below = Math.max(0, bottom - box.bottom - gap), above = Math.max(0, box.top - top - gap);
       const height = el.scrollHeight + 2, down = below >= height || below >= above;
       const maxHeight = down ? below : above;
-      const next = { width, maxHeight, left: Math.max(left, Math.min(box.left + width <= right ? box.left : box.right - width, right - width)), top: down ? box.bottom + gap : Math.max(top, box.top - gap - Math.min(height, maxHeight)) };
+      const next = { maxWidth: Math.max(0, right - left), maxHeight, left: Math.max(left, Math.min(box.left + width <= right ? box.left : box.right - width, right - width)), top: down ? box.bottom + gap : Math.max(top, box.top - gap - Math.min(height, maxHeight)) };
       setPosition(previous => previous && Object.keys(next).every(key => previous[key as keyof Position] === next[key as keyof Position]) ? previous : next);
     };
     measure();
@@ -56,7 +56,7 @@ export function AnchoredPopover({ anchor, title, variant = 'actions', children, 
     };
   }, [anchor]);
   return createPortal(<div ref={root} id={id} role="dialog" aria-labelledby={id + '-title'} tabIndex={-1} data-anchored-popover={variant}
-    style={position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, width: variant === 'actions' ? 200 : 112, visibility: 'hidden' }}
+    style={{ width: 'max-content', ...(position ? { ...position, visibility: 'visible' } : { left: 0, top: 0, maxWidth: 'calc(100vw - 24px)', visibility: 'hidden' }) }}
     className={"fixed z-[10000] overflow-y-auto overscroll-contain rounded-lg border border-primary/20 bg-surface shadow-[0_4px_20px_rgba(0,0,0,0.03)]"}
     onClick={event => event.stopPropagation()}
     onKeyDown={event => {
