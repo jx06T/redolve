@@ -52,7 +52,7 @@ try {
   const last=current.locator('[data-todo-row]').last(),remove=last.getByRole('button',{name:'刪除待辦：'+lastText,exact:true});
   await remove.click();await assertNear(remove);assert.equal(await anchored.getByRole('button',{name:'取消',exact:true}).evaluate(el=>el===document.activeElement),true);
   assert((await anchored.boundingBox()).width<=112);
-  const cancelBox=await anchored.getByRole('button',{name:'取消',exact:true}).boundingBox(),deleteButton=anchored.getByRole('button',{name:'刪除代辦',exact:true}),deleteBox=await deleteButton.boundingBox();
+  const cancelBox=await anchored.getByRole('button',{name:'取消',exact:true}).boundingBox(),deleteButton=anchored.getByRole('button',{name:'刪除待辦',exact:true}),deleteBox=await deleteButton.boundingBox();
   assert(deleteBox.y>=cancelBox.y+cancelBox.height,'confirmation actions are stacked');
   assert.equal(await deleteButton.evaluate(el=>getComputedStyle(el).color),'rgb(169, 111, 111)');
   assert(await anchored.getByRole('heading').evaluate(el=>el.classList.contains('sr-only')),'title is accessible but visually hidden');
@@ -66,7 +66,7 @@ try {
   // Simulate a reduced available area (e.g. an on-screen keyboard); a small confirmation can still flip up.
   const anchorBox=await remove.boundingBox();await page.evaluate(y=>{const boundary=document.createElement('div');boundary.dataset.overlayEdge='bottom';boundary.id='popover-test-boundary';Object.assign(boundary.style,{position:'fixed',left:'0',right:'0',top:y+'px',bottom:'0',pointerEvents:'none'});document.body.append(boundary);},anchorBox.y+anchorBox.height+30);
   await remove.click();const flipped=await anchored.boundingBox();assert(flipped.y+flipped.height<=anchorBox.y+4,'insufficient space below flips the confirmation upward');await page.keyboard.press('Escape');await page.evaluate(()=>document.getElementById('popover-test-boundary').remove());
-  await remove.click();await anchored.getByRole('button',{name:'刪除代辦',exact:true}).click();assert.equal(await current.locator('[data-todo-row]').count(),21);assert.equal(await anchored.count(),0);
+  await remove.click();await anchored.getByRole('button',{name:'刪除待辦',exact:true}).click();assert.equal(await current.locator('[data-todo-row]').count(),21);assert.equal(await anchored.count(),0);
   assert(await viewport.evaluate(el=>el===document.activeElement),'deleting a focused row returns focus to its list');
   for(const [kind,name] of [['countdown','事件倒數選單'],['progress','學習計畫選單']]){
    await panel(kind);const trigger=page.getByRole('button',{name,exact:true});await trigger.click();await assertNear(trigger);await page.screenshot({path:'.wrangler/qa/dashboard-popover-'+kind+'-'+width+'.png'});
