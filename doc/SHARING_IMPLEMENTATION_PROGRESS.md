@@ -1,8 +1,12 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-10-16。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-10-17。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
+
+### 2026-10-17 手機待辦 Sort to 點擊
+
+- 修正觸控放開後 pointerleave 被誤判成拖離，只有按住時離開才取消；保留拖移／捲動／滑頁防誤觸。首頁與設定共用插入元件，無 schema／API 變更。手機回歸改用原生 tap（修正前已重現失敗），不再用 mouse click 代替目的地輕點；桌面保留滑鼠與鍵盤回歸。390／1280px、訪客／登入四組通過，TypeScript／建置／SW／PWA 驗證通過；實體手機手感仍待驗收。
 
 ### 2026-10-16 Dashboard 操作改靠旁彈出
 

@@ -92,13 +92,15 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
   </div>;
 }
 function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | null; index: number; onInsert: (beforeId: string | null) => void }) {
-  const gesture = useRef<{ x: number; y: number; moved: boolean; scroll: HTMLElement | null; top: number; pager: HTMLElement | null; left: number } | null>(null);
+  const gesture = useRef<{ x: number; y: number; pressed: boolean; moved: boolean; scroll: HTMLElement | null; top: number; pager: HTMLElement | null; left: number } | null>(null);
   return <div className="relative z-10 h-0"><button type="button" data-todo-insert-before={beforeId ?? ''} data-todo-insert-index={index} aria-label={'插入位置 ' + (index + 1)}
     className="absolute inset-x-0 -top-4 flex h-8 w-full touch-manipulation items-center gap-2 rounded-xl px-2 text-[#7E9F94] hover:bg-[#A8C5BD]/15 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
-    onPointerDown={event => { const scroll = event.currentTarget.closest<HTMLElement>('[data-todo-scroll]'), pager = event.currentTarget.closest<HTMLElement>('[data-dashboard-carousel]'); gesture.current = { x: event.clientX, y: event.clientY, moved: false, scroll, top: scroll?.scrollTop || 0, pager, left: pager?.scrollLeft || 0 }; }}
+    onPointerDown={event => { const scroll = event.currentTarget.closest<HTMLElement>('[data-todo-scroll]'), pager = event.currentTarget.closest<HTMLElement>('[data-dashboard-carousel]'); gesture.current = { x: event.clientX, y: event.clientY, pressed: true, moved: false, scroll, top: scroll?.scrollTop || 0, pager, left: pager?.scrollLeft || 0 }; }}
     onPointerMove={event => { const g = gesture.current; if (g && Math.hypot(event.clientX - g.x, event.clientY - g.y) > 8) g.moved = true; }}
-    onPointerLeave={() => { if (gesture.current) gesture.current.moved = true; }}
-    onPointerCancel={() => { if (gesture.current) gesture.current.moved = true; }}
+    onPointerUp={event => { const g = gesture.current; if (g) { g.pressed = false; if (Math.hypot(event.clientX - g.x, event.clientY - g.y) > 8) g.moved = true; } }}
+    // Touch releases emit pointerleave before click; only leaving while pressed cancels a tap.
+    onPointerLeave={() => { if (gesture.current?.pressed) gesture.current.moved = true; }}
+    onPointerCancel={() => { if (gesture.current) { gesture.current.pressed = false; gesture.current.moved = true; } }}
     onClick={event => { const g = gesture.current; gesture.current = null; if (event.detail !== 0 && g && (g.moved || Math.abs((g.scroll?.scrollTop || 0) - g.top) > 1 || Math.abs((g.pager?.scrollLeft || 0) - g.left) > 1)) return; onInsert(beforeId); }}>
     <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><ArrowDownLeft size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
   </button></div>;

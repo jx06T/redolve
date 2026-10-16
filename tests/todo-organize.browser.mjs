@@ -48,8 +48,8 @@ try{
   const selected=async(text,number)=>assert.equal(await choose(text).innerText(),String(number));
   const destinations=()=>todo.locator('[data-todo-insert-index]');
   const sortTo=()=>todo.getByRole('button',{name:'Sort to…',exact:true}).click();
-  const insertBefore=text=>todo.locator('[data-todo-insert-before="'+data.items.find(i=>i.text===text).id+'"]').click();
-  const moveTop=async()=>{await sortTo();await destinations().first().click({position:{x:100,y:28}});};
+  const insertBefore=text=>{const point=todo.locator('[data-todo-insert-before="'+data.items.find(i=>i.text===text).id+'"]');return width===390?point.tap():point.click();};
+  const moveTop=async()=>{await sortTo();const point=destinations().first(),options={position:{x:100,y:28}};if(width===390)await point.tap(options);else await point.click(options);};
   const layout=()=>todo.evaluate(root=>{const viewport=root.querySelector('[data-todo-scroll]'),current=root.querySelector('[data-todo-current]');const box=viewport.getBoundingClientRect();return {top:box.top,height:box.height,scrollHeight:viewport.scrollHeight,currentHeight:current.getBoundingClientRect().height,rows:[...current.querySelectorAll('[data-todo-row]')].map(row=>({id:row.dataset.todoRow,top:row.getBoundingClientRect().top-box.top+viewport.scrollTop,height:row.getBoundingClientRect().height}))};});
   const settle=()=>page.waitForFunction(()=>![...document.querySelectorAll('[data-todo-current] [data-todo-row]')].some(row=>row.getAnimations().some(a=>a.playState==='running'||a.playState==='paused')));
   const geometry=value=>({...value,rows:value.rows.map(({top,height})=>({top,height})).sort((a,b)=>a.top-b.top)});
@@ -190,7 +190,7 @@ try{
   const managementLayout=await layout();await enter();await settle();assert.deepEqual(geometry(await layout()),geometry(managementLayout),'settings organization keeps list geometry');const managementPreview=await layout();
   const firstText=(await order()).find(text=>!['完成','A'].includes(text));await choose(firstText).click();await sortTo();assert.deepEqual(await layout(),managementPreview,'settings insertion markers do not expand the list');
   await todo.getByRole('button',{name:'待辦事項選單',exact:true}).click();await page.getByRole('dialog',{name:'待辦事項選單',exact:true}).getByRole('button',{name:'查看整理說明',exact:true}).click();await page.getByRole('dialog',{name:'待辦整理說明',exact:true}).waitFor();await page.keyboard.press('Escape');assert.equal(await todo.getAttribute('data-todo-organize-step'),'destination');
-  await todo.getByRole('button',{name:'取消',exact:true}).click();
-  await context.close();console.log('PASS Sort to destinations, stable geometry, help, swaps, back/cancel and sync',width,authenticated);
+  if(width===390){await destinations().last().tap();assert.equal(await todo.getAttribute('data-todo-organizing'),'false','a native touch tap also applies the destination in settings');assert.equal((await order()).at(-1),firstText);}else await todo.getByRole('button',{name:'取消',exact:true}).click();
+  await context.close();console.log('PASS Sort to destinations, native touch taps, stable geometry, help, swaps, back/cancel and sync',width,authenticated);
  }
 }finally{await browser.close();}
