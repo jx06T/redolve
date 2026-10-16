@@ -34,6 +34,16 @@ test('completed tasks stay above the unfinished destination range, history is ex
  assert.equal(organizeTodoOrder(complete,['C'],'D'),null);
  assert.deepEqual(orderedCurrentTodos([...complete,{...items[0],id:'new',created_at:99},past],order,today).map(i=>i.id),['D','A','C','B','E','new']);
 });
+test('completion and undo remain in place until an explicit organization',()=>{
+ const now=Date.now(),today=Math.floor((now+8*3600000)/86400000),rank=['C','A','D','B','E'];
+ const done=items.map(i=>i.id==='D'?{...i,completed_at:now}:i);
+ assert.deepEqual(orderedCurrentTodos(done,rank,today).map(i=>i.id),rank);
+ const grouped=organizeTodoOrder(orderedCurrentTodos(done,rank,today),['E'],'C');
+ assert.deepEqual(grouped,['D','E','C','A','B']);
+ const undone=done.map(i=>({...i,completed_at:null}));
+ assert.deepEqual(orderedCurrentTodos(undone,grouped,today).map(i=>i.id),grouped,'undo does not move a previously grouped item');
+ assert.deepEqual(orderedCurrentTodos(done,rank,today+1).map(i=>i.id),['C','A','B','E'],'previous days still move to history');
+});
 test('0013 runner checks, backs up, verifies, repeats safely and stops on failures',()=>{
  const json=values=>JSON.stringify(values.map(value=>({success:true,results:[value]})));
  let ready=0,fail='',calls=[];

@@ -170,11 +170,13 @@ export const homeWidgetService = {
     const base = [...c.snapshot.preferences.todo_order || []];
     const current = orderedCurrentTodos(c.snapshot.items, base);
     const ids = texts.map(text => homeWidgetService.add(c, 'todo', text));
-    const unfinished = current.filter(i => i.completed_at === null).map(i => i.id);
-    if (direction === 'top' || base.length) homeWidgetService.preferences(c, { todo_order: [
-      ...current.filter(i => i.completed_at !== null).map(i => i.id),
-      ...(direction === 'top' ? [...ids, ...unfinished] : [...unfinished, ...ids]),
-    ] }, { todo_order: base });
+    if (direction === 'top' || base.length) {
+      const next = current.map(i => i.id);
+      const first = direction === 'top' ? current.findIndex(i => i.completed_at === null) : next.length;
+      // Preserve existing rows, including completed ones between unfinished tasks.
+      next.splice(first < 0 ? next.length : first, 0, ...ids);
+      homeWidgetService.preferences(c, { todo_order: next }, { todo_order: base });
+    }
   },
   update(c: Channel, id: string, patch: ItemPatch, original?: ItemPatch) {
     const item = c.snapshot.items.find(i => i.id === id); if (!item) return;

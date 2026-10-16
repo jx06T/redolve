@@ -4,12 +4,12 @@ import { taipeiDay } from './homeWidgets';
 export type TodoInsertDirection = 'top' | 'bottom';
 
 // Missing IDs (new tasks) append in stable creation order. Historical tasks are
-// displayed separately and never participate in today's organization.
+// displayed separately and never participate in today's organization. Completion
+// itself never changes rank; only an explicit organization groups completed tasks.
 export function orderedCurrentTodos(items: WidgetItem[], order: string[] = [], today = taipeiDay()): WidgetItem[] {
   const ranks = new Map(order.map((id, index) => [id, index]));
   return items.filter(i => i.kind === 'todo' && (i.completed_at === null || taipeiDay(i.completed_at) >= today)).sort((a, b) =>
-    (order.length ? Number(b.completed_at !== null) - Number(a.completed_at !== null) : 0)
-    || (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity)
+    (ranks.get(a.id) ?? Infinity) - (ranks.get(b.id) ?? Infinity)
     || a.created_at - b.created_at || a.id.localeCompare(b.id));
 }
 // Each remaining task is a unique "before" destination; null means the end.

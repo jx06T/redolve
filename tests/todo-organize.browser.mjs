@@ -97,6 +97,16 @@ try{
   await waitOrder(['完成','D','E','A','C','B']);
   await draft.fill('新事項');await todo.getByRole('button',{name:'新增待辦事項',exact:true}).click();await waitOrder(['完成','D','E','A','C','B','新事項']);
   if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
+  // Completion itself, cancellation and a reload must not regroup the list.
+  const stableOrder=await order();
+  await todo.getByRole('checkbox',{name:'完成：C',exact:true}).click();await waitOrder(stableOrder);
+  if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
+  await page.reload();await page.waitForLoadState('networkidle');await openPanel();await waitOrder(stableOrder);
+  await enter();await choose('B').click();await todo.getByRole('button',{name:'取消',exact:true}).click();await waitOrder(stableOrder);
+  await enter();await choose('B').click();await moveTop();await waitOrder(['完成','C','B','D','E','A','新事項']);
+  await todo.getByRole('checkbox',{name:'完成：C',exact:true}).click();await waitOrder(['完成','C','B','D','E','A','新事項']);
+  await enter();for(const text of ['D','E','A','C','B','新事項'])await choose(text).click();await moveTop();await waitOrder(stableOrder);
+  if(authenticated)await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
   if(width===1280&&authenticated){
    // Missing migration keeps the order durable and lets independent item edits sync.
    pendingSchema=true;await enter();await choose('B').click();await moveTop();await waitOrder(['完成','B','D','E','A','C','新事項']);
@@ -105,7 +115,7 @@ try{
    await page.waitForFunction(()=>!Object.keys(localStorage).filter(k=>k.includes(':operation:')).some(k=>JSON.parse(localStorage.getItem(k)).id==='todo-organize-0'));
    assert(calls.some(c=>c.path.endsWith('/todo-organize-0')),'pending order does not block completion writes');
    pendingSchema=false;await todo.getByRole('button',{name:'重試同步',exact:true}).click();await page.waitForFunction(()=>!Object.keys(localStorage).some(k=>k.includes(':operation:')));
-   await waitOrder(['完成','A','B','D','E','C','新事項']);
+   await waitOrder(['完成','B','D','E','A','C','新事項']);
    const cloud=[...data.preferences.todo_order].reverse();data.preferences.todo_order=cloud;data.preferences.row_version++;
    await enter();await choose('C').click();await moveTop();
    const dialog=page.getByRole('dialog',{name:'小組件修改需要確認',exact:true});await dialog.waitFor();assert(!(await dialog.innerText()).includes('todo-organize-'));

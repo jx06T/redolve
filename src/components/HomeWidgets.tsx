@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowDown, ArrowUp, CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowDownLeft, ArrowUp, CalendarDays, Check, GripVertical, ListTodo, MoreHorizontal, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { AppDialog } from './AppDialog';
 import { SwitchRow } from './SwitchRow';
 import { PublicExploreActivity } from './PublicExploreActivity';
@@ -98,7 +98,7 @@ function TodoInsertPoint({ beforeId, index, onInsert }: { beforeId: string | nul
     onPointerLeave={() => { if (gesture.current) gesture.current.moved = true; }}
     onPointerCancel={() => { if (gesture.current) gesture.current.moved = true; }}
     onClick={event => { const g = gesture.current; gesture.current = null; if (event.detail !== 0 && g && (g.moved || Math.abs((g.scroll?.scrollTop || 0) - g.top) > 1 || Math.abs((g.pager?.scrollLeft || 0) - g.left) > 1)) return; onInsert(beforeId); }}>
-    <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><Plus size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
+    <span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" /><span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full border border-[#A8C5BD]/70 bg-surface"><ArrowDownLeft size={12} /></span><span aria-hidden="true" className="h-px flex-1 bg-[#A8C5BD]/60" />
   </button></div>;
 }
 function TodoComposer({ state, disabled }: { state: Widgets; disabled: boolean }) {
@@ -211,7 +211,7 @@ export function TodoWidget({ state, management = false, fit = false }: { state: 
           : <button ref={sortToButton} type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100 disabled:opacity-40" disabled={!selected.length} onClick={() => setDestinationStep(true)}>Sort to…</button>}
         <button type="button" className="h-8 rounded-xl border border-border-subtle px-2 text-xs hover:bg-neutral-100" onClick={exitOrganizing}>取消</button>
       </div> : <button ref={organizeButton} type="button" aria-pressed={false} disabled={!eligible.size || !!state.snapshot.conflict} className={button + ' px-2 text-xs disabled:opacity-40'} onClick={() => { historyView.close(); setOrganizing({ ids: current.map(i => i.id), selected: [], base: [...state.snapshot.preferences.todo_order || []], choosing: false }); }}>整理</button>}
-      help={<><p>按「整理」，依希望的順序點選未完成事項的左框。再次點選可取消，其他編號會依序遞補。</p><p>按「Sort to…」，點清單中的插入線移動整組事項；第一條放到最前，最後一條放到最末。沒有選取的事項保留原有順序。</p><p>「返回選取」保留編號；「取消」不變更清單。今日完成事項在套用後排於上方，過去完成事項不參與排序。</p><p>整理時仍可捲動清單或左右滑頁。鍵盤可用 Tab／空白選取、Enter 選擇插入位置；Escape 返回選取，再按一次取消。</p></>}
+      help={<><p>按「整理」，依希望的順序點選未完成事項的左框。再次點選可取消，其他編號會依序遞補。</p><p>按「Sort to…」，點清單中的插入線移動整組事項；第一條放到最前，最後一條放到最末。沒有選取的事項保留原有順序。</p><p>「返回選取」保留編號；「取消」不變更清單。今日勾選或取消勾選不會移動事項；只有套用整理時才將今日完成事項集中到上方，過去完成事項不參與排序。</p><p>整理時仍可捲動清單或左右滑頁。鍵盤可用 Tab／空白選取、Enter 選擇插入位置；Escape 返回選取，再按一次取消。</p></>}
       historyAction={!organizing && history.length ? { label: historyView.expanded ? '收起過去事項' : '查看過去事項', onSelect: () => historyView.expanded ? historyView.close() : historyView.open(180) } : undefined} />
     <div className={'relative min-h-0 ' + (management ? 'h-64' : 'flex-1')}>
       <div ref={historyView.hint} aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-10 rounded-xl bg-surface/95 px-3 py-2 text-center text-xs text-text-muted transition-opacity duration-150 motion-reduce:transition-none" style={{ opacity: 0 }}>

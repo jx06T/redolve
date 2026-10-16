@@ -73,16 +73,16 @@ try {
   if (width === 390) assert.equal(await input.evaluate(e => getComputedStyle(e).fontSize), '16px', 'mobile input avoids a small font');
   await tapHalf(true); assert.equal(await direction(), 'top'); assert.equal(await send.getAttribute('title'), '新增至上');
   await input.fill('第一件\n第二件'); await input.press('Enter');
-  await waitOrder(['完成', '第一件', '第二件', 'A', 'B']);
+  await waitOrder(['第一件', '第二件', 'A', '完成', 'B']);
   assert.equal(await input.inputValue(), ''); assert(await input.evaluate(e => document.activeElement === e)); assert.equal(await hints.count(), 0);
-  await input.fill('連續新增'); await input.press('Enter'); await waitOrder(['完成', '連續新增', '第一件', '第二件', 'A', 'B']); await drained();
+  await input.fill('連續新增'); await input.press('Enter'); await waitOrder(['連續新增', '第一件', '第二件', 'A', '完成', 'B']); await drained();
   assert.equal(await direction(), 'top');
   const rememberKey = 'rdv:todo-insert:v1:' + account;
   assert.equal(await page.evaluate(key => localStorage.getItem(key), rememberKey), 'top');
   // Empty blur restores hints; focus via keyboard keeps the remembered direction.
   await input.blur(); assert(await hints.isVisible()); await input.focus(); assert.equal(await direction(), 'top');
   await input.blur(); await tapHalf(false); assert.equal(await direction(), 'bottom');
-  await input.fill('追加'); await send.click(); await waitOrder(['完成', '連續新增', '第一件', '第二件', 'A', 'B', '追加']);
+  await input.fill('追加'); await send.click(); await waitOrder(['連續新增', '第一件', '第二件', 'A', '完成', 'B', '追加']);
   assert(await input.evaluate(e => document.activeElement === e)); await drained();
   // Caret placement inside an existing draft never changes the insertion direction.
   await input.fill('保留草稿'); await input.blur(); assert.equal(await hints.count(), 0);
@@ -109,20 +109,20 @@ try {
   if (authenticated && width === 1280) {
    pendingSchema = true; await input.fill('待升級置頂'); await input.press('Enter');
    await todo.getByText('待辦排序暫時無法同步，請稍後重試；草稿仍保留。', { exact: true }).waitFor();
-   assert.equal((await order())[1], '待升級置頂');
+   assert.equal((await order())[0], '待升級置頂');
    assert(data.items.some(i => i.text === '待升級置頂'), 'missing order schema does not lose the created task');
    pendingSchema = false; await todo.getByRole('button', { name: '重試同步', exact: true }).click(); await drained();
-   assert.equal(data.items.find(i => i.id === data.preferences.todo_order[1]).text, '待升級置頂');
+   assert.equal(data.items.find(i => i.id === data.preferences.todo_order[0]).text, '待升級置頂');
   }
   if (authenticated && width === 390) {
    // Several fast offline top additions retain both their tasks and successive bases.
    await context.setOffline(true);
    await input.fill('離線第一件'); await input.press('Enter');
    await input.fill('離線第二件'); await input.press('Enter');
-   assert.deepEqual((await order()).slice(0, 3), ['完成', '離線第二件', '離線第一件']);
+   assert.deepEqual((await order()).slice(0, 2), ['離線第二件', '離線第一件']);
    assert(await page.evaluate(() => Object.keys(localStorage).some(k => k.includes(':operation:'))));
    await context.setOffline(false); await drained();
-   assert.equal(data.items.find(i => i.id === data.preferences.todo_order[1]).text, '離線第二件');
+   assert.equal(data.items.find(i => i.id === data.preferences.todo_order[0]).text, '離線第二件');
   }
   // Settings reuses the same composer and device preference, without an extra toggle.
   await input.blur(); await page.goto('http://127.0.0.1:4181/settings?widget=todos#profile'); await page.waitForLoadState('networkidle');
