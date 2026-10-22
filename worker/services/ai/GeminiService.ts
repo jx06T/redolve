@@ -1,4 +1,5 @@
 import { AIService, TagResult } from './AIService';
+import { normalizeRecognition } from '../../../src/types/learning';
 import { TaxonomyNode } from '../../types';
 import {
   buildClassificationPrompt,
@@ -50,7 +51,7 @@ export class GeminiService implements AIService {
     this.preferredModel = modelName;
     if (apiKey) {
       try {
-        this.aiClient = new GoogleGenAI({ apiKey });
+        this.aiClient = new GoogleGenAI({ apiKey, httpOptions: { timeout: 20000, retryOptions: { attempts: 1 } } });
       } catch (err) {
         console.warn('[GeminiService] Failed to initialize GoogleGenAI client:', err);
       }
@@ -81,6 +82,7 @@ export class GeminiService implements AIService {
     collectIds(taxonomyTree);
 
     const sanitizeResult = (parsed: any): TagResult => {
+      const learning = normalizeRecognition(parsed);
       const rawTopic = parsed?.topic_id;
       let matchedTopicId: string | null = null;
       if (typeof rawTopic === 'string' && rawTopic.trim() && rawTopic !== 'null') {
@@ -95,6 +97,11 @@ export class GeminiService implements AIService {
         keywords: Array.isArray(parsed?.keywords) ? parsed.keywords.map(String).filter(Boolean) : [],
         keyword_tokens: Array.isArray(parsed?.keyword_tokens) ? parsed.keyword_tokens.map(String).filter(Boolean) : [],
         ocr_text: typeof parsed?.ocr_text === 'string' ? parsed.ocr_text.trim() : '',
+        question_type: learning.content.questionType,
+        options: learning.content.options,
+        original_answer: learning.personal.originalAnswer,
+        correct_answer: learning.content.correctAnswer,
+        error_reasons: learning.personal.errorReasons.map(reason => reason.text),
       };
     };
 
@@ -103,10 +110,14 @@ export class GeminiService implements AIService {
       this.preferredModel,
       ...CANDIDATE_MODELS.filter((m) => m !== this.preferredModel),
     ];
+    // One SDK attempt plus one REST fallback; no hidden SDK retry multiplication.
+    let remainingCalls = 2;
 
     // Attempt 1: Using official @google/genai SDK with dynamic Structured Outputs from real DB taxonomy
     if (this.aiClient) {
       for (const model of modelsToTry) {
+        if (remainingCalls <= 1) break;
+        remainingCalls--;
         try {
           const response = await this.aiClient.models.generateContent({
             model,
@@ -138,7 +149,7 @@ export class GeminiService implements AIService {
             return sanitizeResult(parsed);
           }
         } catch (err: any) {
-          console.warn(`[GeminiService] SDK call with model "${model}" failed:`, err?.message || err);
+          console.warn(`[GeminiService] SDK call with model "${model}" failed:`, err?.name || 'unknown');
           // Try next candidate model
         }
       }
@@ -166,13 +177,15 @@ export class GeminiService implements AIService {
       },
     };
 
-    for (const model of modelsToTry) {
+    for (const model of this.aiClient ? modelsToTry.slice(1) : modelsToTry) {
+      if (remainingCalls-- <= 0) break;
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${this.apiKey}`;
       try {
         const response = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(restPayload),
+          signal: AbortSignal.timeout(20000),
         });
 
         if (response.ok) {
@@ -184,11 +197,11 @@ export class GeminiService implements AIService {
             return sanitizeResult(parsed);
           }
         } else {
-          const errText = await response.text();
-          console.warn(`[GeminiService] REST Model "${model}" failed (HTTP ${response.status}):`, errText);
+          await response.body?.cancel();
+          console.warn(`[GeminiService] REST Model "${model}" failed (HTTP ${response.status})`);
         }
       } catch (err) {
-        console.warn(`[GeminiService] REST Network error with model "${model}":`, err);
+        console.warn(`[GeminiService] REST Network error with model "${model}":`, err instanceof Error ? err.name : 'unknown');
       }
     }
 

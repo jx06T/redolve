@@ -17,6 +17,8 @@ import { downloadWorkDraft } from '../services/workService';
 import { WorkConflictDialog } from './WorkConflictDialog';
 import {beginWorkInteraction,endWorkInteraction} from '../services/workInteraction';
 import {sameWork,rebaseTextPosition} from '../services/workMerge';
+import { LearningDataPanel } from './LearningDataPanel';
+import type { PersonalQuestionRef } from '../types/learning';
 
 import {
   getProblemImageUrl,
@@ -29,6 +31,7 @@ import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constan
 import { Link } from 'react-router-dom';
 
 export type ProblemCardWork={
+  learningRef?: PersonalQuestionRef;
   editorVersion?:number;
   image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
   toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
@@ -472,6 +475,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {work?.beforeWorkspace}
+        {import.meta.env.VITE_LEARNING_ENABLED === 'true' && isActive && !readOnly && useStore.getState().currentUser?.id &&
+          (work?.learningRef || !work && !problem.id.startsWith('temp_')) &&
+          <LearningDataPanel key={`${useStore.getState().currentUser?.id}:${problem.id}`}
+            questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} />}
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
           editorVersion={editorVersion}

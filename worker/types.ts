@@ -17,6 +17,8 @@ export interface Bindings {
   /** Google OAuth 2.0 Client Secret (better-auth Google provider) */
   GOOGLE_CLIENT_SECRET?: string;
   AI_PROVIDER?: string;
+  /** Enable only after 0014 has been applied. */
+  LEARNING_ENABLED?: string;
   ALLOWED_ORIGINS?: string;
   ENV?: string;
   FRONTEND_URL?: string;

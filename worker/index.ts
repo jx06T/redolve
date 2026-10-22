@@ -16,6 +16,7 @@ import { subscriptionsRouter } from './routes/subscriptions';
 import { savedRouter } from './routes/saved';
 import { studyProgressRouter } from './routes/studyProgress';
 import { homeWidgetsRouter } from './routes/homeWidgets';
+import { learningRouter } from './routes/learning';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -54,6 +55,7 @@ app.route('/api/keys', keysRouter);
 app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
 app.route('/api/home-widgets', homeWidgetsRouter);
+app.route('/api/learning', learningRouter);
 app.route('/api/progress-plans', studyProgressRouter);
 app.route('/api', collectionsRouter);
 app.route('/api/subscriptions', subscriptionsRouter);

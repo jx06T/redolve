@@ -65,6 +65,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const syncMessage=state.status==='conflict'?'同步衝突':state.status==='error'?'同步失敗':state.status==='saving'?'正在同步存檔…':state.status==='pending'?(state.error?'尚未同步':'等待同步…'):savedFlash?'已同步':'支援即時打字';
   const work:ProblemCardWork={editorVersion:state.editorVersion,image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
+    learningRef: content.saved ? { kind: 'saved', savedRefId: content.saved.saved.id } : undefined,
     syncStatus:<><span role="status" aria-atomic="true">{syncMessage}</span>{state.status==='error'&&<button type="button" onClick={controller.retry} className="text-text-muted underline underline-offset-2 hover:text-text-main">重試同步</button>}</>,
     copyText:()=>workService.copyText(content.ref),
     reloadLabel:content.saved?'檢查來源更新':undefined,

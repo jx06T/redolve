@@ -236,7 +236,7 @@ savedRouter.post('/saved',authMiddleware,async c=>{
   }
   const committed=await c.env.DB.prepare('SELECT id FROM saved_refs WHERE id=? AND current_snapshot_id=?').bind(savedId,snapshotId).first();
   if(!committed){await cleanupNewSave();return c.json(apiError('SOURCE_CHANGED','來源已變更，請重新載入'),409);}
-  if(classification==='pending')c.executionCtx.waitUntil(classifySaved(c.env,savedId,uid));
+  if(classification==='pending'||c.env.LEARNING_ENABLED==='true')c.executionCtx.waitUntil(classifySaved(c.env,savedId,uid));
   return c.json({saved_id:savedId,status:'saved',classification_state:classification},201);
 });
 savedRouter.get('/saved',authMiddleware,async c=>{

@@ -7,6 +7,8 @@ import { createAIService } from '../services/ai';
 import { TAXONOMY_SEED_DATA } from '../data/taxonomy-seed';
 import { addOwnedItem } from './collections';
 import { itemSearchIndexStatements } from '../services/itemSearchIndex';
+import { readLearningQuestion, saveLearningQuestion } from '../services/learningQuestions';
+import { learningFullText, normalizeRecognition } from '../../src/types/learning';
 
 export const problemsRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -281,16 +283,27 @@ problemsRouter.post(
   if (preAnalyzedResult) {
     // Sync FTS5 Index synchronously for pre-analyzed result
     try {
-      const ocrText = preAnalyzedResult.ocr_text || '';
+      const ocrText = learningFullText(normalizeRecognition(preAnalyzedResult).content);
       await c.env.DB.batch(itemSearchIndexStatements(c.env.DB, problemId, userId, ocrText));
     } catch (ftsErr) {
       console.warn('[FTS Sync Warning]', ftsErr);
+    }
+    // Guest metadata is not a trusted confirmation or a source of personal answers.
+    if (c.env.LEARNING_ENABLED === 'true') {
+      const ref = { kind: 'owned' as const, itemId: problemId };
+      const current = await readLearningQuestion(c.env.DB, userId, ref);
+      const data = normalizeRecognition({ ocr_text: preAnalyzedResult.ocr_text });
+      await saveLearningQuestion(c.env.DB, userId, ref, {
+        expectedRowVersion: current.rowVersion, expectedSourceVersion: current.sourceVersion, data,
+      }, 'ai');
     }
   } else {
     // Trigger Background AI Tagging via ctx.waitUntil
   c.executionCtx.waitUntil(
     (async () => {
       try {
+        const learningRef = { kind: 'owned' as const, itemId: problemId };
+        const learning = c.env.LEARNING_ENABLED === 'true' ? await readLearningQuestion(c.env.DB, userId, learningRef) : null;
         const tree = await loadFullTaxonomyTree(c.env.DB, userId);
         const aiService = createAIService(c.env);
         const tagResult = await aiService.tagProblem(imageArrayBuffer, tree);
@@ -299,6 +312,14 @@ problemsRouter.post(
           const keywordTokensStr = tagResult.keyword_tokens.join(' ');
           const keywordsJson = JSON.stringify(tagResult.keywords);
           const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
+
+          if (learning) {
+            await saveLearningQuestion(c.env.DB, userId, learningRef, {
+              expectedRowVersion: learning.rowVersion, expectedSourceVersion: learning.sourceVersion,
+              data: normalizeRecognition(tagResult),
+            }, 'ai', { ...tagResult, topic_id: validTopicId });
+            return;
+          }
 
           await c.env.DB.prepare(
             `UPDATE items
@@ -311,7 +332,7 @@ problemsRouter.post(
 
           // Sync FTS5 Index
           try {
-            const ocrText = tagResult.ocr_text || '';
+            const ocrText = learningFullText(normalizeRecognition(tagResult).content);
 
             await c.env.DB.batch(itemSearchIndexStatements(c.env.DB, problemId, userId, ocrText));
           } catch (ftsErr) {
@@ -320,7 +341,7 @@ problemsRouter.post(
         } else {
           // AI Failed -> Silent Fallback to status 'unsolved', topic_id null (unclassified)
           await c.env.DB.prepare(
-            `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'processing'`
           )
             .bind(problemId)
             .run();
@@ -329,7 +350,7 @@ problemsRouter.post(
         console.error('[AI Processing Error]', err);
         try {
           await c.env.DB.prepare(
-            `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+            `UPDATE items SET status = 'unsolved', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'processing'`
           )
             .bind(problemId)
             .run();
@@ -705,6 +726,12 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
     return c.json({ error: { code: 'NOT_FOUND', message: '找不到題目' } }, 404);
   }
 
+  const learningRef = { kind: 'owned' as const, itemId: problemId || '' };
+  const learning = c.env.LEARNING_ENABLED === 'true' ? await readLearningQuestion(c.env.DB, userId, learningRef) : null;
+  if (learning?.confirmationStatus === 'confirmed') return c.json({ error: {
+    code: 'CONFIRMED_DATA', message: '此題已確認，請從辨識資料預覽新結果後再採用',
+  } }, 409);
+
   // Retrieve image bytes from R2
   const r2Object = await c.env.STORAGE.get(item.image_url);
   if (!r2Object) {
@@ -735,7 +762,16 @@ problemsRouter.post('/:id/analyze', authMiddleware, async (c) => {
   const keywordTokensStr = tagResult.keyword_tokens.join(' ');
   const keywordsJson = JSON.stringify(tagResult.keywords);
   const validTopicId = await validateAndEnsureTopicId(c.env.DB, tagResult.topic_id);
-  const ocrText = tagResult.ocr_text || '';
+  const ocrText = learningFullText(normalizeRecognition(tagResult).content);
+  if (learning) {
+    await saveLearningQuestion(c.env.DB, userId, learningRef, {
+      expectedRowVersion: learning.rowVersion, expectedSourceVersion: learning.sourceVersion,
+      data: normalizeRecognition(tagResult),
+    }, 'ai', { ...tagResult, topic_id: validTopicId });
+    const updatedItem = await c.env.DB.prepare('SELECT * FROM items WHERE id=? AND user_id=?').bind(problemId,userId).first<ItemRow>();
+    return c.json({ status: 'ok', tagResult, item: updatedItem });
+  }
+
 
   await c.env.DB.prepare(
     `UPDATE items
