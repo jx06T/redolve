@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../store/useStore';
+import { readerActiveRow } from '../services/readerActiveRow';
 import { readAnchor, readScroll, rememberAnchor, rememberScroll, readerLocationKey, rememberStudyResume } from '../services/navigationState';
 
 // Retain measurements across remounts, never content or permissions. Nearby cards
@@ -14,6 +15,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   items:T[];render:(item:T,index:number,onNext:()=>void)=>ReactNode;loadMore:()=>void;hasMore:boolean;busy:boolean;focus?:string;className?:string;loadError?:boolean;autoLoad?:boolean;
 }) {
   const parent=useRef<HTMLDivElement>(null);const location=useLocation();
+  const activeFrame=useRef<number | null>(null);
   const historyKey=readerLocationKey(location);
   const account=useStore(s=>s.currentUser?.id||'guest');
   const positioned=useRef('');const guard=useRef(false);
@@ -58,11 +60,19 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
   const rows=v.getVirtualItems();
   const syncActive=()=>{
     if(!location.pathname.startsWith('/study'))return;
-    const row=v.getVirtualItems().find(r=>r.end>(parent.current?.scrollTop||0)+Math.min(100,(parent.current?.clientHeight||0)/4));
-    if(row&&useStore.getState().activeProblemId!==items[row.index].id)useStore.getState().setActiveProblemId(items[row.index].id);
-    if(row)rememberStudyResume(account,location.search,items[row.index].id,location.pathname);
+    const current=useStore.getState().activeProblemId;
+    const id=readerActiveRow(v.getVirtualItems(),items.map(item=>item.id),current,parent.current?.scrollTop||0,parent.current?.clientHeight||0);
+    if(id&&current!==id)useStore.getState().setActiveProblemId(id);
+    if(id)rememberStudyResume(account,location.search,id,location.pathname);
   };
-  useEffect(syncActive,[rows,items,location.pathname,location.search,account]);
+  const scheduleActive=()=>{
+    if(activeFrame.current!==null)cancelAnimationFrame(activeFrame.current);
+    activeFrame.current=requestAnimationFrame(()=>{activeFrame.current=null;syncActive();});
+  };
+  useEffect(()=>{
+    scheduleActive();
+    return ()=>{if(activeFrame.current!==null)cancelAnimationFrame(activeFrame.current);activeFrame.current=null;};
+  },[rows,items,location.pathname,location.search,account]);
   const advance=(id:string)=>{
     stopRestoration();
     const index=items.findIndex(item=>contains(item,id));
@@ -85,7 +95,7 @@ export function QuestionStream<T extends {id:string;ids?:string[]}>({items,rende
     onWheel={stopRestoration} onTouchStart={stopRestoration} onPointerDown={stopRestoration}
     onScroll={e=>{
       const el=e.currentTarget;
-      syncActive();
+      scheduleActive();
       if(!restoring.current){rememberScroll(account,historyKey,el.scrollTop);
         const row=v.getVirtualItems().find(r=>r.end>el.scrollTop);if(row)rememberAnchor(account,historyKey,items[row.index].id,el.scrollTop-row.start);}
       if(autoLoad&&!loadError&&el.scrollHeight-el.scrollTop-el.clientHeight<700)requestMore();

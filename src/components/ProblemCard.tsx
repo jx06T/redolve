@@ -17,7 +17,7 @@ import { downloadWorkDraft } from '../services/workService';
 import { WorkConflictDialog } from './WorkConflictDialog';
 import {beginWorkInteraction,endWorkInteraction} from '../services/workInteraction';
 import {sameWork,rebaseTextPosition} from '../services/workMerge';
-import { LearningDataPanel } from './LearningDataPanel';
+import { LearningDataButton } from './LearningDataButton';
 import type { PersonalQuestionRef } from '../types/learning';
 
 import {
@@ -458,6 +458,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           copyText={work?.copyText}
           onEditMetadata={onEditMetadata}
           reloadLabel={work?.reloadLabel}
+          learningAction={import.meta.env.VITE_LEARNING_ENABLED === 'true' && !readOnly && useStore.getState().currentUser?.id &&
+            (work?.learningRef || !work && !problem.id.startsWith('temp_')) ?
+            <LearningDataButton questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} active={isActive || !onNext}
+              refreshKey={`${problem.content_seq || 0}:${problem.status}:${reloadVersion}`} /> : undefined}
           sourceLabel={work?.label||memberships.filter(m=>m.state==='included'&&m.lifecycle!=='deleted').slice(0,2).map(m=><Link key={m.entry_id} to={`/settings/collections/${m.collection_id}`} className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted underline">{m.lifecycle==='active'?(m.visibility==='public'?'公開':'共用'):m.lifecycle==='draft'?'草稿':'已暫停'} · {m.title}</Link>)}
         />
         {/* Keywords Chips */}
@@ -475,10 +479,6 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         )}
 
         {work?.beforeWorkspace}
-        {import.meta.env.VITE_LEARNING_ENABLED === 'true' && isActive && !readOnly && useStore.getState().currentUser?.id &&
-          (work?.learningRef || !work && !problem.id.startsWith('temp_')) &&
-          <LearningDataPanel key={`${useStore.getState().currentUser?.id}:${problem.id}`}
-            questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} />}
         {/* Unified Image & Calculation Scratchpad Workspace */}
         <ProblemCardWorkspace
           editorVersion={editorVersion}

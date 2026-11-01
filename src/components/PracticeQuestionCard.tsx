@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import Panzoom from '@panzoom/panzoom';
 import type { PanzoomObject } from '@panzoom/panzoom';
 import { DrawCanvas } from './DrawCanvas';
-import { LearningDataPanel } from './LearningDataPanel';
+import { LearningDataDialog } from './LearningDataButton';
 import { learningService } from '../services/learningService';
 import { practiceService, syncPractice } from '../services/practiceService';
 import { gradePractice, practiceRefPath } from '../types/practice';
@@ -45,6 +45,7 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [editKey, setEditKey] = useState(false);
   const [openImage, setOpenImage] = useState(false), [everImage, setEverImage] = useState(false);
   const [displayContent, setDisplayContent] = useState(question.content);
+  const [keyChanged, setKeyChanged] = useState(false);
   const [height, setHeight] = useState(400), [eraser, setEraser] = useState(false);
   const active = useRef(true), lock = useRef(false);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -98,7 +99,10 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
           : <><p role="status">{result === 'correct' ? '這次答對' : '這次答錯'} · 已保存於本機</p>
             <div className="flex flex-wrap gap-2"><button disabled={busy} className={button} onClick={next}>下一題</button>
               <button className={button} onClick={() => setEditKey(v => !v)}>{key ? '答案有誤' : '補齊正解'}</button></div></>}
-        {editKey && <><LearningDataPanel questionRef={question.ref} onSaved={q => setDisplayContent(q.content)} />
+        {editKey && <LearningDataDialog questionRef={question.ref} onClose={() => setEditKey(false)} onSaved={q => {
+          setDisplayContent(q.content); setKeyChanged(true); setEditKey(false);
+        }} />}
+        {keyChanged && <>
           <p className="text-xs text-text-muted">儲存正解後，可以明確更正這次結果。過去其他作答不會重算。</p>
           <button disabled={busy} className={button} onClick={() => void commit(result || undefined, true)}>依新正解更正這次</button></>}
         <Link to={practiceRefPath(question.ref)} className="inline-block text-sm underline">查看原題與重作紀錄</Link>

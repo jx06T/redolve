@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { learningService } from '../services/learningService';
 import { useStore } from '../store/useStore';
 import { PracticeHistory } from './PracticeHistory';
+import { learningDataIssues } from '../services/learningDataIssues';
 import { validateLearningData, QUESTION_TYPES } from '../types/learning';
 import type { LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
 
@@ -31,8 +32,12 @@ function AnswerInput({ label, answer, content, onChange }: {
   </fieldset>;
 }
 
-/** Mounted only for the active personal question; never for a shared reader or guest. */
-export function LearningDataPanel({ questionRef, onSaved }: { questionRef: PersonalQuestionRef; onSaved?: (question: LearningQuestion) => void }) {
+/** Personal data editor used inside the recognition dialog. */
+export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBusyChange, onLoaded, onErrorChange }: {
+  questionRef: PersonalQuestionRef; onSaved?: (question: LearningQuestion) => void;
+  initialQuestion?: LearningQuestion | null; onBusyChange?: (busy: boolean) => void;
+  onLoaded?: (question: LearningQuestion) => void; onErrorChange?: (error: string) => void;
+}) {
   const account = useStore(s => s.currentUser?.id || '');
   const [current, setCurrent] = useState<LearningQuestion | null>(null);
   const [draft, setDraft] = useState<LearningData | null>(null);
@@ -43,10 +48,12 @@ export function LearningDataPanel({ questionRef, onSaved }: { questionRef: Perso
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort;
     setCurrent(null); setDraft(null); setDraftBase(null); setError(''); setPreview(false); setBusy(false); running.current = false;
-    void learningService.read(questionRef, abort.signal).then(result => { if (!abort.signal.aborted) setCurrent(result); })
+    void (initialQuestion ? Promise.resolve(initialQuestion) : learningService.read(questionRef, abort.signal)).then(result => { if (!abort.signal.aborted) { setCurrent(result); onLoaded?.(result); } })
       .catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
   }, [account, kind, id]);
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onErrorChange?.(error); }, [error, onErrorChange]);
   const run = async (action: (signal: AbortSignal) => Promise<void>) => {
     if (running.current || !account || useStore.getState().currentUser?.id !== account) return;
     const signal = controller.current.signal; running.current = true; setBusy(true); setError('');
@@ -72,7 +79,7 @@ export function LearningDataPanel({ questionRef, onSaved }: { questionRef: Perso
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={buttonClass} onClick={() => setDraft(structuredClone({ content: current.content, personal: current.personal }))}>修改辨識資料</button>
         {current.revisionId && current.confirmationStatus === 'ai' && <button type="button" disabled={busy} className={buttonClass} onClick={() => void run(async signal => {
-          const result = await learningService.confirm(current, signal); if (!signal.aborted) setCurrent(result);
+          const result = await learningService.confirm(current, signal); if (!signal.aborted) { setCurrent(result); onSaved?.(result); }
         })}>確認正確</button>}
         <button type="button" disabled={busy} className={buttonClass} onClick={() => void run(async signal => {
           const result = await learningService.preview(questionRef, signal);
@@ -80,6 +87,10 @@ export function LearningDataPanel({ questionRef, onSaved }: { questionRef: Perso
         })}>{busy ? '處理中…' : '重新辨識'}</button>
       </div>
     </>}
+    {current && !draft && learningDataIssues(current).length > 0 && <ul className="mt-3 space-y-1 text-xs text-text-muted" aria-label="資料缺漏">
+      {learningDataIssues(current).map(issue => <li key={issue}>{issue}</li>)}
+    </ul>}
+    {current?.sourceUpdated && <p className="mt-3 text-xs text-text-muted">已存入的來源版本更新了，目前辨識資料仍保留先前內容。可重新辨識、預覽後採用；歷次作答與已產生報告保留原依據。</p>}
     {draft && content && <fieldset disabled={busy} className="mt-3 space-y-4">
       {preview && <p role="status" className="text-sm text-text-muted">新結果尚未儲存。可先修改，再採用並確認。</p>}
       <label className="block text-xs text-text-muted">題型<select className={fieldClass} value={content.questionType} onChange={e => {

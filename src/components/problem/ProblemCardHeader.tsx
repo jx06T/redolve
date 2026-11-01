@@ -30,6 +30,7 @@ interface ProblemCardHeaderProps {
   onOpenShareModal?: () => void;
   copyText?:()=>Promise<string>;
   sourceLabel?: React.ReactNode;
+  learningAction?: React.ReactNode;
   reloadLabel?: string;
   onOpenDeleteModal?: () => void;
   onEditMetadata?: (problem: Item) => void;
@@ -48,7 +49,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
   onExport,
   onOpenShareModal,
   onOpenDeleteModal,
-  onEditMetadata,copyText,sourceLabel,reloadLabel,
+  onEditMetadata,copyText,sourceLabel,reloadLabel,learningAction,
 }) => {
   const [isFetchingText, setIsFetchingText] = useState(false);
   const { isCopied, copy } = useCopyToClipboard();
@@ -108,6 +109,7 @@ export const ProblemCardHeader: React.FC<ProblemCardHeaderProps> = ({
 
       {/* Right Toolbar Actions */}
       <div className="flex items-center gap-1 flex-wrap ">
+        {learningAction}
         {/* Copy Text Button */}
         <button
           type="button"

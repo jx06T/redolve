@@ -3,7 +3,7 @@ import type { LearningData, LearningQuestion, PersonalQuestionRef } from '../../
 
 type Source = { asset_id: string; storage_key: string; source_version: string; text: string | null };
 type Current = { id: string; current_revision_id: string | null; row_version: number;
-  confirmation_status: 'ai' | 'confirmed'; content_json: string | null; personal_json: string | null };
+  confirmation_status: 'ai' | 'confirmed'; content_json: string | null; personal_json: string | null; revision_source_version: string | null };
 export class LearningError extends Error {
   constructor(public status: 404 | 409 | 422, public code: string, message: string) { super(message); }
 }
@@ -37,7 +37,7 @@ export async function learningSource(db: D1Database, uid: string, ref: PersonalQ
 export async function readLearningQuestion(db: D1Database, uid: string, ref: PersonalQuestionRef): Promise<LearningQuestion> {
   const [sourceResult, currentResult] = await db.batch([
     db.prepare(sourceQuery(ref)).bind(refId(ref), uid),
-    db.prepare(`SELECT q.id,q.current_revision_id,q.row_version,q.confirmation_status,r.content_json,r.personal_json
+    db.prepare(`SELECT q.id,q.current_revision_id,q.row_version,q.confirmation_status,r.content_json,r.personal_json,r.source_version revision_source_version
       FROM learning_questions q LEFT JOIN learning_question_revisions r ON r.id=q.current_revision_id AND r.learning_question_id=q.id
       WHERE q.user_id=? AND q.${refColumn(ref)}=?`).bind(uid, refId(ref)),
   ]);
@@ -48,7 +48,8 @@ export async function readLearningQuestion(db: D1Database, uid: string, ref: Per
     ? validateLearningData({ content: JSON.parse(row.content_json), personal: JSON.parse(row.personal_json) }) : emptyLearningData();
   if (!row?.current_revision_id) data.content.ocrText = source.text || null;
   return { ...data, ref, id: row?.id || null, revisionId: row?.current_revision_id || null,
-    rowVersion: row?.row_version || 0, sourceVersion: source.source_version, confirmationStatus: row?.confirmation_status || 'ai' };
+    rowVersion: row?.row_version || 0, sourceVersion: source.source_version, confirmationStatus: row?.confirmation_status || 'ai',
+    sourceUpdated: ref.kind === 'saved' && !!row?.revision_source_version && row.revision_source_version.split(':')[0] !== source.source_version.split(':')[0] };
 }
 
 export interface LearningWrite {

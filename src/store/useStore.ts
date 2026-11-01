@@ -221,7 +221,7 @@ export const useStore = create<StoreState>()(
           return { darkMode: next };
         }),
 
-      setActiveProblemId: (activeProblemId) => set({ activeProblemId }),
+      setActiveProblemId: (activeProblemId) => set(state => state.activeProblemId === activeProblemId ? state : { activeProblemId }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
       toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
 

@@ -160,7 +160,7 @@ test('personal learning API, immutable revisions, ownership and background races
         VALUES('snap2','saved','image','新版','集合','author','新版文字',2,0);
         UPDATE saved_refs SET current_snapshot_id='snap2',row_version=row_version+1 WHERE id='saved'; DELETE FROM saved_snapshots WHERE id='snap';`);
       assert.equal((await call('/learning/saved/saved','bob','PATCH',write(before))).status,409);
-      const after=(await call('/learning/saved/saved','bob')).data;assert.equal(after.revisionId,before.revisionId);
+      const after=(await call('/learning/saved/saved','bob')).data;assert.equal(after.revisionId,before.revisionId);assert.equal(after.sourceUpdated,true);
       assert.ok((await db.prepare("SELECT COUNT(*) n FROM asset_reference_inventory WHERE asset_id='image'").first()).n>0);
     });
     await t.test('invalid answers are rejected; missing answers can still be confirmed',async()=>{

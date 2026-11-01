@@ -27,6 +27,8 @@ export interface LearningQuestion extends LearningData {
   rowVersion: number;
   sourceVersion: string;
   confirmationStatus: 'ai' | 'confirmed';
+  /** Retained saved source changed; personal data stays on its existing revision. */
+  sourceUpdated?: boolean;
 }
 
 export const emptyLearningData = (): LearningData => ({
