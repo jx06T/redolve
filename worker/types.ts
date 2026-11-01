@@ -8,6 +8,7 @@ export interface Bindings {
   UPLOAD_LIMITER: RateLimit;
   ASSETS?: Fetcher;
   GEMINI_API_KEY?: string;
+  GEMINI_ANALYSIS_MODEL?: string;
   BETTER_AUTH_SECRET?: string;
   JWT_SECRET?: string;
   /** Comma-separated Google account emails with admin access. Replaces ADMIN_SECRET. */

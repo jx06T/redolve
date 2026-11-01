@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { PracticeQuestionCard } from '../components/PracticeQuestionCard';
 import { practiceService, syncPractice } from '../services/practiceService';
 import type { PendingAttempt } from '../services/practiceService';
-import { sharingApi } from '../services/sharingApi';
+import { analysisService } from '../services/analysisService';
+import type { ReportSummary } from '../services/analysisService';
+import { AnalysisStatsContent, PersonalAnalysisReport } from '../components/PersonalAnalysisReport';
 import { ANALYSIS_PERIOD_DAYS } from '../types/learning';
 import type { PracticeScope, PracticeSession } from '../types/practice';
-import { practiceRefPath } from '../types/practice';
 import type { AnalysisReport, AnalysisStats } from '../types/analysis';
 import type { TaxonomyNode } from '../types';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
@@ -20,14 +21,16 @@ export function PracticeAnalysisView() {
   const [count, setCount] = useState(5), [archived, setArchived] = useState(false), [days, setDays] = useState(30);
   const [session, setSession] = useState<PracticeSession | null>(null), [index, setIndex] = useState(0), [results, setResults] = useState<Record<string, string>>({});
   const [stats, setStats] = useState<AnalysisStats | null>(null), [report, setReport] = useState<AnalysisReport | null>(null);
-  const [history, setHistory] = useState<{ id: string; created_at: string; days: number }[]>([]), [cursor, setCursor] = useState<string | null>(null);
+  const [history, setHistory] = useState<ReportSummary[]>([]), [cursor, setCursor] = useState<string | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false), [refresh, setRefresh] = useState(0);
+  const pollCount = useRef(0);
   const [pending, setPending] = useState<PendingAttempt[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const abort = useRef(new AbortController()), running = useRef(false);
   const scope: PracticeScope = { subjectId: subject, ...(topic ? { topicId: topic } : {}), includeArchived: archived };
   useEffect(() => { const onHash = () => setMode(window.location.hash === '#analysis' ? 'analysis' : 'practice'); window.addEventListener('hashchange', onHash); return () => window.removeEventListener('hashchange', onHash); }, []);
   useEffect(() => {
     abort.current.abort(); const controller = new AbortController(); abort.current = controller;
-    setSession(null); setStats(null); setReport(null); setHistory([]); setError(''); setBusy(false); running.current = false;
+    setSession(null); setStats(null); setReport(null); setHistory([]); setCursor(null); setError(''); setBusy(false); running.current = false;
     return () => controller.abort();
   }, [uid, subject, topic, mode, days]);
   useEffect(() => {
@@ -42,25 +45,42 @@ export function PracticeAnalysisView() {
     try { await action(signal); } catch (e) { if (!signal.aborted) setError((e as Error).message); }
     finally { if (!signal.aborted) { running.current = false; setBusy(false); } }
   };
+  const loadAnalysis = useCallback(async (signal: AbortSignal) => {
+    setStatsLoading(true);
+    const selectedScope = { subjectId: subject, ...(topic ? { topicId: topic } : {}) };
+    const [numeric, reports] = await Promise.allSettled([
+      analysisService.stats(selectedScope, days, signal), analysisService.list(selectedScope, days, undefined, signal),
+    ]);
+    if (signal.aborted) return;
+    setStatsLoading(false);
+    if (numeric.status === 'fulfilled') setStats(numeric.value); else setError(numeric.reason.message);
+    if (reports.status === 'fulfilled') {
+      setHistory(reports.value.reports); setCursor(reports.value.nextCursor);
+      const latest = reports.value.reports[0];
+      if (latest) { try { const saved = await analysisService.report(latest.id, signal); if (!signal.aborted) setReport(previous => previous || saved); }
+        catch (e) { if (!signal.aborted) setError((e as Error).message); } }
+    } else setError(reports.reason.message);
+  }, [subject, topic, days]);
   useEffect(() => {
     if (mode !== 'analysis' || !subject || !uid || import.meta.env.VITE_ANALYSIS_ENABLED !== 'true') return;
     const signal = abort.current.signal;
-    void Promise.all([
-      sharingApi<AnalysisStats>('/analysis/stats', 'POST', { scope, days }, signal),
-      sharingApi<{ reports: typeof history; nextCursor: string | null }>(`/analysis/reports?subjectId=${encodeURIComponent(subject)}`, 'GET', undefined, signal),
-    ]).then(([s, h]) => { if (!signal.aborted) { setStats(s); setHistory(h.reports); setCursor(h.nextCursor); } }).catch(e => { if (!signal.aborted) setError(e.message); });
-  }, [uid, subject, topic, days, mode]);
+    void loadAnalysis(signal);
+  }, [uid, subject, topic, days, mode, refresh, loadAnalysis]);
+  useEffect(() => { pollCount.current = 0; }, [report?.id]);
   useEffect(() => {
     if (report?.status !== 'pending') return;
     const signal = abort.current.signal;
     const timer = window.setTimeout(() => {
-      void sharingApi<AnalysisReport>(`/analysis/reports/${report.id}`, 'GET', undefined, signal)
-        .then(r => { if (!signal.aborted) setReport(r); }).catch(e => { if (!signal.aborted) setError(e.message); });
-    }, 2500);
+      void analysisService.status(report.id, signal).then(async status => {
+        if (signal.aborted) return;
+        if (status.status === 'pending') { pollCount.current++; setReport(previous => previous?.id === status.id ? { ...previous } : previous); }
+        else { const complete = await analysisService.report(report.id, signal); if (!signal.aborted) setReport(previous => previous?.id === complete.id ? complete : previous); }
+      }).catch(e => { if (!signal.aborted) setError(e.message); });
+    }, Math.min(1500 * 2 ** Math.min(pollCount.current, 3), 8000));
     return () => window.clearTimeout(timer);
   }, [report]);
-  const start = (questionIds?: string[]) => void run(async signal => {
-    const next = await practiceService.start(scope, count, questionIds, signal);
+  const start = (questionIds?: string[], selectedScope = scope) => void run(async signal => {
+    const next = await practiceService.start(selectedScope, count, questionIds, signal);
     if (!signal.aborted) { setSession(next); setIndex(0); setResults({}); }
   });
   const units = flatten(tree.find(n => n.id === subject)?.children || []);
@@ -71,7 +91,7 @@ export function PracticeAnalysisView() {
     <div className="flex flex-wrap items-center gap-3"><h1 className="mr-auto text-xl font-semibold">個人練習與分析</h1>
       {!session && <nav aria-label="練習與分析"><a href="#practice" className={button} aria-current={mode === 'practice' ? 'page' : undefined}>練習</a>
         {import.meta.env.VITE_ANALYSIS_ENABLED === 'true' && <a href="#analysis" className={button} aria-current={mode === 'analysis' ? 'page' : undefined}>分析</a>}</nav>}
-      {session && <button className={button} onClick={() => setSession(null)}>離開練習</button>}
+      {session && <button className={button} onClick={() => { setSession(null); setRefresh(v => v + 1); }}>離開練習</button>}
     </div>
     {!!pending.length && <div role="status" className="rounded-2xl border border-border-subtle bg-surface p-4 text-sm">
       本機有 {pending.length} 筆作答尚未同步；分析只包含伺服器已接收紀錄。
@@ -92,34 +112,30 @@ export function PracticeAnalysisView() {
       <h2 className="text-lg font-medium">{session.questions.length ? '本輪完成' : '目前沒有可抽的題目'}</h2>
       {session.questions.length ? <p className="my-4">已作答 {Object.keys(results).length} 題，答對 {Object.values(results).filter(r => r === 'correct').length} 題；略過 {session.questions.length - Object.keys(results).length} 題。</p>
         : <p className="my-4">請先確認科目，並重新辨識或人工整理題文；目前抽題僅從有限候選中選取。</p>}
-      <button className={button} onClick={() => setSession(null)}>回到範圍設定</button>
+      <button className={button} onClick={() => { setSession(null); setRefresh(v => v + 1); }}>回到範圍設定</button>
     </section>)}
-    {!session && mode === 'analysis' && stats && <>
-      <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
-        <div className="flex flex-wrap items-center gap-3"><h2 className="mr-auto font-medium">目前統計</h2><button disabled={busy} className={button} onClick={() => void run(async signal => {
-          const r = await sharingApi<AnalysisReport>('/analysis/reports', 'POST', { scope, days }, signal); if (!signal.aborted) setReport(r);
-        })}>{busy ? '處理中…' : '產生／更新分析'}</button></div>
-        <p className="text-xs text-text-muted">截止 {new Date(stats.cutoff).toLocaleString()}；題庫包含較早收錄的題目。</p>
-        <p>目前 {stats.questions} 題 · 期間內 {stats.attempts} 次作答{stats.attempts ? ` · 答對 ${stats.correct}／${stats.attempts}` : ' · 尚無重作紀錄'}</p>
-        {!!stats.repeatedQuestions && <p className="text-sm">期間內同題重作至少兩次：{stats.repeatedQuestions} 題；首次錯、末次對 {stats.changedToCorrect} 題；首次對、末次錯 {stats.changedToIncorrect} 題。</p>}
-        <details><summary className="cursor-pointer text-sm">資料組成與各單元</summary><p className="my-3 text-sm">已確認 {stats.confirmed} 題；可用題文 {stats.prepared} 題。自動判分 {stats.automatic} 次、自評 {stats.self} 次、提交前查看原圖 {stats.viewedImage} 次。</p>
-          <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>單元</th><th>題數</th><th>答對／作答</th></tr></thead><tbody>{stats.units.map(u => <tr key={u.id}><td className="py-2">{u.label}</td><td>{u.questions}</td><td>{u.attempts ? `${u.correct}／${u.attempts}` : '尚無作答'}</td></tr>)}</tbody></table></div>
-        </details>
-      </section>
-      {report && <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
-        <h2 className="font-medium">分析報告 · {new Date(report.createdAt).toLocaleString()}</h2>
-        <p className="text-xs text-text-muted">報告範圍：{report.stats.days} 天；當時 {report.stats.questions} 題、{report.stats.attempts} 次作答、答對 {report.stats.correct} 次。解讀取樣 {report.evidence.length} 題。</p>
-        {report.status === 'pending' && <p role="status">正在產生解讀…</p>}
-        {report.error && <p role="alert">{report.error}</p>}
-        {report.expired ? <p>詳細解讀已到期，保留報告當時的數字摘要。</p> : report.interpretation?.findings.map((f, i) => <article key={i} className="space-y-2 border-t border-border-subtle pt-4">
-          <h3 className="font-medium">{f.title}</h3><p className="whitespace-pre-wrap text-sm leading-relaxed">{f.explanation}</p>
-          <div className="flex flex-wrap gap-2">{f.evidenceIds.map(id => { const e = report.evidence.find(e => e.id === id); return e ? <Link key={id} to={practiceRefPath(e.ref)} className="text-xs underline">{e.text.slice(0,40)}…</Link> : null; })}</div>
-          <button disabled={busy} className={button} onClick={() => start(f.evidenceIds)}>練習這些題</button>
-        </article>)}
-        {report.status === 'complete' && !report.expired && !report.interpretation?.findings.length && <p>目前可用題文不足以提供具體解讀，可先整理辨識資料。</p>}
-      </section>}
-      <section className="space-y-2"><h2 className="text-sm font-medium">歷史報告</h2>{history.map(h => <button key={h.id} className={button + ' mr-2'} onClick={() => void run(async signal => { const r = await sharingApi<AnalysisReport>(`/analysis/reports/${h.id}`, 'GET', undefined, signal); if (!signal.aborted) setReport(r); })}>{new Date(h.created_at).toLocaleString()} · {h.days} 天</button>)}
-        {cursor && <button disabled={busy} className={button} onClick={() => void run(async signal => { const h = await sharingApi<{ reports: typeof history; nextCursor: string | null }>(`/analysis/reports?subjectId=${encodeURIComponent(subject)}&before=${encodeURIComponent(cursor)}`, 'GET', undefined, signal); if (!signal.aborted) { setHistory(old => [...old, ...h.reports]); setCursor(h.nextCursor); } })}>更早的報告</button>}
+    {!session && mode === 'analysis' && subject && <>
+      <div className="flex flex-wrap items-center gap-3">
+        <button disabled={busy || statsLoading} className={button} onClick={() => setRefresh(v => v + 1)}>重整統計</button>
+        <button disabled={busy || statsLoading || report?.status === 'pending'} className={button} onClick={() => void run(async signal => {
+          const generated = await analysisService.generate(scope, days, signal);
+          if (signal.aborted) return; setReport(generated); setStats(generated.stats);
+          const page = await analysisService.list(scope, days, undefined, signal);
+          if (!signal.aborted) { setHistory(page.reports); setCursor(page.nextCursor); }
+        })}>{busy ? '處理中…' : '產生／更新分析'}</button>
+        {statsLoading && <p role="status" className="text-sm text-text-muted">載入統計與既有報告…</p>}
+      </div>
+      {report && <PersonalAnalysisReport report={report} busy={busy}
+        onPractice={ids => start(ids, { ...report.stats.scope, includeArchived: false })}
+        onReload={() => void run(async signal => { const saved = await analysisService.report(report.id, signal); if (!signal.aborted) setReport(saved); })} />}
+      {!report && !statsLoading && !history.length && <p className="text-sm text-text-muted">此範圍尚無報告，可先查看統計，再手動產生分析。</p>}
+      {stats && <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5" aria-label="目前統計"><h2 className="font-medium">目前統計</h2><AnalysisStatsContent stats={stats} /></section>}
+      <section className="space-y-2"><h2 className="text-sm font-medium">此範圍的歷史報告</h2>{history.map(summary => <button key={summary.id} disabled={busy} className={button + ' mr-2'} onClick={() => void run(async signal => {
+        const saved = await analysisService.report(summary.id, signal); if (!signal.aborted) setReport(saved);
+      })}>{new Date(summary.created_at).toLocaleString()} · {summary.days} 天</button>)}
+        {cursor && <button disabled={busy} className={button} onClick={() => void run(async signal => {
+          const page = await analysisService.list(scope, days, cursor, signal); if (!signal.aborted) { setHistory(old => [...old, ...page.reports]); setCursor(page.nextCursor); }
+        })}>更早的報告</button>}
       </section>
     </>}
   </div>;

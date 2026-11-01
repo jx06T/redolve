@@ -11,6 +11,7 @@ export async function digest(value: unknown) {
 export interface ScopeQuestion {
   id: string | null; itemId: string | null; savedRefId: string | null; revisionId: string | null;
   topicId: string; label: string; confirmationStatus: 'ai' | 'confirmed'; prepared: number;
+  missingCorrectAnswer: number; missingOriginalAnswer: number;
 }
 export async function scopeTopics(db: D1Database, uid: string, scope: PracticeScope) {
   if (!scope || typeof scope.subjectId !== 'string' || scope.subjectId.length > 200 ||
@@ -31,13 +32,17 @@ export async function scopeTopics(db: D1Database, uid: string, scope: PracticeSc
 export function scopeStatement(db: D1Database, uid: string, ids: string[], includeArchived: boolean, limit: number, pivot = '', selected?: string[], perSource = limit, practiceOnly = false) {
   // Indexed scope lookups, bounded metadata only. No FTS and no ORDER BY RANDOM().
   return db.prepare(`SELECT * FROM (SELECT q.id,i.id itemId,NULL savedRefId,q.current_revision_id revisionId,i.topic_id topicId,
-    COALESCE(q.confirmation_status,'ai') confirmationStatus,CASE WHEN LENGTH(json_extract(r.content_json,'$.ocrText'))>0 THEN 1 ELSE 0 END prepared
+    COALESCE(q.confirmation_status,'ai') confirmationStatus,CASE WHEN LENGTH(json_extract(r.content_json,'$.ocrText'))>0 THEN 1 ELSE 0 END prepared,
+    CASE WHEN json_type(r.content_json,'$.correctAnswer')='object' THEN 0 ELSE 1 END missingCorrectAnswer,
+    CASE WHEN json_type(r.personal_json,'$.originalAnswer')='object' THEN 0 ELSE 1 END missingOriginalAnswer
     FROM items i LEFT JOIN learning_questions q ON q.user_id=i.user_id AND q.item_id=i.id
     LEFT JOIN learning_question_revisions r ON r.id=q.current_revision_id
     WHERE i.user_id=? AND i.topic_id IN (SELECT value FROM json_each(?)) AND (?=1 OR i.status!='archived') AND (?=0 OR i.status!='processing')
     AND i.id>=? AND (? IS NULL OR q.id IN (SELECT value FROM json_each(?))) LIMIT ?)
     UNION ALL SELECT * FROM (SELECT q.id,NULL,s.id,q.current_revision_id,s.personal_topic_id,COALESCE(q.confirmation_status,'ai'),
-    CASE WHEN LENGTH(json_extract(r.content_json,'$.ocrText'))>0 THEN 1 ELSE 0 END
+    CASE WHEN LENGTH(json_extract(r.content_json,'$.ocrText'))>0 THEN 1 ELSE 0 END,
+    CASE WHEN json_type(r.content_json,'$.correctAnswer')='object' THEN 0 ELSE 1 END,
+    CASE WHEN json_type(r.personal_json,'$.originalAnswer')='object' THEN 0 ELSE 1 END
     FROM saved_refs s LEFT JOIN learning_questions q ON q.user_id=s.user_id AND q.saved_ref_id=s.id
     LEFT JOIN learning_question_revisions r ON r.id=q.current_revision_id
     WHERE s.user_id=? AND s.personal_topic_id IN (SELECT value FROM json_each(?)) AND (?=1 OR s.status!='archived') AND s.id>=?

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { build } from 'esbuild';
-import { Miniflare } from 'miniflare';
+import { Miniflare, Response as MFResponse } from 'miniflare';
 import { sign } from 'hono/jwt';
 import { unstable_splitSqlQuery } from 'wrangler';
 import { practiceMigrations, practiceSchemaStatus } from '../scripts/practice-schema.mjs';
@@ -13,8 +13,19 @@ const data=(multiple=false,key=true)=>({content:{ocrText:'請選出符合條件�
 test('practice submissions, corrections, analysis snapshots and private retention',async t=>{
   await mkdir('.wrangler/qa',{recursive:true});const dir=await mkdtemp(resolve('.wrangler/qa/practice-'));let mf;
   try {
+    let providerMode='valid'; const providerRequests=[];
     const bundle=join(dir,'worker.mjs');await build({entryPoints:['worker/index.ts'],bundle:true,format:'esm',platform:'browser',target:'es2022',outfile:bundle,logLevel:'silent'});
-    mf=new Miniflare({scriptPath:bundle,modules:true,compatibilityDate:'2025-04-01',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['STORAGE'],kvNamespaces:['KV'],bindings:{JWT_SECRET:'practice-test',LEARNING_ENABLED:'true',PRACTICE_ENABLED:'true',ANALYSIS_ENABLED:'true'}});
+    mf=new Miniflare({scriptPath:bundle,modules:true,compatibilityDate:'2025-04-01',compatibilityFlags:['nodejs_compat'],d1Databases:['DB'],r2Buckets:['STORAGE'],kvNamespaces:['KV'],
+      ratelimits:{UPLOAD_LIMITER:{namespace_id:'42',simple:{limit:1000,period:60}}},
+      bindings:{JWT_SECRET:'practice-test',LEARNING_ENABLED:'true',PRACTICE_ENABLED:'true',ANALYSIS_ENABLED:'true',GEMINI_API_KEY:'fake-test-key',GEMINI_ANALYSIS_MODEL:'qa-model'},
+      outboundService:async request=>{
+        if(!request.url.startsWith('https://generativelanguage.googleapis.com/'))return new MFResponse('Unexpected outbound request',{status:500});
+        const body=await request.json();providerRequests.push(body);
+        const prompt=body.contents.flatMap(c=>c.parts.map(p=>p.text||'')).join('\n'),input=JSON.parse(prompt.split('資料：').at(-1));
+        const id=providerMode==='invalid-evidence'?'foreign':input.evidence[0].id;
+        const findings=Array.from({length:4},(_,i)=>({title:'考點 '+i,explanation:'請比較題目條件並用原題驗證。',evidenceIds:[id],metricIds:[input.stats.units[0].id]}));
+        return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({findings})}]},finishReason:'STOP'}],modelVersion:'qa-model'}),{headers:{'Content-Type':'application/json'}});
+      }});
     const db=await mf.getD1Database('DB');const sql=async text=>{for(const q of unstable_splitSqlQuery(text.replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(q.replace(/\r?\n/g,' '));};
     const schema=await readFile('worker/schema.sql','utf8');await sql(schema);
     for(const file of practiceMigrations){assert.ok(schema.replace(/\r/g,'').includes((await readFile(file,'utf8')).replace(/\r/g,'')));const master=await db.prepare('SELECT name,sql FROM sqlite_master').all();assert.deepEqual(practiceSchemaStatus(()=>[master],file).missing,[]);}
@@ -71,8 +82,48 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       const snap=await analysis.analysisSnapshot(db,'alice',{subjectId:'math'},7);assert.equal(snap.stats.questions,4);assert.equal(snap.stats.prepared,3);assert.equal(snap.stats.attempts,5);assert.equal(snap.stats.automatic,3);assert.equal(snap.stats.self,2);
       const empty=await analysis.analysisSnapshot(db,'alice',{subjectId:'other'},30);assert.equal(empty.stats.attempts,0);assert.equal(empty.stats.changedToCorrect,0);
       const evidence=await analysis.analysisEvidence(db,'alice',snap);assert.equal(evidence.length,3);
+      assert.equal(snap.stats.missingCorrectAnswer,2);assert.equal(snap.stats.missingOriginalAnswer,4);assert.deepEqual(snap.stats.sources,{owned:3,saved:1});
+      assert.equal(snap.stats.daily.reduce((sum,d)=>sum+d.attempts,0),snap.stats.attempts);
+      const detail=evidence.find(e=>e.id===questions[0].id);assert.ok(detail.recentAttempts.length>=2);assert.ok(detail.recentAttempts.every(a=>a.answer&&a.correctAnswer));
+      await assert.rejects(()=>analysis.analysisSnapshot(db,'alice',{subjectId:'math'},30,'not-a-timezone'),/時區/);
       assert.throws(()=>analysis.validateInterpretation({findings:[{title:'假的',explanation:'假的',evidenceIds:['foreign'],metricIds:[]}]},evidence,snap.stats),/Invalid/);
       assert.equal(analysis.validateInterpretation({findings:[{title:'觀察',explanation:'請比較條件',evidenceIds:[questions[0].id],metricIds:['math']}]},evidence,snap.stats).findings.length,1);
+    });
+    await t.test('manual report generation reaches the provider and reuses only valid scoped results',async()=>{
+      const waitFor=async id=>{for(let tries=0;tries<100;tries++){const r=await call('/analysis/reports/'+id);if(r.data.status!=='pending')return r.data;await new Promise(resolve=>setTimeout(resolve,20));}throw Error('Report did not finish');};
+      const generated=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});assert.equal(generated.status,202,JSON.stringify(generated.data));
+      const report=await waitFor(generated.data.id);assert.equal(report.status,'complete');assert.equal(report.interpretation.findings.length,4,'findings are not limited to three');
+      assert.equal(report.stats.timezone,'Asia/Taipei');assert.ok(providerRequests[0].generationConfig.responseSchema.properties.findings);
+      const calls=providerRequests.length;const reused=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});
+      assert.equal(reused.data.id,report.id);assert.equal(providerRequests.length,calls);
+      const status=await call('/analysis/reports/'+report.id+'/status');assert.equal(status.data.status,'complete');assert.equal(status.data.evidence,undefined);
+      assert.equal((await call('/analysis/reports/'+report.id+'/status','bob')).status,404);
+      const selected=await call('/analysis/reports?subjectId=math&days=15&topicId=');assert.ok(selected.data.reports.some(r=>r.id===report.id));
+      assert.equal((await call('/analysis/reports?subjectId=math&days=7&topicId=')).data.reports.length,0);
+      providerMode='invalid-evidence';const invalid=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:60});
+      assert.equal((await waitFor(invalid.data.id)).status,'failed','unknown citations cannot reach a completed report');
+      providerMode='valid';const retry=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:60});
+      assert.notEqual(retry.data.id,invalid.data.id);assert.equal((await waitFor(retry.data.id)).status,'complete');
+    });
+    await t.test('analysis scope index probes stay bounded when unrelated history grows from 1000 to 10000',async()=>{
+      await sql(`INSERT INTO taxonomies(id,label,level) VALUES('outside','範圍外',0);
+        INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES('noise','alice','image','unsolved','outside');`);
+      const ref={kind:'owned',itemId:'noise'},current=await learning.readLearningQuestion(db,'alice',ref);
+      const noise=await learning.saveLearningQuestion(db,'alice',ref,{expectedRowVersion:current.rowVersion,expectedSourceVersion:current.sourceVersion,data:data()},'user');
+      const seed=async(start,end)=>{
+        const now=new Date().toISOString();
+        await db.prepare(`WITH RECURSIVE n(x) AS (SELECT ? UNION ALL SELECT x+1 FROM n WHERE x<?)
+          INSERT INTO practice_attempts(id,user_id,learning_question_id,revision_id,session_id,session_item_id,answer_json,result,grading_method,
+          grading_basis_json,client_answered_at,answered_at,received_at,client_timezone,time_quality,used_original_image,request_hash)
+          SELECT 'noise-'||x,'alice',?,?,'noise','noise-'||x,'null','incorrect','self','{}',?,?,?,'UTC','client',0,'noise' FROM n`)
+          .bind(start,end,noise.id,noise.revisionId,now,now,now).run();
+      };
+      const measure=async()=>{
+        let reads=0;const counted={prepare:(...args)=>db.prepare(...args),batch:async statements=>{const values=await db.batch(statements);reads+=values.reduce((n,r)=>n+r.meta.rows_read,0);return values;}};
+        const snapshot=await analysis.analysisSnapshot(counted,'alice',{subjectId:'math'},30);assert.equal(snapshot.stats.questions,4);return reads;
+      };
+      await seed(1,1000);const small=await measure();await seed(1001,10000);const large=await measure();
+      assert.ok(large<=small+10,JSON.stringify({small,large}));t.diagnostic('Scoped batch rows_read: '+JSON.stringify({history1000:small,history10000:large}));
     });
     await t.test('reports deduplicate input, keep snapshots, expire details and delete with personal sources',async()=>{
       const work=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},30),again=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},30);assert.equal(work.id,again.id);assert.equal(again.created,false);

@@ -5,32 +5,50 @@ import { PracticeError, digest, scopeStatement, scopeTopics } from './practice';
 import type { ScopeQuestion } from './practice';
 
 interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string }
-export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number) {
+export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC') {
   if (!ANALYSIS_PERIOD_DAYS.some(d => d === days)) throw new PracticeError(422, '請選擇 7、15、30、60 或 90 天');
+  let dateFormatter: Intl.DateTimeFormat;
+  try { dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }); }
+  catch { throw new PracticeError(422, '時區不正確'); }
   const topics = await scopeTopics(db, uid, scope), cutoff = new Date().toISOString(), from = new Date(Date.now() - days * 86400000).toISOString();
   const results = await db.batch([
     scopeStatement(db, uid, topics.ids, true, 2001),
-    db.prepare(`SELECT p.id,p.learning_question_id,p.result,p.grading_method,p.used_original_image,p.answered_at,
-      COALESCE(i.topic_id,s.personal_topic_id) topicId FROM practice_attempts p
-      JOIN learning_questions q ON q.id=p.learning_question_id AND q.user_id=p.user_id
-      LEFT JOIN items i ON i.id=q.item_id LEFT JOIN saved_refs s ON s.id=q.saved_ref_id
-      WHERE p.user_id=? AND p.answered_at>=? AND p.answered_at<=? AND p.voided_at IS NULL
-      AND COALESCE(i.topic_id,s.personal_topic_id) IN (SELECT value FROM json_each(?)) ORDER BY p.answered_at,p.received_at,p.id LIMIT 10001`)
-      .bind(uid, from, cutoff, JSON.stringify(topics.ids)),
+    db.prepare(`SELECT p.id,p.learning_question_id,p.result,p.grading_method,p.used_original_image,p.answered_at,sc.topicId
+      FROM (SELECT q.id,i.topic_id topicId FROM items i JOIN learning_questions q ON q.item_id=i.id AND q.user_id=i.user_id
+        WHERE i.user_id=? AND i.topic_id IN (SELECT value FROM json_each(?))
+        UNION ALL SELECT q.id,s.personal_topic_id FROM saved_refs s JOIN learning_questions q ON q.saved_ref_id=s.id AND q.user_id=s.user_id
+        WHERE s.user_id=? AND s.personal_topic_id IN (SELECT value FROM json_each(?))) sc
+      CROSS JOIN practice_attempts p INDEXED BY idx_practice_latest
+      WHERE p.user_id=? AND p.learning_question_id=sc.id AND p.answered_at>=? AND p.answered_at<=? AND p.received_at<=? AND p.voided_at IS NULL
+      ORDER BY p.answered_at,p.received_at,p.id LIMIT 10001`)
+      .bind(uid, JSON.stringify(topics.ids), uid, JSON.stringify(topics.ids), uid, from, cutoff, cutoff),
   ]);
   const questions = results[0].results as unknown as ScopeQuestion[], events = results[1].results as unknown as Event[];
-  if (questions.length > 2000 || events.length > 10000) throw new PracticeError(422, '資料量較大，請縮小單元或作答期間');
+  if (questions.length > 2000) throw new PracticeError(422, '此範圍超過 2,000 題，請縮小單元；縮短作答期間不會排除舊題');
+  if (events.length > 10000) throw new PracticeError(422, '此期間超過 10,000 筆作答，請縮短期間或限制單元');
   const units = topics.ids.map(id => ({ id, label: topics.labels[id], questions: 0, attempts: 0, correct: 0, automatic: 0, self: 0, viewedImage: 0 }));
   const byTopic = new Map(units.map(u => [u.id, u])), byQuestion = new Map<string, Event[]>();
   for (const q of questions) byTopic.get(q.topicId)!.questions++;
   for (const e of events) {
     const u = byTopic.get(e.topicId)!; u.attempts++; u.correct += e.result === 'correct' ? 1 : 0;
     u.automatic += e.grading_method === 'automatic' ? 1 : 0; u.self += e.grading_method === 'self' ? 1 : 0; u.viewedImage += e.used_original_image;
-    byQuestion.set(e.learning_question_id, [...(byQuestion.get(e.learning_question_id) || []), e]);
+    const questionEvents = byQuestion.get(e.learning_question_id) || []; questionEvents.push(e); byQuestion.set(e.learning_question_id, questionEvents);
   }
   const repeated = [...byQuestion.values()].filter(es => es.length >= 2);
+  const daily = new Map<string, { date: string; attempts: number; correct: number; automatic: number; self: number }>();
+  for (const event of events) {
+    const date = dateFormatter.format(new Date(event.answered_at));
+    const point = daily.get(date) || { date, attempts: 0, correct: 0, automatic: 0, self: 0 };
+    point.attempts++; point.correct += event.result === 'correct' ? 1 : 0;
+    point.automatic += event.grading_method === 'automatic' ? 1 : 0; point.self += event.grading_method === 'self' ? 1 : 0;
+    daily.set(date, point);
+  }
   const stats: AnalysisStats = { scope: { subjectId: scope.subjectId, ...(scope.topicId ? { topicId: scope.topicId } : {}) }, days, from, cutoff,
     questions: questions.length, prepared: questions.filter(q => q.prepared).length, confirmed: questions.filter(q => q.confirmationStatus === 'confirmed').length,
+    timezone, aiRecognized: questions.filter(q => q.revisionId && q.confirmationStatus === 'ai').length,
+    withoutRevision: questions.filter(q => !q.revisionId).length, missingCorrectAnswer: questions.filter(q => q.missingCorrectAnswer).length,
+    missingOriginalAnswer: questions.filter(q => q.missingOriginalAnswer).length,
+    sources: { owned: questions.filter(q => q.itemId).length, saved: questions.filter(q => q.savedRefId).length }, daily: [...daily.values()],
     attempts: events.length, correct: events.filter(e => e.result === 'correct').length, automatic: events.filter(e => e.grading_method === 'automatic').length,
     self: events.filter(e => e.grading_method === 'self').length, viewedImage: events.filter(e => e.used_original_image).length,
     repeatedQuestions: repeated.length, changedToCorrect: repeated.filter(es => es[0].result === 'incorrect' && es.at(-1)!.result === 'correct').length,
@@ -41,17 +59,35 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Aw
   // Representative sample, balanced across units; repeated errors first within a unit.
   const candidates = snapshot.questions.filter(q => q.id && q.revisionId && q.prepared).sort((a, b) =>
     (snapshot.byQuestion.get(b.id!)?.filter(e => e.result === 'incorrect').length || 0) - (snapshot.byQuestion.get(a.id!)?.filter(e => e.result === 'incorrect').length || 0));
-  const groups = new Map<string, ScopeQuestion[]>(); for (const q of candidates) groups.set(q.topicId, [...(groups.get(q.topicId) || []), q]);
+  const groups = new Map<string, ScopeQuestion[]>(); for (const q of candidates) { const group = groups.get(q.topicId) || []; group.push(q); groups.set(q.topicId, group); }
   const picked: ScopeQuestion[] = [];
   while (picked.length < 30 && [...groups.values()].some(g => g.length)) for (const g of groups.values()) { if (g.length && picked.length < 30) picked.push(g.shift()!); }
   if (!picked.length) return [];
-  const rows = (await db.prepare(`SELECT r.id,r.learning_question_id,r.content_json,r.personal_json FROM learning_question_revisions r
+  const [revisionRows, attemptRows] = await db.batch([db.prepare(`SELECT r.id,r.learning_question_id,r.content_json,r.personal_json FROM learning_question_revisions r
     JOIN learning_questions q ON q.id=r.learning_question_id WHERE q.user_id=? AND r.id IN (SELECT value FROM json_each(?))`)
-    .bind(uid, JSON.stringify(picked.map(q => q.revisionId))).all<{ id: string; learning_question_id: string; content_json: string; personal_json: string }>()).results;
+    .bind(uid, JSON.stringify(picked.map(q => q.revisionId))),
+    db.prepare(`SELECT * FROM (SELECT p.id,p.learning_question_id,p.revision_id,p.answer_json,p.result,p.grading_method,p.answered_at,p.used_original_image,
+      json_extract(r.content_json,'$.correctAnswer') correct_answer,json_extract(r.content_json,'$.options') option_json,
+      ROW_NUMBER() OVER(PARTITION BY p.learning_question_id ORDER BY p.answered_at DESC,p.received_at DESC,p.id DESC) rn
+      FROM practice_attempts p JOIN learning_question_revisions r ON r.id=p.revision_id
+      JOIN learning_questions q ON q.id=p.learning_question_id AND q.user_id=p.user_id
+      WHERE p.user_id=? AND p.learning_question_id IN (SELECT value FROM json_each(?))
+      AND p.answered_at>=? AND p.answered_at<=? AND p.received_at<=? AND p.voided_at IS NULL) WHERE rn<=5`)
+      .bind(uid, JSON.stringify(picked.map(q => q.id)), snapshot.stats.from, snapshot.stats.cutoff, snapshot.stats.cutoff),
+  ]);
+  const rows = revisionRows.results as { id: string; learning_question_id: string; content_json: string; personal_json: string }[];
+  const attemptSample = attemptRows.results as { id: string; learning_question_id: string; revision_id: string; answer_json: string; correct_answer: string | null; option_json: string;
+    result: string; grading_method: string; answered_at: string; used_original_image: number }[];
   const evidence: AnalysisEvidence[] = [];
   const shortAnswer = (value: unknown) => {
     const answer = value as { kind?: string; text?: unknown } | null;
     return answer?.kind === 'text' && typeof answer.text === 'string' ? { kind: 'text', text: answer.text.slice(0, 1000) } : value;
+  };
+  const describe = (raw: unknown, options: { id: string; label: string; text: string }[]) => {
+    const value = raw as { kind?: string; text?: string; optionIds?: string[] } | null;
+    return !value ? '' : value.kind === 'text' ? value.text?.slice(0,1000) || '' : (value.optionIds || []).map(id => {
+      const option = options.find(o => o.id === id); return option ? `${option.label} ${option.text.slice(0,300)}` : id;
+    }).join('；').slice(0,1000);
   };
   for (const q of picked) {
     const row = rows.find(r => r.id === q.revisionId); if (!row) throw new PracticeError(409, '題目已變更，請重新產生分析');
@@ -60,14 +96,21 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Aw
       revisionId: row.id, topicId: q.topicId, text: [content.ocrText, ...content.options.map((o: { label: string; text: string }) => `${o.label} ${o.text}`)].join('\n').slice(0, 3000),
       originalAnswer: shortAnswer(personal.originalAnswer), correctAnswer: shortAnswer(content.correctAnswer),
       errorReasons: personal.errorReasons.slice(0, 3).map((r: { text: string; origin: string }) => ({ ...r, text: r.text.slice(0, 300) })),
-      attempts: events.length, correct: events.filter(e => e.result === 'correct').length });
+      attempts: events.length, correct: events.filter(e => e.result === 'correct').length, confirmationStatus: q.confirmationStatus,
+      options: content.options.map((o: { id: string; label: string; text: string }) => ({ id: o.id, label: o.label, text: o.text.slice(0,500) })),
+      recentAttempts: attemptSample.filter(a => a.learning_question_id === q.id).reverse().map(a => ({ id: a.id, revisionId: a.revision_id,
+        answer: shortAnswer(JSON.parse(a.answer_json)), correctAnswer: shortAnswer(a.correct_answer ? JSON.parse(a.correct_answer) : null), result: a.result,
+        answerDisplay: describe(JSON.parse(a.answer_json), JSON.parse(a.option_json || '[]')),
+        correctAnswerDisplay: describe(a.correct_answer ? JSON.parse(a.correct_answer) : null, JSON.parse(a.option_json || '[]')),
+        gradingMethod: a.grading_method, answeredAt: a.answered_at, usedOriginalImage: !!a.used_original_image })),
+    });
     if (new TextEncoder().encode(JSON.stringify(evidence)).length > 120000) { evidence.pop(); break; }
   }
   return evidence;
 }
 export function validateInterpretation(raw: unknown, evidence: AnalysisEvidence[], stats: AnalysisStats): AnalysisInterpretation {
   const value = raw as AnalysisInterpretation;
-  if (!value || !Array.isArray(value.findings) || value.findings.length > evidence.length) throw Error('Invalid analysis response');
+  if (!value || !Array.isArray(value.findings) || value.findings.length > evidence.length * 3) throw Error('Invalid analysis response');
   const evidenceIds = new Set(evidence.map(e => e.id)), metrics = new Set(stats.units.map(u => u.id));
   return { findings: value.findings.map(f => {
     if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 160 || typeof f.explanation !== 'string' || f.explanation.length > 3000 ||
@@ -84,15 +127,15 @@ export async function cleanupAnalysis(db: D1Database) {
     .bind(now).run();
   return result.meta.changes;
 }
-export async function beginAnalysis(db: D1Database, uid: string, scope: PracticeScope, days: number) {
-  const snapshot = await analysisSnapshot(db, uid, scope, days), evidence = await analysisEvidence(db, uid, snapshot);
-  const hash = await digest({ scope: snapshot.stats.scope, days, questions: snapshot.questions, events: snapshot.events, prompt: 'personal-v1' });
+export async function beginAnalysis(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC') {
+  const snapshot = await analysisSnapshot(db, uid, scope, days, timezone), evidence = await analysisEvidence(db, uid, snapshot);
+  const hash = await digest({ scope: snapshot.stats.scope, days, timezone, questions: snapshot.questions, events: snapshot.events, prompt: 'personal-v2' });
   const now = new Date().toISOString();
   await db.prepare(`UPDATE analysis_reports SET status='failed',error='上次產生未完成，可手動重試' WHERE user_id=? AND input_hash=? AND status='pending' AND lease_until<?`).bind(uid, hash, now).run();
   await db.prepare(`UPDATE analysis_reports SET input_hash='expired:'||id WHERE user_id=? AND input_hash=? AND detail_expires_at<=?`).bind(uid, hash, now).run();
   const id = crypto.randomUUID(), lease = new Date(Date.now() + 60000).toISOString(), expires = new Date(Date.now() + 90 * 86400000).toISOString();
   const statements = [db.prepare(`INSERT OR IGNORE INTO analysis_reports(id,user_id,subject_id,topic_id,days,input_hash,status,stats_json,evidence_json,prompt_version,created_at,detail_expires_at,lease_until)
-    VALUES(?,?,?,?,?,?,'pending',?,?,'personal-v1',?,?,?)`).bind(id, uid, scope.subjectId, scope.topicId ?? null, days, hash, JSON.stringify(snapshot.stats), JSON.stringify(evidence), now, expires, lease),
+    VALUES(?,?,?,?,?,?,'pending',?,?,'personal-v2',?,?,?)`).bind(id, uid, scope.subjectId, scope.topicId ?? null, days, hash, JSON.stringify(snapshot.stats), JSON.stringify(evidence), now, expires, lease),
     db.prepare(`INSERT INTO analysis_report_questions(report_id,source_key,item_id,saved_ref_id,revision_id)
     SELECT ?,json_extract(value,'$.key'),json_extract(value,'$.item'),json_extract(value,'$.saved'),json_extract(value,'$.revision')
     FROM json_each(?) WHERE EXISTS(SELECT 1 FROM analysis_reports WHERE id=? AND user_id=?)`)
