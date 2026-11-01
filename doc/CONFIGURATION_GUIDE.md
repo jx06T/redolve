@@ -41,6 +41,8 @@ wrangler secret put ADMIN_EMAILS
 
 ### 本地開發
 
+個人辨識／抽題／分析功能的 migration 與開關另見 [本地試用與資料庫遷移](./PERSONAL_PRACTICE_LOCAL_RUN_2026-11-01.md)。切換 Git 分支不會自動遷移 D1，也不會隔離資料庫。
+
 本地 `wrangler dev` 使用 `.wrangler/state` 下的 D1、R2、KV；正式資料庫套用過 migration 不會更新本地資料庫。本地 `no such table: collections`／`saved_refs` 代表缺少分享 schema。
 
 先停止本地 Worker，再初始化或升級本地 D1：

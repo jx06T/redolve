@@ -17,6 +17,9 @@ import { savedRouter } from './routes/saved';
 import { studyProgressRouter } from './routes/studyProgress';
 import { homeWidgetsRouter } from './routes/homeWidgets';
 import { learningRouter } from './routes/learning';
+import { practiceRouter } from './routes/practice';
+import { analysisRouter } from './routes/analysis';
+import { cleanupAnalysis } from './services/personalAnalysis';
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
@@ -56,6 +59,8 @@ app.route('/api/search', searchRouter);
 app.route('/api/dashboard', dashboardRouter);
 app.route('/api/home-widgets', homeWidgetsRouter);
 app.route('/api/learning', learningRouter);
+app.route('/api/practice', practiceRouter);
+app.route('/api/analysis', analysisRouter);
 app.route('/api/progress-plans', studyProgressRouter);
 app.route('/api', collectionsRouter);
 app.route('/api/subscriptions', subscriptionsRouter);
@@ -98,5 +103,8 @@ app.notFound(async (c) => {
 });
 
 export default {
+  scheduled: async (_event, env) => {
+    if (env.ANALYSIS_ENABLED === 'true') for (let batch = 0; batch < 10; batch++) if (await cleanupAnalysis(env.DB) < 100) break;
+  },
   fetch: (request: Request, env: Bindings, ctx: ExecutionContext) => app.fetch(request, env, ctx),
 } satisfies ExportedHandler<Bindings>;

@@ -13,5 +13,6 @@ export interface TagResult {
 }
 
 export interface AIService {
+  analyzeLearning(input: { stats: import('../../../src/types/analysis').AnalysisStats; evidence: import('../../../src/types/analysis').AnalysisEvidence[] }): Promise<{ interpretation: unknown; model: string }>;
   tagProblem(imageBytes: ArrayBuffer, taxonomyTree: TaxonomyNode[]): Promise<TagResult | null>;
 }

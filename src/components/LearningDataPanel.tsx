@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { learningService } from '../services/learningService';
 import { useStore } from '../store/useStore';
+import { PracticeHistory } from './PracticeHistory';
 import { validateLearningData, QUESTION_TYPES } from '../types/learning';
 import type { LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
 
@@ -31,7 +32,7 @@ function AnswerInput({ label, answer, content, onChange }: {
 }
 
 /** Mounted only for the active personal question; never for a shared reader or guest. */
-export function LearningDataPanel({ questionRef }: { questionRef: PersonalQuestionRef }) {
+export function LearningDataPanel({ questionRef, onSaved }: { questionRef: PersonalQuestionRef; onSaved?: (question: LearningQuestion) => void }) {
   const account = useStore(s => s.currentUser?.id || '');
   const [current, setCurrent] = useState<LearningQuestion | null>(null);
   const [draft, setDraft] = useState<LearningData | null>(null);
@@ -55,7 +56,7 @@ export function LearningDataPanel({ questionRef }: { questionRef: PersonalQuesti
   const save = () => void run(async signal => {
     if (!current || !draft) return;
     const result = await learningService.save(draftBase || current, validateLearningData(draft), signal);
-    if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); }
+    if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); onSaved?.(result); }
   });
   const content = draft?.content;
   return <section aria-label="辨識資料" className="mb-4 rounded-2xl border border-border-subtle bg-page-bg p-4">
@@ -126,5 +127,6 @@ export function LearningDataPanel({ questionRef }: { questionRef: PersonalQuesti
     {error && <div className="mt-3 text-sm"><p role="alert">{error}</p><button type="button" disabled={busy} className={buttonClass + ' mt-2'} onClick={() => void run(async signal => {
       const result = await learningService.read(questionRef, signal); if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); }
     })}>重新載入資料</button></div>}
+    {current?.id && import.meta.env.VITE_PRACTICE_ENABLED === 'true' && <PracticeHistory questionId={current.id} />}
   </section>;
 }

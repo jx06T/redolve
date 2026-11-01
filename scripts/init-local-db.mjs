@@ -1,4 +1,5 @@
 import { learningSchemaStatus, learningMigrationPath } from './learning-schema.mjs';
+import { practiceMigrations, practiceSchemaStatus } from './practice-schema.mjs';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -52,6 +53,7 @@ const sharingSql = readFileSync(path.join(root, 'worker/migrations/0002_sharing_
 const sharingTables = [...sharingSql.matchAll(/CREATE TABLE (\w+)\s*\(/g)].map(match => match[1]);
 function missing(current) {
   return [
+    ...practiceMigrations.flatMap(file => practiceSchemaStatus(execute, file).missing.map(name => `practice.${name}`)),
     ...current.learning.missing.map(name => `learning.${name}`),
     ...['users', 'auth_sessions', 'api_keys', 'taxonomies', 'items', 'shares', 'items_fts', ...sharingTables, 'collection_item_progress', 'collection_search_versions', 'collection_search_user_versions', 'collection_search_cache_config', 'independent_shares', 'share_asset_refs', 'home_widget_items', 'home_widget_preferences','study_progress_plans','study_progress_preferences','study_progress_operations'].filter(name => !current.tables.has(name)),
     ...(!current.collections.has('allow_reshare') ? ['collections.allow_reshare'] : []),
@@ -81,6 +83,7 @@ if (pending.length === 0) {
 }
 console.log(`Missing: ${pending.join(', ')}`);
 if (checkOnly) process.exit(1);
+for (const file of practiceMigrations) { const state = practiceSchemaStatus(execute, file); if (state.present && state.missing.length) throw new Error('Partial practice schema; no changes made.'); }
 
 // 0002 is deliberately one-time. Refuse partial states instead of guessing.
 if (current.learning.present && current.learning.missing.length) throw new Error('Partial learning schema detected; no changes made.');
@@ -138,6 +141,7 @@ if (!current.tables.has('items')) {
 execute(['--file','worker/migrations/0012_study_progress.sql']);
 if(!schema().widgetPrefs.has('todo_order'))execute(['--file','worker/migrations/0013_todo_organize.sql']);
 if (schema().learning.missing.length) execute(['--file', learningMigrationPath]);
+for (const file of practiceMigrations) if (practiceSchemaStatus(execute, file).missing.length) execute(['--file', file]);
 pending = missing(schema());
 if (pending.length) throw new Error(`Local schema remains incomplete: ${pending.join(', ')}`);
 console.log('Local schema is ready. Start npm run worker:dev and npm run dev in separate terminals.');

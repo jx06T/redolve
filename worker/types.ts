@@ -19,6 +19,9 @@ export interface Bindings {
   AI_PROVIDER?: string;
   /** Enable only after 0014 has been applied. */
   LEARNING_ENABLED?: string;
+  /** Enable after 0015; recognition may remain manually retried. */
+  PRACTICE_ENABLED?: string;
+  ANALYSIS_ENABLED?: string;
   ALLOWED_ORIGINS?: string;
   ENV?: string;
   FRONTEND_URL?: string;

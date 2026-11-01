@@ -10,8 +10,10 @@ import { OfflineSyncManager } from './services/OfflineSyncManager';
 import { LegacyReaderRedirect } from './views/LegacyReaderRedirect';
 import { SharedQuestionView } from './views/SharedQuestionView';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
+import { watchPracticeSync } from './services/practiceService';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
+const PracticeAnalysisView = lazy(() => import('./views/PracticeAnalysisView').then(m => ({ default: m.PracticeAnalysisView })));
 const ProblemDetailView = lazy(() => import('./views/ProblemDetailView').then((module) => ({ default: module.ProblemDetailView })));
 const ShareView = lazy(() => import('./views/ShareView').then((module) => ({ default: module.ShareView })));
 const SettingsView = lazy(() => import('./views/SettingsView').then((module) => ({ default: module.SettingsView })));
@@ -28,6 +30,9 @@ const CollectionReaderView = lazy(() => import('./views/CollectionReaderView').t
 export default function App() {
   const { currentUser, setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
   const initialized = useRef(false);
+  useEffect(() => {
+    if (currentUser?.id && import.meta.env.VITE_PRACTICE_ENABLED === 'true') return watchPracticeSync(currentUser.id);
+  }, [currentUser?.id]);
 
   useEffect(() => {
     if (darkMode) {
@@ -128,6 +133,7 @@ export default function App() {
                 <ReaderLayout>
                     <Routes key={currentUser?.id||'guest'}>
                       <Route path="/" element={<DashboardView />} />
+                      <Route path="/practice" element={<PracticeAnalysisView />} />
                       <Route path="/study" element={<QuestionLibraryView />} />
                       <Route path="/study/:subject" element={<QuestionLibraryView />} />
                       <Route path="/study/:subject/:topic" element={<QuestionLibraryView />} />
