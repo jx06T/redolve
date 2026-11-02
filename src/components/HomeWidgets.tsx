@@ -74,12 +74,12 @@ function TodoRow({ item, state, onEditing, organize }: { item: WidgetItem; state
   };
   return <div className={'flex min-w-0 items-center gap-2 rounded-xl py-0.5 ' + (remove ? 'bg-[#F4A0A0]/15' : restore ? 'bg-[#A8C5BD]/15' : '')} data-todo-row={item.id}
     onClick={event => { if (!organize && !focused && event.target instanceof Element && event.currentTarget.contains(event.target) && !event.target.closest('button')) editor.current?.focus(); }}>
-    <button className={'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-sm tabular-nums ' + (organize?.position ? 'border-[#A8C5BD] bg-[#A8C5BD]/30 font-semibold text-text-main' : item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle')}
+    <button className={'flex shrink-0 items-center justify-center rounded-xl text-sm tabular-nums ' + (organize ? 'h-8 w-8 border ' + (organize.position ? 'border-[#A8C5BD] bg-[#A8C5BD]/30 font-semibold text-text-main' : item.completed_at !== null ? 'border-[#A8C5BD] bg-[#A8C5BD]/20 text-text-main' : 'border-border-subtle') : 'h-11 w-11')}
       type="button" role={organize ? undefined : 'checkbox'} aria-checked={organize ? undefined : item.completed_at !== null} aria-pressed={organize && item.completed_at === null ? organize.position !== null : undefined}
       aria-label={organize ? item.completed_at !== null ? '已完成：' + item.text : '排序選取：' + item.text : '完成：' + item.text}
       disabled={historical || !!organize && (item.completed_at !== null || organize.choosing)}
       onClick={() => { if (organize) organize.onSelect(); else if (!historical) state.service.update(state.channel, item.id, { completed_at: item.completed_at === null ? Date.now() : null }, { completed_at: item.completed_at }); }}>
-      {organize?.position ?? (item.completed_at !== null ? <Check size={17} /> : null)}</button>
+      {organize ? organize.position ?? (item.completed_at !== null ? <Check size={17} /> : null) : <span aria-hidden="true" className="rdv-checkbox" data-checked={item.completed_at !== null} />}</button>
     {/* Readable rows pass swipes to the panel; tapping enters the normal text editor. */}
     <input ref={editor} style={{ pointerEvents: focused ? 'auto' : 'none' }} aria-label="待辦內容" readOnly={!!organize} tabIndex={organize ? -1 : 0} maxLength={500} value={text} onChange={e => setText(e.target.value)}
       onFocus={() => { base.current = item.text; setFocused(true); onEditing(item.id); }} onBlur={save}

@@ -19,7 +19,7 @@ function AnswerInput({ label, answer, content, onChange }: {
   return <fieldset className="space-y-1"><legend className="text-xs text-text-muted">{label}</legend>
     {choice ? <>
       {!content.options.length && <p className="text-xs text-text-muted">請先補上選項，或保持空白。</p>}
-      {content.options.map(option => <label key={option.id} className="mr-3 inline-flex items-center gap-2 text-sm">
+      {content.options.map(option => <label key={option.id} className="mr-3 inline-flex min-h-11 items-center gap-2 text-sm">
         <input type={content.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={label} checked={answer?.kind === 'choice' && answer.optionIds.includes(option.id)} onChange={e => {
           const selected = answer?.kind === 'choice' ? answer.optionIds : [];
           const next = e.target.checked ? content.questionType === 'single_choice' ? [option.id] : [...selected, option.id] : selected.filter(id => id !== option.id);
