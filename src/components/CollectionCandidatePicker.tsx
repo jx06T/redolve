@@ -15,7 +15,7 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
   const [viewSelected,setViewSelected]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [profile,setProfile]=useState(false);
   const [profileDialog,setProfileDialog]=useState(false);const [adding,setAdding]=useState(false);const continueAdd=useRef(true);const abortRef=useRef<AbortController>();
   const [preview,setPreview]=useState<Candidate|null>(null);
-  const params=(next?:Cursor|null)=>{const p=new URLSearchParams({q:filter.q,topic_id:filter.topic,tag:filter.tag});
+  const params=(next?:Cursor|null)=>{const p=new URLSearchParams({q:filter.q,topic_id:filter.topic,tag:filter.tag});if(filter.tag)p.set('tag_match','contains');
     if(next){p.set('after_at',next.created_at);p.set('after_id',next.id);}return p;};
   const load=async(more=false)=>{
     abortRef.current?.abort();const abort=new AbortController();abortRef.current=abort;setBusy(true);setError('');
@@ -49,7 +49,7 @@ export function CollectionCandidatePicker({collectionId,onChanged}:{collectionId
     <form onSubmit={e=>{e.preventDefault();setFilter({q:q.trim(),topic,tag:tag.trim()});}} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <input value={q} onChange={e=>setQ(e.target.value)} aria-label="搜尋可加入原題" placeholder="搜尋原題" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
       <PersonalTopicSelect id="candidate-topic" emptyLabel="全部科目與單元" value={topic} onChange={setTopic}/>
-      <input value={tag} onChange={e=>setTag(e.target.value)} aria-label="篩選原題標籤" placeholder="標籤（完全符合）" className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
+      <input value={tag} onChange={e=>setTag(e.target.value)} aria-label="篩選原題標籤" placeholder="來源標籤（部分符合）" maxLength={80} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"/>
       <button disabled={busy} className="rounded-xl bg-primary/10 px-4 py-3 text-sm text-primary">套用搜尋與分類</button>
     </form>
     <div className="flex flex-wrap gap-3 text-xs"><button disabled={busy} onClick={()=>setSelected(p=>({...p,...Object.fromEntries(rows.map(i=>[i.id,i]))}))} className="underline text-primary">選取已載入候選</button><button disabled={busy} onClick={()=>void all()} className="underline text-primary">選取目前所有符合條件題目</button>

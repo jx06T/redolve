@@ -1,8 +1,15 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-10-17。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-11-02。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
+
+### 2026-11-02 集合管理標籤與篩選載入
+
+- 上方候選、下方已加入題目的文字標籤輸入改為部分符合；介面使用 tag_match=contains，逐一對 keywords 的字串元素作 literal substring 比對，不跨標籤匹配；ASCII 不分大小寫，%／_ 不當萬用字元。未指定此模式的 API 保留精確比對，探索／延伸題目的既有標籤語意不變。
+- 原下方每個字都使 contextKey 改變，初始化 effect 清 co、整頁卸載並重抓 transfer／grants／links／stats，連帶重建上方候選。現將集合／帳號生命週期與題目篩選分開；文字停頓 300ms 後只更新題目清單，科目切換即更新清單，成員／統計只於初次進入或明確變更後更新。
+- 保留候選勾選／搜尋條件、未儲存名稱與欄位焦點；清單局部 aria-busy／更新中。中止舊請求並驗證範圍，避免慢查詢或舊分頁追加至新篩選；篩選尚未清除完成時不允許全域排序。
+- tests/sharing-api.test.mjs：真實 Miniflare D1 部分／精確標籤、literal %／_、帳號範圍與既有分享流程。tests/collection-filters.browser.mjs：390／1280px，輸入去抖、只取清單、保留選取／草稿／焦點與 DOM 身分、過期查詢與續頁回應隔離；API 為合成資料。TypeScript、建置／SW／PWA 通過。本次不需 migration，未推送。
 
 ### 2026-10-17 手機待辦 Sort to 點擊
 

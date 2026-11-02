@@ -172,6 +172,12 @@ test('contributor live source revokes while subscriber download survives', async
       .data.items,[],'search wildcard must be treated as literal text');
     assert.equal((await call(`/api/collections/${collectionId}/candidates`,'a')).data.items.length,0,
       'owner cannot list contributor private originals');
+    const candidateTags='/api/collections/'+collectionId+'/candidates?';
+    assert.equal((await call(candidateTags+'tag=gebra','b')).data.items.length,0,'exact tag filters keep their existing meaning');
+    assert.deepEqual((await call(candidateTags+'tag=GeBrA&tag_match=contains','b')).data.items.map(i=>i.id),['second'],'candidate text tags can match part of a single keyword');
+    assert.equal((await call(candidateTags+'tag=ra-ta&tag_match=contains','b')).data.items.length,1,'matches inside the keyword, not only its prefix');
+    for(const literal of ['%','_'])assert.equal((await call(candidateTags+'tag='+encodeURIComponent(literal)+'&tag_match=contains','b')).data.items.length,0,'tag text is literal, not a wildcard');
+    assert.equal((await call(candidateTags+'tag=gebra&tag_match=contains','a')).data.items.length,0,'substring matching does not expose another contributor originals');
     const batch=await call(`/api/collections/${collectionId}/items/batch`,'b','POST',
       {item_ids:['second','source','missing']});
     assert.equal(batch.status,200,JSON.stringify(batch.data));
@@ -212,6 +218,10 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal(collectionTopic.data.items.length,1,'collection filter includes nested unit');
     assert.equal(collectionTopic.data.items[0].title,'New question');
     assert.equal((await call(`/api/collections/${collectionId}?tag=algebra-tag`,'d')).data.items.length,1);
+    const entryTags='/api/collections/'+collectionId+'?';
+    assert.equal((await call(entryTags+'tag=gebra','d')).data.items.length,0,'reader exact tag filtering is unchanged');
+    assert.equal((await call(entryTags+'tag=GeBrA&tag_match=contains','a')).data.items.length,1,'management supports substring tags before pagination');
+    for(const literal of ['%','_'])assert.equal((await call(entryTags+'tag='+encodeURIComponent(literal)+'&tag_match=contains','a')).data.items.length,0,'management tag text is literal');
     assert.equal((await call(`/api/collections/${collectionId}?state=unread`,'d')).data.items.length,1);
     assert.equal((await call('/api/subscriptions/read-all','d','POST',
       {read_all_token:'forged'})).status,409);

@@ -219,8 +219,9 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
     AND (ci.latest_add_event_seq<=sub.read_all_through_seq
     OR ci.latest_add_event_seq<=COALESCE(rd.seen_add_event_seq,0))`;
   if(tag){
+    const contains=c.req.query('tag_match')==='contains';
     filters+=` AND EXISTS(SELECT 1 FROM json_each(
-      CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE value=?)`;
+      CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE ${contains?'instr(lower(value),lower(?))>0':'value=?'})`;
     binds.push(tag);
   }
   if(hasCursor){
@@ -345,12 +346,12 @@ collectionsRouter.get('/collections/:id/candidates',authMiddleware,async c=>{
     return c.json(apiError('INVALID_CURSOR','分頁位置無效'),400);
   const binds:(string|number)[]=[uid,co.id,`%${q}%`,`%${q}%`];
   let filters='';
-  const topic=c.req.query('topic_id')||'',tag=c.req.query('tag')||'';
+  const topic=c.req.query('topic_id')||'',tag=clean(c.req.query('tag'),80);
   if(topic){filters+=` AND i.topic_id IN (WITH RECURSIVE descendants(id) AS (
     SELECT id FROM taxonomies WHERE id=? AND (user_id IS NULL OR user_id=?)
     UNION SELECT t.id FROM taxonomies t JOIN descendants d ON t.parent_id=d.id WHERE t.user_id IS NULL OR t.user_id=?
     ) SELECT id FROM descendants)`;binds.push(topic,uid,uid);}
-  if(tag){filters+=` AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE value=?)`;binds.push(tag);}
+  if(tag){const contains=c.req.query('tag_match')==='contains';filters+=` AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(i.keywords) THEN i.keywords ELSE '[]' END) WHERE ${contains?'instr(lower(value),lower(?))>0':'value=?'})`;binds.push(tag);}
   if(hasCursor)binds.push(afterAt!,afterAt!,afterId!);
   const {results}=await c.env.DB.prepare(`SELECT i.id,i.source AS title,i.created_at,
     (SELECT substr(f.problem_text,1,1600) FROM items_fts f WHERE f.id=i.id AND f.user_id=i.user_id ORDER BY f.rowid DESC LIMIT 1) AS question_text
