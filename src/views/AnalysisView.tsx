@@ -6,10 +6,12 @@ import { analysisService } from '../services/analysisService';
 import type { ReportSummary } from '../services/analysisService';
 import type { AnalysisReport, AnalysisStats, AnalysisSubjectSummary } from '../types/analysis';
 import { ANALYSIS_PERIOD_DAYS } from '../types/learning';
-import { AnalysisStatsContent, PersonalAnalysisReport } from '../components/PersonalAnalysisReport';
+import { AnalysisStatsContent, AnalysisStatsSummary, PersonalAnalysisReport } from '../components/PersonalAnalysisReport';
 import { AnalysisConversation } from '../components/AnalysisConversation';
 
-const button = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
+const control = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm disabled:opacity-40';
+const button = control + ' border-border-subtle bg-surface';
+const primaryButton = control + ' border-primary/30 bg-primary/10 text-primary-600 dark:text-primary-300';
 function Period({ value, change }: { value: number; change: (days: number) => void }) {
   return <label className="flex items-center gap-2 text-sm text-text-muted">作答觀察期間<select className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-text-main" value={value} onChange={e => change(Number(e.target.value))}>{ANALYSIS_PERIOD_DAYS.map(d => <option key={d} value={d}>近 {d} 天</option>)}</select></label>;
 }
@@ -91,7 +93,7 @@ function SubjectAnalysis({ uid, subjectId }: { uid: string; subjectId: string })
   return <>
     <header className="space-y-5"><Link to="/analysis" className="inline-flex min-h-11 items-center gap-2 text-sm text-text-muted"><ArrowLeft size={16} />各科分析</Link>
       <div className="flex flex-wrap items-end justify-between gap-4"><div><h1 className="text-2xl font-semibold">{label} · 整科分析</h1><p className="mt-3 text-sm text-text-muted">綜合題庫內容、重作紀錄與前期變化，保留每一次觀察。</p></div>
-        <div className="flex flex-wrap gap-3"><Period value={days} change={d => setParams(previous => { previous.set('days', String(d)); return previous; })} /><button className={button + ' bg-primary/10'} disabled={busy || !stats || report?.status === 'pending'} onClick={() => void run(async signal => {
+        <div className="flex flex-wrap gap-3"><Period value={days} change={d => setParams(previous => { previous.set('days', String(d)); return previous; })} /><button className={primaryButton} disabled={busy || !stats || report?.status === 'pending'} onClick={() => void run(async signal => {
           const created = await analysisService.generate({ subjectId }, days, signal); if (signal.aborted) return;
           active.current = created.id; choose(created.id); setReport(created);
           if (created.status === 'pending') await completeRun(created.id, signal);
@@ -108,11 +110,11 @@ function SubjectAnalysis({ uid, subjectId }: { uid: string; subjectId: string })
       {cursor && <button className={button} disabled={busy} onClick={() => void run(async signal => { const page = await analysisService.list({ subjectId }, undefined, cursor, signal); if (!signal.aborted) { setHistory(old => [...old, ...page.reports]); setCursor(page.nextCursor); } })}>載入更早報告</button>}
     </nav>}
     {loading && <p role="status">載入報告…</p>}
-    {report && <><PersonalAnalysisReport report={report} busy={busy} onPractice={ids => { navigate(`/practice?subject=${encodeURIComponent(subjectId)}&questions=${encodeURIComponent(ids.join(','))}`); }} onReload={() => void run(async signal => {
+    {report && <><PersonalAnalysisReport key={report.id} report={report} busy={busy} onPractice={ids => { navigate(`/practice?subject=${encodeURIComponent(subjectId)}&questions=${encodeURIComponent(ids.join(','))}`); }} onReload={() => void run(async signal => {
       if (report.status === 'pending') await completeRun(report.id, signal);
       else { const value = await analysisService.report(report.id, signal); if (!signal.aborted && active.current === value.id) setReport(value); }
     })} />{report.status === 'complete' && !report.expired && <AnalysisConversation key={uid + ':' + report.id} report={report} />}</>}
     {!report && !loading && <section className="rounded-3xl border border-border-subtle bg-surface p-6"><h2 className="font-medium">從第一份整科報告開始</h2><p className="mt-3 text-sm text-text-muted">上方選擇作答觀察期間，再按「產生整科報告」。AI 會綜合全科統計，引用相關原題說明依據。</p></section>}
-    {stats && <details className="rounded-2xl border border-border-subtle bg-surface p-5"><summary className="cursor-pointer font-medium">目前統計 · 近 {days} 天作答</summary><div className="mt-5"><AnalysisStatsContent stats={stats} /></div></details>}
+    {stats && <details key={days} className="rounded-2xl border border-border-subtle bg-surface p-5"><summary className="min-h-11 cursor-pointer rounded-xl py-2 font-medium focus-visible:outline-2 focus-visible:outline-primary">目前統計（非本報告） · 近 {days} 天作答</summary><div className="mt-4 space-y-5"><p className="text-xs leading-6 text-text-muted">這是目前題庫與選定期間的統計，下方數字不會改寫歷史報告。</p><AnalysisStatsSummary stats={stats} /><AnalysisStatsContent stats={stats} /></div></details>}
   </>;
 }
