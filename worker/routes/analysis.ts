@@ -24,7 +24,7 @@ analysisRouter.onError((e, c) => {
 });
 analysisRouter.post('/stats', async c => {
   const body = await c.req.json().catch(() => null); if (!body) throw new PracticeError(422, '請提供分析範圍');
-  return c.json((await analysisSnapshot(c.env.DB, c.get('userId'), body.scope, body.days, body.timezone)).stats);
+  return c.json((await analysisSnapshot(c.env.DB, c.get('userId'), body.scope, body.days, body.timezone, undefined, false)).stats);
 });
 analysisRouter.post('/reports', async c => {
   const body = await c.req.json().catch(() => null); if (!body) throw new PracticeError(422, '請提供分析範圍');

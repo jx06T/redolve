@@ -7,12 +7,12 @@ import { buildAnalysisContext } from './analysisContext';
 
 interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string; received_at: string; root_id?: string; root_received_at?: string }
 export interface CycleWindow { from: string; cutoff: string; boundaryIds: string[] }
-export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', window?: CycleWindow) {
+export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', window?: CycleWindow, includeComparison = true) {
   if (!window && !ANALYSIS_PERIOD_DAYS.some(d => d === days)) throw new PracticeError(422, '請選擇 7、15、30、60 或 90 天');
   let dateFormatter: Intl.DateTimeFormat;
   try { dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }); }
   catch { throw new PracticeError(422, '時區不正確'); }
-  const topics = await scopeTopics(db, uid, scope), cutoff = window?.cutoff || new Date().toISOString(), from = window?.from || new Date(Date.now() - days * 86400000).toISOString(), previousFrom = window ? from : new Date(Date.parse(from) - days * 86400000).toISOString();
+  const topics = await scopeTopics(db, uid, scope), cutoff = window?.cutoff || new Date().toISOString(), from = window?.from || new Date(Date.now() - days * 86400000).toISOString(), previousFrom = window || !includeComparison ? from : new Date(Date.parse(from) - days * 86400000).toISOString();
   const results = await db.batch([
     scopeStatement(db, uid, topics.ids, true, 2001),
     db.prepare(`SELECT p.id,p.learning_question_id,p.result,p.grading_method,p.used_original_image,p.answered_at,p.received_at,sc.topicId
@@ -23,9 +23,9 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
         WHERE s.user_id=? AND s.personal_topic_id IN (SELECT value FROM json_each(?))) sc
       CROSS JOIN practice_attempts p INDEXED BY ${window ? 'idx_practice_received' : 'idx_practice_latest'}
       ${window ? 'JOIN practice_attempts root ON root.user_id=p.user_id AND root.session_item_id=p.session_item_id AND root.supersedes_attempt_id IS NULL' : ''}
-      WHERE p.user_id=? AND p.learning_question_id=sc.id AND ${window ? 'p.received_at' : 'p.answered_at'}>=? AND ${window ? 'p.received_at' : 'p.answered_at'}<=? AND p.received_at<=? AND p.voided_at IS NULL
+      WHERE p.user_id=? AND p.learning_question_id=sc.id AND ${window ? 'p.received_at' : 'p.answered_at'}>=? AND ${window ? 'p.received_at' : 'p.answered_at'}<=? AND p.received_at<=? AND ${window ? '(p.voided_at IS NULL OR p.voided_at>?)' : 'p.voided_at IS NULL'}
       ORDER BY p.answered_at,p.received_at,p.id LIMIT 20001`)
-      .bind(uid, JSON.stringify(topics.ids), uid, JSON.stringify(topics.ids), uid, previousFrom, cutoff, cutoff),
+      .bind(uid, JSON.stringify(topics.ids), uid, JSON.stringify(topics.ids), uid, previousFrom, cutoff, cutoff, ...(window ? [cutoff] : [])),
   ]);
   const questions = results[0].results as unknown as ScopeQuestion[];
   const boundary = new Set(window?.boundaryIds || []);
@@ -68,7 +68,7 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
     self: events.filter(e => e.grading_method === 'self').length, viewedImage: events.filter(e => e.used_original_image).length,
     repeatedQuestions: repeated.length, changedToCorrect: repeated.filter(es => es[0].result === 'incorrect' && es.at(-1)!.result === 'correct').length,
     changedToIncorrect: repeated.filter(es => es[0].result === 'correct' && es.at(-1)!.result === 'incorrect').length, units: units.filter(u => u.questions || u.attempts) };
-  if (window) delete stats.comparison;
+  if (window || !includeComparison) delete stats.comparison;
   return { stats, questions, events, byQuestion, previous, contextEvents: allEvents };
 }
 export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pick<Awaited<ReturnType<typeof analysisSnapshot>>, 'stats' | 'questions' | 'byQuestion'>, selectedIds?: string[], counts?: Map<string, { attempts: number; correct: number }>, frozenAttemptIds?: string[]) {

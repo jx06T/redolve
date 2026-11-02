@@ -9,18 +9,19 @@ const tableClass = 'w-full text-left text-sm [&_th]:pb-3 [&_th]:font-medium [&_t
 export function AnalysisStatsSummary({ stats }: { stats: AnalysisStats }) {
   return <div className="space-y-3">
     <dl className="grid grid-cols-3 divide-x divide-border-subtle rounded-2xl bg-page-bg/70 py-4">
-      {[['個人題目', stats.questions], ['期間作答', stats.attempts], ['重作答對', stats.attempts ? `${stats.correct}／${stats.attempts}` : '—']].map(([label, value]) =>
+      {[['題庫總數', stats.questions], [stats.cycle ? '階段新增作答' : `近 ${stats.days} 天作答`, stats.attempts], ['重作答對', stats.attempts ? `${stats.correct}／${stats.attempts}` : '—']].map(([label, value]) =>
         <div key={label} className="min-w-0 px-3 sm:px-5"><dt className="text-xs text-text-muted">{label}</dt><dd className="mt-2 break-words text-xl font-semibold tabular-nums sm:text-2xl">{value}</dd></div>)}
     </dl>
-    {!stats.attempts && <p className="text-sm text-text-muted">尚無重作紀錄，本次只解讀題目內容與分布，不推論進步或退步。</p>}
+    {!stats.attempts && <p className="text-sm text-text-muted">{stats.cycle ? '此階段尚無新增重作紀錄' : '所選天數內尚無重作紀錄'}，無法據此判斷進步或退步。</p>}
   </div>;
 }
 
 /** Detailed statistics are rendered once, below the report's interpretation. */
-export function AnalysisStatsContent({ stats }: { stats: AnalysisStats }) {
-  const comparison = stats.comparison;
+export function AnalysisStatsContent({ stats, showComparison = true }: { stats: AnalysisStats; showComparison?: boolean }) {
+  const comparison = showComparison ? stats.comparison : undefined;
   return <div className="space-y-6">
-    <p className="text-xs leading-6 text-text-muted">作答期間 {new Date(stats.from).toLocaleDateString()} 至 {new Date(stats.cutoff).toLocaleString()}；題庫包含較早收錄的題目。</p>
+    <p className="text-xs leading-6 text-text-muted">{stats.cycle ? '資料接收範圍' : '作答時間範圍'} {new Date(stats.from).toLocaleDateString()} 至 {new Date(stats.cutoff).toLocaleString()}；題庫總數包含範圍外收錄的題目。</p>
+    {stats.cycle && <p className="text-sm leading-7">{stats.cycle.kind === 'baseline' ? '首次基準' : '自上份總結後'}：新增題目 {stats.cycle.changes.newQuestions} 題、學習資料更新 {stats.cycle.changes.updatedQuestions} 題、新作答 {stats.cycle.changes.newAttempts} 次、結果更正 {stats.cycle.changes.correctedAttempts} 次。結果更正不算新增練習。</p>}
     <section aria-label="作答變化" className="space-y-3">
       <h3 className="font-medium">作答變化</h3>
       {comparison ? <>
@@ -35,7 +36,7 @@ export function AnalysisStatsContent({ stats }: { stats: AnalysisStats }) {
             <tr><td>兩期同題答對／作答<br /><span className="text-xs text-text-muted">共 {comparison.matchedQuestions} 題</span></td><td>{comparison.previousMatchedCorrect}／{comparison.previousMatchedAttempts}</td><td>{comparison.currentMatchedCorrect}／{comparison.currentMatchedAttempts}</td></tr>
           </tbody>
         </table></div>
-      </> : <p className="text-sm text-text-muted">這份報告沒有前期比較資料。</p>}
+      </> : null}
       {!!stats.repeatedQuestions && <p className="text-sm leading-7">期間內同題重作至少兩次：{stats.repeatedQuestions} 題；首次錯、末次對 {stats.changedToCorrect} 題，首次對、末次錯 {stats.changedToIncorrect} 題。</p>}
       <p className="text-xs leading-6 text-text-muted">以上反映產品中的重作結果；不同題目組合、自評或查看原圖都可能影響表現，不能當作整科能力分數。</p>
     </section>
@@ -67,7 +68,7 @@ export function AnalysisStatsContent({ stats }: { stats: AnalysisStats }) {
     <section aria-label="每日紀錄" className="space-y-3 border-t border-border-subtle pt-6">
       <h3 className="font-medium">每日紀錄</h3>
       {stats.daily?.length ? <div className="overflow-x-auto"><table className={tableClass}>
-        <caption className="pb-3 text-left text-xs text-text-muted">依 {stats.timezone || 'UTC'} 分日；不同日期的題目組合可能不同。</caption>
+        <caption className="pb-3 text-left text-xs text-text-muted">依 {stats.timezone || 'UTC'} 的{stats.cycle ? '原始作答接收日' : '作答日'}分日；不同日期的題目組合可能不同。</caption>
         <thead><tr><th>日期</th><th>答對／作答</th><th>自動／自評</th></tr></thead>
         <tbody className="divide-y divide-border-subtle">{stats.daily.map(point => <tr key={point.date}><td className="whitespace-nowrap">{point.date}</td><td>{point.correct}／{point.attempts}</td><td>{point.automatic}／{point.self}</td></tr>)}</tbody>
       </table></div> : <p className="text-sm text-text-muted">這份統計沒有每日明細。</p>}
@@ -82,14 +83,14 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
   return <section className="space-y-7 rounded-3xl border border-border-subtle bg-surface p-5 md:p-7" aria-label="分析報告">
     <section aria-label="報告總覽" className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div><h2 className="text-lg font-semibold">報告總覽</h2><p className="mt-1 text-xs text-text-muted">近 {report.stats.days} 天作答觀察</p></div>
+        <div><h2 className="text-lg font-semibold">{report.stats.cycle?.kind === 'baseline' ? '首次學習基準' : report.stats.cycle ? '階段總結' : '報告總覽'}</h2><p className="mt-1 text-xs leading-6 text-text-muted">{report.stats.cycle ? `${report.stats.cycle.kind === 'baseline' ? '截至' : `自 ${new Date(report.stats.from).toLocaleDateString()} 至`} ${new Date(report.stats.cutoff).toLocaleString()}` : `舊版報告 · 近 ${report.stats.days} 天作答觀察`}</p></div>
         <time dateTime={report.createdAt} className="text-xs text-text-muted">{new Date(report.createdAt).toLocaleString()}</time>
       </header>
       <AnalysisStatsSummary stats={report.stats} />
       {report.status === 'pending' && <p role="status" className="text-sm text-text-muted">正在產生解讀，完成後顯示在這裡…</p>}
       {report.error && <p role="alert" className="text-sm">{report.error}</p>}
-      {report.status === 'failed' && <p className="text-sm text-text-muted">這份統計仍保留。可用上方「產生整科報告」手動重試。</p>}
-      {(report.status === 'pending' || report.status === 'failed') && <button className={button} disabled={busy} onClick={onReload}>{report.status === 'pending' ? '繼續／重新載入報告' : '重新載入這份報告'}</button>}
+      {report.status === 'failed' && !report.expired && <p className="text-sm text-text-muted">這份統計仍保留，可按下方按鈕沿用原資料重試。</p>}
+      {!report.expired && (report.status === 'pending' || report.status === 'failed') && <button className={button} disabled={busy} onClick={onReload}>{report.status === 'pending' ? '繼續／重新載入報告' : '重試這份報告'}</button>}
       {report.interpretation?.overview && !report.expired && <div className="rounded-2xl bg-primary/5 px-4 py-3"><ExpandableAnalysisText text={report.interpretation.overview} /></div>}
       {report.expired && <p className="text-sm text-text-muted">詳細解讀已到期，保留當時的數字摘要。</p>}
     </section>

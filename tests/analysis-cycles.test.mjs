@@ -71,6 +71,8 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
     await t.test('new work, late offline work and corrected outcomes have separate counts', async () => {
       const correction = { ...original, id: 'replacement', revisionId: q.revisionId, supersedesAttemptId: original.id, selfResult: 'correct' };
       await practice.submitAttempt(db, 'alice', correction);
+      const asOfBaseline = await analysis.analysisSnapshot(db, 'alice', scope, 30, 'UTC', { from: '1970-01-01T00:00:00.000Z', cutoff: baseline.stats.cutoff, boundaryIds: [] });
+      assert.equal(asOfBaseline.events[0].id, original.id, 'a later correction must not remove work effective at the cutoff');
       assert.equal((await cycles.analysisEligibility(db, 'alice', scope)).changes.newAttempts, 0);
       await practice.submitAttempt(db, 'alice', attempt(saved, 'late-offline'));
       const changed = data(); changed.personal.errorReasons = [{ text: '忽略條件', origin: 'ai', accepted: true }]; changed.personal.correctionSummary = '訂正時補上條件';
@@ -133,6 +135,15 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
       const status = await cycles.analysisEligibility(db, 'alice', { subjectId: 'legacy' });
       assert.equal(status.reason, 'no_changes'); assert.equal(status.latestReportId, legacy.id);
       assert.equal((await cycles.beginCycleAnalysis(db, 'alice', { subjectId: 'legacy' })).id, legacy.id);
+    });
+    await t.test('moving the same material to another subject cannot reuse a foreign-scope hash', async () => {
+      await sql(`INSERT INTO taxonomies(id,label,level) VALUES('stage-a','甲科',0),('stage-b','乙科',0);
+        INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES('relocate','alice','image','unsolved','stage-a');`);
+      await save({ kind: 'owned', itemId: 'relocate' }, data());
+      const first = await cycles.beginCycleAnalysis(db, 'alice', { subjectId: 'stage-a' }); await context.runAnalysis(db, 'alice', first.id, ai);
+      await db.exec("UPDATE items SET topic_id='stage-b' WHERE id='relocate'");
+      const second = await cycles.beginCycleAnalysis(db, 'alice', { subjectId: 'stage-b' });
+      assert.notEqual(first.id, second.id); assert.equal((await analysis.getAnalysis(db, 'alice', second.id)).stats.scope.subjectId, 'stage-b');
     });
     await t.test('indexed eligibility reads do not grow with unrelated attempt history', async () => {
       const noise = await save({ kind: 'owned', itemId: 'noise' }, data());

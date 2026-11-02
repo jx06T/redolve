@@ -115,8 +115,10 @@ test('practice submissions, corrections, analysis snapshots and private retentio
         SELECT 'previous-period',user_id,learning_question_id,revision_id,'prior','prior',answer_json,result,grading_method,grading_basis_json,?,?,?,'UTC','client',0,'prior'
         FROM practice_attempts WHERE id=?`).bind(prior,prior,prior,replacement.id).run();
       const numeric=(await call('/analysis/stats','alice','POST',{scope:{subjectId:'math'},days:30})).data;
-      assert.equal(numeric.comparison.attempts,1);assert.equal(numeric.comparison.matchedQuestions,1);
-      assert.ok(numeric.comparison.currentMatchedAttempts>=2);assert.equal(numeric.comparison.previousMatchedAttempts,1);
+      assert.equal(numeric.comparison,undefined,'latest statistics read only the selected interval');
+      const legacyStats=(await analysis.analysisSnapshot(db,'alice',{subjectId:'math'},30)).stats;
+      assert.equal(legacyStats.comparison.attempts,1);assert.equal(legacyStats.comparison.matchedQuestions,1);
+      assert.ok(legacyStats.comparison.currentMatchedAttempts>=2);assert.equal(legacyStats.comparison.previousMatchedAttempts,1);
       const calls=providerRequests.length,overview=await call('/analysis/overview?days=30');
       assert.equal(providerRequests.length,calls,'overview does not call AI');
       assert.equal(overview.data.subjects.find(s=>s.id==='math').questions,4);assert.equal(overview.data.subjects.find(s=>s.id==='math').attempts,numeric.attempts);

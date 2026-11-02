@@ -863,4 +863,3 @@ CREATE TABLE analysis_report_cycles (
 );
 CREATE INDEX idx_analysis_completed_subject ON analysis_reports(user_id,subject_id,created_at DESC,id DESC) WHERE status='complete' AND topic_id IS NULL;
 CREATE INDEX idx_practice_received ON practice_attempts(user_id,learning_question_id,received_at,id);
-

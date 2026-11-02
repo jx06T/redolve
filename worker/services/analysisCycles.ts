@@ -11,6 +11,7 @@ interface State { last_report_id: string | null; last_cutoff_at: string | null; 
 const materials = (questions: ScopeQuestion[]): Material[] => questions.map(q => ({ key: q.itemId ? `owned:${q.itemId}` : `saved:${q.savedRefId}`, id: q.id, revisionId: q.revisionId, prepared: q.prepared }));
 
 async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
+  if (!scope || typeof scope.subjectId !== 'string' || !scope.subjectId || scope.subjectId.length > 200) throw new PracticeError(422, '請選擇科目');
   if (scope?.topicId) throw new PracticeError(422, '分析以整科為單位');
   const subject = await db.prepare('SELECT id FROM taxonomies WHERE id=? AND parent_id IS NULL AND (user_id IS NULL OR user_id=?)').bind(scope?.subjectId || '', uid).first();
   if (!subject) throw new PracticeError(422, '請選擇科目');
@@ -55,8 +56,8 @@ async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
     FROM (SELECT p.learning_question_id,p.supersedes_attempt_id FROM json_each(?) j CROSS JOIN practice_attempts p INDEXED BY idx_practice_received
     WHERE p.user_id=? AND p.learning_question_id=j.value AND p.received_at>=? AND p.received_at<=?
       AND (p.received_at>? OR p.id NOT IN (SELECT value FROM json_each(?)))
-      AND (p.supersedes_attempt_id IS NULL OR p.voided_at IS NULL) LIMIT 20001) p GROUP BY learning_question_id`)
-    .bind(JSON.stringify(questionIds), uid, from, cutoff, from, state.boundary_json).all<{ id: string; newAttempts: number; correctedAttempts: number }>()).results : [];
+      AND (p.supersedes_attempt_id IS NULL OR p.voided_at IS NULL OR p.voided_at>?) LIMIT 20001) p GROUP BY learning_question_id`)
+    .bind(JSON.stringify(questionIds), uid, from, cutoff, from, state.boundary_json, cutoff).all<{ id: string; newAttempts: number; correctedAttempts: number }>()).results : [];
   const changes = { newQuestions: newQuestions.length, updatedQuestions: changed.length,
     newAttempts: receipts.reduce((n, row) => n + row.newAttempts, 0), correctedAttempts: receipts.reduce((n, row) => n + row.correctedAttempts, 0) };
   if (changes.newAttempts + changes.correctedAttempts > 20000) throw new PracticeError(422, '此階段作答資料超過分析上限，請聯絡管理員協助處理');
@@ -99,7 +100,7 @@ export async function beginCycleAnalysis(db: D1Database, uid: string, scope: Pra
     changes: { newQuestionIds: inspected.newIds, updatedQuestionIds: inspected.changedIds, practicedQuestionIds: inspected.receiptIds } });
   const material = materials(snapshot.questions);
   const boundary = [...new Set(snapshot.contextEvents.flatMap(e => [...(e.received_at === cutoff ? [e.id] : []), ...(e.root_received_at === cutoff ? [e.root_id!] : [])]))];
-  const hash = await digest({ stage: state.last_cutoff_at || 'initial', material, attempts: context.attemptIds, timezone, model, prompt: 'subject-cycle-v1' });
+  const hash = await digest({ subjectId: scope.subjectId, stage: state.last_cutoff_at || 'initial', material, attempts: context.attemptIds, timezone, model, prompt: 'subject-cycle-v1' });
   const id = crypto.randomUUID(), expires = new Date(Date.now() + 90 * 86400000).toISOString(), lease = new Date(Date.now() + 240000).toISOString();
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO analysis_subject_state(user_id,subject_id,last_report_id,last_cutoff_at,last_completed_at,material_json,boundary_json)
