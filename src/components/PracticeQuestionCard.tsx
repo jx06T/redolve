@@ -94,12 +94,12 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
       <p className="whitespace-pre-wrap text-base leading-relaxed">{displayContent.ocrText}</p>
       {choice ? <fieldset disabled={revealed || busy} className="space-y-2"><legend className="sr-only">本次作答</legend>
-        {displayContent.options.map(o => <label key={o.id} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
-          <input type={displayContent.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={question.sessionItemId} className="mt-1"
+        {displayContent.options.map(o => <label key={o.id} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3 leading-6">
+          <input type={displayContent.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={question.sessionItemId} className="m-0"
             checked={answer?.kind === 'choice' && answer.optionIds.includes(o.id)} onChange={e => {
               const previous = answer?.kind === 'choice' ? answer.optionIds : [];
               setAnswer({ kind: 'choice', optionIds: displayContent.questionType === 'single_choice' ? [o.id] : e.target.checked ? [...previous, o.id] : previous.filter(id => id !== o.id) });
-            }} /><span className="whitespace-pre-wrap">{o.label}　{o.text}</span>
+            }} /><span className="min-w-0 whitespace-pre-wrap break-words">{o.label}　{o.text}</span>
         </label>)}
       </fieldset> : <label className="block text-sm">本次答案（也可在草稿作答）<textarea disabled={revealed || busy} maxLength={16000} rows={3}
         value={answer?.kind === 'text' ? answer.text : ''} onChange={e => setAnswer(e.target.value ? { kind: 'text', text: e.target.value } : null)}
