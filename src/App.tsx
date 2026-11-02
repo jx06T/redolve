@@ -13,6 +13,7 @@ import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { watchPracticeSync } from './services/practiceService';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
+const AnalysisView = lazy(() => import('./views/AnalysisView').then(m => ({ default: m.AnalysisView })));
 const PracticeAnalysisView = lazy(() => import('./views/PracticeAnalysisView').then(m => ({ default: m.PracticeAnalysisView })));
 const ProblemDetailView = lazy(() => import('./views/ProblemDetailView').then((module) => ({ default: module.ProblemDetailView })));
 const ShareView = lazy(() => import('./views/ShareView').then((module) => ({ default: module.ShareView })));
@@ -134,6 +135,8 @@ export default function App() {
                     <Routes key={currentUser?.id||'guest'}>
                       <Route path="/" element={<DashboardView />} />
                       <Route path="/practice" element={<PracticeAnalysisView />} />
+                      <Route path="/analysis" element={<AnalysisView />} />
+                      <Route path="/analysis/:subjectId" element={<AnalysisView />} />
                       <Route path="/study" element={<QuestionLibraryView />} />
                       <Route path="/study/:subject" element={<QuestionLibraryView />} />
                       <Route path="/study/:subject/:topic" element={<QuestionLibraryView />} />

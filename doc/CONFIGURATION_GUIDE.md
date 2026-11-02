@@ -41,6 +41,8 @@ wrangler secret put ADMIN_EMAILS
 
 ### 本地開發
 
+整科報告／追問預設使用獨立 `gemini-3.1-pro-preview`，可由 Worker 的 `GEMINI_ANALYSIS_MODEL` 覆寫，一般圖片辨識維持原設定。最新範圍及 0017 migration 見 [整科分析紀錄](./PERSONAL_ANALYSIS_GLOBAL_2026-11-02.md)。
+
 個人辨識／抽題／分析功能的 migration 與開關另見 [本地試用與資料庫遷移](./PERSONAL_PRACTICE_LOCAL_RUN_2026-11-01.md)。切換 Git 分支不會自動遷移 D1，也不會隔離資料庫。
 
 本地 `wrangler dev` 使用 `.wrangler/state` 下的 D1、R2、KV；正式資料庫套用過 migration 不會更新本地資料庫。本地 `no such table: collections`／`saved_refs` 代表缺少分享 schema。

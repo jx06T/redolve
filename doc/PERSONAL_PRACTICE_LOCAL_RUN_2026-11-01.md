@@ -1,8 +1,8 @@
 # 個人練習與分析：本地試用與資料庫遷移
 
-日期：2026-11-01。分支：`codex/personal-analysis-foundation`。
+日期：2026-11-02 更新。分支：`codex/personal-analysis-foundation`。
 
-最新辨識彈窗、React 更新循環修復與 AI 分析符合性驗證見 [修正紀錄](./PERSONAL_ANALYSIS_ALIGNMENT_2026-11-01.md)。這批修正沒有新增 migration，已套用 0014～0016 者不用再次遷移。
+最新辨識彈窗、React 更新循環修復與 AI 分析符合性驗證見 [修正紀錄](./PERSONAL_ANALYSIS_ALIGNMENT_2026-11-01.md)。2026-11-02 的整科報告與追問另新增 0017；已套用 0014～0016 者仍需補 0017，見 [最新功能紀錄](./PERSONAL_ANALYSIS_GLOBAL_2026-11-02.md)。
 
 目前可在本地試用辨識資料修改、原題抽題、逐次作答紀錄、科目統計與手動產生分析。Queue／辨識自動重試依使用者決策延後；原圖倍率仍是 1.25／1.5／2 倍可切換的試用原型，初值 1.5 倍尚未核定為正式設計。
 
@@ -28,7 +28,7 @@ node scripts/apply-practice-schema.mjs --target=local --apply
 node scripts/init-local-db.mjs --check
 ```
 
-這兩支腳本依序套用：0014 辨識資料與版本、0015 作答事件、0016 個人報告。完整套用會跳過，不需重跑整份 `worker/schema.sql`，也不使用已撤回的 0011。`--apply` 改成 `--check` 可先唯讀檢查。
+這兩支腳本依序套用：0014 辨識資料與版本、0015 作答事件、0016 個人報告、0017 報告目錄與追問。完整套用會跳過，不需重跑整份 `worker/schema.sql`，也不使用已撤回的 0011。`--apply` 改成 `--check` 可先唯讀檢查。
 
 ## 2. 舊題文字（選用）
 
@@ -60,7 +60,7 @@ PRACTICE_ENABLED=true
 ANALYSIS_ENABLED=true
 ```
 
-`.env.local` 與 `.dev.vars` 均已被 Git 忽略。AI 辨識／報告另需 `.dev.vars` 內有效的 `GEMINI_API_KEY`；登入沿用現有 `JWT_SECRET`、Google OAuth 設定。本地 Google callback 應含 `http://localhost:3000/api/auth/callback/google`，詳見配置指南。
+`.env.local` 與 `.dev.vars` 均已被 Git 忽略。整科報告與追問預設使用 `gemini-3.1-pro-preview`，可用後端 `GEMINI_ANALYSIS_MODEL` 覆寫；一般題目辨識維持原設定。AI 辨識／報告另需 `.dev.vars` 內有效的 `GEMINI_API_KEY`；登入沿用現有 `JWT_SECRET`、Google OAuth 設定。本地 Google callback 應含 `http://localhost:3000/api/auth/callback/google`，詳見配置指南。
 
 分別開兩個終端機：
 
@@ -72,13 +72,13 @@ node node_modules/wrangler/bin/wrangler.js dev --local --persist-to .wrangler/st
 node node_modules/vite/bin/vite.js
 ```
 
-開啟 `http://localhost:3000/practice#practice`，登入後選科目。分析切至 `#analysis`。修改環境檔後重啟兩個開發程序。只開前端不會同時啟動 API；直接開 8787 則使用既有 `dist`，未重新建置時不會反映前端新開關。
+開啟 `http://localhost:3000/analysis` 查看各科總覽，點科目進入歷次報告與追問；`http://localhost:3000/practice` 為獨立原題練習頁，首頁也提供入口。修改環境檔後重啟兩個開發程序。只開前端不會同時啟動 API；直接開 8787 則使用既有 `dist`，未重新建置時不會反映前端新開關。
 
-目前資料量保護：抽題使用至多 500 個候選；分析單次至多 2,000 題、10,000 筆有效期間事件，超限要求縮小範圍。AI 解讀最多取 30 個代表題，並限制輸入大小；解讀項目依有效資料量提供，不固定三項。統計使用全部範圍內題目，不能把代表題數視為全部題數。
+目前資料量保護：抽題使用至多 500 個候選；整科分析單次至多 2,000 題、本期與前期各 10,000 筆有效事件，超限要求縮短期間或提示題庫上限。AI 先讀全科可用題文目錄，再挑最多 30 題深讀並限制輸入大小；解讀項目依有效資料量提供，不固定三項。統計使用全部範圍內題目，不能把代表題數視為全部題數。
 
 ## 4. 正式 D1 與預覽環境
 
-`--target=local` 只處理本地；不會升級 Cloudflare 上的 D1。正式發布時應先對正確環境核對 schema，再依序套用 0014、0015、0016：
+`--target=local` 只處理本地；不會升級 Cloudflare 上的 D1。正式發布時應先對正確環境核對 schema，再依序套用 0014、0015、0016、0017：
 
 ```powershell
 node scripts/apply-learning-schema.mjs --target=remote --check
@@ -96,4 +96,4 @@ Cloudflare 預覽網址還需要對應的 Worker API、三個後端開關，以�
 
 已重新通過 TypeScript 檢查，以及 `tests/learning-foundation.test.mjs`、`tests/practice-analysis.test.mjs` 共 18 項測試；涵蓋權限、版本、判分、更正、事件去重、統計與報告刪除／到期。測試使用暫存 Miniflare 資料庫。
 
-瀏覽器先前以模擬 API 驗證同題兩筆離線提交不互相覆蓋、切帳號不送出前帳號資料、切回後兩筆同步。這不等於已完成整站真實模型或 iPad 實機驗收；真實 Gemini schema／模型可用性與品質仍需本地帶實際設定驗證。可以先試用，尚未宣布正式上線。
+瀏覽器先前以模擬 API 驗證同題兩筆離線提交不互相覆蓋、切帳號不送出前帳號資料、切回後兩筆同步。這不等於已完成整站真實模型或 iPad 實機驗收；2026-11-02 已用人造題實際驗證 Gemini 3.1 Pro 的選題與報告格式，實際題庫品質仍需驗收。可以先試用，尚未宣布正式上線。
