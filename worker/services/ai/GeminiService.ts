@@ -44,6 +44,8 @@ const CANDIDATE_MODELS = [
 
 export class GeminiService implements AIService {
   private analysis: GeminiAnalysis;
+  private correction: GeminiAnalysis;
+  recognizeCorrection(image: ArrayBuffer, input: Parameters<AIService['recognizeCorrection']>[1]) { return this.correction.correction(image, input); }
   selectAnalysisQuestions(input: Parameters<AIService['selectAnalysisQuestions']>[0]) { return this.analysis.select(input); }
   analyzeLearning(input: Parameters<AIService['analyzeLearning']>[0]) { return this.analysis.report(input); }
   followupLearning(input: Parameters<AIService['followupLearning']>[0]) { return this.analysis.followup(input); }
@@ -51,10 +53,11 @@ export class GeminiService implements AIService {
   private preferredModel: string;
   private aiClient: GoogleGenAI | null = null;
 
-  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite', analysisModel = 'gemini-3.1-pro-preview') {
+  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite', analysisModel = 'gemini-3.1-pro-preview', correctionModel = 'gemini-3.1-pro-preview') {
     this.apiKey = apiKey;
     this.preferredModel = modelName;
     this.analysis = new GeminiAnalysis(apiKey, analysisModel);
+    this.correction = new GeminiAnalysis(apiKey, correctionModel);
     if (apiKey) {
       try {
         this.aiClient = new GoogleGenAI({ apiKey, httpOptions: { timeout: 20000, retryOptions: { attempts: 1 } } });

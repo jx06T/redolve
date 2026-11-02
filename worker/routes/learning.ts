@@ -5,6 +5,8 @@ import { authMiddleware } from '../middleware/auth';
 import { createAIService } from '../services/ai';
 import { LearningError, confirmLearningQuestion, learningSource, parsePersonalRef, readLearningQuestion, saveLearningQuestion } from '../services/learningQuestions';
 import { normalizeRecognition } from '../../src/types/learning';
+import { recognizeCorrection } from '../services/correctionRecognition';
+import { aiResponse } from '../services/aiResponse';
 
 export const learningRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 learningRouter.use('*', authMiddleware);
@@ -12,7 +14,7 @@ learningRouter.use('*', async (c, next) => {
   if (c.env.LEARNING_ENABLED !== 'true') return c.json({ error: { code: 'FEATURE_DISABLED', message: '辨識資料功能尚未開放' } }, 404);
   return next();
 });
-learningRouter.use('*', bodyLimit({ maxSize: 160000 }));
+learningRouter.use('*', bodyLimit({ maxSize: 2200000 }));
 learningRouter.onError((error, c) => {
   if (error instanceof LearningError) return c.json({ error: { code: error.code, message: error.message } }, error.status);
   console.error('[Learning] Request failed', { name: error.name });
@@ -27,7 +29,22 @@ learningRouter.patch('/:kind/:id', async c => {
   const body = await c.req.json().catch(() => null);
   if (!body || typeof body !== 'object') throw new LearningError(422, 'INVALID_DATA', '請提供題目資料');
   return c.json(await saveLearningQuestion(c.env.DB, c.get('userId'), refFromPath(c.req.param('kind'), c.req.param('id')),
-    { expectedRowVersion: body.expectedRowVersion, expectedSourceVersion: body.expectedSourceVersion, data: body.data }, 'user'));
+    { expectedRowVersion: body.expectedRowVersion, expectedSourceVersion: body.expectedSourceVersion, data: body.data, correctionId: body.correctionId }, 'user'));
+});
+
+learningRouter.post('/:kind/:id/correction', async c => {
+  const uid = c.get('userId'), ref = refFromPath(c.req.param('kind'), c.req.param('id'));
+  await learningSource(c.env.DB, uid, ref);
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: { code: 'AI_UNAVAILABLE', message: '目前無法使用 AI，訂正資料保持不變' } }, 503);
+  if (!c.env.UPLOAD_LIMITER || !(await c.env.UPLOAD_LIMITER.limit({ key: `correction:${uid}` })).success)
+    return c.json({ error: { code: 'RATE_LIMITED', message: '請稍後再試，訂正資料保持不變' } }, 429);
+  const form = await c.req.formData(), image = form.get('image'), sourceIdentity = form.get('sourceIdentity'), notes = form.get('notes') || '';
+  if (!(image instanceof File) || image.type !== 'image/jpeg' || image.size > 2000000 || image.size < 3 ||
+    typeof sourceIdentity !== 'string' || !sourceIdentity || sourceIdentity.length > 200 || typeof notes !== 'string' || notes.length > 64000)
+    throw new LearningError(422, 'INVALID_DATA', '請提供有效的合成圖片與訂正筆記');
+  const bytes = await image.arrayBuffer(), header = new Uint8Array(bytes);
+  if (header[0] !== 255 || header[1] !== 216 || header[2] !== 255) throw new LearningError(422, 'INVALID_DATA', '合成圖片須為 JPEG');
+  return aiResponse(c, () => recognizeCorrection(c.env.DB, uid, ref, { image: bytes, sourceIdentity, notes, force: form.get('force') === 'true', model: c.env.GEMINI_CORRECTION_MODEL?.trim() }, createAIService(c.env)));
 });
 
 learningRouter.post('/:kind/:id/confirm', async c => {

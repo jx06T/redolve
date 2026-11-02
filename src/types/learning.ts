@@ -14,7 +14,8 @@ export interface LearningContent {
 }
 export interface LearningPersonal {
   originalAnswer: LearningAnswer;
-  errorReasons: { text: string; origin: 'ai' | 'user' }[];
+  errorReasons: { text: string; origin: 'ai' | 'user'; accepted?: boolean }[];
+  correctionSummary?: string;
 }
 export interface LearningData {
   content: LearningContent;
@@ -29,6 +30,11 @@ export interface LearningQuestion extends LearningData {
   confirmationStatus: 'ai' | 'confirmed';
   /** Retained saved source changed; personal data stays on its existing revision. */
   sourceUpdated?: boolean;
+  correction?: CorrectionRecognition;
+}
+export interface CorrectionRecognition {
+  id: string; status: 'pending' | 'complete' | 'failed'; data: LearningData | null;
+  baseRowVersion: number; sourceVersion: string; adopted: boolean; stale: boolean; error: string | null; createdAt: string;
 }
 
 export const emptyLearningData = (): LearningData => ({
@@ -83,9 +89,11 @@ export function validateLearningData(value: unknown): LearningData {
     personal: { originalAnswer: answer(p.originalAnswer, false), errorReasons: p.errorReasons.map(value => {
       const r = object(value);
       if (r.origin !== 'ai' && r.origin !== 'user') throw Error('錯因來源不正確');
-      return { text: text(r.text, 1000), origin: r.origin as 'ai' | 'user' };
+      if (r.accepted !== undefined && typeof r.accepted !== 'boolean') throw Error('錯因確認格式不正確');
+      return { text: text(r.text, 1000), origin: r.origin as 'ai' | 'user', ...(r.accepted !== undefined ? { accepted: r.accepted as boolean } : {}) };
     }).filter(r => r.text) },
   };
+  if (p.correctionSummary !== undefined) result.personal.correctionSummary = text(p.correctionSummary, 6000);
   if (new TextEncoder().encode(JSON.stringify(result)).length > 128000) throw Error('題目資料過大');
   return result;
 }

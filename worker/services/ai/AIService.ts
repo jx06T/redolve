@@ -13,6 +13,7 @@ export interface TagResult {
 }
 
 export interface AIService {
+  recognizeCorrection(imageBytes: ArrayBuffer, input: import('./correctionPrompts').CorrectionContext): Promise<{ data: import('../../../src/types/learning').LearningData; model: string }>;
   selectAnalysisQuestions(input: { stats: import('../../../src/types/analysis').AnalysisStats; catalog: AnalysisCatalogEntry[]; question?: string }): Promise<string[]>;
   analyzeLearning(input: { stats: import('../../../src/types/analysis').AnalysisStats; evidence: import('../../../src/types/analysis').AnalysisEvidence[]; catalogQuestions?: number }): Promise<{ interpretation: unknown; model: string }>;
   followupLearning(input: { stats: import('../../../src/types/analysis').AnalysisStats; interpretation: unknown; evidence: import('../../../src/types/analysis').AnalysisEvidence[];

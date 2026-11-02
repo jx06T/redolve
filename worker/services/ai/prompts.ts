@@ -175,7 +175,7 @@ export function buildRestResponseSchema(taxonomyTree: TaxonomyNode[]) {
   };
 }
 
-function learningSchemaProperties() {
+export function learningSchemaProperties() {
   const answer = { type: Type.OBJECT, nullable: true, properties: {
     kind: { type: Type.STRING, enum: ['choice', 'text'] },
     optionIds: { type: Type.ARRAY, items: { type: Type.STRING } }, text: { type: Type.STRING },

@@ -105,7 +105,9 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pi
     evidence.push({ id: q.id!, ref: q.itemId ? { kind: 'owned', itemId: q.itemId } : { kind: 'saved', savedRefId: q.savedRefId! },
       revisionId: row.id, topicId: q.topicId, text: [content.ocrText, ...content.options.map((o: { label: string; text: string }) => `${o.label} ${o.text}`)].join('\n').slice(0, 3000),
       originalAnswer: shortAnswer(personal.originalAnswer), correctAnswer: shortAnswer(content.correctAnswer),
-      errorReasons: personal.errorReasons.slice(0, 3).map((r: { text: string; origin: string }) => ({ ...r, text: r.text.slice(0, 300) })),
+      errorReasons: personal.errorReasons.filter((r: { origin: string; accepted?: boolean }) => r.origin === 'user' || r.accepted === true)
+        .slice(0, 12).map((r: { text: string; origin: string }) => ({ ...r, text: r.text.slice(0, 300) })),
+      correctionSummary: typeof personal.correctionSummary === 'string' ? personal.correctionSummary.slice(0, 3000) : undefined,
       attempts: counts?.get(q.id!)?.attempts ?? events.length, correct: counts?.get(q.id!)?.correct ?? events.filter(e => e.result === 'correct').length, confirmationStatus: q.confirmationStatus,
       options: content.options.map((o: { id: string; label: string; text: string }) => ({ id: o.id, label: o.label, text: o.text.slice(0,500) })),
       recentAttempts: attemptSample.filter(a => a.learning_question_id === q.id).reverse().map(a => ({ id: a.id, revisionId: a.revision_id,
@@ -147,13 +149,13 @@ export async function beginAnalysis(db: D1Database, uid: string, scope: Practice
   const subject = await db.prepare('SELECT id FROM taxonomies WHERE id=? AND parent_id IS NULL AND (user_id IS NULL OR user_id=?)').bind(scope?.subjectId ?? '', uid).first();
   if (!subject) throw new PracticeError(422, '請選擇科目');
   const snapshot = await analysisSnapshot(db, uid, scope, days, timezone), evidence: AnalysisEvidence[] = [];
-  const hash = await digest({ scope: snapshot.stats.scope, days, timezone, model, questions: snapshot.questions, events: snapshot.events, previous: snapshot.previous, prompt: 'subject-v3' });
+  const hash = await digest({ scope: snapshot.stats.scope, days, timezone, model, questions: snapshot.questions, events: snapshot.events, previous: snapshot.previous, prompt: 'subject-v4-correction' });
   const now = new Date().toISOString();
   await db.prepare(`UPDATE analysis_reports SET status='failed',error='上次產生未完成，可手動重試' WHERE user_id=? AND input_hash=? AND status='pending' AND lease_until<?`).bind(uid, hash, now).run();
   await db.prepare(`UPDATE analysis_reports SET input_hash='expired:'||id WHERE user_id=? AND input_hash=? AND detail_expires_at<=?`).bind(uid, hash, now).run();
   const id = crypto.randomUUID(), lease = new Date(Date.now() + 240000).toISOString(), expires = new Date(Date.now() + 90 * 86400000).toISOString();
   const statements = [db.prepare(`INSERT OR IGNORE INTO analysis_reports(id,user_id,subject_id,topic_id,days,input_hash,status,stats_json,evidence_json,prompt_version,created_at,detail_expires_at,lease_until)
-    VALUES(?,?,?,?,?,?,'pending',?,?,'subject-v3',?,?,?)`).bind(id, uid, scope.subjectId, scope.topicId ?? null, days, hash, JSON.stringify(snapshot.stats), JSON.stringify(evidence), now, expires, lease),
+    VALUES(?,?,?,?,?,?,'pending',?,?,'subject-v4-correction',?,?,?)`).bind(id, uid, scope.subjectId, scope.topicId ?? null, days, hash, JSON.stringify(snapshot.stats), JSON.stringify(evidence), now, expires, lease),
     db.prepare(`INSERT INTO analysis_report_questions(report_id,source_key,item_id,saved_ref_id,revision_id)
     SELECT ?,json_extract(value,'$.key'),json_extract(value,'$.item'),json_extract(value,'$.saved'),json_extract(value,'$.revision')
     FROM json_each(?) WHERE EXISTS(SELECT 1 FROM analysis_reports WHERE id=? AND user_id=?)`)

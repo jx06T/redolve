@@ -1,5 +1,6 @@
 import { emptyLearningData, learningFullText, validateLearningData } from '../../src/types/learning';
 import type { LearningData, LearningQuestion, PersonalQuestionRef } from '../../src/types/learning';
+import { readLatestCorrection } from './correctionStore';
 
 type Source = { asset_id: string; storage_key: string; source_version: string; text: string | null };
 type Current = { id: string; current_revision_id: string | null; row_version: number;
@@ -47,15 +48,18 @@ export async function readLearningQuestion(db: D1Database, uid: string, ref: Per
   const data = row?.content_json && row.personal_json
     ? validateLearningData({ content: JSON.parse(row.content_json), personal: JSON.parse(row.personal_json) }) : emptyLearningData();
   if (!row?.current_revision_id) data.content.ocrText = source.text || null;
-  return { ...data, ref, id: row?.id || null, revisionId: row?.current_revision_id || null,
+  const question: LearningQuestion = { ...data, ref, id: row?.id || null, revisionId: row?.current_revision_id || null,
     rowVersion: row?.row_version || 0, sourceVersion: source.source_version, confirmationStatus: row?.confirmation_status || 'ai',
     sourceUpdated: ref.kind === 'saved' && !!row?.revision_source_version && row.revision_source_version.split(':')[0] !== source.source_version.split(':')[0] };
+  question.correction = await readLatestCorrection(db, uid, ref, question);
+  return question;
 }
 
 export interface LearningWrite {
   expectedRowVersion: number;
   expectedSourceVersion: string;
   data: LearningData;
+  correctionId?: string;
 }
 export interface RecognitionTags { topic_id: string | null; keywords: string[]; keyword_tokens: string[] }
 
@@ -80,16 +84,28 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
     typeof write.expectedSourceVersion !== 'string' || write.expectedSourceVersion.length > 500) {
     throw new LearningError(422, 'INVALID_VERSION', '缺少有效的題目版本');
   }
+  if (write.correctionId !== undefined && (typeof write.correctionId !== 'string' || !write.correctionId || write.correctionId.length > 100))
+    throw new LearningError(422, 'INVALID_DATA', '訂正整理參照不正確');
   let data: LearningData;
   try { data = validateLearningData(write.data); } catch (e) {
     throw new LearningError(422, 'INVALID_DATA', e instanceof Error ? e.message : '題目資料不正確');
   }
+  if (write.correctionId) {
+    const valid = await db.prepare(`SELECT id FROM learning_corrections WHERE id=? AND user_id=? AND ${refColumn(ref)}=?
+      AND status='complete' AND adopted_revision_id IS NULL AND base_row_version=? AND source_version=?
+      AND id=(SELECT id FROM learning_corrections WHERE user_id=? AND ${refColumn(ref)}=? ORDER BY created_at DESC,id DESC LIMIT 1)`)
+      .bind(write.correctionId, uid, refId(ref), write.expectedRowVersion, write.expectedSourceVersion, uid, refId(ref)).first();
+    if (!valid) throw new LearningError(409, 'CONFLICT', '這份訂正整理已過期或已採用，請重新載入');
+  }
   // AI never attributes the source author's handwriting or error reasons to the saver.
   if (actor === 'ai' && ref.kind === 'saved') data.personal = emptyLearningData().personal;
+  if (actor === 'user') data.personal.errorReasons = data.personal.errorReasons.filter(reason => reason.origin === 'user' || reason.accepted === true);
   const questionId = crypto.randomUUID(), revisionId = crypto.randomUUID();
   const publicText = learningFullText(data.content);
   const source = sourceQuery(ref), column = refColumn(ref);
   const guard = `EXISTS(SELECT 1 FROM (${source}) s WHERE s.source_version=?)`;
+  const correctionGate = write.correctionId ? `AND EXISTS(SELECT 1 FROM learning_corrections WHERE id=? AND user_id=? AND status='complete' AND adopted_revision_id IS NULL AND base_row_version=? AND source_version=?
+    AND id=(SELECT id FROM learning_corrections WHERE user_id=? AND ${refColumn(ref)}=? ORDER BY created_at DESC,id DESC LIMIT 1))` : '';
   const gate = `EXISTS(SELECT 1 FROM learning_questions WHERE user_id=? AND ${column}=? AND current_revision_id=?)`;
   const gateArgs = [uid, refId(ref), revisionId];
   const statements = [
@@ -97,9 +113,10 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
       .bind(questionId, uid, refId(ref), write.expectedRowVersion, refId(ref), uid, write.expectedSourceVersion),
     db.prepare(`INSERT INTO learning_question_revisions(id,learning_question_id,revision_no,content_json,personal_json,source_version,created_by)
       SELECT ?,id,row_version+1,?,?,?,? FROM learning_questions WHERE user_id=? AND ${column}=? AND row_version=?
-      ${actor === 'ai' ? "AND confirmation_status='ai'" : ''} AND ${guard}`)
+      ${actor === 'ai' ? "AND confirmation_status='ai'" : ''} AND ${guard} ${correctionGate}`)
       .bind(revisionId, JSON.stringify(data.content), JSON.stringify(data.personal), write.expectedSourceVersion, actor,
-        uid, refId(ref), write.expectedRowVersion, refId(ref), uid, write.expectedSourceVersion),
+        uid, refId(ref), write.expectedRowVersion, refId(ref), uid, write.expectedSourceVersion,
+        ...(write.correctionId ? [write.correctionId, uid, write.expectedRowVersion, write.expectedSourceVersion, uid, refId(ref)] : [])),
     db.prepare(`UPDATE learning_questions SET current_revision_id=?,row_version=row_version+1,confirmation_status=?,
       confirmed_at=${actor === 'user' ? 'CURRENT_TIMESTAMP' : 'NULL'} WHERE user_id=? AND ${column}=? AND row_version=?
       AND EXISTS(SELECT 1 FROM learning_question_revisions WHERE id=? AND learning_question_id=learning_questions.id)`)
@@ -108,6 +125,8 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
       SELECT ?,s.asset_id FROM (${source}) s WHERE ${gate}`)
       .bind(revisionId, refId(ref), uid, ...gateArgs),
   ];
+  if (write.correctionId) statements.push(db.prepare(`UPDATE learning_corrections SET adopted_revision_id=? WHERE id=? AND user_id=? AND ${gate}`)
+    .bind(revisionId, write.correctionId, uid, ...gateArgs));
   if (ref.kind === 'owned') {
     statements.push(db.prepare(`INSERT INTO item_texts(item_id,user_id,source_content_seq,ocr_text,text_origin)
       SELECT id,user_id,content_seq+1,?,? FROM items WHERE id=? AND user_id=? AND ${gate}
