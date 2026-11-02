@@ -22,9 +22,11 @@ test('practice submissions, corrections, analysis snapshots and private retentio
         if(!request.url.startsWith('https://generativelanguage.googleapis.com/'))return new MFResponse('Unexpected outbound request',{status:500});
         const body=await request.json();providerRequests.push(body);
         const prompt=body.contents.flatMap(c=>c.parts.map(p=>p.text||'')).join('\n'),input=JSON.parse(prompt.split('資料：').at(-1));
+        if(body.generationConfig.responseSchema.properties.questionIds)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({questionIds:providerMode==='invalid-selection'?['foreign']:input.catalog.map(q=>q.id).slice(0,30)})}]}}]}),{headers:{'Content-Type':'application/json'}});
+        if(body.generationConfig.responseSchema.properties.text)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({text:'依據報告當時資料，請比較條件並重新作答。',evidenceIds:[providerMode==='invalid-evidence'?'foreign':input.evidence[0].id]})}]}}]}),{headers:{'Content-Type':'application/json'}});
         const id=providerMode==='invalid-evidence'?'foreign':input.evidence[0].id;
         const findings=Array.from({length:4},(_,i)=>({title:'考點 '+i,explanation:'請比較題目條件並用原題驗證。',evidenceIds:[id],metricIds:[input.stats.units[0].id]}));
-        return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({findings})}]},finishReason:'STOP'}],modelVersion:'qa-model'}),{headers:{'Content-Type':'application/json'}});
+        return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({overview:'整科統計顯示目前只能解讀個人重作紀錄。',findings})}]},finishReason:'STOP'}],modelVersion:'qa-model'}),{headers:{'Content-Type':'application/json'}});
       }});
     const db=await mf.getD1Database('DB');const sql=async text=>{for(const q of unstable_splitSqlQuery(text.replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(q.replace(/\r?\n/g,' '));};
     const schema=await readFile('worker/schema.sql','utf8');await sql(schema);
@@ -90,10 +92,10 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.equal(analysis.validateInterpretation({findings:[{title:'觀察',explanation:'請比較條件',evidenceIds:[questions[0].id],metricIds:['math']}]},evidence,snap.stats).findings.length,1);
     });
     await t.test('manual report generation reaches the provider and reuses only valid scoped results',async()=>{
-      const waitFor=async id=>{for(let tries=0;tries<100;tries++){const r=await call('/analysis/reports/'+id);if(r.data.status!=='pending')return r.data;await new Promise(resolve=>setTimeout(resolve,20));}throw Error('Report did not finish');};
+      const waitFor=async id=>{const run=await call('/analysis/reports/'+id+'/run','alice','POST',{});assert.equal(run.data.ok,true,JSON.stringify(run.data));for(let tries=0;tries<100;tries++){const r=await call('/analysis/reports/'+id);if(r.data.status!=='pending')return r.data;await new Promise(resolve=>setTimeout(resolve,20));}throw Error('Report did not finish');};
       const generated=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});assert.equal(generated.status,202,JSON.stringify(generated.data));
       const report=await waitFor(generated.data.id);assert.equal(report.status,'complete');assert.equal(report.interpretation.findings.length,4,'findings are not limited to three');
-      assert.equal(report.stats.timezone,'Asia/Taipei');assert.ok(providerRequests[0].generationConfig.responseSchema.properties.findings);
+      assert.equal(report.stats.timezone,'Asia/Taipei');assert.ok(providerRequests.some(r=>r.generationConfig.responseSchema.properties.questionIds));assert.ok(providerRequests.some(r=>r.generationConfig.responseSchema.properties.findings));
       const calls=providerRequests.length;const reused=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});
       assert.equal(reused.data.id,report.id);assert.equal(providerRequests.length,calls);
       const status=await call('/analysis/reports/'+report.id+'/status');assert.equal(status.data.status,'complete');assert.equal(status.data.evidence,undefined);
@@ -104,6 +106,52 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.equal((await waitFor(invalid.data.id)).status,'failed','unknown citations cannot reach a completed report');
       providerMode='valid';const retry=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:60});
       assert.notEqual(retry.data.id,invalid.data.id);assert.equal((await waitFor(retry.data.id)).status,'complete');
+    });
+    await t.test('subject overview, equal periods and conversations keep their own evidence and account',async()=>{
+      const prior=new Date(Date.now()-40*86400000).toISOString();
+      await db.prepare(`INSERT INTO practice_attempts(id,user_id,learning_question_id,revision_id,session_id,session_item_id,answer_json,result,grading_method,
+        grading_basis_json,client_answered_at,answered_at,received_at,client_timezone,time_quality,used_original_image,request_hash)
+        SELECT 'previous-period',user_id,learning_question_id,revision_id,'prior','prior',answer_json,result,grading_method,grading_basis_json,?,?,?,'UTC','client',0,'prior'
+        FROM practice_attempts WHERE id=?`).bind(prior,prior,prior,replacement.id).run();
+      const numeric=(await call('/analysis/stats','alice','POST',{scope:{subjectId:'math'},days:30})).data;
+      assert.equal(numeric.comparison.attempts,1);assert.equal(numeric.comparison.matchedQuestions,1);
+      assert.ok(numeric.comparison.currentMatchedAttempts>=2);assert.equal(numeric.comparison.previousMatchedAttempts,1);
+      const calls=providerRequests.length,overview=await call('/analysis/overview?days=30');
+      assert.equal(providerRequests.length,calls,'overview does not call AI');
+      assert.equal(overview.data.subjects.find(s=>s.id==='math').questions,4);assert.equal(overview.data.subjects.find(s=>s.id==='math').attempts,numeric.attempts);
+      assert.equal((await call('/analysis/overview?days=30','bob')).data.subjects.find(s=>s.id==='math').questions,1);
+      assert.equal((await call('/analysis/reports','alice','POST',{scope:{subjectId:'math',topicId:'math'},days:30})).status,422);
+      const created=(await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:7})).data;
+      const completed=(await call('/analysis/reports/'+created.id+'/run','alice','POST',{})).data;
+      assert.equal(completed.ok,true);assert.equal(completed.data.status,'complete');assert.ok(completed.data.interpretation.overview);
+      const report=completed.data,afterRun=providerRequests.length;
+      await call('/analysis/reports/'+report.id+'/run','alice','POST',{});assert.equal(providerRequests.length,afterRun,'completed reports never call AI again');
+      assert.equal((await call('/analysis/reports/'+report.id+'/run','bob','POST',{})).status,404);
+      const ask=async(id,question='下一步怎麼練習？',uid='alice')=>call('/analysis/reports/'+report.id+'/followups',uid,'POST',{id,question});
+      const answer=await ask('turn-one');assert.equal(answer.data.ok,true,JSON.stringify(answer.data));assert.equal(answer.data.data.status,'complete');
+      assert.ok(answer.data.data.evidence.length);assert.ok(answer.data.data.answer.evidenceIds.every(id=>answer.data.data.evidence.some(e=>e.id===id)));
+      const afterAnswer=providerRequests.length;assert.deepEqual((await ask('turn-one')).data,answer.data);assert.equal(providerRequests.length,afterAnswer,'replay does not charge another model call');
+      assert.equal((await ask('turn-one','改問題')).data.ok,false);assert.equal((await ask('foreign','下一步','bob')).status,404);
+      assert.equal((await call('/analysis/reports/'+report.id+'/followups','bob')).status,404);
+      await db.prepare(`INSERT INTO analysis_followups(id,user_id,report_id,question,request_hash,status,run_token,created_at,lease_until)
+        VALUES('in-flight','alice',?,'未完成問題','in-flight','pending','another-run',?,?)`).bind(report.id,new Date().toISOString(),new Date(Date.now()+60000).toISOString()).run();
+      const beforeBlocked=providerRequests.length;assert.equal((await ask('parallel')).data.ok,false);assert.equal(providerRequests.length,beforeBlocked,'an active turn prevents a conversation fork before AI calls');
+      await db.prepare("UPDATE analysis_followups SET status='failed' WHERE id='in-flight'").run();
+      providerMode='invalid-evidence';assert.equal((await ask('bad-citation')).data.data.status,'failed');providerMode='valid';
+      assert.equal((await ask('bad-citation')).data.data.status,'complete','failed turns can retry with the same id');
+      // A correction after report creation must not rewrite its frozen historical evidence.
+      await db.prepare('UPDATE practice_attempts SET voided_at=? WHERE id=?').bind(new Date().toISOString(),replacement.id).run();
+      const restored=await ask('after-correction');
+      assert.ok(restored.data.data.evidence.flatMap(e=>e.recentAttempts||[]).some(a=>a.id===replacement.id),'report retrieval retains the original effective event ids');
+      assert.equal((await call('/analysis/reports/'+report.id+'/followups')).data.length,4);
+      const allHistory=(await call('/analysis/reports?subjectId=math')).data.reports;
+      assert.ok(allHistory.some(r=>r.days===7)&&allHistory.some(r=>r.days===15),'history spans observation periods');
+      providerMode='invalid-selection';const bad=(await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:90})).data;
+      assert.equal((await call('/analysis/reports/'+bad.id+'/run','alice','POST',{})).data.data.status,'failed');providerMode='valid';
+      await db.prepare("UPDATE analysis_reports SET detail_expires_at='2000-01-01' WHERE id=?").bind(report.id).run();await analysis.cleanupAnalysis(db);
+      assert.equal((await db.prepare('SELECT count(*) n FROM analysis_report_contexts WHERE report_id=?').bind(report.id).first()).n,0);
+      assert.equal((await db.prepare('SELECT count(*) n FROM analysis_followups WHERE report_id=?').bind(report.id).first()).n,0);
+      assert.equal((await call('/analysis/reports/'+report.id+'/followups')).status,410);
     });
     await t.test('analysis scope index probes stay bounded when unrelated history grows from 1000 to 10000',async()=>{
       await sql(`INSERT INTO taxonomies(id,label,level) VALUES('outside','範圍外',0);

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { unstable_splitSqlQuery } from 'wrangler';
-export const practiceMigrations = ['worker/migrations/0015_practice_attempts.sql', 'worker/migrations/0016_personal_analysis.sql'];
+export const practiceMigrations = ['worker/migrations/0015_practice_attempts.sql', 'worker/migrations/0016_personal_analysis.sql', 'worker/migrations/0017_analysis_context_and_followups.sql'];
 const normalize = sql => sql.replace(/\s+/g, '').replace(/;$/, '').toLowerCase();
 export function practiceSchemaStatus(execute, file) {
   const source = readFileSync(new URL('../' + file, import.meta.url), 'utf8');

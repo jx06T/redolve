@@ -1,9 +1,13 @@
 import { Hono } from 'hono';
+import { stream } from 'hono/streaming';
+import type { Context } from 'hono';
+import { answerFollowup, listFollowups, runAnalysis } from '../services/analysisContext';
+import { analysisOverview } from '../services/analysisOverview';
 import { bodyLimit } from 'hono/body-limit';
 import type { Bindings, Variables } from '../types';
 import { authMiddleware } from '../middleware/auth';
 import { PracticeError } from '../services/practice';
-import { analysisSnapshot, beginAnalysis, cleanupAnalysis, getAnalysis, validateInterpretation } from '../services/personalAnalysis';
+import { analysisSnapshot, beginAnalysis, cleanupAnalysis, getAnalysis } from '../services/personalAnalysis';
 import { createAIService } from '../services/ai';
 
 export const analysisRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -24,22 +28,39 @@ analysisRouter.post('/reports', async c => {
   if (!c.env.GEMINI_API_KEY) return c.json({ error: { message: '目前無法使用 AI，仍可查看統計' } }, 503);
   if (!c.env.UPLOAD_LIMITER || !(await c.env.UPLOAD_LIMITER.limit({ key: `analysis:${c.get('userId')}` })).success)
     return c.json({ error: { message: '產生分析過於頻繁，請稍後再試' } }, 429);
-  const work = await beginAnalysis(c.env.DB, c.get('userId'), body.scope, body.days, body.timezone);
-  if (work.created) {
-    const env = c.env, uid = c.get('userId');
-    c.executionCtx.waitUntil((async () => {
-      try {
-        const result = work.evidence.length ? await createAIService(env).analyzeLearning({ stats: work.stats, evidence: work.evidence }) : { interpretation: { findings: [] }, model: 'no-evidence' };
-        const interpretation = validateInterpretation(result.interpretation, work.evidence, work.stats);
-        await env.DB.prepare(`UPDATE analysis_reports SET status='complete',interpretation_json=?,model_version=?,error=NULL
-          WHERE id=? AND user_id=? AND status='pending' AND lease_until>=?`).bind(JSON.stringify(interpretation), result.model, work.id, uid, new Date().toISOString()).run();
-      } catch {
-        await env.DB.prepare(`UPDATE analysis_reports SET status='failed',error='AI 解讀未完成，統計仍可查看；請手動重試'
-          WHERE id=? AND user_id=? AND status='pending'`).bind(work.id, uid).run();
-      }
-    })());
-  }
+  const work = await beginAnalysis(c.env.DB, c.get('userId'), body.scope, body.days, body.timezone, c.env.GEMINI_ANALYSIS_MODEL?.trim() || undefined);
   return c.json(await getAnalysis(c.env.DB, c.get('userId'), work.id), work.created ? 202 : 200);
+});
+// Keep the response connected while Pro is running: waitUntil alone only gets 30 seconds after response.
+function connected<T>(c: Context, action: () => Promise<T>) {
+  c.header('Content-Type', 'application/json; charset=UTF-8');
+  c.header('Cache-Control', 'no-store');
+  return stream(c, async output => {
+    await output.write('\n');
+    const heartbeat = setInterval(() => { void output.write('\n').catch(() => {}); }, 10000);
+    try { await output.write(JSON.stringify({ ok: true, data: await action() })); }
+    catch (error) { await output.write(JSON.stringify({ ok: false, error: { message: error instanceof PracticeError ? error.message : '處理未完成，請稍後重試' } })); }
+    finally { clearInterval(heartbeat); }
+  });
+}
+async function limitAI(c: Context<{ Bindings: Bindings; Variables: Variables }>) {
+  if (!c.env.GEMINI_API_KEY) return c.json({ error: { message: '目前無法使用 AI，仍可查看統計' } }, 503);
+  if (!c.env.UPLOAD_LIMITER || !(await c.env.UPLOAD_LIMITER.limit({ key: 'analysis:' + c.get('userId') })).success)
+    return c.json({ error: { message: '使用 AI 過於頻繁，請稍後再試' } }, 429);
+}
+analysisRouter.get('/overview', async c => c.json(await analysisOverview(c.env.DB, c.get('userId'), Number(c.req.query('days') || 30))));
+analysisRouter.post('/reports/:id/run', async c => {
+  const limited = await limitAI(c); if (limited) return limited;
+  await getAnalysis(c.env.DB, c.get('userId'), c.req.param('id'));
+  return connected(c, () => runAnalysis(c.env.DB, c.get('userId'), c.req.param('id'), createAIService(c.env)));
+});
+analysisRouter.get('/reports/:id/followups', async c => c.json(await listFollowups(c.env.DB, c.get('userId'), c.req.param('id'))));
+analysisRouter.post('/reports/:id/followups', async c => {
+  const limited = await limitAI(c); if (limited) return limited;
+  const body = await c.req.json().catch(() => null);
+  if (!body) throw new PracticeError(422, '請輸入追問');
+  await getAnalysis(c.env.DB, c.get('userId'), c.req.param('id'));
+  return connected(c, () => answerFollowup(c.env.DB, c.get('userId'), c.req.param('id'), body, createAIService(c.env)));
 });
 analysisRouter.get('/reports/:id', async c => {
   c.executionCtx.waitUntil(cleanupAnalysis(c.env.DB));
@@ -62,7 +83,7 @@ analysisRouter.get('/reports', async c => {
   const values: (string | number | null)[] = [c.get('userId'), subject, ...before];
   if (days !== undefined) values.push(Number(days)); if (topic !== undefined) values.push(topic || null);
   const rows = (await c.env.DB.prepare(`SELECT id,created_at,status,days,topic_id FROM analysis_reports WHERE user_id=? AND subject_id=? AND (created_at,id)<(?,?)
-    ${days !== undefined ? 'AND days=?' : ''} ${topic !== undefined ? 'AND topic_id IS ?' : ''}
+    ${days !== undefined ? 'AND days=?' : ''} ${topic !== undefined ? 'AND topic_id IS ?' : 'AND topic_id IS NULL'}
     ORDER BY created_at DESC,id DESC LIMIT 21`).bind(...values).all()).results;
   return c.json({ reports: rows.slice(0, 20), nextCursor: rows.length > 20 ? btoa(JSON.stringify([rows[19].created_at, rows[19].id])) : null });
 });
