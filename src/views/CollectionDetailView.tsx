@@ -176,9 +176,9 @@ export function CollectionDetailView(){
               <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
             </div>
           </div>
-          {(co.is_owner||item.contributor_id===currentUser?.id)&&<div className="mt-2 flex justify-end">
+          {(co.is_owner||item.contributor_id===currentUser?.id)&&<div className="mt-1 flex justify-end">
             <button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})}
-              className="min-h-11 rounded-xl px-2 text-xs text-status-eraser hover:bg-page-bg disabled:opacity-40">從集合移除</button>
+              className="min-h-7 rounded-xl px-1 py-1 text-xs text-status-eraser hover:bg-page-bg disabled:opacity-40">從集合移除</button>
           </div>}
         </div>)}</div>:
         <p className="mt-3 text-sm text-text-muted">這個集合目前沒有題目。</p>}
