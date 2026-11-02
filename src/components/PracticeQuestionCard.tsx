@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import Panzoom from '@panzoom/panzoom';
 import type { PanzoomObject } from '@panzoom/panzoom';
 import { Minus, Plus, Undo2, Redo2 } from 'lucide-react';
@@ -11,12 +10,13 @@ import { runDrawingCommand } from '../services/drawingCommands';
 import { LearningDataDialog } from './LearningDataButton';
 import { learningService } from '../services/learningService';
 import { practiceService, syncPractice } from '../services/practiceService';
-import { gradePractice, practiceRefPath } from '../types/practice';
+import { gradePractice } from '../types/practice';
 import type { AttemptInput, PracticeQuestion } from '../types/practice';
 import type { LearningAnswer } from '../types/learning';
 import { useStore } from '../store/useStore';
 import { API_BASE } from '../services/api';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
+const actionButton = 'min-h-11 shrink-0 whitespace-nowrap rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm disabled:opacity-40';
 
 function PracticeImage({ url, close }: { url: string; close: () => void }) {
   const img = useRef<HTMLImageElement>(null), pan = useRef<PanzoomObject | null>(null);
@@ -52,8 +52,10 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   const [displayContent, setDisplayContent] = useState(question.content);
   const [keyChanged, setKeyChanged] = useState(false);
   const [height, setHeight] = useState(400);
+  const answerPanel = useRef<HTMLDivElement>(null);
   const active = useRef(true), lock = useRef(false);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => { if (revealed) answerPanel.current?.scrollIntoView({ block: 'nearest' }); }, [revealed]);
   const choice = ['single_choice', 'multiple_choice'].includes(question.content.questionType);
   const automatic = choice && question.content.correctAnswer?.kind === 'choice';
   const commit = async (selfResult?: 'correct' | 'incorrect', correction = false) => {
@@ -80,7 +82,7 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   };
   const key = displayContent.correctAnswer;
   const keyLabel = !key ? '尚無正解，可先自評' : key.kind === 'text' ? key.text : key.optionIds.map(id => question.content.options.find(o => o.id === id)?.label).join('、');
-  return <div>
+  return <div className="space-y-3 pb-28">
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
       <p className="whitespace-pre-wrap text-base leading-relaxed">{question.content.ocrText}</p>
       {choice ? <fieldset disabled={revealed || busy} className="space-y-2"><legend className="sr-only">本次作答</legend>
@@ -94,23 +96,10 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       </fieldset> : <label className="block text-sm">本次答案（也可在草稿作答）<textarea disabled={revealed || busy} maxLength={16000} rows={3}
         value={answer?.kind === 'text' ? answer.text : ''} onChange={e => setAnswer(e.target.value ? { kind: 'text', text: e.target.value } : null)}
         className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3" /></label>}
-      <div className="flex flex-wrap gap-2"><button className={button} onClick={() => { setOpenImage(true); setEverImage(true); }}>檢視原圖</button>
-        {!revealed && <><button disabled={busy} className={button} onClick={() => automatic ? void commit() : setRevealed(true)}>{automatic ? '提交答案' : '完成作答／查看答案'}</button>
-          <button disabled={busy} className={button} onClick={next}>略過</button></>}
-      </div>
-      {revealed && <div className="space-y-3 rounded-2xl bg-page-bg p-4">
+      {revealed && <div ref={answerPanel} className="space-y-3 rounded-2xl bg-page-bg p-4">
         <p className="whitespace-pre-wrap text-sm">正解：{keyLabel}</p>
-        {!result ? <div className="flex gap-2"><button disabled={busy} className={button} onClick={() => void commit('correct')}>這次答對</button><button disabled={busy} className={button} onClick={() => void commit('incorrect')}>這次答錯</button><button className={button} onClick={next}>略過</button></div>
-          : <><p role="status">{result === 'correct' ? '這次答對' : '這次答錯'} · 已保存於本機</p>
-            <div className="flex flex-wrap gap-2"><button disabled={busy} className={button} onClick={next}>下一題</button>
-              <button className={button} onClick={() => setEditKey(v => !v)}>{key ? '答案有誤' : '補齊正解'}</button></div></>}
-        {editKey && <LearningDataDialog questionRef={question.ref} onClose={() => setEditKey(false)} onSaved={q => {
-          setDisplayContent(q.content); setKeyChanged(true); setEditKey(false);
-        }} />}
-        {keyChanged && <>
-          <p className="text-xs text-text-muted">儲存正解後，可以明確更正這次結果。過去其他作答不會重算。</p>
-          <button disabled={busy} className={button} onClick={() => void commit(result || undefined, true)}>依新正解更正這次</button></>}
-        <Link to={practiceRefPath(question.ref)} className="inline-block text-sm underline">查看原題與重作紀錄</Link>
+        {result && <p role="status">{result === 'correct' ? '這次答對' : '這次答錯'} · 已保存於本機</p>}
+        {keyChanged && <p className="text-xs text-text-muted">儲存正解後，可以明確更正這次結果。過去其他作答不會重算。</p>}
       </div>}
       {error && <p role="alert" className="text-sm">{error}</p>}
       <section aria-label="本輪草稿" className="space-y-2">
@@ -131,6 +120,25 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       </section>
       <FloatingPenToolbar />
     </section>
+    <div role="group" aria-label="練習操作" className="fixed inset-x-2 bottom-16 z-20 mx-auto max-w-6xl rounded-2xl border border-border-subtle bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_4px_20px_rgba(0,0,0,0.03)] sm:inset-x-4 md:bottom-3">
+      <div className="overflow-x-scroll">
+        <div className="flex min-w-max items-center gap-1.5">
+          <button type="button" className={actionButton} onClick={() => { setOpenImage(true); setEverImage(true); }}>檢視原圖</button>
+          {!revealed ? <button type="button" disabled={busy} className={actionButton} onClick={() => automatic ? void commit() : setRevealed(true)}>{automatic ? '提交答案' : '查看答案'}</button>
+            : !result ? <>
+              <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('correct')}>這次答對</button>
+              <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('incorrect')}>這次答錯</button>
+            </> : <>
+              <button type="button" disabled={busy} className={actionButton} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
+              {keyChanged && <button type="button" disabled={busy} className={actionButton} onClick={() => void commit(result, true)}>依新正解更正這次</button>}
+            </>}
+          <button type="button" disabled={busy} className={actionButton} onClick={next}>{result ? '下一題' : '略過'}</button>
+        </div>
+      </div>
+    </div>
+    {editKey && <LearningDataDialog questionRef={question.ref} onClose={() => setEditKey(false)} onSaved={q => {
+      setDisplayContent(q.content); setKeyChanged(true); setEditKey(false);
+    }} />}
     {openImage && <PracticeImage url={`${API_BASE.replace(/\/api\/?$/, '')}${question.imageUrl}`} close={() => setOpenImage(false)} />}
   </div>;
 }
