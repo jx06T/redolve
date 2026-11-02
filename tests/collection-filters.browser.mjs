@@ -10,6 +10,7 @@ try{
   await context.route(url=>['fonts.googleapis.com','fonts.gstatic.com'].includes(url.hostname),route=>route.abort());
   await context.route('**/api/**',async route=>{
    const url=new URL(route.request().url()),path=url.pathname,params=url.searchParams;requests.push({path,tag:params.get('tag'),after:params.get('after_order'),method:route.request().method()});
+   if(path.endsWith('/image'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="600" height="200"><rect width="600" height="200" fill="white"/><text x="20" y="60">Question preview</text></svg>'});
    let data={};
    if(path==='/api/auth/me')data={user:{id:'owner',name:'老師',email:'owner@example.test'}};
    else if(path==='/api/taxonomy')data={tree:[{id:'math',label:'高中數學',children:[]}],customNodes:[],counts:{}};
@@ -31,6 +32,15 @@ try{
   const page=await context.newPage();page.on('pageerror',error=>errors.push(String(error)));
   await page.goto('http://127.0.0.1:4181/settings/collections/c1');await page.waitForLoadState('networkidle');
   await page.getByRole('heading',{name:'題目管理',exact:true}).waitFor();
+  const included=page.getByRole('region',{name:'已加入集合的題目',exact:true});
+  const preview=included.getByRole('button',{name:'檢視 轉煎題目 圖片',exact:true});
+  await preview.scrollIntoViewIfNeeded();
+  assert.equal(await preview.locator('img').getAttribute('src'),'/api/collections/c1/items/e1/image');
+  await preview.click();await page.getByRole('img',{name:'轉煎題目',exact:true}).waitFor();
+  assert.equal(await page.getByRole('img',{name:'轉煎題目',exact:true}).getAttribute('src'),'/api/collections/c1/items/e1/image');
+  await page.getByRole('button',{name:'關閉檢視器 (Esc)',exact:true}).click();
+  const original=included.getByRole('link',{name:'開啟 轉煎題目 原圖（新分頁）',exact:true});
+  assert.equal(await original.getAttribute('href'),'/api/collections/c1/items/e1/image');assert.equal(await original.getAttribute('target'),'_blank');
   const picker=page.getByRole('heading',{name:'加入我上傳的原題',exact:true}).locator('..');
   const candidateTag=page.getByRole('textbox',{name:'篩選原題標籤',exact:true});
   await candidateTag.fill('轉煎');await picker.getByRole('button',{name:'套用搜尋與分類',exact:true}).click();

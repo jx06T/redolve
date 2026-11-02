@@ -4,6 +4,12 @@
 
 ## 目前狀態
 
+### 2026-11-02 集合題目管理圖片預覽
+
+- 已加入的題目提供與上方候選一致的延遲載入縮圖及 ImageViewerModal 放大檢視，保留題目內文、提供者與排序操作；新增灰字底線「開啟原圖」，於新分頁開啟。
+- 使用既有集合圖片端點，依集合／題目有效狀態與觀看權限取圖，不建立獨立公開分享；無 API／schema 變更。
+- collection-filters.browser.mjs 於 390／1280px 驗證預覽及原圖連結指向同一集合題目，並回歸原篩選、草稿／選取保留及請求範圍；圖片／API 使用 fixture。TypeScript 與建置通過。
+
 ### 2026-11-02 題卡底部完成訂正後換題
 
 - 根因：QuestionLibraryView 的 QuestionStream 透過 onNext 提供平滑下一題，只有 SmartCTA 懸浮按鈕呼叫它；ProblemCardFooter 直接綁 handleToggleStatus，僅變更進度，舊 onStatusResolved 僅服務舊版 StudyView。

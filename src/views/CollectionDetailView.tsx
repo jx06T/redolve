@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BookOpen, Settings2, UserPlus } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { sharingApi, type Collection, type CollectionEntry } from '../services/sharingApi';
+import { imageUrl, sharingApi, type Collection, type CollectionEntry } from '../services/sharingApi';
 import { AppDialog } from '../components/AppDialog';
 import { SwitchRow } from '../components/SwitchRow';
 import { CollectionCandidatePicker } from '../components/CollectionCandidatePicker';
+import { ImageViewerModal } from '../components/ImageViewerModal';
 import { BackButton } from '../components/ReaderNavigation';
 import type { TaxonomyNode } from '../types';
 
@@ -22,6 +23,7 @@ export function CollectionDetailView(){
   const {currentUser,showToast,taxonomies}=useStore();
   const [co,setCo]=useState<Collection|null>(null);
   const [items,setItems]=useState<CollectionEntry[]>([]);
+  const [preview,setPreview]=useState<CollectionEntry|null>(null);
   const [nextCursor,setNextCursor]=useState<{display_order:number;id:string}|null>(null);
   const [topicFilter,setTopicFilter]=useState('');
   const [tagFilter,setTagFilter]=useState('');
@@ -99,7 +101,7 @@ export function CollectionDetailView(){
     }catch(e){if(!abort.signal.aborted&&currentScope.current===activeScope)throw e;}
   };
   useEffect(()=>{
-    setCo(null);setItems([]);setNextCursor(null);setError('');setGrants([]);setLinks([]);setStats(null);setTransfer(null);
+    setCo(null);setItems([]);setPreview(null);setNextCursor(null);setError('');setGrants([]);setLinks([]);setStats(null);setTransfer(null);
     titleFor.current='';requestedContext.current='';
     void load().catch(e=>setError(e.message));
     return ()=>{loadAbort.current?.abort();managementAbort.current?.abort();};
@@ -154,6 +156,13 @@ export function CollectionDetailView(){
       {items.length?<div role="region" aria-label="已加入集合的題目" aria-busy={itemsLoading} tabIndex={0}
         className="mt-3 max-h-[min(24rem,55dvh)] space-y-2 overflow-y-auto overscroll-y-contain pr-1">{items.map((item,index)=>
         <div key={item.id} className="rounded-2xl border border-border-subtle p-4">
+          <div className="flex items-start gap-3">
+            <button type="button" aria-label={`檢視 ${item.title||'未命名題目'} 圖片`} onClick={()=>setPreview(item)}
+              className="shrink-0 rounded-xl border border-border-subtle bg-white p-1">
+              <img loading="lazy" src={imageUrl(id,item.id)} alt="" className="h-24 w-28 object-contain sm:h-28 sm:w-40"/>
+              <span className="block py-1 text-xs text-primary">放大檢視</span>
+            </button>
+            <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span className="text-xs text-[#5F8670]">第 {item.display_order||index+1} 題
               </span>
@@ -163,7 +172,13 @@ export function CollectionDetailView(){
               {tagsFor([item]).join('・')}</p>}
           </div>
           <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
-          {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+            <a href={imageUrl(id,item.id)} target="_blank" rel="noopener noreferrer" aria-label={`開啟 ${item.title||'未命名題目'} 原圖（新分頁）`}
+              className="text-text-muted underline underline-offset-2">開啟原圖</a>
+            {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="text-status-eraser">從集合移除</button>}
+          </div>
           {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
             {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
               onClick={()=>void act(()=>sharingApi(`/collections/${id}/items/${item.id}/order`,'PATCH',
@@ -271,6 +286,7 @@ export function CollectionDetailView(){
           刪除集合</button>
       </div>
     </section>}
+    {preview&&<ImageViewerModal imageUrl={imageUrl(id,preview.id)} title={preview.title||'題目圖片'} isOpen onClose={()=>setPreview(null)}/>}
     {confirm&&<AppDialog title={confirm.title} busy={busy} onClose={()=>setConfirm(null)}><p className="text-sm">{confirm.body}</p>
       {error&&<p role="alert" className="mt-3 text-sm text-status-eraser">{error}</p>}
       <button disabled={busy} onClick={()=>{setBusy(true);setError('');void confirm.run().then(()=>setConfirm(null)).catch(e=>setError(e.message)).finally(()=>setBusy(false));}} className="mt-4 rounded-xl bg-status-eraser px-4 py-2 text-white">確認</button></AppDialog>}
