@@ -25,6 +25,9 @@ export function CollectionDetailView(){
   const [nextCursor,setNextCursor]=useState<{display_order:number;id:string}|null>(null);
   const [topicFilter,setTopicFilter]=useState('');
   const [tagFilter,setTagFilter]=useState('');
+  const [appliedTagFilter,setAppliedTagFilter]=useState('');
+  const [itemsLoading,setItemsLoading]=useState(false);
+  useEffect(()=>{const timer=setTimeout(()=>setAppliedTagFilter(tagFilter.trim()),300);return ()=>clearTimeout(timer);},[tagFilter]);
 
   const [email,setEmail]=useState('');
   const [role,setRole]=useState<'viewer'|'contributor'>('viewer');
@@ -42,61 +45,79 @@ export function CollectionDetailView(){
   const [busy,setBusy]=useState(false);
   const [confirm,setConfirm]=useState<{title:string;body:string;run:()=>Promise<void>}|null>(null);
   const [title,setTitle]=useState('');
-  const loadAbort=useRef<AbortController>();const titleFor=useRef('');
-  const contextKey=JSON.stringify([id,currentUser?.id,topicFilter,tagFilter]);const currentContext=useRef(contextKey);currentContext.current=contextKey;
+  const loadAbort=useRef<AbortController>(),managementAbort=useRef<AbortController>();
+  const titleFor=useRef(''),requestedContext=useRef('');
+  const scopeKey=JSON.stringify([id,currentUser?.id]);
+  const currentScope=useRef(scopeKey);currentScope.current=scopeKey;
+  const contextKey=JSON.stringify([scopeKey,topicFilter,appliedTagFilter]);
+  const currentContext=useRef(contextKey);currentContext.current=contextKey;
   const query=()=>{
     const params=new URLSearchParams();
     if(topicFilter)params.set('topic_id',topicFilter);
-    if(tagFilter.trim())params.set('tag',tagFilter.trim());
-
+    if(appliedTagFilter){params.set('tag',appliedTagFilter);params.set('tag_match','contains');}
     return params;
   };
-  const load=async()=>{
+  const loadItems=async(more=false):Promise<Collection|null>=>{
+    if(more&&(!nextCursor||busy||itemsLoading))return null;
     loadAbort.current?.abort();const abort=new AbortController();loadAbort.current=abort;
-    const activeContext=contextKey;
-    const read=<T,>(path:string)=>sharingApi<T>(path,'GET',undefined,abort.signal);
-    const data=await sharingApi<{collection:Collection;items:CollectionEntry[];
-      next_cursor:{display_order:number;id:string}|null}>(`/collections/${id}?${query()}`,'GET',undefined,abort.signal);
-    if(abort.signal.aborted||currentContext.current!==activeContext)return;
-    if(!data.collection.can_contribute){navigate(`/collections/${id}`,{replace:true});return;}
-    setCo(data.collection);if(titleFor.current!==id){setTitle(data.collection.title);titleFor.current=id;}setItems(data.items);setNextCursor(data.next_cursor);
-    if(data.collection.can_contribute) {
-      const pending=await read<{transfer:typeof transfer}>(`/collections/${id}/owner-transfer`);
-      if(abort.signal.aborted||currentContext.current!==activeContext)return;setTransfer(pending.transfer);
-    }
-    if(data.collection.is_owner){
-      const [grantResult,linkResult,statsResult]=await Promise.all([
-        read<{grants:typeof grants}>(`/collections/${id}/grants`),
-        read<{links:typeof links}>(`/collections/${id}/links`),
-        read<{stats:NonNullable<typeof stats>}>(`/collections/${id}/stats`),
-      ]);
-      if(abort.signal.aborted||currentContext.current!==activeContext)return;setGrants(grantResult.grants);setLinks(linkResult.links);setStats(statsResult.stats);
-    }
+    const activeContext=contextKey;requestedContext.current=activeContext;
+    setItemsLoading(true);setError('');
+    try{
+      const params=query();
+      if(more&&nextCursor){params.set('after_order',String(nextCursor.display_order));params.set('after_id',nextCursor.id);}
+      const data=await sharingApi<{collection:Collection;items:CollectionEntry[];
+        next_cursor:{display_order:number;id:string}|null}>('/collections/'+id+'?'+params,'GET',undefined,abort.signal);
+      if(abort.signal.aborted||currentContext.current!==activeContext)return null;
+      if(!data.collection.can_contribute){navigate('/collections/'+id,{replace:true});return null;}
+      setCo(data.collection);
+      if(titleFor.current!==scopeKey){setTitle(data.collection.title);titleFor.current=scopeKey;}
+      setItems(previous=>more?[...previous,...data.items]:data.items);setNextCursor(data.next_cursor);
+      return data.collection;
+    }catch(e){
+      if(!abort.signal.aborted&&currentContext.current===activeContext){
+        if(!more){setItems([]);setNextCursor(null);}
+        setError(e instanceof Error?e.message:'讀取題目失敗');
+      }
+      return null;
+    }finally{if(loadAbort.current===abort&&!abort.signal.aborted)setItemsLoading(false);}
   };
-  useEffect(()=>{setCo(null);setItems([]);setError('');setGrants([]);setLinks([]);setStats(null);setTransfer(null);
-    void load().catch(e=>{if(e.name!=='AbortError')setError(e.message);});return ()=>loadAbort.current?.abort();},
-    [contextKey]);
+  // Collection settings have a separate lifetime from the filtered item list.
+  const load=async()=>{
+    managementAbort.current?.abort();const abort=new AbortController();managementAbort.current=abort;
+    const activeScope=scopeKey,collection=await loadItems();
+    if(!collection||abort.signal.aborted||currentScope.current!==activeScope)return;
+    const read=<T,>(path:string)=>sharingApi<T>(path,'GET',undefined,abort.signal);
+    try{
+      const [pending,grantResult,linkResult,statsResult]=await Promise.all([
+        read<{transfer:typeof transfer}>('/collections/'+id+'/owner-transfer'),
+        collection.is_owner?read<{grants:typeof grants}>('/collections/'+id+'/grants'):Promise.resolve({grants:[]}),
+        collection.is_owner?read<{links:typeof links}>('/collections/'+id+'/links'):Promise.resolve({links:[]}),
+        collection.is_owner?read<{stats:NonNullable<typeof stats>}>('/collections/'+id+'/stats'):Promise.resolve({stats:null}),
+      ]);
+      if(abort.signal.aborted||currentScope.current!==activeScope)return;
+      setTransfer(pending.transfer);setGrants(grantResult.grants);setLinks(linkResult.links);setStats(statsResult.stats);
+    }catch(e){if(!abort.signal.aborted&&currentScope.current===activeScope)throw e;}
+  };
+  useEffect(()=>{
+    setCo(null);setItems([]);setNextCursor(null);setError('');setGrants([]);setLinks([]);setStats(null);setTransfer(null);
+    titleFor.current='';requestedContext.current='';
+    void load().catch(e=>setError(e.message));
+    return ()=>{loadAbort.current?.abort();managementAbort.current?.abort();};
+  },[scopeKey]);
+  useEffect(()=>{
+    if(requestedContext.current===contextKey)return;
+    void loadItems();return ()=>loadAbort.current?.abort();
+  },[contextKey]);
   const act=async(fn:()=>Promise<unknown>,message:string)=>{
     setBusy(true);setError('');
     try{await fn();showToast(message,'success');await load();}
     catch(e){setError(e instanceof Error?e.message:'操作失敗');}
     finally{setBusy(false);}
   };
-  const loadMore=async()=>{
-    if(!nextCursor||busy)return;
-    setBusy(true);const activeContext=contextKey;
-    try{
-      const params=query();
-      params.set('after_order',String(nextCursor.display_order));params.set('after_id',nextCursor.id);
-      const page=await sharingApi<{items:CollectionEntry[];
-        next_cursor:{display_order:number;id:string}|null}>(`/collections/${id}?${params}`);
-      if(currentContext.current!==activeContext)return;setItems(previous=>[...previous,...page.items]);setNextCursor(page.next_cursor);
-    }catch(e){setError(e instanceof Error?e.message:'載入更多題目失敗');}
-    finally{setBusy(false);}
-  };
+  const loadMore=()=>loadItems(true);
   if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/settings#collections" className="text-primary">返回題目集</Link></div>;
   if(!co)return <p className="p-6 text-text-muted">載入題目集中…</p>;
-  const canOrder=co.is_owner&&!topicFilter&&!tagFilter;
+  const canOrder=co.is_owner&&!topicFilter&&!tagFilter&&!appliedTagFilter&&!itemsLoading;
   return <div className="min-w-0 w-full max-w-5xl mx-auto space-y-5 pb-16">
     <BackButton fallback="/settings#collections"/>
     <div className="rounded-3xl border border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F] px-5 py-4">
@@ -118,7 +139,7 @@ export function CollectionDetailView(){
         className="mt-3 rounded-xl bg-primary px-4 py-2 text-white disabled:opacity-40">接受管理權</button>
     </section>}
     <section className="rounded-3xl border border-border-subtle bg-surface p-5">
-      <h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/>題目管理</h2>
+      <h2 className="font-semibold flex items-center gap-2"><BookOpen size={18}/>題目管理{itemsLoading&&<span role="status" className="text-xs font-normal text-text-muted">更新中…</span>}</h2>
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <select value={topicFilter} onChange={e=>setTopicFilter(e.target.value)}
           aria-label="依科目與課綱單元篩選" className="min-w-0 w-full max-w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm">
@@ -126,11 +147,11 @@ export function CollectionDetailView(){
             <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
         <input value={tagFilter} onChange={e=>setTagFilter(e.target.value)} list="collection-tags"
-          placeholder="來源標籤" aria-label="依來源標籤篩選"
+          placeholder="來源標籤（部分符合）" aria-label="依來源標籤篩選" maxLength={80}
           className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2 text-sm"/>
         <datalist id="collection-tags">{tagsFor(items).map(tag=><option key={tag} value={tag}/>)}</datalist>
       </div>
-      {items.length?<div role="region" aria-label="已加入集合的題目" tabIndex={0}
+      {items.length?<div role="region" aria-label="已加入集合的題目" aria-busy={itemsLoading} tabIndex={0}
         className="mt-3 max-h-[min(24rem,55dvh)] space-y-2 overflow-y-auto overscroll-y-contain pr-1">{items.map((item,index)=>
         <div key={item.id} className="rounded-2xl border border-border-subtle p-4">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -142,7 +163,7 @@ export function CollectionDetailView(){
               {tagsFor([item]).join('・')}</p>}
           </div>
           <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
-          {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
+          {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="mt-3 text-xs text-status-eraser">從集合移除</button>}
           {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
             {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
               onClick={()=>void act(()=>sharingApi(`/collections/${id}/items/${item.id}/order`,'PATCH',
@@ -152,7 +173,7 @@ export function CollectionDetailView(){
           </div>}
         </div>)}</div>:
         <p className="mt-3 text-sm text-text-muted">這個集合目前沒有題目。</p>}
-      {nextCursor&&<button disabled={busy} onClick={()=>void loadMore()}
+      {nextCursor&&<button disabled={busy||itemsLoading} onClick={()=>void loadMore()}
         className="mt-4 rounded-xl border border-border-subtle px-4 py-2 text-sm disabled:opacity-40">
         載入更多題目</button>}
     </section>
