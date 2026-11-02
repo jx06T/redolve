@@ -548,7 +548,10 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           onAddToCollection={onAddToCollection}
           actions={work?.footerActions}
           onToggleArchive={handleToggleArchive}
-          onToggleStatus={handleToggleStatus}
+          onToggleStatus={async()=>{
+            const completing=!isResolved;
+            if(await handleToggleStatus()&&completing)onNext?.();
+          }}
         />
       </div>
 

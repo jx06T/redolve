@@ -4,6 +4,12 @@
 
 ## 目前狀態
 
+### 2026-11-02 題卡底部完成訂正後換題
+
+- 根因：QuestionLibraryView 的 QuestionStream 透過 onNext 提供平滑下一題，只有 SmartCTA 懸浮按鈕呼叫它；ProblemCardFooter 直接綁 handleToggleStatus，僅變更進度，舊 onStatusResolved 僅服務舊版 StudyView。
+- 底部按鈕於未訂正 → 訂正成功後呼叫現有 onNext，三種刷題來源共用；已訂正 → 未訂正不換題，work 狀態寫入失敗不換題。保留單題頁既有行為、懸浮／鍵盤流程及原有離線策略；無新 API／migration。
+- tests/study-footer-advance.browser.mjs：390／1280px、上傳／存入／共用中、一般／跨頁共 12 組，量測 footer 點擊後實際捲動影格與下一題對齊，驗證取消訂正停留及存入／共用寫入失敗停留。舊建置可重現進度已更新但不捲動；API 為 fixture。
+
 ### 2026-11-02 集合管理標籤與篩選載入
 
 - 上方候選、下方已加入題目的文字標籤輸入改為部分符合；介面使用 tag_match=contains，逐一對 keywords 的字串元素作 literal substring 比對，不跨標籤匹配；ASCII 不分大小寫，%／_ 不當萬用字元。未指定此模式的 API 保留精確比對，探索／延伸題目的既有標籤語意不變。
