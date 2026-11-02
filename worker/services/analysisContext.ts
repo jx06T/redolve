@@ -1,17 +1,19 @@
 import type { AnalysisCatalogEntry, AIService } from './ai/AIService';
-import type { AnalysisEvidence, AnalysisFollowup, AnalysisReply, AnalysisStats } from '../../src/types/analysis';
+import type { AnalysisEvidence, AnalysisFollowup, AnalysisReply, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
 import type { ScopeQuestion } from './practice';
 import { digest, PracticeError } from './practice';
 import { analysisEvidence, getAnalysis, validateInterpretation } from './personalAnalysis';
+import { completeCycleStatement, prepareCycleRun } from './analysisCycles';
 
-interface Context { catalog: AnalysisCatalogEntry[]; questions: ScopeQuestion[]; attemptIds: string[] }
-export async function buildAnalysisContext(db: D1Database, uid: string, snapshot: Parameters<typeof analysisEvidence>[2] & { events: { id: string }[] }): Promise<Context> {
+interface StageContext { previousReport?: PreviousAnalysisContext; changes?: { newQuestionIds: string[]; updatedQuestionIds: string[]; practicedQuestionIds: string[] } }
+interface Context extends StageContext { catalog: AnalysisCatalogEntry[]; questions: ScopeQuestion[]; attemptIds: string[] }
+export async function buildAnalysisContext(db: D1Database, uid: string, snapshot: Parameters<typeof analysisEvidence>[2] & { events: { id: string }[] }, stage: StageContext = {}): Promise<Context> {
   const candidates = snapshot.questions.filter(q => q.id && q.revisionId && q.prepared);
   const rows = candidates.length ? (await db.prepare(`SELECT r.id,substr(json_extract(r.content_json,'$.ocrText'),1,160) text
     FROM learning_question_revisions r JOIN learning_questions q ON q.id=r.learning_question_id
     WHERE q.user_id=? AND r.id IN (SELECT value FROM json_each(?))`).bind(uid, JSON.stringify(candidates.map(q => q.revisionId))).all<{ id: string; text: string }>()).results : [];
   const text = new Map(rows.map(r => [r.id, r.text]));
-  const context = { questions: snapshot.questions, attemptIds: snapshot.events.map(e => e.id), catalog: candidates.map(q => {
+  const context: Context = { ...stage, questions: snapshot.questions, attemptIds: snapshot.events.map(e => e.id), catalog: candidates.map(q => {
     const events = snapshot.byQuestion.get(q.id!) || [];
     return { id: q.id!, topicId: q.topicId, text: text.get(q.revisionId!) || '', attempts: events.length,
       correct: events.filter(e => e.result === 'correct').length, confirmed: q.confirmationStatus === 'confirmed', hasCorrectAnswer: !q.missingCorrectAnswer };
@@ -32,7 +34,7 @@ async function readContext(db: D1Database, uid: string, id: string) {
 }
 async function retrieve(db: D1Database, uid: string, context: Context, stats: AnalysisStats, ai: AIService, question?: string) {
   if (!context.catalog.length) return [];
-  const selected = await ai.selectAnalysisQuestions({ stats, catalog: context.catalog, ...(question ? { question } : {}) });
+  const selected = await ai.selectAnalysisQuestions({ stats, catalog: context.catalog, previousReport: context.previousReport, changes: context.changes, ...(question ? { question } : {}) });
   // Providers are replaceable; enforce access and size here as well as in the Gemini adapter.
   if (!Array.isArray(selected) || selected.length > 30 || selected.some(id => !context.catalog.some(q => q.id === id))) throw Error('Invalid retrieval IDs');
   const evidence = await analysisEvidence(db, uid, { stats, questions: context.questions, byQuestion: new Map() }, selected,
@@ -43,19 +45,21 @@ export async function runAnalysis(db: D1Database, uid: string, id: string, ai: A
   const { report, context } = await readContext(db, uid, id);
   if (report.status === 'complete') return report;
   if (!context) throw new PracticeError(409, '請產生新報告以使用整科分析');
+  await prepareCycleRun(db, uid, id);
   const token = crypto.randomUUID(), now = new Date().toISOString(), lease = new Date(Date.now() + 240000).toISOString();
-  const claim = await db.prepare(`UPDATE analysis_report_contexts SET run_token=? WHERE report_id=? AND EXISTS
-    (SELECT 1 FROM analysis_reports r WHERE r.id=report_id AND r.user_id=? AND r.status='pending' AND (run_token IS NULL OR r.lease_until<?))`)
-    .bind(token, id, uid, now).run();
+  const [claim] = await db.batch([db.prepare(`UPDATE analysis_report_contexts SET run_token=? WHERE report_id=? AND EXISTS
+    (SELECT 1 FROM analysis_reports r WHERE r.id=report_id AND r.user_id=? AND r.status IN ('pending','failed') AND (r.status='failed' OR run_token IS NULL OR r.lease_until<?))`)
+    .bind(token, id, uid, now),
+    db.prepare(`UPDATE analysis_reports SET status='pending',error=NULL,lease_until=? WHERE id=? AND user_id=?
+    AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`).bind(lease, id, uid, id, token)]);
   if (!claim.meta.changes) return getAnalysis(db, uid, id);
-  await db.prepare("UPDATE analysis_reports SET lease_until=? WHERE id=? AND user_id=? AND status='pending'").bind(lease, id, uid).run();
   try {
     const evidence = await retrieve(db, uid, context, report.stats, ai);
-    const result = await ai.analyzeLearning({ stats: report.stats, evidence, catalogQuestions: context.catalog.length });
+    const result = await ai.analyzeLearning({ stats: report.stats, evidence, catalogQuestions: context.catalog.length, previousReport: context.previousReport });
     const interpretation = validateInterpretation(result.interpretation, evidence, report.stats);
-    await db.prepare(`UPDATE analysis_reports SET status='complete',evidence_json=?,interpretation_json=?,model_version=?,error=NULL
+    await db.batch([db.prepare(`UPDATE analysis_reports SET status='complete',evidence_json=?,interpretation_json=?,model_version=?,error=NULL
       WHERE id=? AND user_id=? AND status='pending' AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`)
-      .bind(JSON.stringify(evidence), JSON.stringify(interpretation), result.model, id, uid, id, token).run();
+      .bind(JSON.stringify(evidence), JSON.stringify(interpretation), result.model, id, uid, id, token), completeCycleStatement(db, uid, id, token)]);
   } catch (error) {
     console.warn('[Analysis] Generation failed', { name: error instanceof Error ? error.name : 'unknown' });
     await db.prepare(`UPDATE analysis_reports SET status='failed',error='AI 解讀未完成，統計仍可查看；請手動重試'

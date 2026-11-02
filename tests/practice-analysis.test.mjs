@@ -96,16 +96,17 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       const generated=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});assert.equal(generated.status,202,JSON.stringify(generated.data));
       const report=await waitFor(generated.data.id);assert.equal(report.status,'complete');assert.equal(report.interpretation.findings.length,4,'findings are not limited to three');
       assert.equal(report.stats.timezone,'Asia/Taipei');assert.ok(providerRequests.some(r=>r.generationConfig.responseSchema.properties.questionIds));assert.ok(providerRequests.some(r=>r.generationConfig.responseSchema.properties.findings));
-      const calls=providerRequests.length;const reused=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:15,timezone:'Asia/Taipei'});
+      const calls=providerRequests.length;const reused=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:90,timezone:'Asia/Taipei'});
       assert.equal(reused.data.id,report.id);assert.equal(providerRequests.length,calls);
+      assert.equal((await call('/analysis/eligibility?subjectId=math')).data.reason,'no_changes');
+      assert.equal((await call('/analysis/eligibility?subjectId=math','')).status,401);
       const status=await call('/analysis/reports/'+report.id+'/status');assert.equal(status.data.status,'complete');assert.equal(status.data.evidence,undefined);
       assert.equal((await call('/analysis/reports/'+report.id+'/status','bob')).status,404);
-      const selected=await call('/analysis/reports?subjectId=math&days=15&topicId=');assert.ok(selected.data.reports.some(r=>r.id===report.id));
+      const selected=await call('/analysis/reports?subjectId=math&topicId=');assert.ok(selected.data.reports.some(r=>r.id===report.id&&r.cycle_kind==='baseline'));
       assert.equal((await call('/analysis/reports?subjectId=math&days=7&topicId=')).data.reports.length,0);
-      providerMode='invalid-evidence';const invalid=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:60});
-      assert.equal((await waitFor(invalid.data.id)).status,'failed','unknown citations cannot reach a completed report');
-      providerMode='valid';const retry=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:60});
-      assert.notEqual(retry.data.id,invalid.data.id);assert.equal((await waitFor(retry.data.id)).status,'complete');
+      providerMode='invalid-evidence';const invalid=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},60);
+      assert.equal((await waitFor(invalid.id)).status,'failed','unknown citations cannot reach a completed report');
+      providerMode='valid';assert.equal((await waitFor(invalid.id)).status,'complete','failed reports can retry the same immutable context');
     });
     await t.test('subject overview, equal periods and conversations keep their own evidence and account',async()=>{
       const prior=new Date(Date.now()-40*86400000).toISOString();
@@ -121,7 +122,7 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.equal(overview.data.subjects.find(s=>s.id==='math').questions,4);assert.equal(overview.data.subjects.find(s=>s.id==='math').attempts,numeric.attempts);
       assert.equal((await call('/analysis/overview?days=30','bob')).data.subjects.find(s=>s.id==='math').questions,1);
       assert.equal((await call('/analysis/reports','alice','POST',{scope:{subjectId:'math',topicId:'math'},days:30})).status,422);
-      const created=(await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:7})).data;
+      const created=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},7);
       const completed=(await call('/analysis/reports/'+created.id+'/run','alice','POST',{})).data;
       assert.equal(completed.ok,true);assert.equal(completed.data.status,'complete');assert.ok(completed.data.interpretation.overview);
       const report=completed.data,afterRun=providerRequests.length;
@@ -145,8 +146,8 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.ok(restored.data.data.evidence.flatMap(e=>e.recentAttempts||[]).some(a=>a.id===replacement.id),'report retrieval retains the original effective event ids');
       assert.equal((await call('/analysis/reports/'+report.id+'/followups')).data.length,4);
       const allHistory=(await call('/analysis/reports?subjectId=math')).data.reports;
-      assert.ok(allHistory.some(r=>r.days===7)&&allHistory.some(r=>r.days===15),'history spans observation periods');
-      providerMode='invalid-selection';const bad=(await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:90})).data;
+      assert.ok(allHistory.some(r=>r.days===7)&&allHistory.some(r=>r.cycle_kind==='baseline'),'history retains legacy reports alongside stage reports');
+      providerMode='invalid-selection';const bad=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},90);
       assert.equal((await call('/analysis/reports/'+bad.id+'/run','alice','POST',{})).data.data.status,'failed');providerMode='valid';
       await db.prepare("UPDATE analysis_reports SET detail_expires_at='2000-01-01' WHERE id=?").bind(report.id).run();await analysis.cleanupAnalysis(db);
       assert.equal((await db.prepare('SELECT count(*) n FROM analysis_report_contexts WHERE report_id=?').bind(report.id).first()).n,0);

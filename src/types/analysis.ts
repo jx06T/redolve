@@ -10,7 +10,14 @@ export interface AnalysisStats {
   daily?: { date: string; attempts: number; correct: number; automatic: number; self: number }[];
   comparison?: { from: string; cutoff: string; attempts: number; correct: number; automatic: number; self: number; viewedImage: number;
     matchedQuestions: number; previousMatchedAttempts: number; previousMatchedCorrect: number; currentMatchedAttempts: number; currentMatchedCorrect: number };
+  cycle?: { kind: 'baseline' | 'cycle'; baselineReportId: string | null; from: string; cutoff: string; changes: AnalysisChanges };
 }
+export interface AnalysisChanges { newQuestions: number; updatedQuestions: number; newAttempts: number; correctedAttempts: number }
+export interface AnalysisEligibility {
+  canGenerate: boolean; reason: 'first' | 'ready' | 'cooldown' | 'no_changes' | 'no_questions' | 'in_progress' | 'retry';
+  availableAt: string | null; latestReportId: string | null; activeReportId: string | null; baselineCutoff: string | null; changes: AnalysisChanges;
+}
+export interface PreviousAnalysisContext { id: string | null; cutoff: string; stats: AnalysisStats | null; interpretation: AnalysisInterpretation | null; detailsAvailable: boolean }
 export interface AnalysisEvidence { id: string; ref: PersonalQuestionRef; revisionId: string; topicId: string; text: string; originalAnswer: unknown; correctAnswer: unknown; errorReasons: unknown; attempts: number; correct: number;
   confirmationStatus?: 'ai' | 'confirmed';
   options?: { id: string; label: string; text: string }[];

@@ -5,29 +5,35 @@ import { PracticeError, digest, scopeStatement, scopeTopics } from './practice';
 import type { ScopeQuestion } from './practice';
 import { buildAnalysisContext } from './analysisContext';
 
-interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string }
-export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC') {
-  if (!ANALYSIS_PERIOD_DAYS.some(d => d === days)) throw new PracticeError(422, '請選擇 7、15、30、60 或 90 天');
+interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string; received_at: string; root_id?: string; root_received_at?: string }
+export interface CycleWindow { from: string; cutoff: string; boundaryIds: string[] }
+export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', window?: CycleWindow) {
+  if (!window && !ANALYSIS_PERIOD_DAYS.some(d => d === days)) throw new PracticeError(422, '請選擇 7、15、30、60 或 90 天');
   let dateFormatter: Intl.DateTimeFormat;
   try { dateFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }); }
   catch { throw new PracticeError(422, '時區不正確'); }
-  const topics = await scopeTopics(db, uid, scope), cutoff = new Date().toISOString(), from = new Date(Date.now() - days * 86400000).toISOString(), previousFrom = new Date(Date.parse(from) - days * 86400000).toISOString();
+  const topics = await scopeTopics(db, uid, scope), cutoff = window?.cutoff || new Date().toISOString(), from = window?.from || new Date(Date.now() - days * 86400000).toISOString(), previousFrom = window ? from : new Date(Date.parse(from) - days * 86400000).toISOString();
   const results = await db.batch([
     scopeStatement(db, uid, topics.ids, true, 2001),
-    db.prepare(`SELECT p.id,p.learning_question_id,p.result,p.grading_method,p.used_original_image,p.answered_at,sc.topicId
+    db.prepare(`SELECT p.id,p.learning_question_id,p.result,p.grading_method,p.used_original_image,p.answered_at,p.received_at,sc.topicId
+      ${window ? ',root.id root_id,root.received_at root_received_at' : ''}
       FROM (SELECT q.id,i.topic_id topicId FROM items i JOIN learning_questions q ON q.item_id=i.id AND q.user_id=i.user_id
         WHERE i.user_id=? AND i.topic_id IN (SELECT value FROM json_each(?))
         UNION ALL SELECT q.id,s.personal_topic_id FROM saved_refs s JOIN learning_questions q ON q.saved_ref_id=s.id AND q.user_id=s.user_id
         WHERE s.user_id=? AND s.personal_topic_id IN (SELECT value FROM json_each(?))) sc
-      CROSS JOIN practice_attempts p INDEXED BY idx_practice_latest
-      WHERE p.user_id=? AND p.learning_question_id=sc.id AND p.answered_at>=? AND p.answered_at<=? AND p.received_at<=? AND p.voided_at IS NULL
+      CROSS JOIN practice_attempts p INDEXED BY ${window ? 'idx_practice_received' : 'idx_practice_latest'}
+      ${window ? 'JOIN practice_attempts root ON root.user_id=p.user_id AND root.session_item_id=p.session_item_id AND root.supersedes_attempt_id IS NULL' : ''}
+      WHERE p.user_id=? AND p.learning_question_id=sc.id AND ${window ? 'p.received_at' : 'p.answered_at'}>=? AND ${window ? 'p.received_at' : 'p.answered_at'}<=? AND p.received_at<=? AND p.voided_at IS NULL
       ORDER BY p.answered_at,p.received_at,p.id LIMIT 20001`)
       .bind(uid, JSON.stringify(topics.ids), uid, JSON.stringify(topics.ids), uid, previousFrom, cutoff, cutoff),
   ]);
-  const questions = results[0].results as unknown as ScopeQuestion[], allEvents = results[1].results as unknown as Event[];
-  const events = allEvents.filter(e => e.answered_at >= from), previous = allEvents.filter(e => e.answered_at < from);
+  const questions = results[0].results as unknown as ScopeQuestion[];
+  const boundary = new Set(window?.boundaryIds || []);
+  const allEvents = (results[1].results as unknown as Event[]).filter(e => !window || e.received_at > from || !boundary.has(e.id));
+  const events = window ? allEvents.filter(e => e.root_received_at! > from || e.root_received_at === from && !boundary.has(e.root_id!)) : allEvents.filter(e => e.answered_at >= from);
+  const previous = window ? [] : allEvents.filter(e => e.answered_at < from);
   if (questions.length > 2000) throw new PracticeError(422, '此科超過目前 2,000 題的分析上限；縮短期間不會排除舊題');
-  if (allEvents.length > 20000 || events.length > 10000 || previous.length > 10000) throw new PracticeError(422, '本期或前期超過 10,000 筆作答，請縮短期間');
+  if (allEvents.length > 20000 || events.length > 10000 || previous.length > 10000) throw new PracticeError(422, window ? '此階段超過 10,000 筆作答的分析上限，請聯絡管理員協助處理' : '本期或前期超過 10,000 筆作答，請縮短期間');
   const units = topics.ids.map(id => ({ id, label: topics.labels[id], questions: 0, attempts: 0, correct: 0, automatic: 0, self: 0, viewedImage: 0 }));
   const byTopic = new Map(units.map(u => [u.id, u])), byQuestion = new Map<string, Event[]>();
   for (const q of questions) byTopic.get(q.topicId)!.questions++;
@@ -39,7 +45,7 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
   const repeated = [...byQuestion.values()].filter(es => es.length >= 2);
   const daily = new Map<string, { date: string; attempts: number; correct: number; automatic: number; self: number }>();
   for (const event of events) {
-    const date = dateFormatter.format(new Date(event.answered_at));
+    const date = dateFormatter.format(new Date(window ? event.root_received_at! : event.answered_at));
     const point = daily.get(date) || { date, attempts: 0, correct: 0, automatic: 0, self: 0 };
     point.attempts++; point.correct += event.result === 'correct' ? 1 : 0;
     point.automatic += event.grading_method === 'automatic' ? 1 : 0; point.self += event.grading_method === 'self' ? 1 : 0;
@@ -62,7 +68,8 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
     self: events.filter(e => e.grading_method === 'self').length, viewedImage: events.filter(e => e.used_original_image).length,
     repeatedQuestions: repeated.length, changedToCorrect: repeated.filter(es => es[0].result === 'incorrect' && es.at(-1)!.result === 'correct').length,
     changedToIncorrect: repeated.filter(es => es[0].result === 'correct' && es.at(-1)!.result === 'incorrect').length, units: units.filter(u => u.questions || u.attempts) };
-  return { stats, questions, events, byQuestion, previous };
+  if (window) delete stats.comparison;
+  return { stats, questions, events, byQuestion, previous, contextEvents: allEvents };
 }
 export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pick<Awaited<ReturnType<typeof analysisSnapshot>>, 'stats' | 'questions' | 'byQuestion'>, selectedIds?: string[], counts?: Map<string, { attempts: number; correct: number }>, frozenAttemptIds?: string[]) {
   // Representative sample, balanced across units; repeated errors first within a unit.
@@ -81,7 +88,7 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pi
       FROM practice_attempts p JOIN learning_question_revisions r ON r.id=p.revision_id
       JOIN learning_questions q ON q.id=p.learning_question_id AND q.user_id=p.user_id
       WHERE p.user_id=? AND p.learning_question_id IN (SELECT value FROM json_each(?))
-      AND p.answered_at>=? AND p.answered_at<=? AND p.received_at<=?
+      AND ${snapshot.stats.cycle ? 'p.received_at' : 'p.answered_at'}>=? AND ${snapshot.stats.cycle ? 'p.received_at' : 'p.answered_at'}<=? AND p.received_at<=?
       AND ${frozenAttemptIds ? 'p.id IN (SELECT value FROM json_each(?))' : 'p.voided_at IS NULL'}) WHERE rn<=5`)
       .bind(uid, JSON.stringify(picked.map(q => q.id)), snapshot.stats.from, snapshot.stats.cutoff, snapshot.stats.cutoff, ...(frozenAttemptIds ? [JSON.stringify(frozenAttemptIds)] : [])),
   ]);
