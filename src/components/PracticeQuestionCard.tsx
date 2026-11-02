@@ -2,7 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Panzoom from '@panzoom/panzoom';
 import type { PanzoomObject } from '@panzoom/panzoom';
+import { Minus, Plus, Undo2, Redo2 } from 'lucide-react';
 import { DrawCanvas } from './DrawCanvas';
+import { FloatingPenToolbar } from './FloatingPenToolbar';
+import { CALC_SPACE_STEP } from '../config/constants';
+import { runDrawingCommand } from '../services/drawingCommands';
 import { LearningDataDialog } from './LearningDataButton';
 import { learningService } from '../services/learningService';
 import { practiceService, syncPractice } from '../services/practiceService';
@@ -40,13 +44,14 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   question: PracticeQuestion; sessionId: string; next: () => void; onRecorded: (result: 'correct' | 'incorrect') => void;
 }) {
   const uid = useStore(s => s.currentUser?.id || ''), eventId = useRef(crypto.randomUUID());
+  const tool = useStore(s => s.tool), penColor = useStore(s => s.penColor), penWidth = useStore(s => s.penWidth);
   const [answer, setAnswer] = useState<LearningAnswer>(null), [revealed, setRevealed] = useState(false);
   const [result, setResult] = useState<'correct' | 'incorrect' | null>(null), [input, setInput] = useState<AttemptInput | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [editKey, setEditKey] = useState(false);
   const [openImage, setOpenImage] = useState(false), [everImage, setEverImage] = useState(false);
   const [displayContent, setDisplayContent] = useState(question.content);
   const [keyChanged, setKeyChanged] = useState(false);
-  const [height, setHeight] = useState(400), [eraser, setEraser] = useState(false);
+  const [height, setHeight] = useState(400);
   const active = useRef(true), lock = useRef(false);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const choice = ['single_choice', 'multiple_choice'].includes(question.content.questionType);
@@ -108,9 +113,23 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
         <Link to={practiceRefPath(question.ref)} className="inline-block text-sm underline">查看原題與重作紀錄</Link>
       </div>}
       {error && <p role="alert" className="text-sm">{error}</p>}
-      <div className="flex items-center justify-between"><span className="text-sm text-text-muted">本輪草稿（離開即清除）</span><button className={button} onPointerDown={() => setEraser(true)} onPointerUp={() => setEraser(false)} onPointerCancel={() => setEraser(false)} onPointerLeave={() => setEraser(false)}>按住擦除</button></div>
-      <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-page-bg" style={{ height }}><DrawCanvas calcSpaceHeight={height} isEraserActive={eraser} /></div>
-      <button className={button} onClick={() => setHeight(h => h + 400)}>增加草稿空間</button>
+      <section aria-label="本輪草稿" className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm text-text-muted">本輪草稿（離開即清除）</span>
+          <div role="group" aria-label="草稿操作" className="flex items-center gap-1">
+            <button type="button" className={button + ' flex min-h-11 items-center gap-1.5 px-3'} onClick={() => runDrawingCommand('undo', null)} title="復原上一筆"><Undo2 size={15} />復原</button>
+            <button type="button" className={button + ' flex min-h-11 items-center gap-1.5 px-3'} onClick={() => runDrawingCommand('redo', null)} title="重做上一筆"><Redo2 size={15} />重做</button>
+          </div>
+        </div>
+        <div data-practice-scratchpad className="relative overflow-hidden rounded-2xl border border-border-subtle bg-page-bg" style={{ height }}>
+          <DrawCanvas calcSpaceHeight={height} activeTool={tool} activeColor={penColor} activeWidth={penWidth} />
+        </div>
+        <div role="group" aria-label="草稿長度" className="flex justify-end gap-1">
+          <button type="button" className={button + ' flex min-h-11 items-center gap-1.5 px-3'} disabled={height <= 100} onClick={() => setHeight(h => Math.max(100, h - CALC_SPACE_STEP))} title={`縮短 ${CALC_SPACE_STEP}px，保留筆跡`}><Minus size={15} />縮短</button>
+          <button type="button" className={button + ' flex min-h-11 items-center gap-1.5 px-3'} onClick={() => setHeight(h => h + CALC_SPACE_STEP)} title={`延伸 ${CALC_SPACE_STEP}px`}><Plus size={15} />延伸</button>
+        </div>
+      </section>
+      <FloatingPenToolbar />
     </section>
     {everImage && <PracticeImage url={`${API_BASE.replace(/\/api\/?$/, '')}${question.imageUrl}`} open={openImage} close={() => setOpenImage(false)} />}
   </div>;
