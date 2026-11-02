@@ -5,6 +5,7 @@ import type { PanzoomObject } from '@panzoom/panzoom';
 import { Minus, Plus, Undo2, Redo2 } from 'lucide-react';
 import { DrawCanvas } from './DrawCanvas';
 import { FloatingPenToolbar } from './FloatingPenToolbar';
+import { AppDialog } from './AppDialog';
 import { CALC_SPACE_STEP } from '../config/constants';
 import { runDrawingCommand } from '../services/drawingCommands';
 import { LearningDataDialog } from './LearningDataButton';
@@ -17,17 +18,16 @@ import { useStore } from '../store/useStore';
 import { API_BASE } from '../services/api';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
 
-function PracticeImage({ url, open, close }: { url: string; open: boolean; close: () => void }) {
+function PracticeImage({ url, close }: { url: string; close: () => void }) {
   const img = useRef<HTMLImageElement>(null), pan = useRef<PanzoomObject | null>(null);
   const [loaded, setLoaded] = useState(false), [scale, setScale] = useState(1.5);
   useEffect(() => {
-    if (!open || !loaded || !img.current || pan.current) return;
-    const p = Panzoom(img.current, { startScale: scale, minScale: 1, maxScale: 5, contain: 'outside' }); pan.current = p;
-  }, [open, loaded, scale]);
-  useEffect(() => () => { pan.current?.destroy(); }, []);
-  useEffect(() => { if (!open) return; const escape = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); }; window.addEventListener('keydown', escape); return () => window.removeEventListener('keydown', escape); }, [open, close]);
-  return <aside hidden={!open} aria-label="原圖" className="fixed inset-3 z-40 rounded-2xl border border-border-subtle bg-surface p-4 shadow-xl lg:static lg:z-auto lg:shadow-none">
-    <div className="mb-3 flex flex-wrap items-center gap-2"><span className="mr-auto text-sm">原圖（可能含答案）</span>
+    if (!loaded || !img.current) return;
+    const p = Panzoom(img.current, { startScale: 1.5, minScale: 1, maxScale: 5, contain: 'outside' }); pan.current = p;
+    return () => { p.destroy(); pan.current = null; };
+  }, [loaded]);
+  return <AppDialog title="原圖（可能含答案）" onClose={close} size="wide">
+    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
       <label className="text-xs">置中倍率 <select value={scale} onChange={e => { const value = Number(e.target.value); setScale(value); pan.current?.reset(); pan.current?.zoom(value, { animate: false }); }} className="rounded-xl border border-border-subtle bg-surface p-2">
         {[1.25, 1.5, 2].map(v => <option key={v} value={v}>{v} 倍</option>)}
       </select></label>
@@ -35,10 +35,10 @@ function PracticeImage({ url, open, close }: { url: string; open: boolean; close
       <button className={button} onClick={() => pan.current?.zoomOut()} aria-label="縮小原圖">−</button>
       <button className={button} onClick={close}>關閉原圖</button>
     </div>
-    <div className="h-[70vh] overflow-hidden rounded-xl bg-page-bg" onWheel={e => pan.current?.zoomWithWheel(e.nativeEvent)}>
+    <div className="h-[min(60dvh,42rem)] overflow-hidden rounded-xl bg-page-bg" onWheel={e => pan.current?.zoomWithWheel(e.nativeEvent)}>
       <img ref={img} src={url} onLoad={() => setLoaded(true)} alt="原題圖片，可拖曳縮放" className="exam-paper-image h-full w-full object-contain" />
     </div>
-  </aside>;
+  </AppDialog>;
 }
 export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: {
   question: PracticeQuestion; sessionId: string; next: () => void; onRecorded: (result: 'correct' | 'incorrect') => void;
@@ -80,7 +80,7 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   };
   const key = displayContent.correctAnswer;
   const keyLabel = !key ? '尚無正解，可先自評' : key.kind === 'text' ? key.text : key.optionIds.map(id => question.content.options.find(o => o.id === id)?.label).join('、');
-  return <div className={`grid gap-4 ${openImage ? 'lg:grid-cols-2' : ''}`}>
+  return <div>
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
       <p className="whitespace-pre-wrap text-base leading-relaxed">{question.content.ocrText}</p>
       {choice ? <fieldset disabled={revealed || busy} className="space-y-2"><legend className="sr-only">本次作答</legend>
@@ -131,6 +131,6 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       </section>
       <FloatingPenToolbar />
     </section>
-    {everImage && <PracticeImage url={`${API_BASE.replace(/\/api\/?$/, '')}${question.imageUrl}`} open={openImage} close={() => setOpenImage(false)} />}
+    {openImage && <PracticeImage url={`${API_BASE.replace(/\/api\/?$/, '')}${question.imageUrl}`} close={() => setOpenImage(false)} />}
   </div>;
 }

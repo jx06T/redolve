@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-export function AppDialog({title,children,onClose,busy=false}:{title:string;children:ReactNode;onClose:()=>void;busy?:boolean}) {
+export function AppDialog({title,children,onClose,busy=false,size='default'}:{title:string;children:ReactNode;onClose:()=>void;busy?:boolean;size?:'default'|'wide'}) {
   const id=useId();const root=useRef<HTMLDivElement>(null);const close=useRef(onClose);close.current=onClose;
   const waiting=useRef(busy);waiting.current=busy;
   useEffect(()=>{
@@ -22,7 +22,7 @@ export function AppDialog({title,children,onClose,busy=false}:{title:string;chil
   return createPortal(<div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4"
     onClick={()=>{if(!busy)onClose();}}>
     <div ref={root} role="dialog" aria-modal="true" aria-labelledby={id} tabIndex={-1}
-      onClick={e=>e.stopPropagation()} className="max-h-[85dvh] w-full max-w-xl overflow-y-auto rounded-3xl border border-border-subtle bg-surface p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+      onClick={e=>e.stopPropagation()} className={`max-h-[85dvh] w-full ${size==='wide'?'max-w-5xl':'max-w-xl'} overflow-y-auto rounded-3xl border border-border-subtle bg-surface p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)]`}>
       <div className="mb-4 flex items-center justify-between gap-4"><h2 id={id} className="font-semibold">{title}</h2>
         <button type="button" aria-label="關閉對話框" disabled={busy} onClick={onClose} className="rounded-xl p-2"><X size={18}/></button></div>
       {children}
