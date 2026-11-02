@@ -4,6 +4,11 @@
 
 ## 目前狀態
 
+### 2026-11-02 更正管理題目標題的跳轉
+
+- 標題由原圖 URL 改成共用既有 workStudyUrl，於同頁前往 /study?source=contributing&collection_id=…&focus=…；以集合 entry ID 定位，不使用原題 ID，不開新分頁。縮圖維持 ImageViewerModal 放大。
+- 390／1280px 回歸測試實際點擊標題，確認導航範圍與題卡載入；保留篩選／草稿／圖片預覽驗證，API 使用 fixture。TypeScript 與建置通過，無 migration。
+
 ### 2026-11-02 精簡集合題目管理卡片
 
 - 題號、標題與提供者使用同一文字基線，移除個別上邊距；來源標籤獨立一行，題目文字自然換行。

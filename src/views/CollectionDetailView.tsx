@@ -9,6 +9,7 @@ import { CollectionCandidatePicker } from '../components/CollectionCandidatePick
 import { ImageViewerModal } from '../components/ImageViewerModal';
 import { BackButton } from '../components/ReaderNavigation';
 import type { TaxonomyNode } from '../types';
+import { workStudyUrl } from '../services/navigationState';
 
 const standardTopics=(nodes:TaxonomyNode[],depth=0):{id:string;label:string}[]=>
   nodes.flatMap(node=>node.user_id?[]:[{id:node.id,label:`${'　'.repeat(depth)}${node.label}`},
@@ -164,10 +165,10 @@ export function CollectionDetailView(){
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span className="shrink-0 text-xs text-[#5F8670]">第 {item.display_order||index+1} 題</span>
-                <a href={imageUrl(id,item.id)} target="_blank" rel="noopener noreferrer"
-                  aria-label={`開啟 ${item.title||'未命名題目'} 原圖（新分頁）`}
+                <Link to={workStudyUrl(id,item.id)}
+                  aria-label={`前往共用中：${item.title||'未命名題目'}`}
                   className="min-w-0 break-words font-medium underline decoration-text-muted/40 underline-offset-2">
-                  {item.title||'未命名題目'}</a>
+                  {item.title||'未命名題目'}</Link>
                 <span className="text-xs text-text-muted">{item.provider_name||'題目提供者'}</span>
               </div>
               {tagsFor([item]).length>0&&<p className="mt-1 line-clamp-1 break-words text-xs text-text-muted">

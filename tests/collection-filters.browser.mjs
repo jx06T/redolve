@@ -14,6 +14,12 @@ try{
    let data={};
    if(path==='/api/auth/me')data={user:{id:'owner',name:'老師',email:'owner@example.test'}};
    else if(path==='/api/taxonomy')data={tree:[{id:'math',label:'高中數學',children:[]}],customNodes:[],counts:{}};
+   else if(path==='/api/my/collections')data={collections:[collection]};
+   else if(path==='/api/search')data={items:[entries[1],entries[0]].map(entry=>({...entry,origin:'shared',collection_id:'c1',status:'unsolved'})),next_offset:null,cache_version:'1',scope:'shared'};
+   else if(/^\/api\/collections\/c1\/items\/e[12]$/.test(path)){
+    const entry=entries.find(entry=>path.endsWith('/'+entry.id));
+    data={collection,entry:{id:entry.id,generation:1},source:{id:'source-'+entry.id,source:entry.title,contributor_id:'teacher',provider_name:'老師'},progress:{status:'unsolved',review_count:0,row_version:1},layers:[],capabilities:{can_contribute:true,can_save:true}};
+   }
    else if(path==='/api/collections/c1'){
     if(params.get('tag')==='慢'||params.has('after_order'))await new Promise(resolve=>setTimeout(resolve,650));
     const tag=params.get('tag')||'',contains=params.get('tag_match')==='contains';
@@ -39,9 +45,9 @@ try{
   await preview.click();await page.getByRole('img',{name:'轉煎題目',exact:true}).waitFor();
   assert.equal(await page.getByRole('img',{name:'轉煎題目',exact:true}).getAttribute('src'),'/api/collections/c1/items/e1/image');
   await page.getByRole('button',{name:'關閉檢視器 (Esc)',exact:true}).click();
-  const original=included.getByRole('link',{name:'開啟 轉煎題目 原圖（新分頁）',exact:true});
-  assert.equal(await original.getAttribute('href'),'/api/collections/c1/items/e1/image');assert.equal(await original.getAttribute('target'),'_blank');
-  assert.equal(await original.innerText(),'轉煎題目','the title itself opens the image');
+  const original=included.getByRole('link',{name:'前往共用中：轉煎題目',exact:true});
+  assert.equal(await original.getAttribute('href'),'/study?source=contributing&collection_id=c1&focus=e1');assert.equal(await original.getAttribute('target'),null);
+  assert.equal(await original.innerText(),'轉煎題目','the title itself opens the shared study question');
   assert.equal(await included.getByRole('button',{name:/^(上移|下移)$/}).count(),0,'item management no longer offers reordering controls');
   assert(!(await included.innerText()).includes('開啟原圖'),'no duplicate image-link action');
   const picker=page.getByRole('heading',{name:'加入我上傳的原題',exact:true}).locator('..');
@@ -75,6 +81,11 @@ try{
   for(const [path,before]of Object.entries(counts))assert.equal(count(path),before);
   assert.equal(await title.inputValue(),'尚未儲存的集合名稱');assert.equal(errors.length,0,errors.join('\n'));assert(!requests.some(request=>request.method!=='GET'));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
-  await page.screenshot({path:'.wrangler/qa/collection-filters-'+width+'.png'});await context.close();console.log('PASS partial collection filters, scoped requests, preserved selection/drafts/focus and stale-response guards',width);
+  await page.screenshot({path:'.wrangler/qa/collection-filters-'+width+'.png'});
+  await original.click();await page.waitForURL('**/study?source=contributing&collection_id=c1&focus=e1');
+  const target=page.locator('[data-reader] [data-problem-id="e1"]');await target.waitFor();
+  assert(requests.some(request=>request.path==='/api/search'),'the link loads the study list');
+  assert.equal(context.pages().length,1,'study navigation stays in the current tab');assert.equal(errors.length,0,errors.join('\n'));
+  await context.close();console.log('PASS partial collection filters, preserved drafts and direct shared-study navigation',width);
  }
 }finally{await browser.close();}
