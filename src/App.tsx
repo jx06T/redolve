@@ -11,6 +11,7 @@ import { LegacyReaderRedirect } from './views/LegacyReaderRedirect';
 import { SharedQuestionView } from './views/SharedQuestionView';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { watchPracticeSync } from './services/practiceService';
+import { watchCorrections } from './services/correctionService';
 
 const DashboardView = lazy(() => import('./views/DashboardView').then((module) => ({ default: module.DashboardView })));
 const AnalysisView = lazy(() => import('./views/AnalysisView').then(m => ({ default: m.AnalysisView })));
@@ -31,6 +32,7 @@ const CollectionReaderView = lazy(() => import('./views/CollectionReaderView').t
 export default function App() {
   const { currentUser, setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
   const initialized = useRef(false);
+  useEffect(() => { if (currentUser?.id && import.meta.env.VITE_LEARNING_ENABLED === 'true') return watchCorrections(currentUser.id); }, [currentUser?.id]);
   useEffect(() => {
     if (currentUser?.id && import.meta.env.VITE_PRACTICE_ENABLED === 'true') return watchPracticeSync(currentUser.id);
   }, [currentUser?.id]);

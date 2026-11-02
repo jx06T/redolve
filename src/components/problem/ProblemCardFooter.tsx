@@ -5,6 +5,7 @@ import { Item } from '../../types';
 interface ProblemCardFooterProps {
   problem: Item;
   isResolved: boolean;
+  busy?: boolean;
   readOnly?: boolean;
   onAddToCollection?:()=>void;
   actions?:React.ReactNode;
@@ -15,6 +16,7 @@ interface ProblemCardFooterProps {
 export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
   problem,
   isResolved,
+  busy = false,
   readOnly = false,
   onToggleArchive,onAddToCollection,actions,
   onToggleStatus,
@@ -68,7 +70,7 @@ export const ProblemCardFooter: React.FC<ProblemCardFooterProps> = ({
         {!readOnly&&<button
           type="button"
           onClick={onToggleStatus}
-          disabled={problem.status === 'archived'}
+          disabled={busy || problem.status === 'archived'}
           aria-label={isResolved ? '已訂正完畢' : '完成訂正'}
           className={`inline-flex items-center space-x-2 px-4 py-2 rounded-xl font-medium active:scale-95 transition-all ${
             problem.status === 'archived'

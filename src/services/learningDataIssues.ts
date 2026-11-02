@@ -1,5 +1,6 @@
 import type { LearningQuestion } from '../types/learning';
 export function learningDataIssues(question: LearningQuestion): string[] {
+  if (question.confirmationStatus === 'confirmed') return [];
   const issues: string[] = [];
   if (!question.revisionId) issues.push('尚未完成結構化辨識，請重新辨識或人工整理');
   if (!question.content.ocrText?.trim()) issues.push('缺少題幹');

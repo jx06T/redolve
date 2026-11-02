@@ -17,11 +17,11 @@ function getSvgPathFromStroke(strokePoints: number[][]): string {
 /**
  * Exports problem image and handwriting strokes combined into a high-res PNG
  */
-export async function exportProblemAsImage(
+export async function composeProblemImage(
   imageUrl: string,
   drawData: DrawData | string | null,
-  filename: string = 'redolve_problem_export.png'
-): Promise<void> {
+  options: { maxDimension?: number; maxPixels?: number; type?: string; quality?: number; imageElement?: HTMLImageElement } = {}
+): Promise<Blob> {
   const parsedDrawData: DrawData | null = (() => {
     if (!drawData) return null;
     try {
@@ -31,18 +31,23 @@ export async function exportProblemAsImage(
     }
   })();
 
-  const img = new Image();
-  img.crossOrigin = 'anonymous';
-
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error('Failed to load problem image'));
+  const reusable = options.imageElement?.complete && options.imageElement.naturalWidth ? options.imageElement : null;
+  const img = reusable || new Image();
+  if (!reusable) {
+    img.crossOrigin = 'anonymous';
+    await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('圖片載入逾時，請稍後重試')), 8000);
+    img.onload = () => { clearTimeout(timeout); resolve(); };
+    img.onerror = () => { clearTimeout(timeout); reject(new Error('Failed to load problem image')); };
     img.src = imageUrl;
-  });
+    });
+  }
 
-  const width = img.naturalWidth || 1200;
-  const imgHeight = img.naturalHeight || 800;
-  const calcSpaceHeight = parsedDrawData?.calcSpaceHeight ?? DEFAULT_CALC_SPACE_HEIGHT;
+  const originalWidth = img.naturalWidth || 1200, originalHeight = img.naturalHeight || 800;
+  const calcSpaceHeight = Math.max(0, Math.min(3000, parsedDrawData?.calcSpaceHeight ?? DEFAULT_CALC_SPACE_HEIGHT));
+  const ratio = originalHeight / originalWidth + calcSpaceHeight / (parsedDrawData?.baseWidth || DEFAULT_BASE_WIDTH);
+  const width = Math.max(1, Math.floor(Math.min(originalWidth, options.maxDimension || Infinity, (options.maxDimension || Infinity) / ratio, Math.sqrt((options.maxPixels || Infinity) / ratio))));
+  const imgHeight = originalHeight * width / originalWidth;
 
   // Determine base coordinate space width
   const baseWidth = parsedDrawData?.baseWidth || DEFAULT_BASE_WIDTH;
@@ -109,12 +114,13 @@ export async function exportProblemAsImage(
     });
   }
 
-  // Trigger download
-  const dataUrl = canvas.toDataURL('image/png');
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = dataUrl;
-  link.click();
+  return new Promise<Blob>((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(Error('無法合成圖片')), options.type || 'image/png', options.quality));
+}
+
+export async function exportProblemAsImage(imageUrl: string, drawData: DrawData | string | null, filename = 'redolve_problem_export.png'): Promise<void> {
+  const blob = await composeProblemImage(imageUrl, drawData), url = URL.createObjectURL(blob);
+  const link = document.createElement('a'); link.download = filename; link.href = url; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
 }
 
 /**

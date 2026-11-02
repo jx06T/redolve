@@ -40,7 +40,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const [progress,setProgress]=useState<ReviewProgress>(initialProgress);const progressRef=useRef(progress);const progressBusy=useRef(false);
   useEffect(()=>{const next=initialProgress();if(next.row_version>=progressRef.current.row_version){setProgress(next);progressRef.current=next;}},[content]);
   const changeProgress=async(action:'resolve'|'archive')=>{
-    if(readOnly||progressBusy.current)return;progressBusy.current=true;
+    if(readOnly||progressBusy.current)return false;progressBusy.current=true;
     try{const current=progressRef.current;
       let next:ReviewProgress;
       if(content.saved){const status=action==='archive'?(current.status==='archived'?current.previous_status:'archived'):(current.status==='resolved'?'unsolved':'resolved');
@@ -50,6 +50,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
       }else{const result=await sharingApi<{progress:ReviewProgress}>('/collections/'+encodeURIComponent(content.collectionId!)+'/items/'+encodeURIComponent(content.shared!.entry.id)+'/progress','PUT',{action,expected_version:current.row_version,expected_generation:content.shared!.entry.generation});next=result.progress;}
       progressRef.current=next;setProgress(next);onChanged?.();
       if(useStore.getState().currentUser?.id===account&&content.shared?.source.contributor_id===account)useStore.getState().updateProblemInStore(content.shared.source.id,{status:next.status,review_count:next.review_count});
+      return true;
     }finally{progressBusy.current=false;}
   };
   const mineEditable=!readOnly&&hasProfile&&(!content.shared||content.shared.capabilities.can_contribute);
@@ -63,9 +64,10 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   };
   const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(state.ink),typed_notes:state.notes,status:progress.status,review_count:progress.review_count,vector_clock:null,created_at:'',updated_at:''};
   const syncMessage=state.status==='conflict'?'同步衝突':state.status==='error'?'同步失敗':state.status==='saving'?'正在同步存檔…':state.status==='pending'?(state.error?'尚未同步':'等待同步…'):savedFlash?'已同步':'支援即時打字';
-  const work:ProblemCardWork={editorVersion:state.editorVersion,image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:()=>changeProgress('archive'),reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
+  const work:ProblemCardWork={editorVersion:state.editorVersion,image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:async()=>{await changeProgress('archive');},reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
     learningRef: content.saved ? { kind: 'saved', savedRefId: content.saved.saved.id } : undefined,
+    learningSourceIdentity: content.saved?.saved.current_snapshot_id,
     syncStatus:<><span role="status" aria-atomic="true">{syncMessage}</span>{state.status==='error'&&<button type="button" onClick={controller.retry} className="text-text-muted underline underline-offset-2 hover:text-text-main">重試同步</button>}</>,
     copyText:()=>workService.copyText(content.ref),
     reloadLabel:content.saved?'檢查來源更新':undefined,

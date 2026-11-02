@@ -15,10 +15,12 @@ import { useOwnedWork } from '../hooks/useOwnedWork';
 import { itemInk, itemInkSeq } from '../services/ownedWorkController';
 import { downloadWorkDraft } from '../services/workService';
 import { WorkConflictDialog } from './WorkConflictDialog';
-import {beginWorkInteraction,endWorkInteraction} from '../services/workInteraction';
+import {beginWorkInteraction,endWorkInteraction,isWorkInteracting} from '../services/workInteraction';
 import {sameWork,rebaseTextPosition} from '../services/workMerge';
 import { LearningDataButton } from './LearningDataButton';
 import type { PersonalQuestionRef } from '../types/learning';
+import { learningService } from '../services/learningService';
+import { cancelCorrection, enqueueCorrection, syncCorrections } from '../services/correctionService';
 
 import {
   getProblemImageUrl,
@@ -32,9 +34,10 @@ import { Link } from 'react-router-dom';
 
 export type ProblemCardWork={
   learningRef?: PersonalQuestionRef;
+  learningSourceIdentity?: string;
   editorVersion?:number;
   image:string;saveInk:(data:DrawData)=>void;saveNotes:(notes:string)=>void;
-  toggleStatus:()=>Promise<void>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
+  toggleStatus:()=>Promise<void | boolean>;toggleArchive:()=>Promise<void>;reload:()=>Promise<void>;
   copyText?:()=>Promise<string>;remove?:()=>void;share?:()=>void;
   references?:DrawData[];label:React.ReactNode;notesLabel?:string;syncStatus?:React.ReactNode;beforeWorkspace?:React.ReactNode;afterNotes?:React.ReactNode;footerActions?:React.ReactNode;reloadLabel?:string;
 };
@@ -84,6 +87,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const ownedEnabled = !work && !inputProblem.id.startsWith('temp_');
   const owned = useOwnedWork(inputProblem, ownedEnabled);
+  const completingRef = useRef(false);
+  const [completing, setCompleting] = useState(false);
   const problem = React.useMemo(() => owned.state ? {...inputProblem,
     draw_data: JSON.stringify(owned.state.ink), typed_notes: owned.state.notes,
     draw_seq: owned.state.inkSeq, notes_seq: owned.state.notesSeq} : inputProblem, [inputProblem, owned.state]);
@@ -244,13 +249,43 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   const handleToggleStatus = async () => {
     if(readOnly)return false;
-    if(work){try{await work.toggleStatus();onChanged?.();return true;}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');return false;}}
+    if(work){try{if (await work.toggleStatus() === false) return false;onChanged?.();return true;}catch(e){showToast(e instanceof Error?e.message:'儲存失敗','error');return false;}}
     const nextStatus = await toggleStatus(problem);onChanged?.();
     setIsResolved(nextStatus === 'resolved');
     if (nextStatus === 'resolved' && onStatusResolved) {
       onStatusResolved(problem.id);
     }
-    return nextStatus === 'resolved';
+    return nextStatus === 'resolved' || nextStatus === 'unsolved';
+  };
+  const personalRef: PersonalQuestionRef | undefined = work?.learningRef || (!work && !problem.id.startsWith('temp_') ? { kind: 'owned', itemId: problem.id } : undefined);
+  const recognizeCurrentCorrection = async (force = true, snapshot?: { ink: DrawData; notes: string }) => {
+    const uid = useStore.getState().currentUser?.id;
+    if (!uid || !personalRef) throw Error('請登入並使用個人題目');
+    await enqueueCorrection(uid, personalRef, imageUrl, snapshot?.ink || structuredClone(latestDrawDataRef.current || itemInk(problem)),
+      snapshot?.notes ?? typedNotes, work?.learningSourceIdentity || problem.image_url, force, workspaceRef.current?.querySelector('img') || undefined);
+    await syncCorrections(uid);
+    return learningService.read(personalRef);
+  };
+  const completeCorrection = async () => {
+    if (completingRef.current) return;
+    if (isWorkInteracting()) { showToast('請先完成目前這一筆或文字輸入，再按完成訂正', 'info'); return; }
+    completingRef.current = true; setCompleting(true);
+    const wasCompleting = !isResolved, uid = useStore.getState().currentUser?.id;
+    const snapshot = { ink: structuredClone(latestDrawDataRef.current || itemInk(problem)), notes: typedNotes, image: workspaceRef.current?.querySelector('img') || undefined };
+    try {
+      if (!await handleToggleStatus()) return;
+      if (personalRef && uid && import.meta.env.VITE_LEARNING_ENABLED === 'true') {
+        if (wasCompleting) {
+          // Run independently of this card's lifetime; the composite is captured before advancing.
+          try { await enqueueCorrection(uid, personalRef, imageUrl, snapshot.ink, snapshot.notes, work?.learningSourceIdentity || problem.image_url, false, snapshot.image);
+            void syncCorrections(uid).catch(() => {});
+          } catch { showToast('訂正已完成；AI 圖片尚未保留，可稍後在辨識框重新整理', 'info', 4000); }
+        } else await cancelCorrection(uid, personalRef);
+      }
+      if (wasCompleting) onNext?.();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : '這次操作未完成，請檢查同步狀態後重試', 'error');
+    } finally { completingRef.current = false; setCompleting(false); }
   };
 
   const handleToggleArchive = async () => {
@@ -461,6 +496,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           learningAction={import.meta.env.VITE_LEARNING_ENABLED === 'true' && !readOnly && useStore.getState().currentUser?.id &&
             (work?.learningRef || !work && !problem.id.startsWith('temp_')) ?
             <LearningDataButton questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} active={isActive || !onNext}
+              corrected={isResolved || problem.status === 'archived' && problem.review_count > 0} onRecognize={() => recognizeCurrentCorrection()}
               refreshKey={`${problem.content_seq || 0}:${problem.status}:${reloadVersion}`} /> : undefined}
           sourceLabel={work?.label||memberships.filter(m=>m.state==='included'&&m.lifecycle!=='deleted').slice(0,2).map(m=><Link key={m.entry_id} to={`/settings/collections/${m.collection_id}`} className="rounded-lg bg-neutral-100 px-2.5 py-1 text-xs text-text-muted underline">{m.lifecycle==='active'?(m.visibility==='public'?'公開':'共用'):m.lifecycle==='draft'?'草稿':'已暫停'} · {m.title}</Link>)}
         />
@@ -544,14 +580,12 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
         <ProblemCardFooter
           problem={problem}
           isResolved={isResolved}
+          busy={completing}
           readOnly={readOnly}
           onAddToCollection={onAddToCollection}
           actions={work?.footerActions}
           onToggleArchive={handleToggleArchive}
-          onToggleStatus={async()=>{
-            const completing=!isResolved;
-            if(await handleToggleStatus()&&completing)onNext?.();
-          }}
+          onToggleStatus={() => void completeCorrection()}
         />
       </div>
 

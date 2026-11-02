@@ -22,4 +22,6 @@ test('AI state alone does not raise a dot, missing personal saver answer and opt
   const saved=structuredClone(question);saved.ref={kind:'saved',savedRefId:'s'};saved.personal.originalAnswer=null;assert.deepEqual(learningDataIssues(saved),[]);
   saved.content.correctAnswer=null;assert.ok(learningDataIssues(saved).some(issue=>issue.includes('正解')));
   const legacy=structuredClone(question);legacy.revisionId=null;assert.ok(learningDataIssues(legacy).some(issue=>issue.includes('結構化')));
+  legacy.confirmationStatus='confirmed';legacy.content.ocrText=null;legacy.content.correctAnswer=null;legacy.personal.originalAnswer=null;
+  assert.deepEqual(learningDataIssues(legacy),[],'confirmation accepts deliberate empty fields and clears missing-data reminders');
 });

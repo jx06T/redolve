@@ -2,7 +2,7 @@
 
 日期：2026-11-02 更新。分支：`codex/personal-analysis-foundation`。
 
-最新辨識彈窗、React 更新循環修復與 AI 分析符合性驗證見 [修正紀錄](./PERSONAL_ANALYSIS_ALIGNMENT_2026-11-01.md)。2026-11-02 的整科報告與追問另新增 0017；已套用 0014～0016 者仍需補 0017，見 [最新功能紀錄](./PERSONAL_ANALYSIS_GLOBAL_2026-11-02.md)。
+最新辨識彈窗、React 更新循環修復與 AI 分析符合性驗證見 [修正紀錄](./PERSONAL_ANALYSIS_ALIGNMENT_2026-11-01.md)。2026-11-02 的整科報告與追問新增 0017，訂正後自動整理再新增 0018；已套用 0014～0016 者仍需補 0017／0018，見 [最新功能紀錄](./PERSONAL_ANALYSIS_GLOBAL_2026-11-02.md)。
 
 目前可在本地試用辨識資料修改、原題抽題、逐次作答紀錄、科目統計與手動產生分析。Queue／辨識自動重試依使用者決策延後；原圖倍率仍是 1.25／1.5／2 倍可切換的試用原型，初值 1.5 倍尚未核定為正式設計。
 
@@ -28,7 +28,7 @@ node scripts/apply-practice-schema.mjs --target=local --apply
 node scripts/init-local-db.mjs --check
 ```
 
-這兩支腳本依序套用：0014 辨識資料與版本、0015 作答事件、0016 個人報告、0017 報告目錄與追問。完整套用會跳過，不需重跑整份 `worker/schema.sql`，也不使用已撤回的 0011。`--apply` 改成 `--check` 可先唯讀檢查。
+這兩支腳本依序套用：0014 辨識資料與版本、0015 作答事件、0016 個人報告、0017 報告目錄與追問、0018 訂正整理候選。完整套用會跳過，不需重跑整份 `worker/schema.sql`，也不使用已撤回的 0011。`--apply` 改成 `--check` 可先唯讀檢查。
 
 ## 2. 舊題文字（選用）
 
@@ -60,7 +60,7 @@ PRACTICE_ENABLED=true
 ANALYSIS_ENABLED=true
 ```
 
-`.env.local` 與 `.dev.vars` 均已被 Git 忽略。整科報告與追問預設使用 `gemini-3.1-pro-preview`，可用後端 `GEMINI_ANALYSIS_MODEL` 覆寫；一般題目辨識維持原設定。AI 辨識／報告另需 `.dev.vars` 內有效的 `GEMINI_API_KEY`；登入沿用現有 `JWT_SECRET`、Google OAuth 設定。本地 Google callback 應含 `http://localhost:3000/api/auth/callback/google`，詳見配置指南。
+`.env.local` 與 `.dev.vars` 均已被 Git 忽略。整科報告與追問預設使用 `gemini-3.1-pro-preview`，可用後端 `GEMINI_ANALYSIS_MODEL` 覆寫；一般題目辨識維持原設定。訂正整理可用獨立 `GEMINI_CORRECTION_MODEL` 覆寫，流程見 [訂正後整理](./CORRECTION_RECOGNITION_FLOW_2026-11-02.md)。AI 辨識／報告另需 `.dev.vars` 內有效的 `GEMINI_API_KEY`；登入沿用現有 `JWT_SECRET`、Google OAuth 設定。本地 Google callback 應含 `http://localhost:3000/api/auth/callback/google`，詳見配置指南。
 
 分別開兩個終端機：
 
@@ -78,7 +78,7 @@ node node_modules/vite/bin/vite.js
 
 ## 4. 正式 D1 與預覽環境
 
-`--target=local` 只處理本地；不會升級 Cloudflare 上的 D1。正式發布時應先對正確環境核對 schema，再依序套用 0014、0015、0016、0017：
+`--target=local` 只處理本地；不會升級 Cloudflare 上的 D1。正式發布時應先對正確環境核對 schema，再依序套用 0014、0015、0016、0017、0018：
 
 ```powershell
 node scripts/apply-learning-schema.mjs --target=remote --check
