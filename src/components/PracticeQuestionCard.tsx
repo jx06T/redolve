@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Panzoom from '@panzoom/panzoom';
 import type { PanzoomObject } from '@panzoom/panzoom';
-import { Minus, Plus, Undo2, Redo2 } from 'lucide-react';
+import { Check, X, Minus, Plus, Undo2, Redo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { DrawCanvas } from './DrawCanvas';
 import { FloatingPenToolbar } from './FloatingPenToolbar';
 import { AppDialog } from './AppDialog';
@@ -15,27 +15,38 @@ import type { LearningAnswer } from '../types/learning';
 import { useStore } from '../store/useStore';
 import { API_BASE } from '../services/api';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
-const actionButton = 'min-h-11 shrink-0 whitespace-nowrap rounded-xl border border-border-subtle bg-surface px-3 py-2 text-sm disabled:opacity-40';
+const actionControl = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40';
+const actionButton = actionControl + ' border-border-subtle bg-surface';
+const primaryAction = actionControl + ' border-primary/30 bg-primary/10 text-primary-600 hover:bg-primary/15 dark:text-primary-300';
+const resultTone = {
+  correct: 'border-status-resolved/40 bg-status-resolved/15 text-[#276D56] dark:text-[#9CDCC4]',
+  incorrect: 'border-status-eraser/40 bg-status-eraser/15 text-[#A0414A] dark:text-[#F0A8AE]',
+};
+const previewControl = 'flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary';
+const previewScales = [1, 1.25, 1.5, 2, 3, 4, 5];
 
 function PracticeImage({ url, close }: { url: string; close: () => void }) {
   const img = useRef<HTMLImageElement>(null), pan = useRef<PanzoomObject | null>(null);
   const [loaded, setLoaded] = useState(false), [scale, setScale] = useState(1.5);
   useEffect(() => {
     if (!loaded || !img.current) return;
-    const p = Panzoom(img.current, { startScale: 1.5, minScale: 1, maxScale: 5, contain: 'outside' }); pan.current = p;
-    return () => { p.destroy(); pan.current = null; };
+    const element = img.current;
+    const p = Panzoom(element, { startScale: 1.5, minScale: 1, maxScale: 5, contain: 'outside' }); pan.current = p;
+    const updateScale = (event: Event) => { setScale((event as CustomEvent<{ scale: number }>).detail.scale); };
+    element.addEventListener('panzoomchange', updateScale);
+    return () => { element.removeEventListener('panzoomchange', updateScale); p.destroy(); pan.current = null; };
   }, [loaded]);
   return <AppDialog title="原圖（可能含答案）" onClose={close} size="wide">
-    <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
-      <label className="text-xs">置中倍率 <select value={scale} onChange={e => { const value = Number(e.target.value); setScale(value); pan.current?.reset(); pan.current?.zoom(value, { animate: false }); }} className="rounded-xl border border-border-subtle bg-surface p-2">
-        {[1.25, 1.5, 2].map(v => <option key={v} value={v}>{v} 倍</option>)}
-      </select></label>
-      <button className={button} onClick={() => pan.current?.zoomIn()} aria-label="放大原圖">＋</button>
-      <button className={button} onClick={() => pan.current?.zoomOut()} aria-label="縮小原圖">−</button>
-      <button className={button} onClick={close}>關閉原圖</button>
-    </div>
-    <div className="h-[min(60dvh,42rem)] overflow-hidden rounded-xl bg-page-bg" onWheel={e => pan.current?.zoomWithWheel(e.nativeEvent)}>
+    <div className="relative h-[min(68dvh,46rem)] overflow-hidden rounded-xl bg-page-bg" onWheel={e => pan.current?.zoomWithWheel(e.nativeEvent)}>
       <img ref={img} src={url} onLoad={() => setLoaded(true)} alt="原題圖片，可拖曳縮放" className="exam-paper-image h-full w-full object-contain" />
+      <div role="group" aria-label="原圖縮放" onWheel={e => e.stopPropagation()} className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-2xl border border-border-subtle bg-surface/95 p-1 text-text-main shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <label><span className="sr-only">原圖縮放倍率</span><select value={scale} title="選擇倍率並置中" onChange={e => { const value = Number(e.target.value); setScale(value); pan.current?.reset({ animate: false }); pan.current?.zoom(value, { animate: false }); }} className="min-h-11 rounded-xl bg-transparent px-2 text-sm focus-visible:outline-2 focus-visible:outline-primary">
+          {!previewScales.includes(scale) && <option value={scale}>{Math.round(scale * 100)}%</option>}
+          {previewScales.map(v => <option key={v} value={v}>{v * 100}%</option>)}
+        </select></label>
+        <button type="button" className={previewControl} onClick={() => pan.current?.zoomIn()} aria-label="放大原圖" title="放大原圖"><ZoomIn size={18} aria-hidden="true" /></button>
+        <button type="button" className={previewControl} onClick={() => pan.current?.zoomOut()} aria-label="縮小原圖" title="縮小原圖"><ZoomOut size={18} aria-hidden="true" /></button>
+      </div>
     </div>
   </AppDialog>;
 }
@@ -106,7 +117,7 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
         className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3" /></label>}
       {revealed && <div ref={answerPanel} className="space-y-3 rounded-2xl bg-page-bg p-4">
         <p className="whitespace-pre-wrap text-sm">正解：{keyLabel}</p>
-        {automaticResult && <p role="status">自動判分：{automaticResult === 'correct' ? '這次答對' : '這次答錯'}（尚未記錄）</p>}
+        {automaticResult && <p role="status" className={'rounded-xl border px-3 py-2 text-sm ' + resultTone[automaticResult]}>自動判分：{automaticResult === 'correct' ? '這次答對' : '這次答錯'}（尚未記錄）</p>}
       </div>}
       {error && <p ref={errorPanel} role="alert" className="text-sm">{error}</p>}
       <section aria-label="本輪草稿" className="space-y-2">
@@ -131,11 +142,12 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       <div className="overflow-x-scroll">
         <div className="flex min-w-max items-center gap-1.5">
           <button type="button" className={actionButton} onClick={() => { setOpenImage(true); setEverImage(true); }}>檢視原圖</button>
-          {!revealed ? <button type="button" disabled={busy} className={actionButton} onClick={reveal}>查看答案</button> : <>
-            <button type="button" disabled={busy} className={actionButton} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
-            {automatic ? <button type="button" disabled={busy || !automaticResult} className={actionButton} onClick={() => void commit()}>確認結果並下一題</button> : <>
-              <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('correct')}>這次答對</button>
-              <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('incorrect')}>這次答錯</button>
+          {!revealed ? <button type="button" disabled={busy} className={primaryAction} onClick={reveal}>查看答案</button> : <>
+            <button type="button" disabled={busy} className={actionControl + ' border-status-warning/40 bg-status-warning/10 text-text-main hover:bg-status-warning/20'} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
+            {automatic ? <button type="button" disabled={busy || !automaticResult} className={actionControl + ' ' + (automaticResult ? resultTone[automaticResult] : 'border-primary/30 bg-primary/10 text-primary')} onClick={() => void commit()}>
+              {automaticResult === 'correct' ? <Check size={16} aria-hidden="true" /> : <X size={16} aria-hidden="true" />}確認結果並下一題</button> : <>
+              <button type="button" disabled={busy} className={actionControl + ' ' + resultTone.correct + ' hover:bg-status-resolved/25'} onClick={() => void commit('correct')}><Check size={16} aria-hidden="true" />這次答對</button>
+              <button type="button" disabled={busy} className={actionControl + ' ' + resultTone.incorrect + ' hover:bg-status-eraser/25'} onClick={() => void commit('incorrect')}><X size={16} aria-hidden="true" />這次答錯</button>
             </>}
           </>}
           <button type="button" disabled={busy} className={actionButton} onClick={next}>略過</button>

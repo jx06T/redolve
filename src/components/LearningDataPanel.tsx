@@ -102,11 +102,10 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy} className={buttonClass} onClick={() => { setCorrectionId(undefined); prepare(current); }}>修改／確認資料</button>
-        <button type="button" disabled={busy} className={buttonClass} onClick={() => void run(async signal => {
-          if (!onRecognize) throw Error('請回到原題，依目前訂正筆跡重新整理');
+        {onRecognize && <button type="button" disabled={busy} className={buttonClass} onClick={() => void run(async signal => {
           const result = await onRecognize();
           if (!signal.aborted) adoptLoaded(result);
-        })}>{busy ? '處理中…' : '依目前筆跡重新整理'}</button>
+        })}>{busy ? '處理中…' : '依目前筆跡重新整理'}</button>}
       </div>
     </>}
     {current?.correction?.status === 'pending' && <p role="status" className="mt-3 text-xs text-text-muted">AI 正在整理訂正，可先繼續下一題。</p>}
