@@ -13,4 +13,6 @@ CREATE INDEX idx_correction_saved ON learning_corrections(user_id,saved_ref_id,c
 CREATE TRIGGER correction_owner BEFORE INSERT ON learning_corrections
 WHEN (NEW.item_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM items WHERE id=NEW.item_id AND user_id=NEW.user_id))
  OR (NEW.saved_ref_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM saved_refs WHERE id=NEW.saved_ref_id AND user_id=NEW.user_id))
-BEGIN SELECT RAISE(ABORT,'correction owner mismatch'); END;
+BEGIN
+ SELECT RAISE(ABORT,'correction owner mismatch');
+END;

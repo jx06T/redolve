@@ -1,5 +1,7 @@
 # Redolve 設定與部署指南
 
+> 2026-11-03 個人辨識／練習／分析版本的本地與雲端遷移、雙層功能開關、Cloudflare Builds 設定及本次檢查結果，集中於[合併與發布操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)。正式 D1 必須另行檢查，不能用本地 schema 狀態推定。
+
 Redolve 以同一個 Cloudflare Worker 提供前端靜態資源與 `/api`。正式網址為 `https://redolve.jx06t.com`；瀏覽器登入使用同站的 HttpOnly session cookie。
 
 ## 既有資源與設定

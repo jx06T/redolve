@@ -449,8 +449,8 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
 
   return (
     <div data-reader-loading={readyImage !== imageUrl} style={{'--reader-row-margin':'1.5rem'} as React.CSSProperties} className="space-y-4 mb-6">
-      {onNext&&isActive&&!readOnly&&<SmartCTA action={{resolved:isResolved,disabled:problem.status==='archived',run:async()=>{
-        if(isResolved||await handleToggleStatus())onNext();
+      {onNext&&isActive&&!readOnly&&<SmartCTA action={{resolved:isResolved,disabled:problem.status==='archived'||completing,run:async()=>{
+        if(isResolved)onNext();else await completeCorrection();
       }}}/>}
       {/* Visual Divider & Problem Code Header */}
       {problemIndex !== undefined && (

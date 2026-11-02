@@ -9,6 +9,7 @@ import { CollectionCandidatePicker } from '../components/CollectionCandidatePick
 import { ImageViewerModal } from '../components/ImageViewerModal';
 import { BackButton } from '../components/ReaderNavigation';
 import type { TaxonomyNode } from '../types';
+import { workStudyUrl } from '../services/navigationState';
 
 const standardTopics=(nodes:TaxonomyNode[],depth=0):{id:string;label:string}[]=>
   nodes.flatMap(node=>node.user_id?[]:[{id:node.id,label:`${'　'.repeat(depth)}${node.label}`},
@@ -119,7 +120,6 @@ export function CollectionDetailView(){
   const loadMore=()=>loadItems(true);
   if(error&&!co)return <div role="alert" className="max-w-3xl mx-auto p-6">{error} <Link to="/settings#collections" className="text-primary">返回題目集</Link></div>;
   if(!co)return <p className="p-6 text-text-muted">載入題目集中…</p>;
-  const canOrder=co.is_owner&&!topicFilter&&!tagFilter&&!appliedTagFilter&&!itemsLoading;
   return <div className="min-w-0 w-full max-w-5xl mx-auto space-y-5 pb-16">
     <BackButton fallback="/settings#collections"/>
     <div className="rounded-3xl border border-[#DCE8E0] dark:border-[#3D5449] bg-[#EAF1EC] dark:bg-[#26362F] px-5 py-4">
@@ -163,28 +163,22 @@ export function CollectionDetailView(){
               <span className="block py-1 text-xs text-primary">放大檢視</span>
             </button>
             <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-xs text-[#5F8670]">第 {item.display_order||index+1} 題
-              </span>
-            <p className="mt-1 font-medium">{item.title||'未命名題目'}</p>
-            <p className="mt-1 text-xs text-text-muted">{item.provider_name||'題目提供者'}</p>
-            {item.keywords&&<p className="mt-2 line-clamp-1 text-xs text-text-muted">
-              {tagsFor([item]).join('・')}</p>}
-          </div>
-          <p className="mt-2 line-clamp-4 whitespace-pre-wrap text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <span className="shrink-0 text-xs text-[#5F8670]">第 {item.display_order||index+1} 題</span>
+                <Link to={workStudyUrl(id,item.id)}
+                  aria-label={`前往共用中：${item.title||'未命名題目'}`}
+                  className="min-w-0 break-words font-medium underline decoration-text-muted/40 underline-offset-2">
+                  {item.title||'未命名題目'}</Link>
+                <span className="text-xs text-text-muted">{item.provider_name||'題目提供者'}</span>
+              </div>
+              {tagsFor([item]).length>0&&<p className="mt-1 line-clamp-1 break-words text-xs text-text-muted">
+                {tagsFor([item]).join('・')}</p>}
+              <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words text-sm text-text-muted">{item.question_text||'尚未辨識題目文字'}</p>
             </div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-            <a href={imageUrl(id,item.id)} target="_blank" rel="noopener noreferrer" aria-label={`開啟 ${item.title||'未命名題目'} 原圖（新分頁）`}
-              className="text-text-muted underline underline-offset-2">開啟原圖</a>
-            {(co.is_owner||item.contributor_id===currentUser?.id)&&<button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})} className="text-status-eraser">從集合移除</button>}
-          </div>
-          {canOrder&&<div className="mt-3 flex gap-2 border-t border-border-subtle pt-2">
-            {(['up','down'] as const).map(direction=><button key={direction} disabled={busy}
-              onClick={()=>void act(()=>sharingApi(`/collections/${id}/items/${item.id}/order`,'PATCH',
-                {direction,expected_version:co.row_version}),'題目順序已更新')}
-              className="min-h-11 rounded-xl bg-page-bg px-4 py-3 text-sm disabled:opacity-40">
-              {direction==='up'?'上移':'下移'}</button>)}
+          {(co.is_owner||item.contributor_id===currentUser?.id)&&<div className="mt-1 flex justify-end">
+            <button disabled={busy||itemsLoading} onClick={()=>setConfirm({title:'從集合移除此題？',body:'原題與已存入版本保留，來源觀看與共用層停止展示。',run:async()=>{await sharingApi(`/collections/${id}/items/${item.id}`,'DELETE');await load();}})}
+              className="min-h-7 rounded-xl px-1 py-1 text-xs text-status-eraser hover:bg-page-bg disabled:opacity-40">從集合移除</button>
           </div>}
         </div>)}</div>:
         <p className="mt-3 text-sm text-text-muted">這個集合目前沒有題目。</p>}
