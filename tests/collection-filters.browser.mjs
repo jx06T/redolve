@@ -6,7 +6,7 @@ try{
  for(const width of [390,1280]){
   const context=await browser.newContext({viewport:{width,height:900},hasTouch:true,serviceWorkers:'block'}),requests=[],errors=[];
   const collection={id:'c1',title:'集合篩選測試',public_name:'老師',visibility:'public',lifecycle:'active',is_owner:true,can_contribute:true,row_version:1};
-  const entries=[{id:'e1',title:'轉煎題目',keywords:'["轉煎練習"]',display_order:1},{id:'e2',title:'幾何題目',keywords:'["幾何"]',display_order:2},{id:'e3',title:'第三題',keywords:'["幾何"]',display_order:3}];
+  const entries=[{id:'e1',title:'轉煎題目',provider_name:'老師',question_text:'已知三角形 ABC，求角 A 與外接圓半徑。',keywords:'["轉煎練習"]',display_order:1},{id:'e2',title:'幾何題目',keywords:'["幾何"]',display_order:2},{id:'e3',title:'第三題',keywords:'["幾何"]',display_order:3}];
   await context.route(url=>['fonts.googleapis.com','fonts.gstatic.com'].includes(url.hostname),route=>route.abort());
   await context.route('**/api/**',async route=>{
    const url=new URL(route.request().url()),path=url.pathname,params=url.searchParams;requests.push({path,tag:params.get('tag'),after:params.get('after_order'),method:route.request().method()});
@@ -41,6 +41,9 @@ try{
   await page.getByRole('button',{name:'關閉檢視器 (Esc)',exact:true}).click();
   const original=included.getByRole('link',{name:'開啟 轉煎題目 原圖（新分頁）',exact:true});
   assert.equal(await original.getAttribute('href'),'/api/collections/c1/items/e1/image');assert.equal(await original.getAttribute('target'),'_blank');
+  assert.equal(await original.innerText(),'轉煎題目','the title itself opens the image');
+  assert.equal(await included.getByRole('button',{name:/^(上移|下移)$/}).count(),0,'item management no longer offers reordering controls');
+  assert(!(await included.innerText()).includes('開啟原圖'),'no duplicate image-link action');
   const picker=page.getByRole('heading',{name:'加入我上傳的原題',exact:true}).locator('..');
   const candidateTag=page.getByRole('textbox',{name:'篩選原題標籤',exact:true});
   await candidateTag.fill('轉煎');await picker.getByRole('button',{name:'套用搜尋與分類',exact:true}).click();
@@ -65,7 +68,7 @@ try{
   await tag.fill('轉');await page.waitForTimeout(1000);
   assert((await list.innerText()).includes('轉煎題目'));assert(!(await list.innerText()).includes('第三題'));
   // Switching filters also cancels a pending next page instead of appending it to the new scope.
-  await tag.fill('');assert.equal(await list.getByRole('button',{name:'上移',exact:true}).count(),0,'reordering stays disabled until the unfiltered list arrives');await page.getByRole('button',{name:'載入更多題目',exact:true}).waitFor();
+  await tag.fill('');await page.getByRole('button',{name:'載入更多題目',exact:true}).waitFor();
   await Promise.all([page.waitForRequest(request=>new URL(request.url()).searchParams.has('after_order')),page.getByRole('button',{name:'載入更多題目',exact:true}).click()]);
   await tag.fill('轉煎');await page.waitForTimeout(1000);
   assert(!(await list.innerText()).includes('第三題'));assert(await selected.isChecked());
