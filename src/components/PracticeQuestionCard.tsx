@@ -8,7 +8,6 @@ import { AppDialog } from './AppDialog';
 import { CALC_SPACE_STEP } from '../config/constants';
 import { runDrawingCommand } from '../services/drawingCommands';
 import { LearningDataDialog } from './LearningDataButton';
-import { learningService } from '../services/learningService';
 import { practiceService, syncPractice } from '../services/practiceService';
 import { gradePractice } from '../types/practice';
 import type { AttemptInput, PracticeQuestion } from '../types/practice';
@@ -46,51 +45,60 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   const uid = useStore(s => s.currentUser?.id || ''), eventId = useRef(crypto.randomUUID());
   const tool = useStore(s => s.tool), penColor = useStore(s => s.penColor), penWidth = useStore(s => s.penWidth);
   const [answer, setAnswer] = useState<LearningAnswer>(null), [revealed, setRevealed] = useState(false);
-  const [result, setResult] = useState<'correct' | 'incorrect' | null>(null), [input, setInput] = useState<AttemptInput | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [editKey, setEditKey] = useState(false);
   const [openImage, setOpenImage] = useState(false), [everImage, setEverImage] = useState(false);
-  const [displayContent, setDisplayContent] = useState(question.content);
-  const [keyChanged, setKeyChanged] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState(question);
+  const displayContent = currentQuestion.content;
   const [height, setHeight] = useState(400);
-  const answerPanel = useRef<HTMLDivElement>(null);
+  const card = useRef<HTMLDivElement>(null), answerPanel = useRef<HTMLDivElement>(null), errorPanel = useRef<HTMLParagraphElement>(null);
+  const answeredAt = useRef<string | null>(null);
   const active = useRef(true), lock = useRef(false);
-  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => { active.current = true; card.current?.scrollIntoView({ block: 'start' }); return () => { active.current = false; }; }, []);
   useEffect(() => { if (revealed) answerPanel.current?.scrollIntoView({ block: 'nearest' }); }, [revealed]);
-  const choice = ['single_choice', 'multiple_choice'].includes(question.content.questionType);
-  const automatic = choice && question.content.correctAnswer?.kind === 'choice';
-  const commit = async (selfResult?: 'correct' | 'incorrect', correction = false) => {
+  useEffect(() => { if (error) errorPanel.current?.scrollIntoView({ block: 'nearest' }); }, [error]);
+  const choice = ['single_choice', 'multiple_choice'].includes(displayContent.questionType);
+  const automatic = choice && displayContent.correctAnswer?.kind === 'choice';
+  let automaticResult: 'correct' | 'incorrect' | null = null;
+  if (revealed && automatic) {
+    try { automaticResult = gradePractice(displayContent, answer).result; }
+    catch { /* Invalid answers return to the answering stage when revealing or editing. */ }
+  }
+  const reveal = () => {
+    setError('');
+    try {
+      if (automatic) gradePractice(displayContent, answer);
+      setRevealed(true);
+    } catch (e) { setError((e as Error).message); }
+  };
+  const commit = async (selfResult?: 'correct' | 'incorrect') => {
     if (lock.current || useStore.getState().currentUser?.id !== uid) return;
     lock.current = true; setBusy(true); setError('');
     try {
-      let target = question;
-      if (correction) {
-        const current = await learningService.read(question.ref);
-        if (!current.id || !current.revisionId) throw Error('題目目前無法使用');
-        target = { ...question, ...current, id: current.id, revisionId: current.revisionId };
-      }
+      const target = currentQuestion;
       const graded = gradePractice(target.content, answer, selfResult);
-      const payload: AttemptInput = { id: correction ? crypto.randomUUID() : eventId.current, questionId: target.id, revisionId: target.revisionId,
+      const payload: AttemptInput = { id: eventId.current, questionId: target.id, revisionId: target.revisionId,
         sessionId, sessionItemId: question.sessionItemId, answer: graded.answer, ...(selfResult ? { selfResult } : {}),
-        clientAnsweredAt: input?.clientAnsweredAt || new Date().toISOString(), clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        usedOriginalImage: everImage, ...(correction && input ? { supersedesAttemptId: input.id } : {}) };
+        clientAnsweredAt: answeredAt.current ||= new Date().toISOString(), clientTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        usedOriginalImage: everImage };
       await practiceService.enqueue(uid, payload, target);
       if (!active.current || useStore.getState().currentUser?.id !== uid) return;
-      setInput(payload); setResult(graded.result); setRevealed(true); setEditKey(false); onRecorded(graded.result);
+      onRecorded(graded.result);
       void syncPractice(uid).catch(() => { /* The page shows the pending event count. */ });
+      next();
     } catch (e) { if (active.current) setError((e as Error).message); }
     finally { lock.current = false; if (active.current) setBusy(false); }
   };
   const key = displayContent.correctAnswer;
-  const keyLabel = !key ? '尚無正解，可先自評' : key.kind === 'text' ? key.text : key.optionIds.map(id => question.content.options.find(o => o.id === id)?.label).join('、');
-  return <div className="space-y-3 pb-28">
+  const keyLabel = !key ? '尚無正解，可先自評' : key.kind === 'text' ? key.text : key.optionIds.map(id => displayContent.options.find(o => o.id === id)?.label).join('、');
+  return <div ref={card} className="space-y-3 pb-28">
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
-      <p className="whitespace-pre-wrap text-base leading-relaxed">{question.content.ocrText}</p>
+      <p className="whitespace-pre-wrap text-base leading-relaxed">{displayContent.ocrText}</p>
       {choice ? <fieldset disabled={revealed || busy} className="space-y-2"><legend className="sr-only">本次作答</legend>
-        {question.content.options.map(o => <label key={o.id} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
-          <input type={question.content.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={question.sessionItemId} className="mt-1"
+        {displayContent.options.map(o => <label key={o.id} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3">
+          <input type={displayContent.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={question.sessionItemId} className="mt-1"
             checked={answer?.kind === 'choice' && answer.optionIds.includes(o.id)} onChange={e => {
               const previous = answer?.kind === 'choice' ? answer.optionIds : [];
-              setAnswer({ kind: 'choice', optionIds: question.content.questionType === 'single_choice' ? [o.id] : e.target.checked ? [...previous, o.id] : previous.filter(id => id !== o.id) });
+              setAnswer({ kind: 'choice', optionIds: displayContent.questionType === 'single_choice' ? [o.id] : e.target.checked ? [...previous, o.id] : previous.filter(id => id !== o.id) });
             }} /><span className="whitespace-pre-wrap">{o.label}　{o.text}</span>
         </label>)}
       </fieldset> : <label className="block text-sm">本次答案（也可在草稿作答）<textarea disabled={revealed || busy} maxLength={16000} rows={3}
@@ -98,10 +106,9 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
         className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3" /></label>}
       {revealed && <div ref={answerPanel} className="space-y-3 rounded-2xl bg-page-bg p-4">
         <p className="whitespace-pre-wrap text-sm">正解：{keyLabel}</p>
-        {result && <p role="status">{result === 'correct' ? '這次答對' : '這次答錯'} · 已保存於本機</p>}
-        {keyChanged && <p className="text-xs text-text-muted">儲存正解後，可以明確更正這次結果。過去其他作答不會重算。</p>}
+        {automaticResult && <p role="status">自動判分：{automaticResult === 'correct' ? '這次答對' : '這次答錯'}（尚未記錄）</p>}
       </div>}
-      {error && <p role="alert" className="text-sm">{error}</p>}
+      {error && <p ref={errorPanel} role="alert" className="text-sm">{error}</p>}
       <section aria-label="本輪草稿" className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-sm text-text-muted">本輪草稿（離開即清除）</span>
@@ -124,20 +131,28 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       <div className="overflow-x-scroll">
         <div className="flex min-w-max items-center gap-1.5">
           <button type="button" className={actionButton} onClick={() => { setOpenImage(true); setEverImage(true); }}>檢視原圖</button>
-          {!revealed ? <button type="button" disabled={busy} className={actionButton} onClick={() => automatic ? void commit() : setRevealed(true)}>{automatic ? '提交答案' : '查看答案'}</button>
-            : !result ? <>
+          {!revealed ? <button type="button" disabled={busy} className={actionButton} onClick={reveal}>查看答案</button> : <>
+            <button type="button" disabled={busy} className={actionButton} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
+            {automatic ? <button type="button" disabled={busy || !automaticResult} className={actionButton} onClick={() => void commit()}>確認結果並下一題</button> : <>
               <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('correct')}>這次答對</button>
               <button type="button" disabled={busy} className={actionButton} onClick={() => void commit('incorrect')}>這次答錯</button>
-            </> : <>
-              <button type="button" disabled={busy} className={actionButton} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
-              {keyChanged && <button type="button" disabled={busy} className={actionButton} onClick={() => void commit(result, true)}>依新正解更正這次</button>}
             </>}
-          <button type="button" disabled={busy} className={actionButton} onClick={next}>{result ? '下一題' : '略過'}</button>
+          </>}
+          <button type="button" disabled={busy} className={actionButton} onClick={next}>略過</button>
         </div>
       </div>
     </div>
-    {editKey && <LearningDataDialog questionRef={question.ref} onClose={() => setEditKey(false)} onSaved={q => {
-      setDisplayContent(q.content); setKeyChanged(true); setEditKey(false);
+    {editKey && <LearningDataDialog questionRef={question.ref} initialQuestion={currentQuestion} onClose={() => setEditKey(false)} onSaved={q => {
+      if (!q.id || !q.revisionId) { setError('題目目前無法使用'); return; }
+      const changedShape = q.content.questionType !== displayContent.questionType || JSON.stringify(q.content.options.map(o => o.id)) !== JSON.stringify(displayContent.options.map(o => o.id));
+      let needsAnswer = changedShape;
+      if (['single_choice', 'multiple_choice'].includes(q.content.questionType) && q.content.correctAnswer?.kind === 'choice') {
+        try { gradePractice(q.content, changedShape ? null : answer); } catch { needsAnswer = true; }
+      }
+      setCurrentQuestion({ ...currentQuestion, ...q, id: q.id, revisionId: q.revisionId }); setEditKey(false);
+      setError(needsAnswer ? '題目資料已更新，請確認本次作答後再查看答案。' : '');
+      if (changedShape) setAnswer(null);
+      if (needsAnswer) setRevealed(false);
     }} />}
     {openImage && <PracticeImage url={`${API_BASE.replace(/\/api\/?$/, '')}${question.imageUrl}`} close={() => setOpenImage(false)} />}
   </div>;
