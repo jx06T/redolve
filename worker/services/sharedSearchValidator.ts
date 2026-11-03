@@ -2,7 +2,7 @@ import type { Bindings } from '../types';
 import { hashToken } from './collectionAccess';
 
 // Bump when the shared-search response or matching semantics change.
-const SEARCH_CONTRACT = 'shared-search-v2';
+const SEARCH_CONTRACT = 'shared-search-v3-personal-stars';
 export async function sharedSearchValidator(env: Bindings, collectionId: string, userId: string, params: URLSearchParams) {
   let version: { revision: number; user_revision: number; expired_grants: number } | null;
   try {

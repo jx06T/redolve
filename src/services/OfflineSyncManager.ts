@@ -1,6 +1,7 @@
 import { getOfflineDB, getOfflineProblems, OfflineProblem, putOfflineProblem, updateOfflineProblemAnalysis } from './offlineStorage';
 import { uploadProblem, analyzeGuestProblem, updateProblemDrawData, updateProblemStatus, updateProblemMetadata } from './api';
 import { Item } from '../types';
+import { sharingApi } from './sharingApi';
 
 const OFFLINE_PROBS_STORE = 'offlineProblems';
 
@@ -107,6 +108,7 @@ export class OfflineSyncManager {
         draw_data: p.draw_data ? (typeof p.draw_data === 'string' ? p.draw_data : JSON.stringify(p.draw_data)) : null,
         status: (p.status || (p.tagResult ? 'unsolved' : 'processing')) as Item['status'],
         review_count: p.review_count || 0,
+        starred: p.starred || 0,
         typed_notes: p.typed_notes || '',
         vector_clock: p.vector_clock ? (typeof p.vector_clock === 'string' ? p.vector_clock : JSON.stringify(p.vector_clock)) : null,
         updated_at: new Date(p.timestamp).toISOString(),
@@ -183,6 +185,7 @@ export class OfflineSyncManager {
         }
         
         // 3. Remove from IndexedDB on success
+        if(prob.starred!==undefined)await sharingApi('/question-stars','PUT',{target:{kind:'owned',itemId:newCloudId},starred:!!prob.starred});
         await db.delete(OFFLINE_PROBS_STORE, prob.id);
         const cachedUrl = this.objectUrlCache.get(prob.id);
         if (cachedUrl) {

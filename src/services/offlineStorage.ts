@@ -26,6 +26,7 @@ export interface OfflineProblem {
   draw_data?: any;
   typed_notes?: string;
   review_count?: number;
+  starred?: number;
   vector_clock?: any;
   tagResult?: {
     topic_id: string;

@@ -47,8 +47,9 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const status = params.get('status') || ''; const tag = params.get('tag') || '';
   const excludeArchived = (!search || params.get('exclude_archived') === 'yes') && (!status || status === 'all');
   const excludeSelf = source === 'contributing' && params.get('exclude_self') === 'yes';
+  const starredOnly = params.get('starred') === 'yes';
   const compactSearch = search && params.get('view') !== 'full';
-  const scopeKey = JSON.stringify([account, source, collection, query, topic, status, tag, search, excludeArchived, compactSearch, excludeSelf]);
+  const scopeKey = JSON.stringify([account, source, collection, query, topic, status, tag, search, excludeArchived, compactSearch, excludeSelf, starredOnly]);
   const [data, setData] = useState<LibraryPage>({ key: '', items: [], next: null, receivedAt: 0, generation: -1 });
   const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [revision, setRevision] = useState(0);
   const [sets, setSets] = useState<Collection[]>([]); const [setsError, setSetsError] = useState('');
@@ -80,7 +81,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     const key = scopeKey; setBusy(true); setError('');
     try {
       const readPage = (offset: number) => questionService.search({
-        source, collectionId: source === 'contributing' ? collection : undefined, query, topic, status: status === 'all' ? '' : status, excludeArchived, excludeSelf, tag, offset,
+        source, collectionId: source === 'contributing' ? collection : undefined, query, topic, status: status === 'all' ? '' : status, excludeArchived, excludeSelf, starredOnly, tag, offset,
         projection: compactSearch ? 'compact' : 'full', signal: abort.signal, guest: isGuestUser(currentUser), taxonomies
       });
       let page = await readPage(offset);
@@ -150,6 +151,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const patch = (values: Record<string, string>) => { const next = new URLSearchParams(params); Object.entries(values).forEach(([k, v]) => v ? next.set(k, v) : next.delete(k)); if (!('focus' in values)) next.delete('focus'); setParams(next); };
   const items = data.key === scopeKey ? data.items : [];
   const contributorFilter = source === 'contributing' && <SwitchRow label="只看其他人貢獻" checked={excludeSelf} onChange={value=>patch({exclude_self:value?'yes':''})}/>;
+  const starFilter = <SwitchRow label="只看星號" checked={starredOnly} onChange={value=>patch({starred:value?'yes':''})}/>;
   useEffect(() => {
     const store = useStore.getState(); const ids = find.trim() ? items.filter(i => [i.title, i.keywords, i.typed_notes, i.collection_title, i.provider_name].some(t => t?.toLocaleLowerCase().includes(find.toLocaleLowerCase()))).map(i => `stream:${i.id}`) : [];
     ids.forEach(store.registerInPageMatch); return () => ids.forEach(store.unregisterInPageMatch);
@@ -158,10 +160,11 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     setOutline([]); setOutlineBusy(false);
     if (search || !outlineSubject) return;
     const abort = new AbortController(); setOutlineBusy(true);
-    void (async () => { let offset = 0; const all: SearchHit[] = []; do { const page = await questionService.search({ source, collectionId: source === 'contributing' ? collection : undefined, query, topic: outlineSubject, status: status === 'all' ? '' : status, excludeArchived, excludeSelf, tag, offset, metadataOnly: true, guest: isGuestUser(currentUser), taxonomies, signal: abort.signal }); if (abort.signal.aborted) return; all.push(...page.items); setOutline([...all]); if (page.next_offset === null) break; offset = page.next_offset; } while (!abort.signal.aborted); })().catch(() => { if (!abort.signal.aborted) showToast('題目大綱載入失敗，可重新套用篩選重試', 'error'); }).finally(() => { if (!abort.signal.aborted) setOutlineBusy(false); }); return () => abort.abort();
-  }, [account, source, collection, query, outlineSubject, status, tag, revision, search, excludeArchived, excludeSelf]);
+    void (async () => { let offset = 0; const all: SearchHit[] = []; do { const page = await questionService.search({ source, collectionId: source === 'contributing' ? collection : undefined, query, topic: outlineSubject, status: status === 'all' ? '' : status, excludeArchived, excludeSelf, starredOnly, tag, offset, metadataOnly: true, guest: isGuestUser(currentUser), taxonomies, signal: abort.signal }); if (abort.signal.aborted) return; all.push(...page.items); setOutline([...all]); if (page.next_offset === null) break; offset = page.next_offset; } while (!abort.signal.aborted); })().catch(() => { if (!abort.signal.aborted) showToast('題目大綱載入失敗，可重新套用篩選重試', 'error'); }).finally(() => { if (!abort.signal.aborted) setOutlineBusy(false); }); return () => abort.abort();
+  }, [account, source, collection, query, outlineSubject, status, tag, revision, search, excludeArchived, excludeSelf, starredOnly]);
   const filterFields = <div className="space-y-3">
     {contributorFilter}
+    {starFilter}
     <div>
       <label className="block text-sm">科目與單元<select aria-label="科目與單元" value={draft.topic} onChange={e => setDraft(v => ({ ...v, topic: e.target.value }))} className="mt-1 w-full rounded-xl border border-border-subtle bg-page-bg p-3">
         <option value="">所有科目與單元</option><option value="unclassified">未分類</option>{topics(scopeTaxonomies).map(n => <option key={n.id} value={n.id}>{n.label}</option>)}</select></label>
@@ -175,7 +178,7 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
     </div>
     <div className='mt-4'>
       <button onClick={() => { patch({ topic_id: draft.topic, subject_id: '', status: draft.status, tag: draft.tag, exclude_archived: '' }); }} className="rounded-xl bg-primary px-4 py-2 text-white text-sm">套用篩選</button>
-      <button onClick={() => { setDraft({ topic: '', status: '', tag: '', collection: source === 'owned' ? '' : collection }); patch({ topic_id: '', subject_id: '', status: '', tag: '', exclude_archived: '', exclude_self:'' }); }} className="ml-2 text-sm text-text-muted underline">清除篩選</button>
+      <button onClick={() => { setDraft({ topic: '', status: '', tag: '', collection: source === 'owned' ? '' : collection }); patch({ topic_id: '', subject_id: '', status: '', tag: '', exclude_archived: '', exclude_self:'', starred:'' }); }} className="ml-2 text-sm text-text-muted underline">清除篩選</button>
     </div>
   </div>;
   const collectionPicker = source === 'contributing' && <label className="block text-xs text-text-muted">共用集<select aria-label="選擇可貢獻的共用集" value={collection} onChange={e => patch({ collection_id: e.target.value, topic_id: '', subject_id: '', tag: '', status: '' })} className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3 text-sm"><option value="">請選擇一個共用集</option>{sets.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}</select></label>;
@@ -196,19 +199,19 @@ export function QuestionLibraryView({ search = false }: { search?: boolean }) {
   const currentHit = (hit: SearchHit): SearchHit => {
     const problem = hit.origin === 'owned' ? problems.find(p => p.id === hit.id && p.user_id === hit.problem?.user_id) : undefined;
     const label = topics(scopeTaxonomies).find(t => t.id === (problem?.topic_id || hit.topic_id))?.label.trim() || hit.topic_label;
-    return problem ? { ...hit, problem, title: problem.source, topic_id: problem.topic_id, topic_label: label, keywords: problem.keywords, typed_notes: problem.typed_notes || null, status: problem.status, review_count: problem.review_count } : { ...hit, topic_label: label };
+    return problem ? { ...hit, problem, is_starred:problem.starred||0, title: problem.source, topic_id: problem.topic_id, topic_label: label, keywords: problem.keywords, typed_notes: problem.typed_notes || null, status: problem.status, review_count: problem.review_count } : { ...hit, topic_label: label };
   };
   const notices = <>{setsError && <p role="alert" className="p-3 text-sm text-status-eraser">{setsError}</p>}{dirty && <p role="status" className="rounded-2xl bg-surface p-3 text-xs text-text-muted">資訊已更新，保留目前閱讀位置。<button onClick={refresh} className="ml-2 text-primary underline">重新套用篩選</button></p>}{error && <p role="alert" className="p-3 text-sm text-status-eraser">{error}<button onClick={() => items.length ? loadNext() : void load()} className="ml-3 underline">重試</button></p>}{!items.length && !busy && !error && <p className="p-6 text-sm text-text-muted">{source === 'contributing' && !collection ? '請從側欄選擇共用集。' : '目前範圍沒有題目。'}</p>}{busy && !items.length && <p className="p-6 text-sm text-text-muted">載入題目中…</p>}</>;
   const compactRows = items.reduce<{ id: string; ids: string[]; hits: SearchHit[] }[]>((rows, hit, index) => { if (index % 2 === 0) rows.push({ id: hit.id, ids: [], hits: [] }); rows[rows.length - 1].ids.push(hit.id); rows[rows.length - 1].hits.push(hit); return rows; }, []);
   const stream = search && params.get('view') !== 'full' ? <QuestionStream autoLoad={false} items={compactRows} busy={busy} hasMore={data.key === scopeKey && data.next !== null} loadError={!!error} loadMore={loadNext} focus={params.get('focus') || undefined}
-    render={row => <div data-search-grid className="grid gap-4 lg:grid-cols-2">{row.hits.map(hit => <SearchResultCard key={hit.id} hit={currentHit(hit)} full={false} studyUrl={'/study?' + new URLSearchParams({ ...Object.fromEntries(params), focus: hit.id })} />)}</div>} /> :
-    <QuestionStream autoLoad={false} items={items} busy={busy} hasMore={data.key === scopeKey && data.next !== null} loadError={!!error} loadMore={loadNext} className={search ? undefined : 'h-full min-h-0 overflow-y-auto overscroll-contain pt-2 pb-28'} focus={params.get('focus') || legacy.problemId || (location.hash.startsWith('#problem-') ? location.hash.slice(9) : undefined)} render={(hit, _index, onNext) => search ? <SearchResultCard hit={currentHit(hit)} full={params.get('view') === 'full'} studyUrl={'/study?' + new URLSearchParams({ ...Object.fromEntries(params), focus: hit.id })} /> :
+    render={row => <div data-search-grid className="grid gap-4 lg:grid-cols-2">{row.hits.map(hit => <SearchResultCard key={hit.id} hit={currentHit(hit)} full={false} onChanged={markChanged} studyUrl={'/study?' + new URLSearchParams({ ...Object.fromEntries(params), focus: hit.id })} />)}</div>} /> :
+    <QuestionStream autoLoad={false} items={items} busy={busy} hasMore={data.key === scopeKey && data.next !== null} loadError={!!error} loadMore={loadNext} className={search ? undefined : 'h-full min-h-0 overflow-y-auto overscroll-contain pt-2 pb-28'} focus={params.get('focus') || legacy.problemId || (location.hash.startsWith('#problem-') ? location.hash.slice(9) : undefined)} render={(hit, _index, onNext) => search ? <SearchResultCard hit={currentHit(hit)} full={params.get('view') === 'full'} onChanged={markChanged} studyUrl={'/study?' + new URLSearchParams({ ...Object.fromEntries(params), focus: hit.id })} /> :
       hit.origin === 'owned' && hit.problem ? <ProblemCard streamSearch onNext={onNext} problem={problems.find(p => p.id === hit.id) || hit.problem} memberships={memberships[hit.id] || []} onAddToCollection={isGuestUser(currentUser) ? undefined : () => setAdd(hit.id)} onChanged={markChanged} onDeleted={id => { markChanged(); setData(d => ({ ...d, items: d.items.filter(i => i.id !== id) })); }} onEditMetadata={p => { setEditing(p); setEditTopic(p.topic_id || ''); try { setEditTags(JSON.parse(p.keywords || '[]').join(', ')); } catch { setEditTags(''); } }} /> :
         <QuestionWorkCard kind={source === 'saved' ? 'saved' : 'shared'} onNext={onNext} id={hit.id} collectionId={hit.collection_id || collection} onChanged={markChanged} onRemoved={() => { markChanged(); setData(d => ({ ...d, items: d.items.filter(i => i.id !== hit.id) })); }} />} />;
   const needsLogin = isGuestUser(currentUser) && source !== 'owned';
   const login = <LoginNotice description="登入後可存入題目及參與共用。" />;
   const sidebar = <Sidebar scope={{ subject: outlineSubject || selectedSubject, topic: params.get('topic_id') || legacy.topic || null, status: status || 'all', problems: outline.map(asItem), outline: outlineItems.map(asItem), taxonomies: scopeTaxonomies, onSubject: id => patch({ subject_id: id, topic_id: '' }), onTopic: id => patch({ topic_id: id || '' }), onStatus: value => patch({ status: value === 'all' ? '' : value }), loading: outlineBusy, countsAvailable: !!outlineSubject }} onSelectProblemOutline={id => patch({ focus: id })}>
-    {collectionPicker}{contributorFilter}{searchLink}{!outlineSubject && <p className="text-xs text-text-muted">選擇科目後載入題目大綱。</p>}<label className="block text-xs text-text-muted"><span className='block mb-1'>標籤</span><input aria-label="篩選標籤" defaultValue={tag} key={tag} onKeyDown={e => { if (e.key === 'Enter') patch({ tag: e.currentTarget.value.trim() }); }} onBlur={e => { if (e.currentTarget.value.trim() !== tag) patch({ tag: e.currentTarget.value.trim() }); }} className="w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2" /></label>
+    {collectionPicker}{contributorFilter}{starFilter}{searchLink}{!outlineSubject && <p className="text-xs text-text-muted">選擇科目後載入題目大綱。</p>}<label className="block text-xs text-text-muted"><span className='block mb-1'>標籤</span><input aria-label="篩選標籤" defaultValue={tag} key={tag} onKeyDown={e => { if (e.key === 'Enter') patch({ tag: e.currentTarget.value.trim() }); }} onBlur={e => { if (e.currentTarget.value.trim() !== tag) patch({ tag: e.currentTarget.value.trim() }); }} className="w-full rounded-xl border border-border-subtle bg-page-bg px-3 py-2" /></label>
   </Sidebar>;
   return <>
     {search ? <SearchLibraryLayout query={queryForm} collection={collectionPicker} filters={filterFields} view={params.get('view') || 'compact'} onView={view => patch({ view })} notices={needsLogin ? null : notices}>{needsLogin ? login : stream}</SearchLibraryLayout> :

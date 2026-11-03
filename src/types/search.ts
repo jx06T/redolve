@@ -7,7 +7,7 @@ export type SearchHit = {
   keywords: string | null; typed_notes: string | null; status: Item['status'] | null;
   review_count: number | null; created_at: string; collection_id: string | null;
   collection_title: string | null; provider_name: string | null; saved_id: string | null;
-  relevance_score: number; problem?: Item;
+  relevance_score: number; problem?: Item; is_starred?: number;
 };
 export type SearchPage = { items: SearchHit[]; next_offset: number | null; scope: SearchScope;
   /** Client transport metadata; never used as permission to read a question. */

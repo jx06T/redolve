@@ -18,6 +18,8 @@ import { WorkConflictDialog } from './WorkConflictDialog';
 import {beginWorkInteraction,endWorkInteraction,isWorkInteracting} from '../services/workInteraction';
 import {sameWork,rebaseTextPosition} from '../services/workMerge';
 import { LearningDataButton } from './LearningDataButton';
+import { QuestionStarButton } from './QuestionStarButton';
+import type { QuestionStarTarget } from '../services/questionStarService';
 import type { PersonalQuestionRef } from '../types/learning';
 import { learningService } from '../services/learningService';
 import { cancelCorrection, enqueueCorrection, syncCorrections } from '../services/correctionService';
@@ -33,6 +35,7 @@ import { DEFAULT_CALC_SPACE_HEIGHT, DEFAULT_BASE_WIDTH } from '../config/constan
 import { Link } from 'react-router-dom';
 
 export type ProblemCardWork={
+  starTarget?:QuestionStarTarget;starred?:boolean;onStarred?:()=>void;
   learningRef?: PersonalQuestionRef;
   learningSourceIdentity?: string;
   editorVersion?:number;
@@ -493,6 +496,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           copyText={work?.copyText}
           onEditMetadata={onEditMetadata}
           reloadLabel={work?.reloadLabel}
+          starAction={(!work||work.starTarget)&&<QuestionStarButton target={work?.starTarget||{kind:'owned',itemId:problem.id}} starred={work?.starred??!!problem.starred} onChanged={work?work.onStarred:onChanged}/>}
           learningAction={import.meta.env.VITE_LEARNING_ENABLED === 'true' && !readOnly && useStore.getState().currentUser?.id &&
             (work?.learningRef || !work && !problem.id.startsWith('temp_')) ?
             <LearningDataButton questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} active={isActive || !onNext}

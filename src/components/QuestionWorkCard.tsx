@@ -65,6 +65,9 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const item:Item={id:content.saved?.saved.id||content.shared!.entry.id,user_id:account,type:'problem',topic_id:content.topic,source:content.title,keywords:content.saved?.snapshot.source_tags||content.shared?.source.keywords||null,keyword_tokens:null,image_url:content.image,draw_data:JSON.stringify(state.ink),typed_notes:state.notes,status:progress.status,review_count:progress.review_count,vector_clock:null,created_at:'',updated_at:''};
   const syncMessage=state.status==='conflict'?'同步衝突':state.status==='error'?'同步失敗':state.status==='saving'?'正在同步存檔…':state.status==='pending'?(state.error?'尚未同步':'等待同步…'):savedFlash?'已同步':'支援即時打字';
   const work:ProblemCardWork={editorVersion:state.editorVersion,image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:async()=>{await changeProgress('archive');},reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
+    starTarget:content.saved?{kind:'saved',savedRefId:content.saved.saved.id}:content.shared?.capabilities.can_contribute?content.shared.source.contributor_id===account?{kind:'owned',itemId:content.shared.source.id}:{kind:'shared',collectionId:content.collectionId!,entryId:content.shared.entry.id}:undefined,
+    starred:!!(content.saved?.saved.starred??content.shared?.progress?.starred),
+    onStarred:onChanged,
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
     learningRef: content.saved ? { kind: 'saved', savedRefId: content.saved.saved.id } : undefined,
     learningSourceIdentity: content.saved?.saved.current_snapshot_id,

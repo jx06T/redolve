@@ -2,7 +2,7 @@ import type { Bindings, ItemRow } from '../types';
 
 export const sourceLayerId = (itemId:string) => 'source:'+itemId;
 export type SourceWork = {user_id:string;draw_seq:number;notes_seq:number;has_draw:number;typed_notes:string|null;
- status:string;review_count:number;progress_seq:number;previous_status:string};
+ status:string;review_count:number;progress_seq:number;previous_status:string;starred:number};
 export type SourceLayerWork = Pick<SourceWork,'user_id'|'draw_seq'|'notes_seq'|'has_draw'|'typed_notes'>;
 // Viewer-visible content does not include the author's private progress.
 export function sourceLayerWork(env:Bindings,itemId:string) {
@@ -11,11 +11,11 @@ export function sourceLayerWork(env:Bindings,itemId:string) {
 }
 export function sourceWork(env:Bindings,itemId:string) {
  return env.DB.prepare(`SELECT user_id,draw_seq,notes_seq,draw_data IS NOT NULL AS has_draw,typed_notes,
- status,review_count,progress_seq,previous_status FROM items WHERE id=?`).bind(itemId).first<SourceWork>();
+ status,review_count,progress_seq,previous_status,starred FROM items WHERE id=?`).bind(itemId).first<SourceWork>();
 }
 export function sourceProgress(row:SourceWork) {
  return {status:row.status==='resolved'||row.status==='archived'?row.status:'unsolved',
- previous_status:row.previous_status==='resolved'?'resolved':'unsolved',review_count:row.review_count,row_version:row.progress_seq};
+ previous_status:row.previous_status==='resolved'?'resolved':'unsolved',review_count:row.review_count,row_version:row.progress_seq,starred:row.starred};
 }
 // Recheck the active entry and contributor at the actual write, including its generation.
 export const sourceWriteGate = `EXISTS(SELECT 1 FROM collection_items ci JOIN collections co ON co.id=ci.collection_id

@@ -4,14 +4,17 @@ import { ProblemCard } from './ProblemCard';
 import { QuestionWorkCard } from './QuestionWorkCard';
 import { getProblemImageUrl } from '../services/api';
 import { imageUrl, savedImageUrl } from '../services/sharingApi';
+import { QuestionStarButton } from './QuestionStarButton';
 
-export function SearchResultCard({ hit, full, studyUrl }: { hit: SearchHit; full: boolean; studyUrl: string }) {
+export function SearchResultCard({ hit, full, studyUrl, onChanged }: { hit: SearchHit; full: boolean; studyUrl: string; onChanged?:()=>void }) {
   return <article className={full ? 'space-y-2' : 'rounded-2xl border border-border-subtle bg-surface p-4'}>
-    {full ? hit.origin === 'owned' && hit.problem ? <ProblemCard problem={hit.problem} readOnly streamSearch /> :
-      <QuestionWorkCard kind={hit.origin === 'saved' ? 'saved' : 'shared'} id={hit.id} collectionId={hit.collection_id || undefined} readOnly /> :
+    {full ? hit.origin === 'owned' && hit.problem ? <ProblemCard problem={hit.problem} readOnly streamSearch onChanged={onChanged} /> :
+      <QuestionWorkCard kind={hit.origin === 'saved' ? 'saved' : 'shared'} id={hit.id} collectionId={hit.collection_id || undefined} readOnly onChanged={onChanged} /> :
       <><img loading="lazy" src={hit.origin === 'owned' ? (hit.problem?.image_url?.startsWith('blob:') ? hit.problem.image_url : getProblemImageUrl(hit.id)) : hit.origin === 'saved' ? savedImageUrl(hit.id) : imageUrl(hit.collection_id || '', hit.id)} alt={hit.title || '題目圖片'} className="exam-paper-image w-full h-auto rounded-xl bg-white" />
         <div className=' mb-2'>
-          <h2 className="mt-3 text-sm font-medium">來源：{hit.title || '未提供來源'}</h2><p className="mt-1 text-xs text-text-muted">分類：{hit.topic_label || '未分類'}</p>
+          <div className="mt-3 flex items-start justify-between gap-2"><h2 className="text-sm font-medium">來源：{hit.title || '未提供來源'}</h2>
+            <QuestionStarButton target={hit.origin==='owned'?{kind:'owned',itemId:hit.id}:hit.origin==='saved'?{kind:'saved',savedRefId:hit.id}:{kind:'shared',collectionId:hit.collection_id!,entryId:hit.id}} starred={!!hit.is_starred} onChanged={onChanged}/></div>
+          <p className="mt-1 text-xs text-text-muted">分類：{hit.topic_label || '未分類'}</p>
         </div>
       </>
     }

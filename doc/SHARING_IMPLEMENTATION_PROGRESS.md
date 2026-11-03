@@ -4,13 +4,24 @@
 
 ## 目前狀態
 
+### 2026-11-03 個人刷題星號
+
+- 上傳／存入／共用中題卡右上提供獨立星號，沿用刷題 16px 圖示／32px 操作尺寸，選中填滿品牌色；搜尋簡單／詳細檢視也能操作。刷題側欄與搜尋篩選提供「只看星號」，保留來源／集合／科目／狀態條件與返回位置。
+- 新增 QuestionStarTarget 普通型別、questionStarService 與 QuestionStarButton；PUT /question-stars 經帳號／題目擁有權或有效貢獻權限判斷。原題星號保存在 items，存入版本保存在 saved_refs，他人貢獻題的私人星號保存在 collection_item_progress。自己的原題在所有共用集使用同一星號；與 collection_item_reads 的外部愛心完全分開。
+- 星號寫入不修改原題 content／draw／notes／progress 序號，也不修改 saved row_version 或 shared progress row_version。共用自己的原題加星只更新本人的集合搜尋版本，其他人的驗證器不變；搜尋／清單快取於成功變更後失效，當前正在閱讀的題卡保留並提示重新套用篩選。
+- 不增加逐題星號讀取請求，既有查詢／題目詳情一併帶入；上傳與存入使用部分索引篩選。219 題中 3 題星號的 compact browse 實測讀 3 列。訪客使用既有 IndexedDB 物件保存星號，登入同步本機題目時一併保存。
+- 需要 0020_personal_question_stars.sql：三個欄位、兩個部分索引與一個本人搜尋版本 trigger；fresh schema 與 init-local-db 已更新。scripts/apply-personal-stars.mjs 支援指定 --local／--remote、--check，先備份本機 D1 或取得遠端 Time Travel bookmark，按欄位現況套用並可重跑。
+- 本地 0020 已備份後完成、--check／重跑驗證無遺漏／重複寫入。全域本地檢查另發現原有 0019 分析週期表／索引尚未套用，本次未修改該分析 migration。
+- 測試：手機／桌面三來源與共用自己原題、重整／搜尋篩選、失敗保留、本機訪客星號；API 帳號隔離、原題同步、愛心分離、不改進度版本、私人搜尋驗證器；既有搜尋、D1 掃描成本、來源同步、快取與 PWA 回歸通過。瀏覽器 API 使用 fixture。
+- 部署前先執行 `node scripts/apply-personal-stars.mjs --remote --check`；若有 missing，再執行 `node scripts/apply-personal-stars.mjs --remote`，確認完成後才推送部署。本次未套用遠端 migration、未推送。
+
 ### 2026-11-03 外部題目改為愛心與緊湊操作列
 
 - 探索／延伸題目的星號改成愛心「喜歡」，愛心／檢舉／分享均使用與刷題一致的 16px 圖示、32px 按鈕；選中僅填滿愛心並使用低彩度紅色，不保留大塊選中底色。訂閱中心與隱私政策用語同步更新。
 - 新增已登入且通過集合／有效題目觀看權限的 PUT /collections/:id/items/:entryId/like，無需先訂閱，不會訂閱、存入或變更閱讀序號；依帳號＋entry 記錄，重複同值寫入不更新既有列。重用 collection_item_reads.starred 欄位保存舊標記，回傳 is_liked；保留 is_starred、舊 star API 與 state=starred 相容，新增 state=liked，無 migration。
 - 公開探索清單以使用者＋題目索引連接讀取個人愛心；變更時清除 readerCache，避免返回其他範圍時舊快取蓋掉狀態。失敗只提示且保留原狀態／圖片，不把操作錯誤當成圖片失效。未登入按愛心開啟登入視窗。
 - sharing-api 測試驗證登入、輸入型別、未訂閱喜歡、帳號隔離、舊標記與篩選、無效來源拒絕；external-likes.browser.mjs 覆蓋 390／1280px 的探索／延伸／訪客、切換／重整保留、失敗保留及緊湊尺寸。reader-cached-image-height.browser.mjs 切頁與快取回歸、TypeScript、建置／SW／PWA 與偏好測試通過；UI API 使用 fixture。
-- 後續：個人刷題星號作為獨立複習重點功能另行實作；外部愛心累積數、公開計數／排序尚未加入。本次只改外部喜歡與工具列，不將喜歡與個人複習星號合併。
+- 後續：個人刷題星號已接續實作，見上節；外部愛心累積數、公開計數／排序尚未加入，不將喜歡與個人複習星號合併。
 
 ### 2026-11-02 更正管理題目標題的跳轉
 

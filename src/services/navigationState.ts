@@ -16,7 +16,7 @@ export function studyResumeUrl(account:string):string|null {
   try{url ||= localStorage.getItem(`rdv:study:resume:${encodeURIComponent(account)}`)||undefined;}catch{/* Resume remains optional. */}
   if(!url?.startsWith('/study?'))return null;
   const raw=new URLSearchParams(url.slice(7)),safe=new URLSearchParams();
-  for(const key of ['source','subject_id','topic_id','status','tag','collection_id','exclude_self','exclude_archived','q','focus']){
+  for(const key of ['source','subject_id','topic_id','status','tag','collection_id','exclude_self','exclude_archived','starred','q','focus']){
     const value=raw.get(key);if(value&&value.length<=500)safe.set(key,value);
   }
   safe.set('source',readSource(safe.get('source')));

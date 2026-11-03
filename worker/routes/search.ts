@@ -28,6 +28,7 @@ searchRouter.get('/', async c => {
   const topic = c.req.query('topic_id') || '';
   const status = c.req.query('status') || '';
   const tag = c.req.query('tag') || '';
+  const starredOnly = c.req.query('starred') === 'yes';
   const contributing = c.req.query('contributing') === 'yes';
   const excludeSelf = c.req.query('exclude_self') || '';
   if(contributing && (!c.get('userId') || scope!=='shared' || !collectionId)) return c.json(apiError('INVALID_REQUEST','請選擇可貢獻集合'),400);
@@ -127,7 +128,7 @@ searchRouter.get('/', async c => {
       ['i.source', 60], ['i.typed_notes', 40], ['f.problem_text', 10], ['t.label', 10]];
     parts.push(`SELECT 'owned' AS origin,i.id,i.source AS title,i.topic_id,t.label AS topic_label,
       ${listOnly ? 'NULL' : 'i.keywords'} AS keywords,${listOnly ? 'NULL' : 'i.typed_notes'} AS typed_notes,i.status,i.review_count,i.created_at,
-      NULL AS collection_id,NULL AS collection_title,NULL AS provider_name,NULL AS saved_id,
+      NULL AS collection_id,NULL AS collection_title,NULL AS provider_name,NULL AS saved_id,i.starred AS is_starred,
       ${query ? `(CASE WHEN ${like('i.keywords')} OR ${like('i.keyword_tokens')} THEN 100 ELSE 0 END)
       +${score(fields.slice(2))}+CASE WHEN i.id IN (SELECT id FROM fts_hits) THEN 10 ELSE 0 END` : '0'} AS relevance_score,
       0 AS sort_priority FROM items i
@@ -139,6 +140,7 @@ searchRouter.get('/', async c => {
         WHERE ci.source_item_id=i.id AND ci.state='included' AND co.lifecycle!='deleted'
           AND co.id=${collection} AND ${contributor('ci.contributor_id')})` : ''}
       ${topicFilter('i.topic_id', true)}${tagFilter(['i.keywords'])}
+      ${starredOnly?'AND i.starred=1':''}
       ${status ? `AND i.status=${bind(status)}` : ''}
       ${c.req.query('exclude_archived')==='yes'?"AND i.status!='archived'":''}`);
   }
@@ -152,7 +154,7 @@ searchRouter.get('/', async c => {
     parts.push(`SELECT 'saved' AS origin,sr.id,ss.source_title AS title,
       sr.personal_topic_id AS topic_id,t.label AS topic_label,${listOnly ? 'NULL' : 'ss.source_tags'} AS keywords,
       ${listOnly ? 'NULL' : 'pw.typed_notes'} AS typed_notes,sr.status,sr.review_count,sr.downloaded_at AS created_at,
-      NULL AS collection_id,ss.collection_title,ss.provider_public_name AS provider_name,sr.id AS saved_id,
+      NULL AS collection_id,ss.collection_title,ss.provider_public_name AS provider_name,sr.id AS saved_id,sr.starred AS is_starred,
       ${score(fields)} AS relevance_score,0 AS sort_priority
       FROM saved_refs sr JOIN saved_snapshots ss ON ss.id=sr.current_snapshot_id AND ss.saved_ref_id=sr.id
       ${query || !listOnly ? `LEFT JOIN personal_workspaces pw ON pw.saved_ref_id=sr.id AND pw.user_id=${user}` : ''}
@@ -160,6 +162,7 @@ searchRouter.get('/', async c => {
       WHERE sr.user_id=${user}${searchFilter(fields)}
       ${collectionId ? `AND sr.entry_id IN (SELECT id FROM collection_items WHERE collection_id=${collection})` : ''}
       ${topicFilter('sr.personal_topic_id', true)}${tagFilter(['ss.source_tags', 'sr.personal_tags'])}
+      ${starredOnly?'AND sr.starred=1':''}
       ${status ? `AND sr.status=${bind(status)}` : ''}
       ${c.req.query('exclude_archived')==='yes'?"AND sr.status!='archived'":''}`);
   }
@@ -168,6 +171,7 @@ searchRouter.get('/', async c => {
       WHERE sl.entry_id=ci.id AND sl.entry_generation=ci.generation AND sl.state='active'
         AND ${contributor('sl.user_id')} AND (${contributor(user)} OR co.show_shared_notes=1)))`;
     const progressStatus = `CASE WHEN ci.contributor_id=${user} THEN CASE WHEN i.status IN ('resolved','archived') THEN i.status ELSE 'unsolved' END ELSE COALESCE(cp.status,'unsolved') END`;
+    const personalStar = `CASE WHEN ci.contributor_id=${user} THEN i.starred ELSE COALESCE(cp.starred,0) END`;
     const fields: [string, number][] = [['i.keywords', 100], ['i.source', 60],
       ['co.title', 20], ['co.public_name', 20], ['p.display_name', 20], ['t.label', 10]];
     if (scope === 'shared') fields.push([sharedNotes, 40]);
@@ -176,12 +180,13 @@ searchRouter.get('/', async c => {
       ${scope === 'shared' && !listOnly ? `substr(${sharedNotes},1,1024)` : 'NULL'} AS typed_notes,
       ${contributing ? progressStatus : 'NULL'} AS status,${contributing ? `CASE WHEN ci.contributor_id=${user} THEN i.review_count ELSE COALESCE(cp.review_count,0) END` : 'NULL'} AS review_count,ci.created_at,co.id AS collection_id,
       co.title AS collection_title,COALESCE(p.display_name,co.public_name) AS provider_name,
-      (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,
+      (SELECT sr.id FROM saved_refs sr WHERE sr.user_id=${user} AND sr.entry_id=ci.id) AS saved_id,${contributing?personalStar:'0'} AS is_starred,
       ${score(fields)} AS relevance_score,0 AS sort_priority ${liveFrom}
       ${contributing?`LEFT JOIN collection_item_progress cp ON cp.entry_id=ci.id AND cp.user_id=${user}`:''}
       WHERE ${liveGate} AND ${scope === 'public' ? publicGate : readable}
         ${contributing ? `AND ${contributor(user)}` : ''}
         ${excludeSelf ? `AND ci.contributor_id!=${user}` : ''}
+        ${starredOnly?contributing?`AND (${personalStar})=1`:'AND 0':''}
         ${contributing&&status?`AND (${progressStatus})=${bind(status)}`:''}
         ${contributing&&c.req.query('exclude_archived')==='yes'?`AND (${progressStatus})!='archived'`:''}
         ${scope === 'shared' && !collectionId ? `AND ${related}` : ''}
@@ -193,10 +198,11 @@ searchRouter.get('/', async c => {
       parts.push(`SELECT 'collection' AS origin,co.id,co.title,
         NULL AS topic_id,NULL AS topic_label,NULL AS keywords,NULL AS typed_notes,NULL AS status,
         NULL AS review_count,co.created_at,co.id AS collection_id,co.title AS collection_title,
-        co.public_name AS provider_name,NULL AS saved_id,
+        co.public_name AS provider_name,NULL AS saved_id,0 AS is_starred,
         ${score([['co.title', 100], ['co.description', 60], ['co.public_name', 20]])} AS relevance_score,
         1 AS sort_priority FROM collections co WHERE ${publicGate} AND co.kind!='personal'
         ${collectionId ? `AND co.id=${collection}` : ''}
+        ${starredOnly?'AND 0':''}
         ${query ? `AND (${contains(['co.title', 'co.description', 'co.public_name'])})` : ''}
         AND EXISTS(SELECT 1 ${liveFrom.replace('JOIN collections co ON co.id=ci.collection_id', '')}
           WHERE ci.collection_id=co.id AND ${liveGate}

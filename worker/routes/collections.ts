@@ -461,7 +461,7 @@ collectionsRouter.get('/collections/:id/items/:entryId',optionalAuthMiddleware,a
     ?await sourceWork(c.env,entry.source_item_id!):null;
   const original=ownWork||(canWrite||co!.show_shared_ink||co!.show_shared_notes
     ?await sourceLayerWork(c.env,entry.source_item_id!):null);
-  const progress=ownWork?sourceProgress(ownWork):canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version FROM collection_item_progress WHERE user_id=? AND entry_id=?')
+  const progress=ownWork?sourceProgress(ownWork):canWrite?await c.env.DB.prepare('SELECT status,previous_status,review_count,row_version,starred FROM collection_item_progress WHERE user_id=? AND entry_id=?')
     .bind(c.get('userId'),entry.id).first():null;
   const {results}=await c.env.DB.prepare(`SELECT sl.id,sl.user_id,COALESCE(p.display_name,sl.author_display) AS author_display,sl.draw_asset_id,
     sl.draw_seq,sl.typed_notes,sl.notes_seq FROM shared_layers sl

@@ -90,6 +90,13 @@ test('empty owned browsing reads one page instead of scanning the OCR index', as
     }
     assert.ok(costs.compact < costs.full);
     console.log(`complete owned browse: full=${costs.full} reads, compact=${costs.compact} reads`);
+    await db.exec("UPDATE items SET starred=1 WHERE id IN ('q0001','q0100','q0200');");
+    profile.length=0;
+    const starred=await app.fetch(new Request('https://cost.test/search?scope=mine&origin=owned&browse=1&projection=compact&starred=yes',
+      {headers:{Authorization:`Bearer ${token}`}}),{DB:measuredDB,JWT_SECRET:'cost-test-secret'});
+    assert.equal(starred.status,200);assert.deepEqual((await starred.json()).items.map(row=>row.id),['q0200','q0100','q0001']);
+    assert.equal(profile.length,1);assert(profile[0].rows_read<15,'star browsing should use the partial index rather than scan all owned questions');
+    console.log('starred compact browse: reads='+profile[0].rows_read);
   } finally {
     if (mf) await mf.dispose();
     await rm(dir, { recursive: true, force: true });

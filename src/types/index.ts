@@ -43,6 +43,7 @@ export interface Item {
   typed_notes?: string | null;
   status: 'processing' | 'unsolved' | 'resolved' | 'archived';
   review_count: number;
+  starred?: number;
   vector_clock: string | null;
   content_seq?: number;
   draw_seq?: number;

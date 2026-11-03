@@ -28,6 +28,17 @@ test('source authors share canonical work and progress; peers and saved work rem
   const peer=(await call('/collections/co/items','b','POST',{item_id:'peer'})).data.entry_id;
   const path='/collections/co/items/'+entry,path2='/collections/second/items/'+second;
   const search='/search?scope=shared&contributing=yes&collection_id=co&browse=1&projection=compact';
+  await t.test('personal stars follow own originals across collections without invalidating peer state',async()=>{
+   const mine=await call(search),other=await call(search,'b');
+   const before=await db.prepare("SELECT progress_seq,draw_seq,notes_seq,status FROM items WHERE id='q'").first();
+   assert.equal((await call('/question-stars','a','PUT',{target:{kind:'owned',itemId:'q'},starred:true})).status,200);
+   assert.equal((await call(path2)).data.progress.starred,1);
+   assert.equal((await call(search,'a','GET',undefined,mine.etag)).status,200,'own star invalidates the owner search validator');
+   assert.equal((await call(search,'b','GET',undefined,other.etag)).status,304,'a peer cannot observe the owner star');
+   assert.deepEqual(await db.prepare("SELECT progress_seq,draw_seq,notes_seq,status FROM items WHERE id='q'").first(),before);
+   assert.equal((await call('/question-stars','a','PUT',{target:{kind:'shared',collectionId:'second',entryId:second},starred:false})).status,200);
+   assert.equal((await call(path)).data.progress.starred,0);
+  });
   await t.test('joining old originals imports live work without copying; viewer switches are independent',async()=>{
    const own=(await call(path)).data;assert.equal(own.layers[0].id,'source:q');assert.equal(own.layers[0].is_source,true);assert.equal(own.layers[0].typed_notes,'original notes');assert.equal(own.layers[0].draw_seq,4);assert.equal(own.progress.review_count,2);assert.deepEqual((await call(path+'/layers/source%3Aq/draw')).data,ink(1));
    assert.equal((await call(path,'b')).data.layers[0].typed_notes,'original notes');assert.equal((await call(path,'v')).data.layers.length,0);assert.equal((await call(path+'/layers/source%3Aq/draw','v')).status,404);

@@ -25,7 +25,7 @@ export type SavedDetail = {
   capabilities?:{can_create_share:boolean};
   saved:{id:string;entry_id:string;status:string;personal_topic_id:string|null;
     classification_state?:'ready'|'pending'|'failed'|'manual';
-    review_count:number;row_version:number;current_snapshot_id:string};
+    review_count:number;row_version:number;current_snapshot_id:string;starred?:number};
   snapshot:{id:string;source_title:string;source_label:string|null;source_tags:string|null;
     source_topic_label:string|null;collection_title:string;provider_public_name:string;
     source_content_seq:number;source_shared_seq:number};

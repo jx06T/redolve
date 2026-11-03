@@ -21,7 +21,7 @@ export type CollectionItemDetail = {
   layers: SharedLayer[];
   capabilities: { can_contribute: boolean; can_save: boolean; can_create_share?:boolean };
 };
-export type ReviewProgress={status:'unsolved'|'resolved'|'archived';previous_status:'unsolved'|'resolved';review_count:number;row_version:number};
+export type ReviewProgress={status:'unsolved'|'resolved'|'archived';previous_status:'unsolved'|'resolved';review_count:number;row_version:number;starred?:number};
 export type WorkContent = {
   ref: Exclude<QuestionRef,{kind:'owned'}>; title: string; image: string;
   topic: string|null; collectionId?:string; collectionTitle:string; provider:string;
