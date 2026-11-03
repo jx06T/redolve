@@ -7,6 +7,7 @@ import { LearningError, confirmLearningQuestion, learningSource, parsePersonalRe
 import { normalizeRecognition } from '../../src/types/learning';
 import { recognizeCorrection } from '../services/correctionRecognition';
 import { aiResponse } from '../services/aiResponse';
+import { AIProviderError } from '../services/ai/providerError';
 
 export const learningRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 learningRouter.use('*', authMiddleware);
@@ -17,6 +18,7 @@ learningRouter.use('*', async (c, next) => {
 learningRouter.use('*', bodyLimit({ maxSize: 2200000 }));
 learningRouter.onError((error, c) => {
   if (error instanceof LearningError) return c.json({ error: { code: error.code, message: error.message } }, error.status);
+  if (error instanceof AIProviderError) return c.json({error:{code:error.code,message:error.message,retryable:error.diagnostic.retryable}},503);
   console.error('[Learning] Request failed', { name: error.name });
   return c.json({ error: { code: 'LEARNING_UNAVAILABLE', message: '辨識資料暫時無法使用，請稍後重試' } }, 503);
 });

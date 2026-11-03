@@ -8,6 +8,7 @@ import {
 } from './prompts';
 import { GeminiAnalysis } from './GeminiAnalysis';
 import { GoogleGenAI } from '@google/genai';
+import { reportProviderError,responseError } from './providerError';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   let binary = '';
@@ -62,7 +63,7 @@ export class GeminiService implements AIService {
       try {
         this.aiClient = new GoogleGenAI({ apiKey, httpOptions: { timeout: 20000, retryOptions: { attempts: 1 } } });
       } catch (err) {
-        console.warn('[GeminiService] Failed to initialize GoogleGenAI client:', err);
+        reportProviderError(err,{operation:'client-init',model:this.preferredModel});
       }
     }
   }
@@ -158,7 +159,8 @@ export class GeminiService implements AIService {
             return sanitizeResult(parsed);
           }
         } catch (err: any) {
-          console.warn(`[GeminiService] SDK call with model "${model}" failed:`, err?.name || 'unknown');
+          const failure=reportProviderError(err,{operation:'recognition-sdk',model});
+          if(!failure.allowFallback)throw failure;
           // Try next candidate model
         }
       }
@@ -205,12 +207,10 @@ export class GeminiService implements AIService {
             const parsed = JSON.parse(cleaned);
             return sanitizeResult(parsed);
           }
-        } else {
-          await response.body?.cancel();
-          console.warn(`[GeminiService] REST Model "${model}" failed (HTTP ${response.status})`);
-        }
+        } else throw await responseError(response);
       } catch (err) {
-        console.warn(`[GeminiService] REST Network error with model "${model}":`, err instanceof Error ? err.name : 'unknown');
+        const failure=reportProviderError(err,{operation:'recognition-rest',model});
+        if(!failure.allowFallback)throw failure;
       }
     }
 

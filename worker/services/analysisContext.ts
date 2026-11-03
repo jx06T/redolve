@@ -1,4 +1,5 @@
 import type { AnalysisCatalogEntry, AIService } from './ai/AIService';
+import { aiFailureDiagnostic,aiFailureMessage } from './ai/providerError';
 import type { AnalysisEvidence, AnalysisFollowup, AnalysisReply, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
 import type { ScopeQuestion } from './practice';
 import { digest, PracticeError } from './practice';
@@ -61,9 +62,9 @@ export async function runAnalysis(db: D1Database, uid: string, id: string, ai: A
       WHERE id=? AND user_id=? AND status='pending' AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`)
       .bind(JSON.stringify(evidence), JSON.stringify(interpretation), result.model, id, uid, id, token), completeCycleStatement(db, uid, id, token)]);
   } catch (error) {
-    console.warn('[Analysis] Generation failed', { name: error instanceof Error ? error.name : 'unknown' });
-    await db.prepare(`UPDATE analysis_reports SET status='failed',error='AI 解讀未完成，統計仍可查看；請手動重試'
-      WHERE id=? AND user_id=? AND status='pending' AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`).bind(id, uid, id, token).run();
+    console.warn('[Analysis] Generation failed', aiFailureDiagnostic(error));
+    await db.prepare(`UPDATE analysis_reports SET status='failed',error=?
+      WHERE id=? AND user_id=? AND status='pending' AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`).bind(aiFailureMessage(error,'AI 解讀未完成，統計仍可查看；請手動重試'),id, uid, id, token).run();
   }
   return getAnalysis(db, uid, id);
 }
@@ -115,8 +116,8 @@ export async function answerFollowup(db: D1Database, uid: string, reportId: stri
       AND EXISTS(SELECT 1 FROM analysis_reports WHERE id=? AND detail_expires_at>?)`)
       .bind(JSON.stringify(answer), JSON.stringify(evidence.filter(e => answer.evidenceIds.includes(e.id))), result.model, body.id, uid, token, reportId, new Date().toISOString()).run();
   } catch (error) {
-    console.warn('[Analysis] Followup failed', { name: error instanceof Error ? error.name : 'unknown' });
-    await db.prepare("UPDATE analysis_followups SET status='failed',error='回答未完成，可手動重試' WHERE id=? AND user_id=? AND run_token=? AND status='pending'").bind(body.id, uid, token).run();
+    console.warn('[Analysis] Followup failed', aiFailureDiagnostic(error));
+    await db.prepare("UPDATE analysis_followups SET status='failed',error=? WHERE id=? AND user_id=? AND run_token=? AND status='pending'").bind(aiFailureMessage(error,'回答未完成，可手動重試'),body.id, uid, token).run();
   }
   const row = await db.prepare('SELECT * FROM analysis_followups WHERE id=? AND user_id=? AND report_id=?').bind(body.id, uid, reportId).first<FollowupRow>();
   if (!row) throw new PracticeError(404, '報告或題目已移除');

@@ -41,6 +41,17 @@ wrangler secret put ADMIN_EMAILS
 
 配置依據：[Cloudflare Placement 文件](https://developers.cloudflare.com/workers/configuration/placement/)。
 
+## Gemini 預付帳務與 402 排查（2026-11-03）
+
+本次正式一般辨識 log 回傳上游 HTTP 402；使用本地既有金鑰，兩個預設模型 metadata 均回傳 200，但一次最多 64 輸出 token 的合成文字生成回傳 `402 RESOURCE_EXHAUSTED: Your prepayment credits are depleted`。使用者提供的 AI Studio 畫面同時顯示 `Prepay billing is required for this account`，因此本次根因是預付帳務尚未就緒／可用額度，而非模型下架、前端功能開關或 D1 遷移。沒有讀取正式 Worker 的秘密值，也沒有用真實題目做外部測試。
+
+- 在 AI Studio 核對該 API key 所屬專案與帳務帳號，依 `Set up prepay` 完成預付設定及加入額度。Paid 1 是使用等級，Tier Cap 是上限，均不代表可用預付餘額；此動作需由帳務管理者操作。參考 [Google Gemini Billing](https://ai.google.dev/gemini-api/docs/billing) 與 [402 錯誤說明](https://ai.google.dev/gemini-api/docs/api-errors)。
+- 額度恢復後先重試一題。只查模型 metadata 成功不能證明生成帳務可用；可執行 `node scripts/check-ai.mjs` 進行唯讀模型檢查，或明確加上 `--generate` 做一次合成文字請求（上限 64 輸出 token，仍可能計費）。工具讀取目前環境／`.dev.vars`，不等於已驗證雲端 Worker 使用同一把金鑰，輸出不顯示金鑰。
+- 402 不應切換多個模型重試；401／403、區域拒絕、429 也停止同次呼叫的模型備援。404 與暫時性服務／網路問題仍保留既有最多兩次辨識呼叫，不改模型、提示詞、執行區域或功能開關。
+- `AIProvider` 結構化紀錄包含操作、模型、上游 HTTP 狀態、狀態代碼與分類原因，不含原始錯誤本文、金鑰、題圖、答案或筆記。402 的分類優先於 `RESOURCE_EXHAUSTED`，避免誤認成 429 流量限制。
+- 訂正整理、分析、追問的失敗紀錄顯示可辨識原因並保留既有資料；一般手動辨識透過安全的 API 錯誤回覆原因。訂正／分析的 HTTP 200 是已接住請求並回傳工作結果，必須再檢查回傳資料的 status／error，不能將 Worker outcome=ok 當成模型成功。
+- 此次錯誤處理不需要 migration。管理者完成預付設定前，程式不能代為補足 Google 額度；目前尚未驗證儲值後的正式生成恢復。
+
 ## 資料庫
 
 ### 本地開發

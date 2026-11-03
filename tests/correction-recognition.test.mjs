@@ -20,6 +20,7 @@ test('correction composites, confirmation, stale results and replay', async t =>
         calls++; const body = await req.json(); bodies.push(body);
         if (mode === 'pause') { started?.(); await new Promise(resolve => { release = resolve; }); }
         if (mode === 'fail') return new MFResponse('unavailable', { status: 503 });
+        if (mode === 'billing') return new MFResponse(JSON.stringify({error:{code:402,status:'RESOURCE_EXHAUSTED',message:'Your prepayment credits are depleted.'}}),{status:402,headers:{'Content-Type':'application/json'}});
         const raw = { ocr_text: '請依條件計算機率', question_type: 'single_choice', options: [{ id: 'a', label: 'A', text: '0.4' }, { id: 'b', label: 'B', text: '0.5' }],
           original_answer: { kind: 'choice', optionIds: ['b'] }, correct_answer: { kind: 'choice', optionIds: ['a'] },
           error_reasons: ['將條件事件放在錯誤的分母位置', '忽略已知事件的範圍'], correction_summary: '先標出已知事件，再選擇分母。' };
@@ -111,6 +112,13 @@ test('correction composites, confirmation, stale results and replay', async t =>
       assert.equal(sourceInput.current.content.ocrText, null, 'a new retained source cannot silently reuse old question text and personal answers');
       mode = 'fail'; assert.equal((await call('owned/q/correction', 'alice', 'POST', composite(4))).data.data.status, 'failed');
       mode = 'valid'; assert.equal((await call('owned/q/correction', 'alice', 'POST', composite(4))).data.data.status, 'complete');
+    });
+    await t.test('upstream billing failure preserves confirmed data, does not retry and can recover',async()=>{
+      const before=(await call('owned/q')).data,count=calls;mode='billing';
+      const result=(await call('owned/q/correction','alice','POST',composite(9))).data.data;
+      assert.equal(result.status,'failed');assert.match(result.error,/額度不足/);assert.equal(calls,count+1);
+      const after=(await call('owned/q')).data;assert.deepEqual(after.content,before.content);assert.deepEqual(after.personal,before.personal);assert.equal(after.rowVersion,before.rowVersion);
+      mode='valid';assert.equal((await call('owned/q/correction','alice','POST',composite(9))).data.data.status,'complete');
     });
     await t.test('deleting a personal source cleans its recognition candidates', async () => {
       await db.exec("DELETE FROM items WHERE id='q';");

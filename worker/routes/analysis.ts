@@ -10,6 +10,7 @@ import { PracticeError } from '../services/practice';
 import { analysisSnapshot, cleanupAnalysis, getAnalysis } from '../services/personalAnalysis';
 import { analysisEligibility, beginCycleAnalysis } from '../services/analysisCycles';
 import { createAIService } from '../services/ai';
+import { AIProviderError } from '../services/ai/providerError';
 
 export const analysisRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 analysisRouter.use('*', authMiddleware);
@@ -19,6 +20,7 @@ analysisRouter.use('*', async (c, next) => c.env.ANALYSIS_ENABLED === 'true' ? n
 analysisRouter.use('*', bodyLimit({ maxSize: 10000 }));
 analysisRouter.onError((e, c) => {
   if (e instanceof PracticeError) return c.json({ error: { message: e.message } }, e.status);
+  if (e instanceof AIProviderError) return c.json({error:{code:e.code,message:e.message,retryable:e.diagnostic.retryable}},503);
   console.error('[Analysis] Request failed', { name: e.name });
   return c.json({ error: { message: '分析暫時無法使用，請稍後重試' } }, 503);
 });

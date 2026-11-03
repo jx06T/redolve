@@ -6,6 +6,7 @@ import type { CorrectionRow } from './correctionStore';
 import { digest } from './practice';
 import { CORRECTION_PROMPT_VERSION } from './ai/correctionPrompts';
 import { emptyLearningData, validateLearningData } from '../../src/types/learning';
+import { aiFailureDiagnostic,aiFailureMessage } from './ai/providerError';
 
 export async function recognizeCorrection(db: D1Database, uid: string, ref: PersonalQuestionRef,
   input: { image: ArrayBuffer; sourceIdentity: string; notes: string; force: boolean; model?: string }, ai: AIService) {
@@ -42,9 +43,9 @@ export async function recognizeCorrection(db: D1Database, uid: string, ref: Pers
     await db.prepare(`UPDATE learning_corrections SET status='complete',data_json=?,model_version=?,error=NULL WHERE id=? AND user_id=? AND run_token=? AND status='pending'`)
       .bind(JSON.stringify(validateLearningData(result.data)), result.model, jobId, uid, token).run();
   } catch (error) {
-    console.warn('[CorrectionRecognition] Failed', { name: error instanceof Error ? error.name : 'unknown' });
+    console.warn('[CorrectionRecognition] Failed', aiFailureDiagnostic(error));
     await db.prepare(`UPDATE learning_corrections SET status='failed',error=? WHERE id=? AND user_id=? AND run_token=? AND status='pending'`)
-      .bind(error instanceof LearningError ? error.message : 'AI 整理未完成，訂正與原資料已保留，可手動重試', jobId, uid, token).run();
+      .bind(error instanceof LearningError ? error.message : aiFailureMessage(error,'AI 整理未完成，訂正與原資料已保留，可手動重試'), jobId, uid, token).run();
   }
   const row = await db.prepare('SELECT * FROM learning_corrections WHERE user_id=? AND id=?').bind(uid, jobId).first<CorrectionRow>();
   if (!row) throw new LearningError(404, 'NOT_FOUND', '題目已移除');

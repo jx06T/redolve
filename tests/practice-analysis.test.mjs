@@ -21,6 +21,7 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       outboundService:async request=>{
         if(!request.url.startsWith('https://generativelanguage.googleapis.com/'))return new MFResponse('Unexpected outbound request',{status:500});
         const body=await request.json();providerRequests.push(body);
+        if(providerMode==='billing')return new MFResponse(JSON.stringify({error:{code:402,status:'RESOURCE_EXHAUSTED',message:'Your prepayment credits are depleted.'}}),{status:402,headers:{'Content-Type':'application/json'}});
         const prompt=body.contents.flatMap(c=>c.parts.map(p=>p.text||'')).join('\n'),input=JSON.parse(prompt.split('資料：').at(-1));
         if(body.generationConfig.responseSchema.properties.questionIds)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({questionIds:providerMode==='invalid-selection'?['foreign']:input.catalog.map(q=>q.id).slice(0,30)})}]}}]}),{headers:{'Content-Type':'application/json'}});
         if(body.generationConfig.responseSchema.properties.text)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({text:'依據報告當時資料，請比較條件並重新作答。',evidenceIds:[providerMode==='invalid-evidence'?'foreign':input.evidence[0].id]})}]}}]}),{headers:{'Content-Type':'application/json'}});
@@ -107,6 +108,10 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       providerMode='invalid-evidence';const invalid=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},60);
       assert.equal((await waitFor(invalid.id)).status,'failed','unknown citations cannot reach a completed report');
       providerMode='valid';assert.equal((await waitFor(invalid.id)).status,'complete','failed reports can retry the same immutable context');
+      providerMode='billing';const blocked=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},15),beforeBilling=providerRequests.length;
+      const blockedReport=await waitFor(blocked.id);assert.equal(blockedReport.status,'failed');assert.match(blockedReport.error,/額度不足/);assert.equal(providerRequests.length,beforeBilling+1,'billing failure stops the report pipeline');
+      assert.deepEqual(blockedReport.stats,(await analysis.getAnalysis(db,'alice',blocked.id)).stats);
+      providerMode='valid';assert.equal((await waitFor(blocked.id)).status,'complete');
     });
     await t.test('subject overview, equal periods and conversations keep their own evidence and account',async()=>{
       const prior=new Date(Date.now()-40*86400000).toISOString();
@@ -142,11 +147,14 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       await db.prepare("UPDATE analysis_followups SET status='failed' WHERE id='in-flight'").run();
       providerMode='invalid-evidence';assert.equal((await ask('bad-citation')).data.data.status,'failed');providerMode='valid';
       assert.equal((await ask('bad-citation')).data.data.status,'complete','failed turns can retry with the same id');
+      providerMode='billing';const beforeBilling=providerRequests.length,failedAnswer=(await ask('billing-turn')).data.data;
+      assert.equal(failedAnswer.status,'failed');assert.match(failedAnswer.error,/額度不足/);assert.equal(providerRequests.length,beforeBilling+1);
+      providerMode='valid';assert.equal((await ask('billing-turn')).data.data.status,'complete');
       // A correction after report creation must not rewrite its frozen historical evidence.
       await db.prepare('UPDATE practice_attempts SET voided_at=? WHERE id=?').bind(new Date().toISOString(),replacement.id).run();
       const restored=await ask('after-correction');
       assert.ok(restored.data.data.evidence.flatMap(e=>e.recentAttempts||[]).some(a=>a.id===replacement.id),'report retrieval retains the original effective event ids');
-      assert.equal((await call('/analysis/reports/'+report.id+'/followups')).data.length,4);
+      assert.equal((await call('/analysis/reports/'+report.id+'/followups')).data.length,5);
       const allHistory=(await call('/analysis/reports?subjectId=math')).data.reports;
       assert.ok(allHistory.some(r=>r.days===7)&&allHistory.some(r=>r.cycle_kind==='baseline'),'history retains legacy reports alongside stage reports');
       providerMode='invalid-selection';const bad=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},90);
