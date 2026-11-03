@@ -5,12 +5,13 @@ const browser=await chromium.launch({headless:true,channel:'msedge'});
 try{
  for(const width of [390,1280])for(const kind of ['owned','saved','shared','self']){
   const source=['shared','self'].includes(kind)?'contributing':kind,params='source='+source+(source==='contributing'?'&collection_id=c1':'');
-  const context=await browser.newContext({viewport:{width,height:900},serviceWorkers:'block'}),writes=[],queries=[],errors=[];
-  let starred=false,fail=false;
+  const context=await browser.newContext({viewport:{width,height:900},serviceWorkers:'block'}),writes=[],queries=[],reads=[],errors=[];
+  let starred=false,fail=false,paginated=false;
   const collection={id:'c1',title:'星號測試集合',can_contribute:true,is_owner:true,visibility:'public',lifecycle:'active'};
   await context.route(url=>['fonts.googleapis.com','fonts.gstatic.com'].includes(url.hostname),route=>route.abort());
   await context.route('**/api/**',async route=>{
    const request=route.request(),url=new URL(request.url()),path=url.pathname,method=request.method();let data={items:[],keys:[],collections:[],memberships:{},subscriptions:[]};
+   if(method==='GET')reads.push(path);
    if(path.endsWith('/image'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="800" height="250"><rect width="800" height="250" fill="white"/></svg>'});
    if(method!=='GET')writes.push({path,body:request.postDataJSON()});
    if(path==='/api/auth/me')data={user:{id:'reader',name:'讀者'}};
@@ -21,6 +22,10 @@ try{
    else if(path==='/api/search'){
     queries.push(Object.fromEntries(url.searchParams));
     const row={id:'q1',origin:source==='contributing'?'shared':kind,title:'星號測試題',collection_id:source==='contributing'?'c1':null,is_starred:starred?1:0};
+    if(paginated){
+     const rows=[...(starred?[row]:[]),...['q2','q3'].map(id=>({...row,id,title:'後續星號題 '+id,is_starred:1}))],offset=Number(url.searchParams.get('offset')||0);
+     return route.fulfill({json:{items:rows.slice(offset,offset+1),next_offset:offset+1<rows.length?offset+1:null,scope:'shared',cache_version:starred?'1':'2'}});
+    }
     if(kind==='owned')row.problem={id:'q1',user_id:'reader',source:'星號測試題',image_url:'fixture',status:'unsolved',review_count:0,starred:starred?1:0,keywords:'[]',draw_data:null,notes_seq:0,vector_clock:'{"seq":0}',created_at:'2026-11-03'};
     data={items:url.searchParams.get('starred')==='yes'&&!starred?[]:[row],next_offset:null,scope:source==='contributing'?'shared':'mine',cache_version:'1'};
    }else if(path==='/api/saved/q1')data={saved:{id:'q1',entry_id:'e1',status:'unsolved',review_count:0,row_version:1,starred:starred?1:0,current_snapshot_id:'ss1'},snapshot:{source_title:'星號測試題',collection_title:collection.title,provider_public_name:'老師'},workspace:{draw_asset_id:null,draw_seq:0,notes_seq:0,typed_notes:''},layers:[],source:{available:true}};
@@ -34,7 +39,13 @@ try{
   const page=await context.newPage();page.on('pageerror',error=>errors.push(String(error)));
   await page.goto('http://127.0.0.1:4181/study?'+params);await page.waitForLoadState('networkidle');
   const star=()=>page.getByRole('button',{name:starred?'取消星號':'標記星號',exact:true});
+  const beforeReads=reads.length;
+  await page.locator('[data-problem-id]').evaluate(element=>{element.dataset.starContinuity='same-card';});
   await star().click();await page.getByRole('button',{name:'取消星號',exact:true}).waitFor();
+  await page.waitForLoadState('networkidle');
+  assert.equal(reads.length,beforeReads,'starring does not reload the list, memberships or workspace');
+  assert.equal(await page.getByRole('button',{name:'重新套用篩選',exact:true}).count(),0,'starring needs no reapply banner');
+  assert.equal(await page.locator('[data-problem-id]').getAttribute('data-star-continuity'),'same-card');
   const target=writes[0].body.target;
   assert.equal(writes[0].path,'/api/question-stars');assert.equal(target.kind,kind==='self'?'owned':kind);
   if(kind==='self')assert.equal(target.itemId,'source1');
@@ -46,7 +57,27 @@ try{
   await page.waitForFunction(()=>new URLSearchParams(location.search).get('starred')==='yes');await page.waitForLoadState('networkidle');
   assert(queries.some(query=>query.starred==='yes'));assert.equal(await star().getAttribute('aria-pressed'),'true');
   await star().click();await page.getByRole('button',{name:'標記星號',exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'重新套用篩選',exact:true}).count(),0,'unstar preserves the open result without a banner');
+  if(kind==='owned'){
+   await page.goto('http://127.0.0.1:4181/search?source=owned&view=full');await page.waitForLoadState('networkidle');
+   const beforeFullReads=reads.length;
+   await star().click();await page.getByRole('button',{name:'取消星號',exact:true}).waitFor();await page.waitForLoadState('networkidle');
+   assert.equal(reads.length,beforeFullReads);assert.equal(await page.getByRole('button',{name:'重新套用篩選',exact:true}).count(),0);
+   await star().click();await page.getByRole('button',{name:'標記星號',exact:true}).waitFor();
+   await page.goto('http://127.0.0.1:4181/search?source=owned&starred=yes');
+  }
   await page.reload();await page.waitForLoadState('networkidle');await page.getByText('目前範圍沒有題目。',{exact:true}).waitFor();
+  if(width===1280&&kind==='shared'){
+   paginated=true;starred=true;const beforePageQueries=queries.length;
+   await page.goto('http://127.0.0.1:4181/search?'+params+'&starred=yes');await page.waitForLoadState('networkidle');
+   await star().click();await page.getByRole('button',{name:'標記星號',exact:true}).waitFor();
+   await page.getByRole('button',{name:'載入更多題目',exact:true}).click();await page.waitForLoadState('networkidle');
+   assert.equal(await page.getByRole('button',{name:'重新套用篩選',exact:true}).count(),0,'the known star version change is acknowledged quietly');
+   await page.getByRole('button',{name:'載入更多題目',exact:true}).click();await page.waitForLoadState('networkidle');
+   assert.deepEqual(queries.slice(beforePageQueries).map(query=>query.offset||'0'),['0','0','1'],'unstar rebases once, then continues without skipping a row');
+   assert.equal(await page.getByRole('button',{name:'重新套用篩選',exact:true}).count(),0);
+   await page.getByRole('heading',{name:'來源：後續星號題 q3',exact:true}).waitFor();
+  }
   assert(writes.every(write=>write.path==='/api/question-stars'),'stars never write progress, ink, notes or external likes');assert.equal(errors.length,0,errors.join('\n'));
   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await context.close();console.log('PASS personal study/search star, failure and filtering',width,kind);

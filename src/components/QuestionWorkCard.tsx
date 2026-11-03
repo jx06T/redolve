@@ -17,7 +17,7 @@ import { sharingApi } from '../services/sharingApi';
 import { libraryService } from '../services/libraryService';
 import type { WorkContent } from '../types/question';
 
-function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:WorkContent;readOnly?:boolean;onChanged?:()=>void;onRemoved?:()=>void;onNext?:()=>void}) {
+function WorkBody({content,onChanged,onStarred,onRemoved,onNext,readOnly=false}:{content:WorkContent;readOnly?:boolean;onChanged?:()=>void;onStarred?:(starred:boolean)=>void;onRemoved?:()=>void;onNext?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
 
   const controller=getWorkController(account,content);
@@ -67,7 +67,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   const work:ProblemCardWork={editorVersion:state.editorVersion,image:content.image,saveInk:controller.ink,saveNotes:controller.notes,toggleStatus:()=>changeProgress('resolve'),toggleArchive:async()=>{await changeProgress('archive');},reload:async()=>{if(content.saved){setUpdate(await libraryService.previewUpdate(content.saved.saved.id));return;}if(controller.pending())throw new Error('請先同步本機作業再重整');onChanged?.();},
     starTarget:content.saved?{kind:'saved',savedRefId:content.saved.saved.id}:content.shared?.capabilities.can_contribute?content.shared.source.contributor_id===account?{kind:'owned',itemId:content.shared.source.id}:{kind:'shared',collectionId:content.collectionId!,entryId:content.shared.entry.id}:undefined,
     starred:!!(content.saved?.saved.starred??content.shared?.progress?.starred),
-    onStarred:onChanged,
+    onStarred,
     notesLabel:content.saved?'我的私人筆記':'我的共用筆記',
     learningRef: content.saved ? { kind: 'saved', savedRefId: content.saved.saved.id } : undefined,
     learningSourceIdentity: content.saved?.saved.current_snapshot_id,
@@ -140,7 +140,7 @@ function WorkBody({content,onChanged,onRemoved,onNext,readOnly=false}:{content:W
   </div>;
 
 }
-export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,onNext,readOnly=false}:{readOnly?:boolean;kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onRemoved?:()=>void;onNext?:()=>void}) {
+export function QuestionWorkCard({kind,id,collectionId,onChanged,onStarred,onRemoved,onNext,readOnly=false}:{readOnly?:boolean;kind:'saved'|'shared';id:string;collectionId?:string;onChanged?:()=>void;onStarred?:(starred:boolean)=>void;onRemoved?:()=>void;onNext?:()=>void}) {
   const account=useStore(s=>s.currentUser?.id||'');
   const [state,setState]=useState<{key:string;content?:WorkContent;error?:string}>({key:''});
   const [retry,setRetry]=useState(0);const key=`${account}:${kind}:${collectionId}:${id}`;
@@ -164,7 +164,7 @@ export function QuestionWorkCard({kind,id,collectionId,onChanged,onRemoved,onNex
     {state.error}<button onClick={()=>setRetry(v=>v+1)} className="ml-3 text-primary underline">重試</button></div>;
   if(kind==='shared'&&!readOnly&&!state.content.shared?.capabilities.can_contribute)return <p className="p-6 text-sm">目前沒有此集合的共用書寫權限。</p>;
   if(readOnly)return <WorkPreview content={state.content}/>;
-  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} readOnly={readOnly} onNext={onNext} onRemoved={onRemoved} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
+  return <WorkBody key={JSON.stringify(state.content.work.target)} content={state.content} readOnly={readOnly} onNext={onNext} onRemoved={onRemoved} onStarred={onStarred} onChanged={()=>{setRetry(v=>v+1);onChanged?.();}}/>;
 }
 
 // A read-only result does not create an editor or attach its draft sync controller.

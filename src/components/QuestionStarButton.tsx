@@ -3,7 +3,7 @@ import { Star } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { setQuestionStar, starKey, type QuestionStarTarget } from '../services/questionStarService';
 
-export function QuestionStarButton({target,starred,onChanged}:{target:QuestionStarTarget;starred:boolean;onChanged?:()=>void}){
+export function QuestionStarButton({target,starred,onChanged}:{target:QuestionStarTarget;starred:boolean;onChanged?:(starred:boolean)=>void}){
   const account=useStore(s=>s.currentUser?.id||'guest'),key=starKey(target);
   const [selected,setSelected]=useState(starred),[busy,setBusy]=useState(false);
   const active=useRef('');active.current=account+key;
@@ -14,8 +14,8 @@ export function QuestionStarButton({target,starred,onChanged}:{target:QuestionSt
     window.addEventListener('redolve:question-star',update);return()=>window.removeEventListener('redolve:question-star',update);
   },[account,key]);
   const toggle=async()=>{
-    if(busy)return;setBusy(true);const identity=account+key;
-    try{await setQuestionStar(target,!selected);if(active.current===identity)onChanged?.();}
+    if(busy)return;setBusy(true);const identity=account+key,next=!selected;
+    try{await setQuestionStar(target,next);if(active.current===identity)onChanged?.(next);}
     catch(e){if(active.current===identity)useStore.getState().showToast(e instanceof Error?e.message:'星號更新失敗，請重試','error');}
     finally{if(active.current===identity)setBusy(false);}
   };
