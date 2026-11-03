@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { RichText } from './RichText';
 import { Send } from 'lucide-react';
 import { analysisService } from '../services/analysisService';
 import type { AnalysisFollowup, AnalysisReport } from '../types/analysis';
@@ -32,8 +33,8 @@ export function AnalysisConversation({ report }: { report: AnalysisReport }) {
     {error && <p role="alert" className="text-sm">{error}</p>}
     {!!turns.length && <details open={historyOpen} onToggle={event => setHistoryOpen(event.currentTarget.open)} className="border-t border-border-subtle pt-3">
       <summary className="min-h-11 cursor-pointer rounded-xl py-3 text-sm focus-visible:outline-2 focus-visible:outline-primary">歷次追問 · {turns.length} 則{turns.some(turn => turn.status === 'pending') ? ' · 有回答處理中' : ''}</summary>
-      <div className="space-y-5 pt-3">{turns.map(turn => <article key={turn.id} className="space-y-3 border-t border-border-subtle pt-5"><p className="ml-auto max-w-xl whitespace-pre-wrap break-words rounded-2xl bg-primary/5 px-4 py-3 text-sm">{turn.question}</p>
-      {turn.answer && <><p className="whitespace-pre-wrap text-sm leading-7">{turn.answer.text}</p><AnalysisCitations ids={turn.answer.evidenceIds} evidence={citations} /></>}
+      <div className="space-y-5 pt-3">{turns.map(turn => <article key={turn.id} className="space-y-3 border-t border-border-subtle pt-5"><RichText text={turn.question} className="ml-auto max-w-xl rounded-2xl bg-primary/5 px-4 py-3 text-sm" />
+      {turn.answer && <><RichText text={turn.answer.text} className="text-sm leading-7" /><AnalysisCitations ids={turn.answer.evidenceIds} evidence={citations} /></>}
       {turn.status === 'pending' && <p role="status" className="text-sm text-text-muted">正在整理回答…{!busy && <button className="ml-2 min-h-11 underline" onClick={() => { void analysisService.followups(report.id, controller.current.signal).then(setTurns).catch(e => setError(e.message)); }}>重新載入回答</button>}</p>}
       {turn.status === 'failed' && <div className="text-sm text-text-muted">{turn.error}<button className="ml-2 min-h-11 underline" disabled={busy} onClick={() => void send(turn.question, turn.id)}>重試這則追問</button></div>}
     </article>)}</div>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { learningService } from '../services/learningService';
 import { useStore } from '../store/useStore';
 import { PracticeHistory } from './PracticeHistory';
+import { RichText } from './RichText';
 import { learningDataIssues } from '../services/learningDataIssues';
 import { validateLearningData, QUESTION_TYPES } from '../types/learning';
 import type { LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
@@ -24,7 +25,7 @@ function AnswerInput({ label, answer, content, onChange }: {
           const selected = answer?.kind === 'choice' ? answer.optionIds : [];
           const next = e.target.checked ? content.questionType === 'single_choice' ? [option.id] : [...selected, option.id] : selected.filter(id => id !== option.id);
           onChange(next.length ? { kind: 'choice', optionIds: next } : null);
-        }} />{option.label}
+        }} /><RichText inline text={option.label} />
       </label>)}
     </> : <textarea aria-label={label} className={fieldClass} rows={2} maxLength={16000}
       value={answer?.kind === 'text' ? answer.text : ''} onChange={e => onChange(e.target.value ? { kind: 'text', text: e.target.value } : null)} />}
@@ -105,8 +106,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     </div>
     {current && !draft && <>
       <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-        <dt className="text-text-muted">原作答</dt><dd className="whitespace-pre-wrap break-words">{displayAnswer(current.personal.originalAnswer, current.content)}</dd>
-        <dt className="text-text-muted">正解</dt><dd className="whitespace-pre-wrap break-words">{displayAnswer(current.content.correctAnswer, current.content)}</dd>
+        <dt className="text-text-muted">原作答</dt><dd className="min-w-0 break-words"><RichText text={displayAnswer(current.personal.originalAnswer, current.content)} /></dd>
+        <dt className="text-text-muted">正解</dt><dd className="min-w-0 break-words"><RichText text={displayAnswer(current.content.correctAnswer, current.content)} /></dd>
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => { setCorrectionId(undefined); prepare(current); }}>修改／確認資料</button>
@@ -120,8 +121,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     {recognitionError && recognitionError !== current?.correction?.error && recognitionError !== error && <p role="alert" className="mt-3 text-xs text-text-muted">{recognitionError}</p>}
     {current?.correction?.error && <p role="alert" className="mt-3 text-xs text-text-muted">{current.correction.error}</p>}
     {current?.correction?.stale && !current.correction.adopted && <p className="mt-3 text-xs text-text-muted">題目資料已有修改，這份 AI 整理不會覆蓋目前內容。可依目前筆跡重新整理。</p>}
-    {current?.personal.correctionSummary && !draft && <p className="mt-3 whitespace-pre-wrap text-sm">{current.personal.correctionSummary}</p>}
-    {current && !draft && <ul aria-label="已採用錯因" className="mt-3 space-y-2 text-sm">{current.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted).map((reason, index) => <li key={index} className="rounded-xl bg-surface p-3">{reason.text}</li>)}</ul>}
+    {current?.personal.correctionSummary && !draft && <RichText text={current.personal.correctionSummary} className="mt-3 text-sm" />}
+    {current && !draft && <ul aria-label="已採用錯因" className="mt-3 space-y-2 text-sm">{current.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted).map((reason, index) => <li key={index} className="rounded-xl bg-surface p-3"><RichText text={reason.text} /></li>)}</ul>}
     {current && !draft && learningDataIssues(current).length > 0 && <ul className="mt-3 space-y-1 text-xs text-text-muted" aria-label="資料缺漏">
       {learningDataIssues(current).map(issue => <li key={issue}>{issue}</li>)}
     </ul>}
@@ -162,7 +163,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       <AnswerInput label="原作答" content={content} answer={draft.personal.originalAnswer} onChange={originalAnswer => setDraft({ ...draft, personal: { ...draft.personal, originalAnswer } })} />
       <AnswerInput label="正解" content={content} answer={content.correctAnswer} onChange={correctAnswer => setDraft({ ...draft, content: { ...content, correctAnswer } })} />
       <fieldset className="space-y-2"><legend className="text-sm">你認同哪些可能錯因？</legend><p className="text-xs text-text-muted">AI 建議預設不勾選，可全不選；看不出原因時保持空白即可。</p>
-        {suggestions.map(text => <label key={text} className="flex min-h-11 items-start gap-3 rounded-xl border border-border-subtle p-3 text-sm"><input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => r.text === text && r.accepted)} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: e.target.checked ? [...draft.personal.errorReasons.filter(r => r.text !== text), { text, origin: 'ai', accepted: true }] : draft.personal.errorReasons.filter(r => r.text !== text) } })} /><span>{text}</span></label>)}
+        {suggestions.map(text => <label key={text} className="flex min-h-11 items-start gap-3 rounded-xl border border-border-subtle p-3 text-sm"><input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => r.text === text && r.accepted)} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: e.target.checked ? [...draft.personal.errorReasons.filter(r => r.text !== text), { text, origin: 'ai', accepted: true }] : draft.personal.errorReasons.filter(r => r.text !== text) } })} /><RichText inline text={text} className="min-w-0" /></label>)}
         <label className="block text-xs text-text-muted">自行補充錯因（每行一項，選填）<textarea className={fieldClass} rows={2} maxLength={10000} value={draft.personal.errorReasons.filter(r => r.origin === 'user').map(r => r.text).join('\n')} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: [...draft.personal.errorReasons.filter(r => r.origin === 'ai'), ...e.target.value.split('\n').map(text => ({ text, origin: 'user' as const, accepted: true }))] } })} /></label>
       </fieldset>
       <label className="block text-xs text-text-muted">訂正重點（可修改或留空）<textarea className={fieldClass} rows={3} maxLength={6000} value={draft.personal.correctionSummary || ''} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, correctionSummary: e.target.value } })} /></label>

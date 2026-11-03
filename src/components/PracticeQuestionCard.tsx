@@ -8,6 +8,7 @@ import { AppDialog } from './AppDialog';
 import { CALC_SPACE_STEP } from '../config/constants';
 import { runDrawingCommand } from '../services/drawingCommands';
 import { LearningDataDialog } from './LearningDataButton';
+import { RichText } from './RichText';
 import { practiceService, syncPractice } from '../services/practiceService';
 import { gradePractice } from '../types/practice';
 import type { AttemptInput, PracticeQuestion } from '../types/practice';
@@ -103,20 +104,20 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
   const keyLabel = !key ? '尚無正解，可先自評' : key.kind === 'text' ? key.text : key.optionIds.map(id => displayContent.options.find(o => o.id === id)?.label).join('、');
   return <div ref={card} className="space-y-3 pb-28">
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface p-5">
-      <p className="whitespace-pre-wrap text-base leading-relaxed">{displayContent.ocrText}</p>
+      <RichText text={displayContent.ocrText} className="text-base leading-relaxed" />
       {choice ? <fieldset disabled={revealed || busy} className="space-y-2"><legend className="sr-only">本次作答</legend>
         {displayContent.options.map(o => <label key={o.id} className="flex items-start gap-3 rounded-xl border border-border-subtle p-3 leading-6">
           <input type={displayContent.questionType === 'single_choice' ? 'radio' : 'checkbox'} name={question.sessionItemId} className="m-0"
             checked={answer?.kind === 'choice' && answer.optionIds.includes(o.id)} onChange={e => {
               const previous = answer?.kind === 'choice' ? answer.optionIds : [];
               setAnswer({ kind: 'choice', optionIds: displayContent.questionType === 'single_choice' ? [o.id] : e.target.checked ? [...previous, o.id] : previous.filter(id => id !== o.id) });
-            }} /><span className="min-w-0 whitespace-pre-wrap break-words">{o.label}　{o.text}</span>
+            }} /><span className="min-w-0 break-words">{o.label}　<RichText inline text={o.text} /></span>
         </label>)}
       </fieldset> : <label className="block text-sm">本次答案（也可在草稿作答）<textarea disabled={revealed || busy} maxLength={16000} rows={3}
         value={answer?.kind === 'text' ? answer.text : ''} onChange={e => setAnswer(e.target.value ? { kind: 'text', text: e.target.value } : null)}
         className="mt-2 w-full rounded-xl border border-border-subtle bg-page-bg p-3" /></label>}
       {revealed && <div ref={answerPanel} className="space-y-3 rounded-2xl bg-page-bg p-4">
-        <p className="whitespace-pre-wrap text-sm">正解：{keyLabel}</p>
+        <p className="text-sm">正解：<RichText inline text={keyLabel} /></p>
         {automaticResult && <p role="status" className={'rounded-xl border px-3 py-2 text-sm ' + resultTone[automaticResult]}>自動判分：{automaticResult === 'correct' ? '這次答對' : '這次答錯'}（尚未記錄）</p>}
       </div>}
       {error && <p ref={errorPanel} role="alert" className="text-sm">{error}</p>}

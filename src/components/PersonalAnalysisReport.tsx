@@ -1,6 +1,7 @@
 import { ArrowRight, ChevronDown } from 'lucide-react';
 import { AnalysisCitations } from './AnalysisCitations';
 import { ExpandableAnalysisText } from './ExpandableAnalysisText';
+import { RichText } from './RichText';
 import type { AnalysisReport, AnalysisStats } from '../types/analysis';
 
 const button = 'min-h-11 rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
@@ -97,7 +98,7 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
     {!report.expired && report.status === 'complete' && <section aria-label="分析重點" className="border-t border-border-subtle pt-6">
       <div className="mb-2 flex items-baseline justify-between gap-3"><h2 className="text-lg font-semibold">分析重點</h2><span className="text-xs text-text-muted">{findings.length} 項觀察</span></div>
       {findings.length ? <div className="divide-y divide-border-subtle">{findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-2 py-4">
-        <h3 className="break-words font-medium leading-7">{finding.title}</h3>
+        <h3 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h3>
         <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
           <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
           <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>

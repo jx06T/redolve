@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { AnalysisEvidence } from '../types/analysis';
 import { practiceRefPath } from '../types/practice';
 import { AppDialog } from './AppDialog';
+import { RichText } from './RichText';
 
 const answerText = (answer: unknown, options: { id: string; label: string }[] = []) => {
   const value = answer as { kind?: string; text?: string; optionIds?: string[] } | null;
@@ -19,10 +20,10 @@ export function AnalysisCitations({ ids, evidence }: { ids: string[]; evidence: 
     {item && <AppDialog title={`原題依據 · 題 ${evidence.findIndex(e => e.id === item.id) + 1}`} onClose={() => setSelected(null)}>
       <div className="space-y-4 text-sm">
         <p className="text-xs text-text-muted">報告當時的題目版本 · {item.confirmationStatus === 'confirmed' ? '使用者已確認' : item.confirmationStatus === 'ai' ? 'AI 辨識' : '確認狀態未記錄'}</p>
-        <p className="whitespace-pre-wrap break-words leading-7">{item.text}</p>
+        <RichText text={item.text} className="leading-7" />
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 rounded-2xl bg-page-bg p-4">
-          <dt className="text-text-muted">原作答</dt><dd className="whitespace-pre-wrap break-words">{answerText(item.originalAnswer, item.options)}</dd>
-          <dt className="text-text-muted">正解</dt><dd className="whitespace-pre-wrap break-words">{answerText(item.correctAnswer, item.options)}</dd>
+          <dt className="text-text-muted">原作答</dt><dd className="min-w-0"><RichText text={answerText(item.originalAnswer, item.options)} /></dd>
+          <dt className="text-text-muted">正解</dt><dd className="min-w-0"><RichText text={answerText(item.correctAnswer, item.options)} /></dd>
         </dl>
         {!!item.recentAttempts?.length && <p className="text-xs text-text-muted">附期間內最近 {item.recentAttempts.length} 次有效作答，依各次當時答案解讀。</p>}
         <Link to={practiceRefPath(item.ref)} className="inline-flex min-h-11 items-center rounded-xl text-primary underline underline-offset-4">查看／修改原題</Link>

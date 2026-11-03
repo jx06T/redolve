@@ -2,6 +2,27 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* AI and question content share Markdown + local KaTeX fonts, including offline. */
+.rich-text { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+.rich-text > :first-child { margin-top: 0; }
+.rich-text > :last-child { margin-bottom: 0; }
+.rich-text p { margin: 0.5em 0; white-space: pre-wrap; }
+.rich-text h1, .rich-text h2, .rich-text h3,
+.rich-text h4, .rich-text h5, .rich-text h6 { margin: 0.75em 0 0.35em; font-size: 1em; font-weight: 600; }
+.rich-text ul, .rich-text ol { margin: 0.5em 0; padding-left: 1.5em; white-space: normal; }
+.rich-text ul { list-style: disc; }
+.rich-text ol { list-style: decimal; }
+.rich-text li { white-space: pre-wrap; }
+.rich-text blockquote { border-left: 2px solid var(--color-border-subtle); margin: 0.5em 0; padding-left: 0.75em; }
+.rich-text a { text-decoration: underline; text-underline-offset: 3px; }
+.rich-text pre, .rich-text table { display: block; max-width: 100%; overflow-x: auto; margin: 0.5em 0; }
+.rich-text th, .rich-text td { padding: 0.35em 0.65em; border: 1px solid var(--color-border-subtle); text-align: left; }
+.rich-text code { font-size: 0.9em; }
+.rich-text .katex { font-size: 1.05em; overflow-wrap: normal; }
+.rich-text .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding: 0.25em 0; margin: 0.5em 0; }
+.rich-text .katex-error { color: var(--color-text-muted); white-space: pre-wrap; }
+.rich-text-inline { display: inline; white-space: pre-wrap; }
+
 @theme {
   /* 品牌主色系 (Primary Scales - Light) */
   --color-primary-50: #EEF2FF;
