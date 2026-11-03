@@ -21,6 +21,12 @@ childProcess.spawnSync = (_command, args) => {
   assert.equal(args[2], 'execute'); assert.equal(args[3], 'redolve-db'); assert.ok(args.includes('--remote'));
   if (args.includes('--command')) {
     const query = args[args.indexOf('--command') + 1];
+    if (query.startsWith('PRAGMA table_info(items); PRAGMA table_info(saved_refs); PRAGMA table_info(collection_item_progress);')) {
+      const columns = [{ name: 'id', type: 'TEXT', notnull: 0, dflt_value: null }];
+      if (state.stars) columns.push({ name: 'starred', type: 'INTEGER', notnull: 1, dflt_value: '0' });
+      const objects = state.stars ? ['idx_items_personal_star', 'idx_saved_personal_star', 'personal_star_source_update'].map(name => ({ name })) : [];
+      return { status: 0, stderr: '', stdout: JSON.stringify([...Array.from({ length: 3 }, () => ({ success: true, results: columns })), { success: true, results: objects }]) };
+    }
     if (query.startsWith('SELECT name,sql FROM sqlite_master')) {
       const names = [...query.matchAll(/'([^']+)'/g)].map(match => match[1]);
       const rows = state.applied.flatMap(file => definitions.get(file)).filter(row => names.includes(row.name) && !state.omit?.includes(row.name));

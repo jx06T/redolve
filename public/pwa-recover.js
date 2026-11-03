@@ -56,6 +56,10 @@
     if (/dynamically imported module|failed to fetch module/i.test(String(event.reason))) recover();
   });
 
+  // Vite emits this before rejecting an import. React.lazy catches that rejection,
+  // so it never reaches unhandledrejection or a script element's error event.
+  window.addEventListener('vite:preloadError', () => recover());
+
   window.addEventListener('load', () => {
     const url = new URL(location.href);
     if (url.searchParams.has('rdv_reload')) {

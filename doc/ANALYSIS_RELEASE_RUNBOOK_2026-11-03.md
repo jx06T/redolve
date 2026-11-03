@@ -2,13 +2,31 @@
 
 日期：2026-11-03。適用於本次個人辨識、訂正整理、原題練習及階段分析版本。
 
-最新配置：已移除三個前端 `VITE_…_ENABLED` 開關；入口與帳號內同步直接提供，功能停用與權限仍由後端控制。後端三個開關集中在 `wrangler.jsonc` 的 `vars`，目前均為 `"true"`，本地與下次雲端發布使用相同預設；本次沒有推送或部署。
+最新配置：已移除三個前端 `VITE_…_ENABLED` 開關；入口與帳號內同步直接提供，功能停用與權限仍由後端控制。後端三個開關集中在 `wrangler.jsonc` 的 `vars`，目前均為 `"true"`，本地與雲端發布使用相同預設；`a2e8592` 已依使用者授權推送至 `main`。
 
 登入後，頂部導覽依序提供「原題練習」「分析」「探索」，各有圖示及目前頁面狀態；行動版導覽選單沿用相同入口。既有「刷題」仍開啟題庫訂正頁。
 
 本次配置與入口調整驗證：TypeScript、將舊三個前端開關全部設為 `false` 的正式建置、Service Worker 建置、34 項相關測試及 Worker 本地打包預演均通過。模擬 API 瀏覽器驗證涵蓋 390／1024／1280px 導覽、登入限制、分析與練習入口，以及舊開關為 `false` 時仍提交訂正合成圖辨識；沒有呼叫正式模型或修改正式資料。
 
-正式遷移最新狀態：使用者已回報 0014 檢查完整，0015～0019 套用後 `pending: []`，這批正式 schema 已齊備。以下初次檢查與排錯紀錄保留作為背景，不再代表目前仍缺 migration。
+正式遷移修正：使用者最初回報的 `pending: []` 僅涵蓋 0015～0019，不能代表整個 main 已準備完成。2026-11-03 發布後唯讀檢查確認 **0020 星號遷移缺漏**（三個 `starred` 欄位、兩個索引、一個 trigger），搜尋會無條件讀取這些欄位而造成 500。使用者選擇自行執行遷移後，最新統一唯讀檢查已確認 **0014～0020 `pending: []`**；agent 沒有對正式 D1 執行遷移。以下增量命令保留供其他環境檢查，不能重跑整份 schema：
+
+```powershell
+node scripts/apply-personal-stars.mjs --remote --check
+node scripts/apply-personal-stars.mjs --remote
+node scripts/apply-personal-stars.mjs --remote --check
+```
+
+套用腳本先保存 Time Travel 書籤，最後應顯示 `Missing: none`。後續發布前使用涵蓋 0014～0020 的統一唯讀檢查（缺漏會回傳非零結束碼）：
+
+```powershell
+node scripts/check-release-schema.mjs --target=remote
+```
+
+本地改為 `--target=local`；若只需補上本地 0020，使用 `node scripts/apply-personal-stars.mjs --local`。本文下方的早期 0014～0019 檢查保留作為歷史背景。
+
+動態模組事件修正：正式資源探測時，先前報錯的 `QuestionLibraryView-DY3dYGNp.js` 已回傳 200，無法再現先前的 404。但既有恢復程式漏接 Vite 的 `vite:preloadError`：React.lazy 捕獲拒絕後，不會發出 `unhandledrejection`。恢復程式已補上此事件，沿用每分鐘至多一次的重新載入與離線提示，不清除 IndexedDB、筆跡或待同步紀錄。
+
+修正驗證：TypeScript、Vite／Service Worker 建置及 13 項 PWA／遷移 CLI 測試通過。隔離瀏覽器以真實正式建置模擬題目模組首次 404，伺服器紀錄確認一次重載後模組回傳 200、成功顯示刷題頁。尚未使用正式登入帳號重跑搜尋 API，不能以 schema 完整取代完整線上功能驗收。
 
 ## 本次實際檢查結果
 
@@ -139,12 +157,13 @@ node scripts/apply-practice-schema.mjs --target=remote --check
 | 0017 | 固定選題目錄與報告追問 |
 | 0018 | 訂正後辨識候選、版本與併發保護 |
 | 0019 | 科目階段基準、生成間隔、接收時間索引 |
+| 0020 | 上傳題、存入題與個人共用進度的星號欄位、索引及搜尋版本更新 |
 
 不重跑 `worker/schema.sql`、0001／0002 或歷來全部 migration；不使用已撤回的 0011。若 0014 的既有分享結構前置檢查失敗，先核對基礎部署，不能直接批次套用舊遷移。
 
 ### B3. 後端執行設定：放進版本控制
 
-正式 D1 已由使用者完成本批遷移。以下三個開關已加入 `wrangler.jsonc` 的現有 `vars`，下次透過 CI 發布後生效；不必另在 Cloudflare 後台重複填寫。`GOOGLE_CLIENT_ID` 和其他原值保留：
+正式 D1 的分析與星號遷移 0014～0020 已經統一唯讀檢查確認完整。以下三個開關已加入 `wrangler.jsonc` 的現有 `vars`，透過 CI 發布後生效；不必另在 Cloudflare 後台重複填寫。`GOOGLE_CLIENT_ID` 和其他原值保留：
 
 ```jsonc
 "LEARNING_ENABLED": "true",
@@ -174,7 +193,7 @@ VITE_API_URL=/api
 
 ### B5. 發布與回復
 
-1. 確認正式 D1 檢查完整，並核對已提交的後端開關與原有金鑰；本批 0014～0019 已由使用者完成。
+1. 執行 `node scripts/check-release-schema.mjs --target=remote`，確認整批 0014～0020 無缺漏，再核對已提交的後端開關與原有金鑰。0014～0019 完整不代表 0020 已安裝。
 2. 本地 main 合併驗證後，僅在使用者授權時推送，讓既有 CI 執行。
 3. 確認部署對應提交與建置成功，檢查桌面／iPad PWA 更新；驗證上傳題與存入題各走一次訂正、確認、練習、分析、引用與追問。
 4. 確認訂正失敗可手動重試、空白答案可確認、已確認內容不被覆蓋、重作紀錄存在、最新天數篩選不呼叫 AI、生成間隔與歷史閱讀正常；再檢查既有共用／集合功能。

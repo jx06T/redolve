@@ -11,7 +11,7 @@ function fixture(initial, action) {
   const dir = mkdtempSync(resolve('.wrangler/qa/schema-cli-')), statePath = join(dir, 'state.json'), callsPath = join(dir, 'calls.jsonl');
   writeFileSync(statePath, JSON.stringify(initial)); writeFileSync(callsPath, '');
   const run = (kind, mode = '--apply') => spawnSync(process.execPath, ['--import', pathToFileURL(resolve('tests/fixtures/d1-schema-cli.mjs')).href,
-    `scripts/apply-${kind}-schema.mjs`, '--target=remote', mode], { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env, D1_SCHEMA_FIXTURE_STATE: statePath, D1_SCHEMA_FIXTURE_CALLS: callsPath } });
+    ...(kind === 'release' ? ['scripts/check-release-schema.mjs', '--target=remote'] : [`scripts/apply-${kind}-schema.mjs`, '--target=remote', mode])], { cwd: process.cwd(), encoding: 'utf8', env: { ...process.env, D1_SCHEMA_FIXTURE_STATE: statePath, D1_SCHEMA_FIXTURE_CALLS: callsPath } });
   const calls = () => readFileSync(callsPath, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
   const applied = () => calls().filter(args => args.includes('--file')).map(args => args[args.indexOf('--file') + 1].split('/').at(-1));
   try { action({ run, applied, calls, state: () => JSON.parse(readFileSync(statePath, 'utf8')) }); }
@@ -41,5 +41,23 @@ test('nonzero Wrangler exits and partial schemas stop before any later migration
   });
   fixture({ applied: files.slice(0, 3), omit: ['analysis_reports'] }, ({ run, applied }) => {
     const result = run('practice'); assert.equal(result.status, 1); assert.match(result.stderr, /Partial\/mismatched schema/); assert.deepEqual(applied(), []);
+  });
+});
+
+test('release check catches missing 0020 even when every analysis migration is ready', () => {
+  fixture({ applied: files }, ({ run, calls }) => {
+    const result = run('release');
+    assert.equal(result.status, 1, result.stderr);
+    const pending = JSON.parse(result.stdout).pending;
+    assert.equal(pending.length, 1);
+    assert.equal(pending[0].file, 'worker/migrations/0020_personal_question_stars.sql');
+    assert.ok(pending[0].missing.includes('items.starred'));
+    assert.ok(calls().every(args => args.includes('--command') && !args.includes('--file')));
+  });
+  fixture({ applied: files, stars: true }, ({ run, calls }) => {
+    const result = run('release');
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout).pending, []);
+    assert.ok(calls().every(args => args.includes('--command') && !args.includes('--file')));
   });
 });

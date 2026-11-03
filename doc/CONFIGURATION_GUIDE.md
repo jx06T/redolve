@@ -2,7 +2,7 @@
 
 > 2026-11-03 個人辨識／練習／分析版本的本地與雲端遷移、後端功能開關、Cloudflare Builds 設定及本次檢查結果，集中於[合併與發布操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)。正式 D1 必須另行檢查，不能用本地 schema 狀態推定。
 
-後續配置已簡化：移除三個前端功能開關，後端 `LEARNING_ENABLED`／`PRACTICE_ENABLED`／`ANALYSIS_ENABLED` 集中在 `wrangler.jsonc`，目前均為 `"true"`。不必在本地環境檔和 Cloudflare Builds 重複設定；`.dev.vars` 僅保留秘密值及必要的本地覆寫。使用者已回報本批正式遷移檢查 `pending: []`。
+後續配置已簡化：移除三個前端功能開關，後端 `LEARNING_ENABLED`／`PRACTICE_ENABLED`／`ANALYSIS_ENABLED` 集中在 `wrangler.jsonc`，目前均為 `"true"`。不必在本地環境檔和 Cloudflare Builds 重複設定；`.dev.vars` 僅保留秘密值及必要的本地覆寫。注意分析腳本的 `pending: []` 不涵蓋星號功能 0020；發布前須以 `node scripts/check-release-schema.mjs --target=remote` 統一檢查 0014～0020。
 
 Redolve 以同一個 Cloudflare Worker 提供前端靜態資源與 `/api`。正式網址為 `https://redolve.jx06t.com`；瀏覽器登入使用同站的 HttpOnly session cookie。
 

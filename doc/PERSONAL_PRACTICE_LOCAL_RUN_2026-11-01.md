@@ -1,6 +1,6 @@
 # 個人練習與分析：本地試用與資料庫遷移
 
-> 2026-11-03 後續更新：使用者已完成正式 0014～0019 遷移，檢查 `pending: []`。三個前端功能開關已移除，後端開關集中至 `wrangler.jsonc`。依[最新本地／雲端操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)執行，避免混用本地與正式環境。
+> 2026-11-03 後續更新：最初分析檢查的 `pending: []` 不包含星號 0020，發布後發現缺漏、由使用者補上；最新統一唯讀檢查已確認正式 0014～0020 完整。三個前端功能開關已移除，後端開關集中至 `wrangler.jsonc`。依[最新本地／雲端操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)執行，並使用 `node scripts/check-release-schema.mjs --target=remote` 統一檢查，避免混用本地與正式環境。
 
 日期：2026-11-02 更新。分支：`codex/personal-analysis-foundation`。
 
