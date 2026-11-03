@@ -22,11 +22,11 @@ export function Navbar() {
     return () => window.removeEventListener(SHOW_SHORTCUTS_EVENT, open);
   }, []);
   useEffect(() => { setMenu(false); clearInPageMatches(); setInPageSearchQuery(''); }, [location.pathname, location.search, clearInPageMatches, setInPageSearchQuery]);
-  const links = <>{HEADER_NAV_LINKS.map(l => {
+  const links = <>{HEADER_NAV_LINKS.filter(l => !l.requiresLogin || !isGuestUser(currentUser)).map(l => {
     const Icon = l.icon; const active = l.path === '/' ? location.pathname === '/' : location.pathname.startsWith(l.path);
     return <Link key={l.path} to={l.path === '/study' ? lastStudyUrl(account) : l.path === '/search' ? searchUrl(account, study ? location.search : undefined) : l.path} aria-current={active ? 'page' : undefined}
-      className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-3 text-xs md:px-2 lg:px-3 ${active ? 'bg-primary/10 text-primary' : 'text-text-main'}`}><Icon size={16} /><span>{l.label}</span></Link>;
-  })}{currentUser?.id && import.meta.env.VITE_ANALYSIS_ENABLED === 'true' && <Link to="/analysis" className="flex items-center whitespace-nowrap rounded-xl px-3 py-3 text-xs text-text-main">分析</Link>}</>;
+      className={`flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-3 text-xs md:px-2 xl:px-3 ${active ? 'bg-primary/10 text-primary' : 'text-text-main'}`}><Icon size={16} aria-hidden="true" /><span>{l.label}</span></Link>;
+  })}</>;
   return <>
     <header data-overlay-edge="top" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)' }} className="z-30 shrink-0 border-b border-border-subtle bg-surface px-2 pb-3 sm:px-3">
       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-1 sm:gap-2">

@@ -32,9 +32,9 @@ const CollectionReaderView = lazy(() => import('./views/CollectionReaderView').t
 export default function App() {
   const { currentUser, setCurrentUser, showToast, darkMode, loadTaxonomies } = useStore();
   const initialized = useRef(false);
-  useEffect(() => { if (currentUser?.id && import.meta.env.VITE_LEARNING_ENABLED === 'true') return watchCorrections(currentUser.id); }, [currentUser?.id]);
+  useEffect(() => { if (currentUser?.id) return watchCorrections(currentUser.id); }, [currentUser?.id]);
   useEffect(() => {
-    if (currentUser?.id && import.meta.env.VITE_PRACTICE_ENABLED === 'true') return watchPracticeSync(currentUser.id);
+    if (currentUser?.id) return watchPracticeSync(currentUser.id);
   }, [currentUser?.id]);
 
   useEffect(() => {

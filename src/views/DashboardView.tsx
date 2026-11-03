@@ -171,8 +171,8 @@ export const DashboardView: React.FC = () => {
       </h1>
       <p className="text-xs text-text-muted">{loading ? <span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin" />正在讀取進度…</span> : loadError ? '進度暫時無法載入。' : <>累積 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。</>}</p>
     </div><div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-      {!isGuest && import.meta.env.VITE_PRACTICE_ENABLED === 'true' && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/practice')}>原題練習</button>}
-      {!isGuest && import.meta.env.VITE_ANALYSIS_ENABLED === 'true' && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/analysis')}>各科分析</button>}
+      {!isGuest && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/practice')}>原題練習</button>}
+      {!isGuest && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/analysis')}>各科分析</button>}
     </div></div>
     <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent" />
   </header>;

@@ -2,6 +2,14 @@
 
 日期：2026-11-03。適用於本次個人辨識、訂正整理、原題練習及階段分析版本。
 
+最新配置：已移除三個前端 `VITE_…_ENABLED` 開關；入口與帳號內同步直接提供，功能停用與權限仍由後端控制。後端三個開關集中在 `wrangler.jsonc` 的 `vars`，目前均為 `"true"`，本地與下次雲端發布使用相同預設；本次沒有推送或部署。
+
+登入後，頂部導覽依序提供「原題練習」「分析」「探索」，各有圖示及目前頁面狀態；行動版導覽選單沿用相同入口。既有「刷題」仍開啟題庫訂正頁。
+
+本次配置與入口調整驗證：TypeScript、將舊三個前端開關全部設為 `false` 的正式建置、Service Worker 建置、34 項相關測試及 Worker 本地打包預演均通過。模擬 API 瀏覽器驗證涵蓋 390／1024／1280px 導覽、登入限制、分析與練習入口，以及舊開關為 `false` 時仍提交訂正合成圖辨識；沒有呼叫正式模型或修改正式資料。
+
+正式遷移最新狀態：使用者已回報 0014 檢查完整，0015～0019 套用後 `pending: []`，這批正式 schema 已齊備。以下初次檢查與排錯紀錄保留作為背景，不再代表目前仍缺 migration。
+
 ## 本次實際檢查結果
 
 - 已取得遠端 `origin/main`，版本為 `a76abc8`，並在功能分支整合主線。
@@ -10,7 +18,7 @@
 - 集合管理保留主線的緊湊卡片、縮圖彈窗、標題前往共用刷題、右下移除按鈕；不恢復已移除的上移／下移及重複原圖連結。
 - 0018 的 trigger 僅將 `BEGIN`／`END` 排版為獨立行，供舊 SQL 載入流程正確解析；與既有正規化結構定義相同，不需重套已安裝的 0018。
 - **本地唯讀檢查：0014～0018 與既有基礎 schema 已完整，只缺 0019** 的 `analysis_subject_state`、`analysis_report_cycles`、`idx_analysis_completed_subject`、`idx_practice_received`。
-- **雲端唯讀檢查未成功**：Cloudflare 回傳 `7403`，目前帳號／憑證無權存取設定的正式 D1。正式 schema 缺哪些版本仍未知，不能把本地結果套用到雲端。
+- **初次雲端唯讀檢查未成功**：曾回傳 `7403`。後續使用者已成功套用並檢查 0014～0019，最新結果見本文開頭。
 - 本次沒有對使用中的本地或正式資料庫執行遷移，也未推送或手動部署。測試使用隔離 Miniflare 與模擬 API。
 
 整合驗證：前端及 Worker 入口 TypeScript、啟用三個功能開關的正式建置、Service Worker 建置與 **87 項測試全部通過**。測試包含辨識／訂正／練習／階段分析、原題作業同步、來源共用、單題分享、集合成員、共用搜尋快取與 PWA。瀏覽器以模擬 API 驗證上傳題／存入題的底部與浮動完成、撤回、儲存失敗、共用題不送個人辨識，以及 390／1280px 集合篩選、草稿、候選選取、圖片彈窗與同頁導航；不等同真實模型或 iPad 實機驗收。
@@ -55,30 +63,26 @@ node scripts/init-local-db.mjs
 node scripts/init-local-db.mjs --check
 ```
 
-### A2. 前端 `.env.local`
+### A2. 前端設定
 
-新增或更新這些鍵，保留其他設定：
+同站 `/api` 已是程式預設，不必新增 `.env.local`。若既有環境需要明確指定 API，保留這個選用鍵：
 
 ```dotenv
 VITE_API_URL=/api
-VITE_LEARNING_ENABLED=true
-VITE_PRACTICE_ENABLED=true
-VITE_ANALYSIS_ENABLED=true
 ```
 
-### A3. 後端 `.dev.vars`
+三個舊的前端功能開關已不再讀取，可從 `.env.local` 與雲端 Build variables 移除；即使暫時留著也不影響功能。前端入口仍受登入／題目來源規則限制，不會在進頁時自動產生 AI 報告。
 
-新增或更新：
+### A3. 後端設定與 `.dev.vars`
+
+一般功能開關已集中於 `wrangler.jsonc`，不必在 `.dev.vars` 重複設定。若已有同名本地覆寫，請核對是否仍要保留；設為 `false` 會在本地停用對應 API。模型亦沿用程式預設，只有要切換模型時才需要加入：
 
 ```dotenv
-LEARNING_ENABLED=true
-PRACTICE_ENABLED=true
-ANALYSIS_ENABLED=true
 GEMINI_ANALYSIS_MODEL=gemini-3.1-pro-preview
 GEMINI_CORRECTION_MODEL=gemini-3.1-pro-preview
 ```
 
-兩個模型鍵可省略，以上是目前程式預設值。一般上傳辨識維持既有模型。保留有效的 `GEMINI_API_KEY`、`JWT_SECRET`、Google OAuth 等原設定；不要貼出金鑰或提交 `.dev.vars`／`.env.local`。功能開關不授予 Pro 付費會員資格，這版也不包含生成新題。
+兩個模型鍵可省略，以上是目前程式預設值。一般上傳辨識維持既有模型。`.dev.vars` 仍保存有效的 `GEMINI_API_KEY`、`JWT_SECRET`、Google OAuth 等秘密值；不要貼出金鑰或提交 `.dev.vars`／`.env.local`。功能開關不授予 Pro 付費會員資格，這版也不包含生成新題。
 
 ### A4. 啟動
 
@@ -140,17 +144,15 @@ node scripts/apply-practice-schema.mjs --target=remote --check
 
 ### B3. 後端執行設定：放進版本控制
 
-本次合併保留既有開關配置，**沒有直接替正式環境開啟功能**。正式 D1 檢查完整後，將以下鍵合併至 `wrangler.jsonc` 的現有 `vars`，保留 `GOOGLE_CLIENT_ID` 和其他原值，再提交設定變更：
+正式 D1 已由使用者完成本批遷移。以下三個開關已加入 `wrangler.jsonc` 的現有 `vars`，下次透過 CI 發布後生效；不必另在 Cloudflare 後台重複填寫。`GOOGLE_CLIENT_ID` 和其他原值保留：
 
 ```jsonc
 "LEARNING_ENABLED": "true",
 "PRACTICE_ENABLED": "true",
-"ANALYSIS_ENABLED": "true",
-"GEMINI_ANALYSIS_MODEL": "gemini-3.1-pro-preview",
-"GEMINI_CORRECTION_MODEL": "gemini-3.1-pro-preview"
+"ANALYSIS_ENABLED": "true"
 ```
 
-此片段是 `vars` 內的成員，不是完整設定檔；前一個既有成員需有逗號。模型鍵亦可省略使用程式預設。
+此片段是既有 `vars` 的成員，不是完整設定檔。若要停用，修改對應值為 `"false"` 並經既有流程發布。`GEMINI_ANALYSIS_MODEL`／`GEMINI_CORRECTION_MODEL` 可在需要覆寫時加入，未設定沿用程式預設。
 
 保留原 D1／R2／KV／速率限制 binding、`placement.region: "gcp:asia-east1"`、靜態資源與 Cron 設定。日排程 `0 19 * * *` 是 UTC 19:00，即台灣隔日 03:00，負責分批清理到期報告。
 
@@ -160,22 +162,19 @@ Wrangler 預設會以設定檔覆蓋後台的一般變數；因此這些非秘�
 
 ### B4. 前端建置設定：Cloudflare Builds
 
-在 `redolve-api` 的 **Settings → Build → Build variables and secrets** 設定：
+不再需要為辨識、練習與分析設定任何前端建置開關。可以刪除既有的三個 `VITE_…_ENABLED` Build variables；即使有殘留 `false` 值，新程式也不會讀取。API 與前端同站時不必另設建置變數；需要明確指定時可保留：
 
 ```dotenv
 VITE_API_URL=/api
-VITE_LEARNING_ENABLED=true
-VITE_PRACTICE_ENABLED=true
-VITE_ANALYSIS_ENABLED=true
 ```
 
-這些變數須在 Vite 建置時存在；後端 `vars` 或本機 `.env.local` 不會代替雲端建置設定。不要將 Gemini、JWT 等秘密加上 `VITE_` 前綴。[Cloudflare 建置設定說明](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
+只有這類需要改變前端打包內容的值才放在 Build variables；功能是否允許執行由後端三個開關判斷。後端停用時，前端保留入口並顯示 API 回傳的未開放訊息，已有離線資料不刪除。不要將 Gemini、JWT 等秘密加上 `VITE_` 前綴。[Cloudflare 建置設定說明](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
 
 核對 Git 監聽分支為 `main`。建置命令使用既有 `npm run build`，它包含 TypeScript、Vite 與 `scripts/build-sw.mjs`；發布命令沿用既有自動部署設定（例如 Cloudflare Builds 內的 `npx wrangler deploy`），不要另外在本機手動部署。這份 repo 沒有 `.github/workflows`，不能假設 GitHub Actions 會自動跑所有測試。
 
 ### B5. 發布與回復
 
-1. 先完成正式 D1 檢查／遷移，再提交後端開關並備妥建置變數。
+1. 確認正式 D1 檢查完整，並核對已提交的後端開關與原有金鑰；本批 0014～0019 已由使用者完成。
 2. 本地 main 合併驗證後，僅在使用者授權時推送，讓既有 CI 執行。
 3. 確認部署對應提交與建置成功，檢查桌面／iPad PWA 更新；驗證上傳題與存入題各走一次訂正、確認、練習、分析、引用與追問。
 4. 確認訂正失敗可手動重試、空白答案可確認、已確認內容不被覆蓋、重作紀錄存在、最新天數篩選不呼叫 AI、生成間隔與歷史閱讀正常；再檢查既有共用／集合功能。

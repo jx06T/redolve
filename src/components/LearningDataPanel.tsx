@@ -167,6 +167,6 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
     {error && <div className="mt-3 text-sm"><p role="alert">{error}</p><button type="button" disabled={busy} className={buttonClass + ' mt-2'} onClick={() => void run(async signal => {
       const result = await learningService.read(questionRef, signal); if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); }
     })}>重新載入資料</button></div>}
-    {current?.id && import.meta.env.VITE_PRACTICE_ENABLED === 'true' && <PracticeHistory questionId={current.id} />}
+    {current?.id && <PracticeHistory questionId={current.id} />}
   </section>;
 }

@@ -42,7 +42,6 @@ export function PracticeAnalysisView() {
   const units = flatten(tree.find(n => n.id === subject)?.children || []);
   if (window.location.hash === '#analysis') return <Navigate replace to={subject ? '/analysis/' + encodeURIComponent(subject) : '/analysis'} />;
   if (!uid) return <p className="p-5">請先登入以使用原題練習。</p>;
-  if (import.meta.env.VITE_PRACTICE_ENABLED !== 'true') return <p className="p-5">練習功能尚未開放。</p>;
   const current = session?.questions[index];
   return <div className="mx-auto max-w-6xl space-y-5 pb-8 text-text-main">
     <div className="flex flex-wrap items-center gap-3"><h1 className="mr-auto text-xl font-semibold">原題練習</h1>

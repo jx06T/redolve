@@ -11,7 +11,6 @@ import { AnalysisPeriod } from '../components/AnalysisPeriod';
 export function AnalysisView() {
   const uid = useStore(s => s.currentUser?.id), { subjectId } = useParams();
   if (!uid) return <p className="p-5">請先登入以查看個人分析。</p>;
-  if (import.meta.env.VITE_ANALYSIS_ENABLED !== 'true') return <p className="p-5">分析功能尚未開放。</p>;
   return <div className="mx-auto max-w-5xl space-y-6 pb-12 text-text-main">{subjectId ? <SubjectAnalysis key={uid + ':' + subjectId} uid={uid} subjectId={subjectId} /> : <AnalysisOverview key={uid} />}</div>;
 }
 function AnalysisOverview() {

@@ -1,9 +1,11 @@
-import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass, Info } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Settings, Search, Rss, Compass, Info, ClipboardCheck, ChartNoAxesCombined } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export const SHOW_SHORTCUTS_EVENT = 'redolve:show-shortcuts';
 
 // Navigation Links Configuration
-export const NAV_LINKS = [
+interface NavLink { path: string; label: string; icon: LucideIcon; requiresLogin?: boolean }
+export const NAV_LINKS: NavLink[] = [
   { path: '/', label: '總覽', icon: LayoutDashboard },
   { path: '/study', label: '刷題', icon: BookOpen },
   { path: '/search', label: '搜尋', icon: Search },
@@ -11,8 +13,10 @@ export const NAV_LINKS = [
   { path: '/extended', label: '延伸題目', icon: Rss },
 ];
 
-export const HEADER_NAV_LINKS = [
+export const HEADER_NAV_LINKS: NavLink[] = [
   ...NAV_LINKS,
+  { path: '/practice', label: '原題練習', icon: ClipboardCheck, requiresLogin: true },
+  { path: '/analysis', label: '分析', icon: ChartNoAxesCombined, requiresLogin: true },
   { path: '/explore', label: '探索', icon: Compass },
   { path: '/about', label: '關於', icon: Info },
 ];

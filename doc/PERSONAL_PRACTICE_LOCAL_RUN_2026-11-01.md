@@ -1,6 +1,6 @@
 # 個人練習與分析：本地試用與資料庫遷移
 
-> 2026-11-03 已整合主線並重新驗證；本地唯讀檢查只缺 0019，正式檢查遇 Cloudflare 7403、版本缺失尚未知。依[最新本地／雲端操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)執行，避免混用本地與正式環境。
+> 2026-11-03 後續更新：使用者已完成正式 0014～0019 遷移，檢查 `pending: []`。三個前端功能開關已移除，後端開關集中至 `wrangler.jsonc`。依[最新本地／雲端操作文件](./ANALYSIS_RELEASE_RUNBOOK_2026-11-03.md)執行，避免混用本地與正式環境。
 
 日期：2026-11-02 更新。分支：`codex/personal-analysis-foundation`。
 
@@ -47,22 +47,13 @@ node scripts/backfill-learning-text.mjs --target=local --apply
 
 ## 3. 開啟本地功能
 
-在根目錄 `.env.local` 新增／更新下列設定；保留檔案其他設定：
+同站 `/api` 已是前端預設，不必新增 `.env.local`。如需明確指定 API，可以保留以下選用設定：
 
 ```dotenv
 VITE_API_URL=/api
-VITE_LEARNING_ENABLED=true
-VITE_PRACTICE_ENABLED=true
-VITE_ANALYSIS_ENABLED=true
 ```
 
-在 `.dev.vars` 新增／更新下列設定；保留既有金鑰與登入設定：
-
-```dotenv
-LEARNING_ENABLED=true
-PRACTICE_ENABLED=true
-ANALYSIS_ENABLED=true
-```
+三個前端功能開關已不再讀取，可從本地與雲端建置環境移除。後端 `LEARNING_ENABLED`／`PRACTICE_ENABLED`／`ANALYSIS_ENABLED` 已在 `wrangler.jsonc` 預設設為 `"true"`，本地／發布共用；`.dev.vars` 不必重複填寫。既有同名本地覆寫仍會生效，停用對應 API 時請留意。
 
 `.env.local` 與 `.dev.vars` 均已被 Git 忽略。整科報告與追問預設使用 `gemini-3.1-pro-preview`，可用後端 `GEMINI_ANALYSIS_MODEL` 覆寫；一般題目辨識維持原設定。訂正整理可用獨立 `GEMINI_CORRECTION_MODEL` 覆寫，流程見 [訂正後整理](./CORRECTION_RECOGNITION_FLOW_2026-11-02.md)。AI 辨識／報告另需 `.dev.vars` 內有效的 `GEMINI_API_KEY`；登入沿用現有 `JWT_SECRET`、Google OAuth 設定。本地 Google callback 應含 `http://localhost:3000/api/auth/callback/google`，詳見配置指南。
 
@@ -76,7 +67,7 @@ node node_modules/wrangler/bin/wrangler.js dev --local --persist-to .wrangler/st
 node node_modules/vite/bin/vite.js
 ```
 
-開啟 `http://localhost:3000/analysis` 查看各科總覽，點科目先進入「最新」統計，切換「分析報告」可建立首次基準、查看歷次總結與追問；`http://localhost:3000/practice` 為獨立原題練習頁，首頁也提供入口。修改環境檔後重啟兩個開發程序。只開前端不會同時啟動 API；直接開 8787 則使用既有 `dist`，未重新建置時不會反映前端新開關。
+開啟 `http://localhost:3000/analysis` 查看各科總覽，點科目先進入「最新」統計，切換「分析報告」可建立首次基準、查看歷次總結與追問；`http://localhost:3000/practice` 為獨立原題練習頁，首頁也提供入口。修改環境檔後重啟兩個開發程序。只開前端不會同時啟動 API；直接開 8787 則使用既有 `dist`，前端程式修改須先重新建置。
 
 目前資料量保護：抽題使用至多 500 個候選；每科分析至多 2,000 題，最新統計只讀所選天數，至多 10,000 筆有效事件。階段報告至多 10,000 筆有效新作答、20,000 筆接收依據，超限明示協助處理，不默默截斷。AI 先讀全科可用題文目錄，再挑最多 30 題深讀並限制輸入大小；解讀項目依有效資料量提供，不固定三項。統計使用全部範圍內題目，不能把代表題數視為全部題數。
 

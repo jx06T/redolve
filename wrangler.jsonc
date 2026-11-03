@@ -21,7 +21,10 @@
     ]
   },
   "vars": {
-    "GOOGLE_CLIENT_ID": "487878253671-eg14d8s8fd1th57f3ugd8kivrqmultbl.apps.googleusercontent.com"
+    "GOOGLE_CLIENT_ID": "487878253671-eg14d8s8fd1th57f3ugd8kivrqmultbl.apps.googleusercontent.com",
+    "LEARNING_ENABLED": "true",
+    "PRACTICE_ENABLED": "true",
+    "ANALYSIS_ENABLED": "true"
   },
   "triggers": { "crons": ["0 19 * * *"] },
   "ratelimits": [

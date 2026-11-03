@@ -277,7 +277,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
     const snapshot = { ink: structuredClone(latestDrawDataRef.current || itemInk(problem)), notes: typedNotes, image: workspaceRef.current?.querySelector('img') || undefined };
     try {
       if (!await handleToggleStatus()) return;
-      if (personalRef && uid && import.meta.env.VITE_LEARNING_ENABLED === 'true') {
+      if (personalRef && uid) {
         if (wasCompleting) {
           // Run independently of this card's lifetime; the composite is captured before advancing.
           try { await enqueueCorrection(uid, personalRef, imageUrl, snapshot.ink, snapshot.notes, work?.learningSourceIdentity || problem.image_url, false, snapshot.image);
@@ -497,7 +497,7 @@ export const ProblemCard: React.FC<ProblemCardProps> = ({
           onEditMetadata={onEditMetadata}
           reloadLabel={work?.reloadLabel}
           starAction={(!work||work.starTarget)&&<QuestionStarButton target={work?.starTarget||{kind:'owned',itemId:problem.id}} starred={work?.starred??!!problem.starred} onChanged={work?work.onStarred:onChanged}/>}
-          learningAction={import.meta.env.VITE_LEARNING_ENABLED === 'true' && !readOnly && useStore.getState().currentUser?.id &&
+          learningAction={!readOnly && useStore.getState().currentUser?.id &&
             (work?.learningRef || !work && !problem.id.startsWith('temp_')) ?
             <LearningDataButton questionRef={work?.learningRef || { kind: 'owned', itemId: problem.id }} active={isActive || !onNext}
               corrected={isResolved || problem.status === 'archived' && problem.review_count > 0} onRecognize={() => recognizeCurrentCorrection()}
