@@ -199,7 +199,7 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
   const binds:(string|number)[]=[uid,uid,uid,co!.id];
   let filters='';
   if(text){filters+=` AND (COALESCE(i.source,'') LIKE ? ESCAPE '\\' OR COALESCE(i.keywords,'') LIKE ? ESCAPE '\\')`;binds.push(`%${text}%`,`%${text}%`);}
-  if(state==='starred')filters+=' AND COALESCE(rd.starred,0)=1';
+  if(state==='liked'||state==='starred')filters+=' AND COALESCE(rd.starred,0)=1';
   if(topic){
     filters+=` AND i.topic_id IN (WITH RECURSIVE descendants(id) AS (
       SELECT id FROM taxonomies WHERE id=? AND user_id IS NULL
@@ -232,7 +232,7 @@ collectionsRouter.get('/collections/:id',optionalAuthMiddleware,async c=>{
     i.source AS title,i.keywords,
     ${canWrite?`(SELECT substr(f.problem_text,1,1600) FROM items_fts f WHERE f.id=i.id AND f.user_id=i.user_id ORDER BY f.rowid DESC LIMIT 1) AS question_text,`:''}
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN i.topic_id ELSE NULL END AS topic_id,
-    i.content_seq,ci.contributor_id,ci.source_item_id,COALESCE(rd.starred,0) AS is_starred,
+    i.content_seq,ci.contributor_id,ci.source_item_id,COALESCE(rd.starred,0) AS is_liked,COALESCE(rd.starred,0) AS is_starred,
     p.display_name AS provider_name,sr.id AS saved_id,
     CASE WHEN sub.user_id IS NOT NULL AND ci.latest_add_event_seq>sub.subscribed_after_seq
       THEN 1 ELSE 0 END AS is_new_scope,
@@ -526,6 +526,20 @@ collectionsRouter.get('/collections/:id/items/:entryId/text',optionalAuthMiddlew
   c.header('Cache-Control','private, no-store');
   return c.json({text:row?.problem_text||''});
 });
+// External likes reuse the old subscriber-star flag, separately from personal study stars.
+collectionsRouter.put('/collections/:id/items/:entryId/like',authMiddleware,async c=>{
+  const co=await loadCollection(c.env,c.req.param('id'));
+  if(!await reader(c,co))return c.json(missing,404);
+  const entry=await liveEntry(c.env,c.req.param('entryId'),co!.id);
+  if(!entry)return c.json(missing,404);
+  const body=await c.req.json().catch(()=>({}));
+  if(typeof body.liked!=='boolean')return c.json(apiError('INVALID_REQUEST','喜歡狀態無效'),400);
+  await c.env.DB.prepare(`INSERT INTO collection_item_reads(user_id,entry_id,seen_add_event_seq,starred)
+    VALUES(?,?,0,?) ON CONFLICT(user_id,entry_id) DO UPDATE SET starred=excluded.starred
+    WHERE collection_item_reads.starred<>excluded.starred`)
+    .bind(c.get('userId'),entry.id,body.liked?1:0).run();
+  return c.json({liked:body.liked});
+});
 collectionsRouter.get('/collections/:id/items/:entryId/image',optionalAuthMiddleware,async c=>{
   const co=await loadCollection(c.env,c.req.param('id'));
   if(!await reader(c,co)) return c.json(missing,404);
@@ -799,7 +813,7 @@ collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
     co.title AS collection_title,COALESCE(i.source,'題目') AS title,
     (SELECT sr.id FROM saved_refs sr WHERE sr.entry_id=ci.id AND sr.user_id=?1) AS saved_id,
     (SELECT COUNT(*) FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1) AS is_subscribed,
-    co.owner_id=?1 AS is_owner,
+    co.owner_id=?1 AS is_owner,COALESCE(rd.starred,0) AS is_liked,
     i.keywords,p.display_name AS provider_name,
     CASE WHEN t.id IS NOT NULL AND t.user_id IS NULL THEN t.label ELSE NULL END AS topic_label
     FROM collections co JOIN collection_items ci ON ci.collection_id=co.id AND ci.state='included'
@@ -807,6 +821,7 @@ collectionsRouter.get('/public/items',optionalAuthMiddleware,async c=>{
     JOIN assets a ON a.id=i.image_url AND a.state='ready'
     LEFT JOIN public_profiles p ON p.user_id=ci.contributor_id
     LEFT JOIN taxonomies t ON t.id=i.topic_id
+    LEFT JOIN collection_item_reads rd ON rd.entry_id=ci.id AND rd.user_id=?1
     WHERE co.lifecycle='active' AND co.visibility='public' AND co.listed=1
       ${c.req.query('exclude_owned')==='yes'?`AND co.owner_id<>?1`:''}
       ${c.req.query('exclude_subscribed')==='yes'?`AND NOT EXISTS(SELECT 1 FROM subscriptions s WHERE s.collection_id=co.id AND s.user_id=?1)`:''}

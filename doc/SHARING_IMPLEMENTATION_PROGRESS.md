@@ -1,8 +1,16 @@
 # 共用／訂閱實作進度與待辦
 
-更新：2026-11-02。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
+更新：2026-11-03。共用規格來源：[SHARING_SPEC.md](./SHARING_SPEC.md)；最新 UI 修正：[UI_UX_STUDY_RESTORE_2026-10-10.md](./UI_UX_STUDY_RESTORE_2026-10-10.md)。本文件只記錄實際完成、驗證邊界和待辦。
 
 ## 目前狀態
+
+### 2026-11-03 外部題目改為愛心與緊湊操作列
+
+- 探索／延伸題目的星號改成愛心「喜歡」，愛心／檢舉／分享均使用與刷題一致的 16px 圖示、32px 按鈕；選中僅填滿愛心並使用低彩度紅色，不保留大塊選中底色。訂閱中心與隱私政策用語同步更新。
+- 新增已登入且通過集合／有效題目觀看權限的 PUT /collections/:id/items/:entryId/like，無需先訂閱，不會訂閱、存入或變更閱讀序號；依帳號＋entry 記錄，重複同值寫入不更新既有列。重用 collection_item_reads.starred 欄位保存舊標記，回傳 is_liked；保留 is_starred、舊 star API 與 state=starred 相容，新增 state=liked，無 migration。
+- 公開探索清單以使用者＋題目索引連接讀取個人愛心；變更時清除 readerCache，避免返回其他範圍時舊快取蓋掉狀態。失敗只提示且保留原狀態／圖片，不把操作錯誤當成圖片失效。未登入按愛心開啟登入視窗。
+- sharing-api 測試驗證登入、輸入型別、未訂閱喜歡、帳號隔離、舊標記與篩選、無效來源拒絕；external-likes.browser.mjs 覆蓋 390／1280px 的探索／延伸／訪客、切換／重整保留、失敗保留及緊湊尺寸。reader-cached-image-height.browser.mjs 切頁與快取回歸、TypeScript、建置／SW／PWA 與偏好測試通過；UI API 使用 fixture。
+- 後續：個人刷題星號作為獨立複習重點功能另行實作；外部愛心累積數、公開計數／排序尚未加入。本次只改外部喜歡與工具列，不將喜歡與個人複習星號合併。
 
 ### 2026-11-02 更正管理題目標題的跳轉
 

@@ -14,7 +14,7 @@ export type CollectionEntry = {
   id:string; display_order:number; title:string|null; topic_id:string|null; keywords:string|null;
   content_seq:number; shared_seq:number; provider_name:string|null;
   saved_id:string|null; is_read:number; is_new_scope:number; contributor_id:string;
-  latest_add_event_seq:number|null; is_starred?:number; source_item_id?:string; is_subscribed?:number; question_text?:string|null;
+  latest_add_event_seq:number|null; is_liked?:number; is_starred?:number; source_item_id?:string; is_subscribed?:number; question_text?:string|null;
 };
 export type SharedLayer = {
   is_source?:boolean;has_draw?:boolean;legacy_source?:boolean;

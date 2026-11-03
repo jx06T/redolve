@@ -113,6 +113,18 @@ test('contributor live source revokes while subscriber download survives', async
     assert.ok(publicItems.data.items.some(row=>row.entry_id===entryId));
     const anonymous=await mf.dispatchFetch('https://redolve.test/api/public/items?q=Original');
     assert.equal(anonymous.status,200,'listed public discovery is readable without login');
+    const likePath=`/api/collections/${collectionId}/items/${entryId}/like`;
+    assert.equal((await mf.dispatchFetch('https://redolve.test'+likePath,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({liked:true})})).status,401,'liking requires login');
+    assert.equal((await call(likePath,'d','PUT',{liked:'yes'})).status,400,'likes require a boolean');
+    assert.equal((await call(likePath,'d','PUT',{liked:true})).status,200,'a public reader can like before subscribing');
+    assert.equal((await call(likePath,'d','PUT',{liked:true})).status,200,'repeated likes are idempotent');
+    assert.equal((await call('/api/subscriptions','d')).data.subscriptions.length,0,'a like never subscribes');
+    assert.equal((await call('/api/saved','d')).data.items.length,0,'a like never saves a personal copy');
+    assert.equal((await call('/api/public/items?q=Original','d')).data.items.find(row=>row.entry_id===entryId).is_liked,1);
+    assert.equal((await call('/api/public/items?q=Original','a')).data.items.find(row=>row.entry_id===entryId).is_liked,0,'likes are scoped to the current account');
+    assert.equal((await call(`/api/collections/${collectionId}?state=liked`,'d')).data.items[0].id,entryId);
+    assert.equal((await call(likePath,'d','PUT',{liked:false})).status,200);
+    assert.equal((await call(`/api/collections/${collectionId}?state=liked`,'d')).data.items.length,0);
     const imageEdit=await call('/api/problems/source','b','PUT',{image_url:'other-image'});
     assert.equal(imageEdit.status,400,'published source image cannot be replaced');
     const cannotAddOther=await call(`/api/collections/${collectionId}/items`,'a','POST',{item_id:'source'});
@@ -120,6 +132,7 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal((await call(`/api/subscriptions/${collectionId}`,'d','PUT')).status,200);
     const star=await call(`/api/subscriptions/${collectionId}/items/${entryId}/star`,'d','PUT',{starred:true});
     assert.equal(star.status,200,JSON.stringify(star.data));
+    assert.equal((await call(`/api/collections/${collectionId}?state=liked`,'d')).data.items[0].is_liked,1,'legacy subscriber stars remain liked without migration');
     assert.equal((await call(`/api/collections/${collectionId}?state=starred`,'d')).data.items[0].id,entryId);
     assert.equal((await call('/api/saved','d')).data.items.length,0,'a star is not a download');
     await call(`/api/subscriptions/${collectionId}`,'d','DELETE');
@@ -388,6 +401,7 @@ test('contributor live source revokes while subscriber download survives', async
     assert.equal(noDetached.data.layers.length,0);
     const live=await call(`/api/collections/${collectionId}/items/${entryId}`,'d');
     assert.equal(live.status,404);
+    assert.equal((await call(likePath,'d','PUT',{liked:true})).status,404,'unavailable source entries cannot receive likes');
     const retained=await mf.dispatchFetch(`https://redolve.test/api/saved/${savedId}/image`,{
       headers:{Authorization:`Bearer ${token.d}`},
     });

@@ -10,17 +10,19 @@ import { subscriptionService } from '../services/questionService';
 import type { Subscription } from '../types/question';
 import { isGuestUser } from '../utils/guest';
 import { LoginNotice } from '../components/LoginNotice';
+import { questionListCache } from '../services/listCache';
 
 type Row = CollectionEntry & { collection_id?: string; is_owner?: boolean };
 const storedSort = (account: string) => { try { return localStorage.getItem(`rdv:subscription-sort:${account}`) || 'subscribed'; } catch { return 'subscribed'; } };
 const readerCache = new Map<string, { rows: Row[]; cursor: { display_order: number; id: string } | null; offset: number | null }>();
+questionListCache.onInvalidate(() => readerCache.clear());
 export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 'collection' }) {
   const navigate = useNavigate(); const route = useParams();
   const { currentUser } = useStore(); const account = isGuestUser(currentUser) ? '' : currentUser!.id;
   const [params, setParams] = useRememberedReaderParams(mode === 'collection' ? null : mode, account || 'guest');
   const navigation = useNavigationType();
   const id = mode === 'collection' ? route.id || '' : params.get('collection_id') || '';
-  const query = params.get('q') || ''; const filter = params.get('state') || ''; const sort = params.get('sort') || storedSort(account);
+  const query = params.get('q') || ''; const filter = params.get('state') === 'starred' ? 'liked' : params.get('state') || ''; const sort = params.get('sort') || storedSort(account);
   const savedFilter = mode === 'extended' && ['yes', 'no'].includes(params.get('saved') || '') ? params.get('saved')! : '';
   const [controlsOpen, setControlsOpen] = useState(mode === 'extended' && !id);
   const [subs, setSubs] = useState<Subscription[]>([]); const listQuery = params.get('list_q') || '';
@@ -135,7 +137,7 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
           <input aria-label="搜尋目前觀看範圍" value={queryDraft} onChange={e => setQueryDraft(e.target.value)} placeholder="搜尋此範圍的題目" className="min-w-0 flex-1 rounded-xl border border-border-subtle bg-surface p-3 text-sm" />
           <button className="rounded-xl bg-surface px-4 py-2 text-sm">搜尋</button>
           {mode === 'extended' && <div className="col-span-2 grid min-w-0 grid-cols-2 gap-2">
-            <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="starred">星號</option></select>
+            <select aria-label="閱讀篩選" value={filter} onChange={e => patch({ state: e.target.value })} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部題目</option><option value="unread">未看新題</option><option value="liked">喜歡</option></select>
             <select aria-label="存入狀態篩選" value={savedFilter} onChange={e => patch({ saved: e.target.value })} className="min-w-0 w-full rounded-xl border border-border-subtle bg-page-bg p-2 text-sm"><option value="">全部存入狀態</option><option value="no">未存入</option><option value="yes">已存入</option></select>
           </div>}
         </form>}
@@ -151,10 +153,10 @@ export function CollectionReaderView({ mode }: { mode: 'extended' | 'explore' | 
     {!busy && !error && !rows.length && (mode === 'explore' || id && ready) && <p className="p-5 text-sm text-text-muted">目前沒有符合條件的題目。</p>}
     {busy && !rows.length && <p className="p-5 text-sm text-text-muted">正在載入題目…</p>}
     <QuestionStream className="min-h-48 flex-1 overflow-y-auto overscroll-contain" items={dataKey === key ? rows : []} busy={busy} hasMore={dataKey === key && (publicFeed ? offset !== null : cursor !== null)} loadError={!!error} autoLoad={false} loadMore={() => void load(true)} focus={params.get('focus') || undefined}
-      render={row => <ExternalQuestionCard id={row.id} collectionId={row.collection_id || id} subscribed={mode === 'extended'} starred={!!row.is_starred} savedId={row.saved_id} knownSubscribed={subscriptionAccount === account ? subs.some(s => s.collection_id === (row.collection_id || id)) : !!row.is_subscribed}
+      render={row => <ExternalQuestionCard id={row.id} collectionId={row.collection_id || id} subscribed={mode === 'extended'} liked={!!(row.is_liked ?? row.is_starred)} savedId={row.saved_id} knownSubscribed={subscriptionAccount === account ? subs.some(s => s.collection_id === (row.collection_id || id)) : !!row.is_subscribed}
         publicContext={mode === 'explore'} isOwner={!!row.is_owner || co?.is_owner} subscriptionStatusReady={subscriptionStatusReady} onSubscriptionChanged={next => subscriptionChanged(next, row.collection_id || id, row.id)}
         onRead={() => { if (row.is_read) return; setRows(p => p.map(i => i.id === row.id ? { ...i, is_read: 1 } : i)); if (row.is_new_scope) setSubs(p => p.map(s => s.collection_id === (row.collection_id || id) ? { ...s, unread_count: Math.max(0, (s.unread_count || 0) - 1) } : s)); }}
         onSaved={savedId => setRows(p => p.map(i => i.id === row.id ? { ...i, saved_id: savedId } : i))}
-        onStar={starred => setRows(p => p.map(i => i.id === row.id ? { ...i, is_starred: starred ? 1 : 0 } : i))} />} />
+        onLike={liked => setRows(p => filter === 'liked' && !liked ? p.filter(i => i.id !== row.id) : p.map(i => i.id === row.id ? { ...i, is_liked: liked ? 1 : 0, is_starred: liked ? 1 : 0 } : i))} />} />
   </div>;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flag, Share2, Star } from 'lucide-react';
+import { Flag, Heart, Share2 } from 'lucide-react';
 import { ShareModal } from './ShareModal';
 import { AppDialog } from './AppDialog';
 import { DrawCanvas } from './DrawCanvas';
@@ -8,16 +8,16 @@ import { SwitchRow } from './SwitchRow';
 import { useStore } from '../store/useStore';
 import { workService } from '../services/workService';
 import { libraryService } from '../services/libraryService';
-import { subscriptionService } from '../services/questionService';
+import { collectionService } from '../services/questionService';
 import { imageUrl, sharingApi } from '../services/sharingApi';
 import { savedStudyUrl } from '../services/navigationState';
 import type { WorkContent } from '../types/question';
 import { CollectionSubscriptionButton } from './CollectionSubscriptionButton';
 import { isGuestUser } from '../utils/guest';
 
-export function ExternalQuestionCard({ id, collectionId, subscribed = false, starred = false, savedId, onSaved, onStar, onRead, knownSubscribed = false, publicContext = false, isOwner = false, subscriptionStatusReady = true, onSubscriptionChanged }: {
-  id: string; collectionId: string; subscribed?: boolean; starred?: boolean; savedId?: string | null; knownSubscribed?: boolean;
-  onSaved?: (savedId: string) => void; onStar?: (starred: boolean) => void; onRead?: () => void;
+export function ExternalQuestionCard({ id, collectionId, subscribed = false, liked = false, savedId, onSaved, onLike, onRead, knownSubscribed = false, publicContext = false, isOwner = false, subscriptionStatusReady = true, onSubscriptionChanged }: {
+  id: string; collectionId: string; subscribed?: boolean; liked?: boolean; savedId?: string | null; knownSubscribed?: boolean;
+  onSaved?: (savedId: string) => void; onLike?: (liked: boolean) => void; onRead?: () => void;
   publicContext?: boolean; isOwner?: boolean; subscriptionStatusReady?: boolean; onSubscriptionChanged?: (subscribed: boolean) => void;
 }) {
   const user = useStore(s => s.currentUser); const account = isGuestUser(user) ? '' : user!.id;
@@ -31,7 +31,8 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
     // A decoded cached image can be ready before passive effects run.
     if (node?.complete && node.naturalWidth > 0) setReadyImage(imageKey);
   }, [imageKey]);
-  const [star, setStar] = useState(starred); const [busy, setBusy] = useState(false);
+  const [like, setLike] = useState(liked); const [busy, setBusy] = useState(false);
+  const currentAccount = useRef(account); currentAccount.current = account;
   const [dialog, setDialog] = useState<'report' | 'share' | 'duplicate' | null>(null);
   const [reason, setReason] = useState(''); const [existing, setExisting] = useState('');
   const [visible, setVisible] = useState<Record<string, boolean>>({});
@@ -40,7 +41,7 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
   const referenceLayers = content?.layers.filter(l => visible[l.id] ?? (!l.legacy && l.authorId === content.shared?.source.contributor_id)) || [];
   const referenceHeight = Math.max(0, ...referenceLayers.map(l => l.ink ? (l.ink.calcSpaceHeight || 0) * areaWidth / (l.ink.baseWidth || 800) : 0));
   useEffect(() => setSaved(savedId || ''), [savedId]);
-  useEffect(() => setStar(starred), [starred]);
+  useEffect(() => setLike(liked), [liked, id, collectionId, account]);
   useEffect(() => {
     const abort = new AbortController(); setContent(undefined); setFailure('');
     void workService.loadShared(collectionId, id, '', abort.signal).then(d => {
@@ -57,15 +58,23 @@ export function ExternalQuestionCard({ id, collectionId, subscribed = false, sta
     const result = await libraryService.save(id); setSaved(result.saved_id); setDialog(null);
     onSaved?.(result.saved_id); showToast('已存入「我存入」，可繼續私人訂正', 'success');
   };
+  const toggleLike = async () => {
+    if (!account) { setAuthModalOpen(true); return; }
+    if (busy) return;
+    const next = !like; setBusy(true);
+    try { await collectionService.like(collectionId, id, next); if(currentAccount.current===account){setLike(next); onLike?.(next);} }
+    catch (e) { if(currentAccount.current===account)showToast(e instanceof Error ? e.message : '喜歡狀態更新失敗，請重試', 'error'); }
+    finally { if(currentAccount.current===account)setBusy(false); }
+  };
   return <article data-reader-loading={!failure && (!content || !imageReady)} className={`rounded-3xl border bg-surface p-4 sm:p-5 ${subscribed ? 'border-[#DCE8E0]' : 'border-[#E7D6C6]'}`}>
     <header className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border-subtle pb-3">
       <div className="min-w-0 flex-1"><h2 className="text-sm font-medium">{content ? `${content.provider}的${publicContext || content.shared?.collection.visibility === 'public' ? '公開' : '共用'}題目` : '題目'}</h2>
         {content && <p className="mt-1 text-xs text-text-muted">來源：{content.title} · <Link to={subscribed || knownSubscribed ? `/extended?collection_id=${encodeURIComponent(collectionId)}` : publicContext || content.shared?.collection.visibility === 'public' ? `/explore?collection_id=${encodeURIComponent(collectionId)}` : `/collections/${encodeURIComponent(collectionId)}`} className="underline">{content.collectionTitle}</Link></p>}
       </div>
-      <div className="flex items-center gap-1 text-text-muted"><span className={`mr-1 rounded-lg px-2 py-1 text-xs ${subscribed || knownSubscribed ? 'bg-[#EAF1EC] dark:bg-[#26362F]' : 'bg-[#F6EADF] dark:bg-[#3B3028]'}`}>{!subscriptionStatusReady ? '確認訂閱中' : subscribed || knownSubscribed ? '已訂閱' : publicContext || content?.shared?.collection.visibility === 'public' ? '公開' : '共用'}</span>
-        {subscribed && <button disabled={busy} aria-label={star ? '取消星號' : '標記星號'} title={star ? '取消星號' : '標記星號'} aria-pressed={star} onClick={() => void act(async () => { await subscriptionService.star(collectionId, id, !star); onStar?.(!star); setStar(v => !v); })} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-neutral-100 aria-pressed:bg-primary/10 aria-pressed:text-primary"><Star size={16} fill={star ? 'currentColor' : 'none'} /></button>}
-        <button aria-label="檢舉" title="檢舉題目" onClick={() => { if (!account) setAuthModalOpen(true); else setDialog('report'); }} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-neutral-100"><Flag size={16} /></button>
-        <button aria-label="分享連結" title="分享此題" onClick={() => setDialog('share')} className="inline-flex h-11 w-11 items-center justify-center rounded-xl hover:bg-neutral-100"><Share2 size={16} /></button>
+      <div className="flex shrink-0 items-center gap-1 text-text-muted"><span className={`mr-1 rounded-lg px-2 py-1 text-xs ${subscribed || knownSubscribed ? 'bg-[#EAF1EC] dark:bg-[#26362F]' : 'bg-[#F6EADF] dark:bg-[#3B3028]'}`}>{!subscriptionStatusReady ? '確認訂閱中' : subscribed || knownSubscribed ? '已訂閱' : publicContext || content?.shared?.collection.visibility === 'public' ? '公開' : '共用'}</span>
+        <button type="button" disabled={busy || !content} aria-label={like ? '取消喜歡' : '喜歡此題'} title={like ? '取消喜歡' : '喜歡此題'} aria-pressed={like} onClick={() => void toggleLike()} className="inline-flex items-center justify-center rounded-xl p-2 text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all aria-pressed:text-[#A96F6F] disabled:opacity-40"><Heart size={16} fill={like ? 'currentColor' : 'none'} /></button>
+        <button type="button" aria-label="檢舉" title="檢舉題目" onClick={() => { if (!account) setAuthModalOpen(true); else setDialog('report'); }} className="inline-flex items-center justify-center rounded-xl p-2 text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"><Flag size={16} /></button>
+        <button type="button" aria-label="分享連結" title="分享此題" onClick={() => setDialog('share')} className="inline-flex items-center justify-center rounded-xl p-2 text-text-muted hover:text-text-main hover:bg-neutral-100 active:scale-95 transition-all"><Share2 size={16} /></button>
       </div>
     </header>
     {content && <p className="mb-3 text-xs text-text-muted">{content.shared?.source.topic_label || '未提供官方分類'}{(() => { try { const tags = JSON.parse(content.shared?.source.keywords || '[]'); return Array.isArray(tags) && tags.length ? ' · ' + tags.join('、') : ''; } catch { return ''; } })()}</p>}

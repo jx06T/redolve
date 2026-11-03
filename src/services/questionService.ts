@@ -6,6 +6,8 @@ import type { SearchPage } from '../types/search';
 import type { TaxonomyNode } from '../types';
 
 export const collectionService = {
+  like:(collectionId:string,entryId:string,liked:boolean)=>sharingApi<{liked:boolean}>(
+    `/collections/${encodeURIComponent(collectionId)}/items/${encodeURIComponent(entryId)}/like`,'PUT',{liked}),
   async listContributable(signal?:AbortSignal) {
     return (await sharingApi<{collections:Collection[]}>('/my/collections','GET',undefined,signal)).collections;
   },
