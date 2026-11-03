@@ -4,7 +4,7 @@
 
 本文件取代先前「訂正前可開啟辨識確認」及「重新辨識只看原圖」的流程。產品定位是協助使用者整理自己的訂正思考與錯因，不以 AI 解答取代訂正。
 
-2026-11-03 後續更新：顯示統一採 Markdown／LaTeX，錯因改為具體且可跨題沿用的短語，訂正提示版本為 `correction-v3`；詳見[公式渲染與短錯因](./MATH_MARKDOWN_AND_ERROR_REASONS_2026-11-03.md)。下方 `correction-v2` 是筆色與視窗調整的歷史紀錄。
+2026-11-03 後續更新：顯示統一採 Markdown／LaTeX，錯因改為具體且可跨題沿用的短語，並明確要求外層嚴格 JSON、文字欄位格式及 ID 規則；最新訂正提示版本為 `correction-v4`。詳見[公式渲染與短錯因](./MATH_MARKDOWN_AND_ERROR_REASONS_2026-11-03.md)及[追問對話框](./ANALYSIS_CONVERSATION_UI_2026-11-03.md)。下方 `correction-v2` 是筆色與視窗調整的歷史紀錄。
 
 ## 2026-11-03：手動整理可關閉視窗與原作答筆色線索
 
