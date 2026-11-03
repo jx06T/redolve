@@ -56,6 +56,23 @@ test('inline content preserves label semantics and does not inject paragraph blo
   assert.doesNotMatch(html, /<(?:p|div|table|ul)\b/);
 });
 
+test('legacy bare TeX answers render fractions without double-wrapping existing math', () => {
+  for (const text of [String.raw`-\frac{7}{5}`, String.raw`$-\frac{7}{5}$`, String.raw`\(-\frac{7}{5}\)`]) {
+    const html = render(text, true);
+    assert.match(html, /<mfrac>/);
+    assert.equal((html.match(/class="katex"/g) || []).length, 1);
+    assert.doesNotMatch(html, /\$-\\frac/);
+  }
+  assert.match(render(String.raw`\frac{7}{5}\text{公分}`, true), /<mfrac>/);
+});
+
+test('bare TeX compatibility leaves ordinary prose and explicit code literal', () => {
+  for (const text of [String.raw`不要把 \frac{7}{5} 當成文字答案`, String.raw`Use \frac{7}{5} here`, '`-\\frac{7}{5}`', 'A/B', 'NT$100']) {
+    assert.equal(normalizeMathDelimiters(text), text);
+    assert.doesNotMatch(render(text, true), /class="katex"/);
+  }
+});
+
 test('malformed or recursively expanding math falls back without crashing the page', () => {
   assert.match(render('$\\sqrt{$'), /katex-error/);
   assert.match(render(String.raw`$\def\a{\a}\a$`), /katex-error/);
