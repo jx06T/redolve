@@ -33,9 +33,10 @@ function AnswerInput({ label, answer, content, onChange }: {
 }
 
 /** Personal data editor used inside the recognition dialog. */
-export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBusyChange, onLoaded, onErrorChange, onRecognize }: {
+export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onCloseBlockedChange, onLoaded, onErrorChange, onRecognize, recognitionBusy = false, recognitionError }: {
   questionRef: PersonalQuestionRef; onSaved?: (question: LearningQuestion) => void;
-  initialQuestion?: LearningQuestion | null; onBusyChange?: (busy: boolean) => void;
+  initialQuestion?: LearningQuestion | null; onCloseBlockedChange?: (blocked: boolean) => void;
+  recognitionBusy?: boolean; recognitionError?: string;
   onRecognize?: () => Promise<LearningQuestion>;
   onLoaded?: (question: LearningQuestion) => void; onErrorChange?: (error: string) => void;
 }) {
@@ -47,6 +48,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
   const [correctionId, setCorrectionId] = useState<string | undefined>();
   const draftRef = useRef<LearningData | null>(null);
   draftRef.current = draft;
+  const recognitionBusyRef = useRef(recognitionBusy);
+  recognitionBusyRef.current = recognitionBusy;
   const prepare = (result: LearningQuestion, data: LearningData = { content: result.content, personal: result.personal }) => {
     setDraftBase(result); setSuggestions([...new Set([...data.personal.errorReasons,
       ...(result.correction?.adopted ? result.correction.data?.personal.errorReasons || [] : [])].filter(r => r.origin === 'ai').map(r => r.text))]);
@@ -55,22 +58,27 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
   const adoptLoaded = (result: LearningQuestion) => {
     setCurrent(result); onLoaded?.(result);
     const candidate = result.correction;
-    if (candidate?.status === 'complete' && !candidate.adopted && !candidate.stale && candidate.data && !draftRef.current) {
+    if (candidate?.status === 'complete' && !candidate.adopted && !candidate.stale && candidate.data && !draftRef.current && !recognitionBusyRef.current) {
       prepare(result, candidate.data); setCorrectionId(candidate.id); setPreview(true);
     }
   };
-  const [preview, setPreview] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [preview, setPreview] = useState(false), [operation, setOperation] = useState<'recognize' | 'save' | 'reload' | null>(null), [error, setError] = useState('');
+  const busy = operation !== null;
+  const recognizing = recognitionBusy || operation === 'recognize' || current?.correction?.status === 'pending';
   const controller = useRef(new AbortController()), running = useRef(false);
   const kind = questionRef.kind, id = kind === 'owned' ? questionRef.itemId : questionRef.savedRefId;
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort;
-    setCurrent(null); setDraft(null); setDraftBase(null); setError(''); setPreview(false); setCorrectionId(undefined); setSuggestions([]); setBusy(false); running.current = false;
+    setCurrent(null); setDraft(null); setDraftBase(null); setError(''); setPreview(false); setCorrectionId(undefined); setSuggestions([]); setOperation(null); running.current = false;
     void (initialQuestion ? Promise.resolve(initialQuestion) : learningService.read(questionRef, abort.signal)).then(result => { if (!abort.signal.aborted) adoptLoaded(result); })
       .catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
   }, [account, kind, id]);
   useEffect(() => { const update = () => { const signal = controller.current.signal; if (!draftRef.current) void learningService.read(questionRef, signal).then(value => { if (!signal.aborted) adoptLoaded(value); }).catch(() => {}); }; window.addEventListener('redolve:corrections', update); return () => window.removeEventListener('redolve:corrections', update); }, [account, kind, id]);
-  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => { onCloseBlockedChange?.(operation === 'save'); }, [operation, onCloseBlockedChange]);
+  useEffect(() => {
+    if (!recognitionBusy && current && !draftRef.current) adoptLoaded(current);
+  }, [recognitionBusy, current]);
   useEffect(() => { onErrorChange?.(error); }, [error, onErrorChange]);
   useEffect(() => {
     if (current?.correction?.status !== 'pending' || draft) return;
@@ -78,17 +86,17 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
     const timer = setTimeout(() => { void learningService.read(questionRef, signal).then(value => { if (!signal.aborted) adoptLoaded(value); }).catch(() => {}); }, 8000);
     return () => clearTimeout(timer);
   }, [current, draft]);
-  const run = async (action: (signal: AbortSignal) => Promise<void>) => {
+  const run = async (action: (signal: AbortSignal) => Promise<void>, operation: 'recognize' | 'save' | 'reload' = 'reload') => {
     if (running.current || !account || useStore.getState().currentUser?.id !== account) return;
-    const signal = controller.current.signal; running.current = true; setBusy(true); setError('');
+    const signal = controller.current.signal; running.current = true; setOperation(operation); setError('');
     try { await action(signal); } catch (e) { if (!signal.aborted) setError(e instanceof Error ? e.message : '操作失敗'); }
-    finally { if (!signal.aborted) { running.current = false; setBusy(false); } }
+    finally { if (!signal.aborted) { running.current = false; setOperation(null); } }
   };
   const save = () => void run(async signal => {
     if (!current || !draft) return;
     const result = await learningService.save(draftBase || current, validateLearningData(draft), signal, correctionId);
     if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); setCorrectionId(undefined); onSaved?.(result); }
-  });
+  }, 'save');
   const content = draft?.content;
   return <section aria-label="辨識資料" className="mb-4 rounded-2xl border border-border-subtle bg-page-bg p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -101,14 +109,15 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onBus
         <dt className="text-text-muted">正解</dt><dd className="whitespace-pre-wrap break-words">{displayAnswer(current.content.correctAnswer, current.content)}</dd>
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" disabled={busy} className={buttonClass} onClick={() => { setCorrectionId(undefined); prepare(current); }}>修改／確認資料</button>
-        {onRecognize && <button type="button" disabled={busy} className={buttonClass} onClick={() => void run(async signal => {
+        <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => { setCorrectionId(undefined); prepare(current); }}>修改／確認資料</button>
+        {onRecognize && <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => void run(async signal => {
           const result = await onRecognize();
           if (!signal.aborted) adoptLoaded(result);
-        })}>{busy ? '處理中…' : '依目前筆跡重新整理'}</button>}
+        }, 'recognize')}>{recognizing ? 'AI 整理中…' : '依目前筆跡重新整理'}</button>}
       </div>
     </>}
-    {current?.correction?.status === 'pending' && <p role="status" className="mt-3 text-xs text-text-muted">AI 正在整理訂正，可先繼續下一題。</p>}
+    {recognizing && <p role="status" className="mt-3 text-xs text-text-muted">AI 正在背景整理，可關閉視窗並繼續其他題目，完成後再回來確認。</p>}
+    {recognitionError && recognitionError !== current?.correction?.error && recognitionError !== error && <p role="alert" className="mt-3 text-xs text-text-muted">{recognitionError}</p>}
     {current?.correction?.error && <p role="alert" className="mt-3 text-xs text-text-muted">{current.correction.error}</p>}
     {current?.correction?.stale && !current.correction.adopted && <p className="mt-3 text-xs text-text-muted">題目資料已有修改，這份 AI 整理不會覆蓋目前內容。可依目前筆跡重新整理。</p>}
     {current?.personal.correctionSummary && !draft && <p className="mt-3 whitespace-pre-wrap text-sm">{current.personal.correctionSummary}</p>}
