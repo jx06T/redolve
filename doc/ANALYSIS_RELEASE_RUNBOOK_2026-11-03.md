@@ -17,6 +17,22 @@
 
 以下命令在 `D:\Document_J\redolve` 執行。沿用現有秘密值，不覆蓋整份環境檔、不重建資料庫。Git 分支不會隔離 `.wrangler/state` 或正式 D1。
 
+### 遠端執行後出現 `Unexpected token '├'`
+
+Wrangler 4.120.0 在 `d1 execute --remote --file ... --json` 執行遠端匯入時，仍可能把上傳進度寫入 stdout。舊腳本直接對整段輸出 `JSON.parse`，會在資料庫已執行成功後報錯。這不代表 D1 自動回復，也不能據此直接重跑該份 SQL 或還原 bookmark。
+
+已改用共用 `scripts/wrangler-d1-output.mjs`：容許進度文字與 ANSI 樣式，只接受完整、每筆 `success: true` 且有 `results` 的 D1 結果；不完整、失敗或多份矛盾結果仍停止。套用後再次檢查實際 schema，重跑腳本會跳過已完整安裝的版本，不自動重送同一份 SQL。
+
+2026-11-03 使用者貼出的後續檢查已顯示 0014、0015 完整，只剩 0016～0019；那是當時狀態，續跑仍以最新 `--check` 為準。使用修正後的腳本執行：
+
+```powershell
+node scripts/apply-learning-schema.mjs --target=remote --check
+node scripts/apply-practice-schema.mjs --target=remote --apply
+node scripts/apply-practice-schema.mjs --target=remote --check
+```
+
+若出現真正的 D1 執行失敗或部分／不一致結構，保留輸出並停止；不要刪表、重跑整份 schema 或直接使用還原指令。
+
 ## A. 本地
 
 ### A1. 遷移目前這份本地資料庫

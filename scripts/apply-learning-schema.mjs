@@ -3,6 +3,7 @@ import { cpSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { learningMigrationPath, learningSchemaStatus } from './learning-schema.mjs';
+import { parseD1Output } from './wrangler-d1-output.mjs';
 
 const args = process.argv.slice(2), target = args.find(a => a.startsWith('--target='))?.split('=')[1];
 if (!['local', 'remote'].includes(target) || args.some(a => !['--target=local','--target=remote','--check','--apply'].includes(a)) ||
@@ -13,9 +14,7 @@ function execute(options) {
     '--'+target, ...options, '--json'], { cwd: root, encoding: 'utf8', stdio: ['ignore','pipe','pipe'] });
   if (result.error) throw result.error;
   if (result.status !== 0) throw Error(result.stderr || result.stdout);
-  const data = JSON.parse(result.stdout);
-  if (data.some(r => !r.success)) throw Error('D1 query failed');
-  return data;
+  return parseD1Output(result.stdout);
 }
 let status = learningSchemaStatus(execute);
 if (!status.missing.length) { console.log(`Learning schema ready (${target}); no writes.`); process.exit(0); }

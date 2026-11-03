@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { learningSchemaStatus } from './learning-schema.mjs';
 import { practiceMigrations, practiceSchemaStatus } from './practice-schema.mjs';
+import { parseD1Output } from './wrangler-d1-output.mjs';
 const args = process.argv.slice(2), target = args.find(a => a.startsWith('--target='))?.split('=')[1];
 if (!['local','remote'].includes(target) || args.some(a => !['--target=local','--target=remote','--check','--apply'].includes(a)) || args.includes('--check') && args.includes('--apply')) throw Error('Use --target=local|remote and --check (default) or --apply');
 const root = fileURLToPath(new URL('../', import.meta.url)), cli = path.join(root,'node_modules/wrangler/bin/wrangler.js');
 function execute(options) {
   const result = spawnSync(process.execPath,[cli,'d1','execute','redolve-db','--'+target,...options,'--json'], { cwd:root,encoding:'utf8',stdio:['ignore','pipe','pipe'] });
   if (result.error) throw result.error; if (result.status !== 0) throw Error(result.stderr || result.stdout);
-  const data = JSON.parse(result.stdout); if (data.some(d => !d.success)) throw Error('D1 query failed'); return data;
+  return parseD1Output(result.stdout);
 }
 if (learningSchemaStatus(execute).missing.length) throw Error('Apply and verify 0014 first; no changes made.');
 const stages = practiceMigrations.map(file => ({ file, ...practiceSchemaStatus(execute,file) }));

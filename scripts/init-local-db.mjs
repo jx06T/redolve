@@ -1,6 +1,7 @@
 import { learningSchemaStatus, learningMigrationPath } from './learning-schema.mjs';
 import { practiceMigrations, practiceSchemaStatus } from './practice-schema.mjs';
 import { personalStarSchemaStatus,applyPersonalStarSchema } from './personal-star-schema.mjs';
+import { parseD1Output } from './wrangler-d1-output.mjs';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -19,9 +20,7 @@ function execute(options) {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error([result.stderr, result.stdout].filter(Boolean).join('\n') || `Wrangler exited with ${result.status}`);
-  const output = JSON.parse(result.stdout);
-  if (output.some(entry => entry.success === false)) throw new Error('Local D1 reported a failed query.');
-  return output;
+  return parseD1Output(result.stdout);
 }
 
 function schema() {
