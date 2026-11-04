@@ -57,6 +57,7 @@ practiceRouter.post('/weaknesses/suggestions', async c => {
   const body = await c.req.json().catch(() => null), uid = c.get('userId');
   if (typeof body?.id !== 'string' || body.id.length > 200 || (body.kind !== 'owned' && body.kind !== 'saved') ||
     typeof body.notes !== 'string' || body.notes.length > 600 || !Array.isArray(body.excluded) || body.excluded.length > 20 ||
+    (body.organizeNotes === true && (!body.notes.trim() || body.attemptId !== undefined)) ||
     body.excluded.some((value: unknown) => typeof value !== 'string' || value.length > 1000) ||
     (body.attemptId !== undefined && (typeof body.attemptId !== 'string' || body.attemptId.length > 100))) throw new PracticeError(422, '弱點建議資料格式不正確');
   if (!c.env.GEMINI_API_KEY || !c.env.UPLOAD_LIMITER) return c.json({ error: { message: '目前無法取得 AI 建議' } }, 503);
@@ -73,8 +74,9 @@ practiceRouter.post('/weaknesses/suggestions', async c => {
     current = { content: JSON.parse(row.content_json), personal: JSON.parse(row.personal_json) };
     attemptAnswer = JSON.parse(row.answer_json);
   }
-  const items = await createAIService(c.env).suggestWeaknesses({ current, ...await weaknessContext(c.env.DB, uid, ref, current),
-    notes: body.notes, excluded: body.excluded, saved: ref.kind === 'saved', reviewOfAttempt: !!body.attemptId, attemptAnswer });
+  const items = await createAIService(c.env).suggestWeaknesses({ current, ...await weaknessContext(c.env.DB, uid, ref, current, body.notes),
+    notes: body.notes, excluded: body.excluded, saved: ref.kind === 'saved', reviewOfAttempt: !!body.attemptId, attemptAnswer,
+    organizeNotes: body.organizeNotes === true });
   return c.json({ items });
 });
 practiceRouter.get('/attempts/:id/weaknesses', async c => {

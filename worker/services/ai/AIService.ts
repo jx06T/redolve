@@ -15,7 +15,7 @@ export interface TagResult {
 }
 
 export interface AIService {
-  suggestWeaknesses(input: import('./correctionPrompts').CorrectionContext & { excluded: string[]; reviewOfAttempt?: boolean; attemptAnswer?: unknown }): Promise<import('../../../src/types/learning').ErrorReason[]>;
+  suggestWeaknesses(input: import('./correctionPrompts').CorrectionContext & { excluded: string[]; reviewOfAttempt?: boolean; attemptAnswer?: unknown; organizeNotes?: boolean }): Promise<import('../../../src/types/learning').ErrorReason[]>;
   recognizeCorrection(imageBytes: ArrayBuffer, input: import('./correctionPrompts').CorrectionContext): Promise<{ data: import('../../../src/types/learning').LearningData; model: string }>;
   selectAnalysisQuestions(input: { stats: import('../../../src/types/analysis').AnalysisStats; catalog: AnalysisCatalogEntry[]; question?: string; catalogPreviewLimited?: boolean; errorTagCounts?: AnalysisErrorTagCount[]; weaknessTrends?: WeaknessTrend[];
     previousReport?: import('../../../src/types/analysis').PreviousAnalysisContext; changes?: { newQuestionIds: string[]; updatedQuestionIds: string[]; practicedQuestionIds: string[] } }): Promise<AnalysisSelection>;

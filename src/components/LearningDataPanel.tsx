@@ -3,7 +3,7 @@ import { learningService } from '../services/learningService';
 import { useStore } from '../store/useStore';
 import { PracticeHistory } from './PracticeHistory';
 import { RichText } from './RichText';
-import { WeaknessPicker } from './WeaknessPicker';
+import { practiceService } from '../services/practiceService';
 import { learningDataIssues } from '../services/learningDataIssues';
 import { displayAnswer, validateLearningData, QUESTION_TYPES } from '../types/learning';
 import type { ErrorReason, LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
@@ -11,6 +11,7 @@ import type { ErrorReason, LearningAnswer, LearningContent, LearningData, Learni
 const typeLabels = ['單選', '複選', '填充', '計算', '申論', '其他', '未知'];
 const fieldClass = 'mt-1 w-full rounded-xl border border-border-subtle bg-surface p-2 text-sm text-text-main';
 const buttonClass = 'rounded-xl border border-border-subtle px-3 py-2 text-xs disabled:opacity-40';
+const reasonKey = (reason: ErrorReason) => reason.weaknessId || reason.text.trim().normalize('NFKC');
 
 function AnswerInput({ label, answer, content, onChange }: {
   label: string; answer: LearningAnswer; content: LearningContent; onChange: (answer: LearningAnswer) => void;
@@ -45,8 +46,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const [draft, setDraft] = useState<LearningData | null>(null);
   const [draftBase, setDraftBase] = useState<LearningQuestion | null>(null);
   const [suggestions, setSuggestions] = useState<ErrorReason[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [newWeakness, setNewWeakness] = useState<ErrorReason>();
+  const [organizeMessage, setOrganizeMessage] = useState('');
   const [correctionId, setCorrectionId] = useState<string | undefined>();
   const draftRef = useRef<LearningData | null>(null);
   draftRef.current = draft;
@@ -54,10 +54,9 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   recognitionBusyRef.current = recognitionBusy;
   const prepare = (result: LearningQuestion, data: LearningData = { content: result.content, personal: result.personal }) => {
     const prior = result.sourceUpdated ? [] : result.personal.errorReasons.filter(reason => reason.origin === 'user' || reason.accepted);
-    const key = (reason: ErrorReason) => reason.weaknessId || reason.text;
     const candidates = [...data.personal.errorReasons, ...(result.correction?.adopted ? result.correction.data?.personal.errorReasons || [] : [])];
-    setPickerOpen(false); setNewWeakness(undefined); setDraftBase(result); setSuggestions([...new Map([...candidates, ...prior].filter(r => r.origin === 'ai' || r.weaknessId).map(r => [key(r), r])).values()]);
-    const selected = [...new Map([...prior, ...data.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted)].map(r => [key(r), r])).values()];
+    setOrganizeMessage(''); setDraftBase(result); setSuggestions([...new Map([...candidates, ...prior].filter(r => r.origin === 'ai' || r.weaknessId).map(r => [reasonKey(r), r])).values()]);
+    const selected = [...new Map([...prior, ...data.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted)].map(r => [reasonKey(r), r])).values()];
     setDraft(structuredClone({ ...data, personal: { ...data.personal, errorReasons: selected } }));
   };
   const adoptLoaded = (result: LearningQuestion) => {
@@ -67,7 +66,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       prepare(result, candidate.data); setCorrectionId(candidate.id); setPreview(true);
     }
   };
-  const [preview, setPreview] = useState(false), [operation, setOperation] = useState<'recognize' | 'save' | 'reload' | null>(null), [error, setError] = useState('');
+  type Operation = 'recognize' | 'save' | 'reload' | 'organize';
+  const [preview, setPreview] = useState(false), [operation, setOperation] = useState<Operation | null>(null), [error, setError] = useState('');
   const busy = operation !== null;
   const recognizing = recognitionBusy || operation === 'recognize' || current?.correction?.status === 'pending';
   const controller = useRef(new AbortController()), running = useRef(false);
@@ -91,7 +91,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     const timer = setTimeout(() => { void learningService.read(questionRef, signal).then(value => { if (!signal.aborted) adoptLoaded(value); }).catch(() => {}); }, 8000);
     return () => clearTimeout(timer);
   }, [current, draft]);
-  const run = async (action: (signal: AbortSignal) => Promise<void>, operation: 'recognize' | 'save' | 'reload' = 'reload') => {
+  const run = async (action: (signal: AbortSignal) => Promise<void>, operation: Operation = 'reload') => {
     if (running.current || !account || useStore.getState().currentUser?.id !== account) return;
     const signal = controller.current.signal; running.current = true; setOperation(operation); setError('');
     try { await action(signal); } catch (e) { if (!signal.aborted) setError(e instanceof Error ? e.message : '操作失敗'); }
@@ -103,6 +103,34 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); setCorrectionId(undefined); onSaved?.(result); }
   }, 'save');
   const content = draft?.content;
+  const notes = draft?.personal.errorReasons.filter(reason => reason.origin === 'user' && !reason.weaknessId).map(reason => reason.text).join('\n') ?? '';
+  const note = notes.trim();
+  const organizeNote = () => void run(async signal => {
+    if (!draft || !note || note.includes('\n') || note.length > 600) return;
+    setOrganizeMessage('');
+    try {
+      const { items } = await practiceService.organizeErrorNotes(questionRef, note, signal);
+      if (signal.aborted) return;
+      if (!items.length) { setOrganizeMessage('暫時無法整理，已保留原文。'); return; }
+      const kept = draft.personal.errorReasons.filter(reason => reason.origin === 'ai' || reason.weaknessId);
+      const byKey = new Map(kept.map(reason => [reasonKey(reason), reason]));
+      const organized: ErrorReason[] = [];
+      for (const item of items) {
+        const key = reasonKey(item);
+        if (byKey.has(key)) continue;
+        const existing = suggestions.find(reason => reasonKey(reason) === key);
+        const reason: ErrorReason = existing ? { ...existing, accepted: true }
+          : { ...item, origin: 'user', accepted: true, clue: note.slice(0, 300) };
+        byKey.set(key, reason);
+        organized.push(reason);
+      }
+      const merged = [...byKey.values()];
+      if (merged.length > 12) { setOrganizeMessage('已達錯因上限，已保留原文。'); return; }
+      setSuggestions(old => [...new Map([...old, ...organized.filter(reason => reason.weaknessId)].map(reason => [reasonKey(reason), reason])).values()]);
+      setDraft({ ...draft, personal: { ...draft.personal, errorReasons: merged } });
+      setOrganizeMessage('已整理補充，可檢查後再儲存。');
+    } catch { if (!signal.aborted) setOrganizeMessage('AI 整理暫時無法使用，可直接儲存原文。'); }
+  }, 'organize');
   return <section aria-label="辨識資料" className="mb-4 rounded-2xl border border-border-subtle bg-page-bg p-4">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-sm font-medium text-text-main">辨識資料</h3>
@@ -168,23 +196,22 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       <AnswerInput label="正解" content={content} answer={content.correctAnswer} onChange={correctAnswer => setDraft({ ...draft, content: { ...content, correctAnswer } })} />
       <fieldset className="space-y-2"><legend className="text-sm">你認同哪些可能錯因？</legend><p className="text-xs text-text-muted">AI 建議預設不勾選，可全不選；看不出原因時保持空白即可。</p>
         {suggestions.map(reason => {
-          const key = reason.weaknessId || reason.text;
+          const key = reasonKey(reason);
           return <div key={key} className="rounded-xl border border-border-subtle p-3 text-sm"><label className="flex min-h-11 items-start gap-3">
-            <input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => (r.weaknessId || r.text) === key)} onChange={e => {
-              const rest = draft.personal.errorReasons.filter(r => (r.weaknessId || r.text) !== key);
+            <input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => reasonKey(r) === key)} onChange={e => {
+              const rest = draft.personal.errorReasons.filter(r => reasonKey(r) !== key);
               setDraft({ ...draft, personal: { ...draft.personal, errorReasons: e.target.checked ? [...rest, { ...reason, accepted: true }] : rest } });
             }} /><span className="min-w-0"><RichText inline text={reason.text} />{(reason.basis || reason.clue) && <span className="block text-xs text-text-muted">
               {reason.basis === 'inferred_from_context' ? '情境推測 · ' : ''}{reason.clue || '由 AI 提出，請依本次訂正確認'}</span>}</span>
-          </label>{!reason.weaknessId && reason.target && <button type="button" className={buttonClass} onClick={() => { setNewWeakness(reason); setPickerOpen(true); }}>加入弱點清單</button>}</div>;
+          </label></div>;
         })}
-        <button type="button" className={buttonClass} aria-expanded={pickerOpen} onClick={() => { setNewWeakness(undefined); setPickerOpen(open => !open); }}>選擇其他弱點</button>
-        {pickerOpen && <WeaknessPicker key={newWeakness?.text || 'catalog'} initialCandidate={newWeakness} questionRef={questionRef} selected={draft.personal.errorReasons.flatMap(reason => reason.weaknessId ? [reason.weaknessId] : [])} onPick={(item, suggestion) => {
-            const reason: ErrorReason = { ...suggestion, text: suggestion?.text || item.title, origin: suggestion?.origin || 'user', accepted: true, weaknessId: item.id };
-            const keep = (r: ErrorReason) => r.weaknessId !== item.id && (!!r.weaknessId || r.text !== suggestion?.text);
-            setSuggestions(old => [...old.filter(keep), reason]);
-            setDraft(old => old && ({ ...old, personal: { ...old.personal, errorReasons: [...old.personal.errorReasons.filter(keep), reason] } }));
-          }} />}
-        <label className="block text-xs text-text-muted">自行補充錯因（每行一項，選填）<textarea className={fieldClass} rows={2} maxLength={10000} value={draft.personal.errorReasons.filter(r => r.origin === 'user' && !r.weaknessId).map(r => r.text).join('\n')} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: [...draft.personal.errorReasons.filter(r => r.origin === 'ai' || r.weaknessId), ...e.target.value.split('\n').map(text => ({ text, origin: 'user' as const, accepted: true }))] } })} /></label>
+        <label className="block text-xs text-text-muted">補充錯因（選填）<textarea className={fieldClass} rows={2} maxLength={10000} value={notes}
+          placeholder="例如：忘了先檢查分母是否為零" onChange={e => {
+            setOrganizeMessage('');
+            setDraft({ ...draft, personal: { ...draft.personal, errorReasons: [...draft.personal.errorReasons.filter(r => r.origin === 'ai' || r.weaknessId), ...e.target.value.split('\n').map(text => ({ text, origin: 'user' as const, accepted: true }))] } });
+          }} /></label>
+        {note && !note.includes('\n') && note.length <= 600 && <button type="button" className={buttonClass} onClick={organizeNote}>{operation === 'organize' ? '整理中…' : '用 AI 整理補充'}</button>}
+        {organizeMessage && <p role="status" className="text-xs text-text-muted">{organizeMessage}</p>}
       </fieldset>
       <label className="block text-xs text-text-muted">訂正重點（可修改或留空）<textarea className={fieldClass} rows={3} maxLength={6000} value={draft.personal.correctionSummary || ''} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, correctionSummary: e.target.value } })} /></label>
       <p className="text-xs text-text-muted">儲存表示確認目前這份資料，原作答、正解與錯因都可以保持空白；確認後不會因缺漏再提醒。</p>

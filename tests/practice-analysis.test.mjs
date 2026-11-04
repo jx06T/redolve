@@ -23,6 +23,12 @@ test('practice submissions, corrections, analysis snapshots and private retentio
         const body=await request.json();providerRequests.push(body);providerModels.push(new URL(request.url).pathname.split('/').at(-1));
         if(providerMode==='billing')return new MFResponse(JSON.stringify({error:{code:402,status:'RESOURCE_EXHAUSTED',message:'Your prepayment credits are depleted.'}}),{status:402,headers:{'Content-Type':'application/json'}});
         const prompt=body.contents.flatMap(c=>c.parts.map(p=>p.text||'')).join('\n'),input=JSON.parse(prompt.split('資料：').at(-1));
+        if(input.organizeNotes){
+          assert.equal(input.notes,'忘了檢查分母');
+          assert.ok(input.catalog.some(item=>item.id==='math-domain'));
+          const output={candidates:[{text:'漏查函數定義域',weaknessId:'math-domain',basis:providerMode==='inferred-note'?'inferred_from_context':'user_explicit',clue:'分母限制',target:'確認分母非零'}]};
+          return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify(output)}]}}]}),{headers:{'Content-Type':'application/json'}});
+        }
         if(body.generationConfig.responseSchema.properties.questionIds){
           const questionIds=providerMode==='invalid-selection'?['foreign']:input.catalog.map(q=>q.id).slice(0,30);
           const candidateFindings=questionIds.length?[{topic:'條件檢查',rationale:'需要對照訂正',supportingQuestionIds:[providerMode==='invalid-candidate'?'foreign':questionIds[0]]}]:[];
@@ -203,6 +209,10 @@ test('practice submissions, corrections, analysis snapshots and private retentio
     });
     await t.test('weakness evidence is confirmed per attempt, scoped, replayable and reversible',async()=>{
       const catalog=await call('/practice/weaknesses?kind=owned&id=q1');
+      const organize=(notes)=>call('/practice/weaknesses/suggestions','alice','POST',{kind:'owned',id:'q1',notes,excluded:[],organizeNotes:true});
+      assert.equal((await organize('   ')).status,422);
+      assert.equal((await organize('忘了檢查分母')).data.items[0].weaknessId,'math-domain');
+      providerMode='inferred-note';assert.deepEqual((await organize('忘了檢查分母')).data.items,[]);providerMode='valid';
       assert.equal(catalog.data.items.length,30);
       assert.equal((await call('/practice/weaknesses?kind=owned&id=q1','bob')).status,404);
       const custom={subjectId:'math',title:'條件改變後仍用舊範圍',target:'在變形前重算適用範圍'};

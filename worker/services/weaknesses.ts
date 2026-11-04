@@ -20,7 +20,7 @@ export async function listWeaknesses(db: D1Database, uid: string, subjectId: str
   return [...results, ...(subjectId === 'math' ? mathWeaknesses.map(({ id, title, target }) => ({ id, title, target, subjectId })) : [])];
 }
 
-export async function weaknessContext(db: D1Database, uid: string, ref: PersonalQuestionRef, data: LearningData) {
+export async function weaknessContext(db: D1Database, uid: string, ref: PersonalQuestionRef, data: LearningData, notes = '') {
   const tagQuery = ref.kind === 'owned' ? db.prepare('SELECT keywords tags FROM items WHERE id=? AND user_id=?').bind(ref.itemId, uid)
     : db.prepare('SELECT ss.source_tags tags FROM saved_refs s JOIN saved_snapshots ss ON ss.id=s.current_snapshot_id AND ss.saved_ref_id=s.id WHERE s.id=? AND s.user_id=?').bind(ref.savedRefId, uid);
   const [subjectId, tagRow] = await Promise.all([questionWeaknessSubject(db, uid, ref), tagQuery.first<{ tags: string | null }>()]);
@@ -31,10 +31,12 @@ export async function weaknessContext(db: D1Database, uid: string, ref: Personal
   } catch { /* Legacy metadata can be absent. */ }
   const known = new Set(data.personal.errorReasons.map(reason => reason.weaknessId));
   const preview = [data.content.ocrText?.slice(0, 3000), data.personal.correctionSummary?.slice(0, 500), ...tags].join(' ').toLowerCase();
-  const scores = new Map(mathWeaknesses.map(item => [item.id, item.keywords.filter(keyword => preview.includes(keyword)).length]));
+  const supplement = notes.toLowerCase();
+  const scores = new Map(mathWeaknesses.map(item => [item.id, item.keywords.reduce((score, keyword) =>
+    score + (supplement.includes(keyword) ? 4 : preview.includes(keyword) ? 1 : 0), 0)]));
   const available = subjectId ? await listWeaknesses(db, uid, subjectId) : [];
   const ranked = available.map(item => ({ item,
-    score: known.has(item.id) ? 100 : preview.includes(item.title) ? 50 : scores.get(item.id) ?? 0,
+    score: known.has(item.id) ? 100 : supplement.includes(item.title) || preview.includes(item.title) ? 50 : scores.get(item.id) ?? 0,
   })).filter(entry => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 12).map(entry => entry.item);
   const catalog = ranked.length || subjectId !== 'math' ? ranked : available.filter(item => item.id.startsWith('math-'));
   return { catalog, tags };
