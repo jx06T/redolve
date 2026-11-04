@@ -1,6 +1,7 @@
 import { sharingApi } from './sharingApi';
 import type { AnalysisEligibility, AnalysisFollowup, AnalysisReport, AnalysisStats, AnalysisSubjectSummary } from '../types/analysis';
 import type { PracticeScope } from '../types/practice';
+import type { WeaknessTrend } from '../types/weakness';
 export interface ReportSummary { id: string; created_at: string; days: number; topic_id: string | null; status: AnalysisReport['status']; cycle_kind?: 'baseline' | 'cycle' | null; cycle_from?: string | null; cycle_cutoff?: string | null }
 export interface ReportPage { reports: ReportSummary[]; nextCursor: string | null }
 const timezone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -10,6 +11,8 @@ async function connected<T>(path: string, body: unknown, signal?: AbortSignal) {
   return result.data;
 }
 export const analysisService = {
+  weaknesses: (subjectId: string, days: number, signal?: AbortSignal) => sharingApi<{ trends: WeaknessTrend[] }>(
+    '/analysis/weaknesses?' + new URLSearchParams({ subjectId, days: String(days) }), 'GET', undefined, signal),
   overview: (days: number, signal?: AbortSignal) => sharingApi<{ subjects: AnalysisSubjectSummary[]; days: number; from: string; cutoff: string }>('/analysis/overview?days=' + days, 'GET', undefined, signal),
   stats: (scope: PracticeScope, days: number, signal?: AbortSignal) => sharingApi<AnalysisStats>('/analysis/stats', 'POST', { scope, days, timezone: timezone() }, signal),
   eligibility: (subjectId: string, signal?: AbortSignal) => sharingApi<AnalysisEligibility>('/analysis/eligibility?subjectId=' + encodeURIComponent(subjectId), 'GET', undefined, signal),

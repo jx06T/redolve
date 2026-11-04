@@ -7,6 +7,7 @@ import { digest } from './practice';
 import { CORRECTION_PROMPT_VERSION } from './ai/correctionPrompts';
 import { emptyLearningData, validateLearningData } from '../../src/types/learning';
 import { aiFailureDiagnostic,aiFailureMessage } from './ai/providerError';
+import { weaknessContext } from './weaknesses';
 
 export async function recognizeCorrection(db: D1Database, uid: string, ref: PersonalQuestionRef,
   input: { image: ArrayBuffer; sourceIdentity: string; notes: string; force: boolean; model?: string }, ai: AIService) {
@@ -37,7 +38,8 @@ export async function recognizeCorrection(db: D1Database, uid: string, ref: Pers
   }
   try {
     const baseline = current.sourceUpdated ? emptyLearningData() : { content: current.content, personal: current.personal };
-    const result = await ai.recognizeCorrection(input.image, { current: baseline, notes: input.notes, saved: ref.kind === 'saved' });
+    const result = await ai.recognizeCorrection(input.image, { current: baseline, notes: input.notes, saved: ref.kind === 'saved',
+      ...await weaknessContext(db, uid, ref, baseline) });
     const fresh = await readLearningQuestion(db, uid, ref);
     if (fresh.rowVersion !== current.rowVersion || fresh.sourceVersion !== current.sourceVersion) throw new LearningError(409, 'CONFLICT', '辨識期間資料已變更，請重新整理訂正');
     await db.prepare(`UPDATE learning_corrections SET status='complete',data_json=?,model_version=?,error=NULL WHERE id=? AND user_id=? AND run_token=? AND status='pending'`)

@@ -1,4 +1,5 @@
 import type { QuestionRef } from './question';
+import type { WeaknessBasis } from './weakness';
 
 export type PersonalQuestionRef = Extract<QuestionRef, { kind: 'owned' | 'saved' }>;
 export const ANALYSIS_PERIOD_DAYS = [7, 15, 30, 60, 90] as const;
@@ -12,9 +13,12 @@ export interface LearningContent {
   options: { id: string; label: string; text: string }[];
   correctAnswer: LearningAnswer;
 }
+export const displayAnswer = (answer: LearningAnswer, content: LearningContent) => !answer ? '尚無資料' : answer.kind === 'text'
+  ? answer.text : answer.optionIds.map(id => content.options.find(o => o.id === id)?.label || id).join('、');
+export interface ErrorReason { text: string; origin: 'ai' | 'user'; accepted?: boolean; weaknessId?: string; basis?: WeaknessBasis; clue?: string; target?: string; confirmedAt?: string }
 export interface LearningPersonal {
   originalAnswer: LearningAnswer;
-  errorReasons: { text: string; origin: 'ai' | 'user'; accepted?: boolean }[];
+  errorReasons: ErrorReason[];
   correctionSummary?: string;
 }
 export interface LearningData {
@@ -90,7 +94,12 @@ export function validateLearningData(value: unknown): LearningData {
       const r = object(value);
       if (r.origin !== 'ai' && r.origin !== 'user') throw Error('錯因來源不正確');
       if (r.accepted !== undefined && typeof r.accepted !== 'boolean') throw Error('錯因確認格式不正確');
-      return { text: text(r.text, 1000), origin: r.origin as 'ai' | 'user', ...(r.accepted !== undefined ? { accepted: r.accepted as boolean } : {}) };
+      if (r.weaknessId !== undefined && (typeof r.weaknessId !== 'string' || !/^[a-z0-9-]{1,100}$/.test(r.weaknessId))) throw Error('弱點編號不正確');
+      if (r.basis !== undefined && r.basis !== 'user_explicit' && r.basis !== 'observed_steps' && r.basis !== 'inferred_from_context') throw Error('弱點證據類型不正確');
+      return { text: text(r.text, 1000), origin: r.origin as 'ai' | 'user', ...(r.accepted !== undefined ? { accepted: r.accepted as boolean } : {}),
+        ...(r.weaknessId ? { weaknessId: r.weaknessId } : {}), ...(r.basis ? { basis: r.basis as WeaknessBasis } : {}),
+        ...(r.clue !== undefined ? { clue: text(r.clue, 300) } : {}), ...(r.target !== undefined ? { target: text(r.target, 240) } : {}),
+        ...(typeof r.confirmedAt === 'string' && Number.isFinite(Date.parse(r.confirmedAt)) ? { confirmedAt: r.confirmedAt } : {}) };
     }).filter(r => r.text) },
   };
   if (p.correctionSummary !== undefined) result.personal.correctionSummary = text(p.correctionSummary, 6000);

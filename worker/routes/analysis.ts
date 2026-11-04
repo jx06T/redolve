@@ -9,8 +9,9 @@ import { authMiddleware } from '../middleware/auth';
 import { PracticeError } from '../services/practice';
 import { analysisSnapshot, cleanupAnalysis, getAnalysis } from '../services/personalAnalysis';
 import { analysisEligibility, beginCycleAnalysis } from '../services/analysisCycles';
-import { createAIService } from '../services/ai';
+import { analysisReportModel, createAIService } from '../services/ai';
 import { AIProviderError } from '../services/ai/providerError';
+import { weaknessTrends } from '../services/weaknessTrends';
 
 export const analysisRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 analysisRouter.use('*', authMiddleware);
@@ -28,12 +29,18 @@ analysisRouter.post('/stats', async c => {
   const body = await c.req.json().catch(() => null); if (!body) throw new PracticeError(422, '請提供分析範圍');
   return c.json((await analysisSnapshot(c.env.DB, c.get('userId'), body.scope, body.days, body.timezone, undefined, false)).stats);
 });
+analysisRouter.get('/weaknesses', async c => {
+  const uid = c.get('userId'), subjectId = c.req.query('subjectId') || '', days = Number(c.req.query('days') || 30);
+  const snapshot = await analysisSnapshot(c.env.DB, uid, { subjectId }, days, 'UTC', undefined, false);
+  const { trends } = await weaknessTrends(c.env.DB, uid, snapshot);
+  return c.json({ trends });
+});
 analysisRouter.post('/reports', async c => {
   const body = await c.req.json().catch(() => null); if (!body) throw new PracticeError(422, '請提供分析範圍');
   if (!c.env.GEMINI_API_KEY) return c.json({ error: { message: '目前無法使用 AI，仍可查看統計' } }, 503);
   if (!c.env.UPLOAD_LIMITER || !(await c.env.UPLOAD_LIMITER.limit({ key: `analysis:${c.get('userId')}` })).success)
     return c.json({ error: { message: '產生分析過於頻繁，請稍後再試' } }, 429);
-  const work = await beginCycleAnalysis(c.env.DB, c.get('userId'), body.scope, body.timezone, c.env.GEMINI_ANALYSIS_MODEL?.trim() || undefined);
+  const work = await beginCycleAnalysis(c.env.DB, c.get('userId'), body.scope, body.timezone, analysisReportModel(c.env));
   return c.json(await getAnalysis(c.env.DB, c.get('userId'), work.id), work.created ? 202 : 200);
 });
 // Keep the response connected while Pro is running: waitUntil alone only gets 30 seconds after response.

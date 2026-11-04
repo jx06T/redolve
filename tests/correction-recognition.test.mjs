@@ -24,6 +24,10 @@ test('correction composites, confirmation, stale results and replay', async t =>
         const raw = { ocr_text: '請依條件計算機率', question_type: 'single_choice', options: [{ id: 'a', label: 'A', text: '0.4' }, { id: 'b', label: 'B', text: '0.5' }],
           original_answer: { kind: 'choice', optionIds: ['b'] }, correct_answer: { kind: 'choice', optionIds: ['a'] },
           error_reasons: ['將條件事件放在錯誤的分母位置', '忽略已知事件的範圍'], correction_summary: '先標出已知事件，再選擇分母。' };
+        if (mode === 'structured') raw.weakness_candidates = [
+          { text: '算條件機率時仍使用原樣本空間', weaknessId: 'math-conditional-sample', basis: 'observed_steps', clue: '分母仍用總樣本數', target: '改用條件後的分母' },
+          { text: '錯誤的未知 ID', weaknessId: 'math-foreign-id', basis: 'observed_steps', clue: '', target: '' },
+        ];
         return new MFResponse(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(raw) }] } }] }), { headers: { 'Content-Type': 'application/json' } });
       } });
     const db = await mf.getD1Database('DB');
@@ -119,6 +123,20 @@ test('correction composites, confirmation, stale results and replay', async t =>
       assert.equal(result.status,'failed');assert.match(result.error,/額度不足/);assert.equal(calls,count+1);
       const after=(await call('owned/q')).data;assert.deepEqual(after.content,before.content);assert.deepEqual(after.personal,before.personal);assert.equal(after.rowVersion,before.rowVersion);
       mode='valid';assert.equal((await call('owned/q/correction','alice','POST',composite(9))).data.data.status,'complete');
+    });
+    await t.test('handwritten correction suggests scoped IDs without confirming them', async () => {
+      await sql(`INSERT INTO taxonomies(id,label,level) VALUES('math','數學',0); UPDATE items SET topic_id='math',keywords='["條件機率"]' WHERE id='q';`);
+      mode = 'structured';
+      const form = composite(11); form.delete('notes');
+      const result = (await call('owned/q/correction', 'alice', 'POST', form)).data.data;
+      assert.equal(result.status, 'complete');
+      assert.deepEqual(result.data.personal.errorReasons.map(r => r.weaknessId), ['math-conditional-sample']);
+      assert.equal(result.data.personal.errorReasons[0].accepted, undefined);
+      const current = (await call('owned/q')).data, data = structuredClone(result.data);
+      data.personal.errorReasons[0].accepted = true;
+      const adopted = await save(current, data, result.id);
+      assert.equal(adopted.status, 200, JSON.stringify(adopted.data));
+      assert.ok(adopted.data.personal.errorReasons[0].confirmedAt);
     });
     await t.test('deleting a personal source cleans its recognition candidates', async () => {
       await db.exec("DELETE FROM items WHERE id='q';");

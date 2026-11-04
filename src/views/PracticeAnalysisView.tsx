@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { PracticeQuestionCard } from '../components/PracticeQuestionCard';
+import { PracticeRoundSummary } from '../components/PracticeRoundSummary';
 import { practiceService, syncPractice } from '../services/practiceService';
 import type { PendingAttempt } from '../services/practiceService';
-import type { PracticeScope, PracticeSession } from '../types/practice';
+import type { PracticeRoundResult, PracticeScope, PracticeSession } from '../types/practice';
 import type { TaxonomyNode } from '../types';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
 function flatten(nodes: TaxonomyNode[]): TaxonomyNode[] { return nodes.flatMap(n => [n, ...flatten(n.children || [])]); }
@@ -13,7 +14,7 @@ export function PracticeAnalysisView() {
   const uid = useStore(s => s.currentUser?.id), tree = useStore(s => s.taxonomies);
   const [params, setParams] = useSearchParams(), subject = params.get('subject') || '', topic = params.get('topic') || '';
   const [count, setCount] = useState(5), [archived, setArchived] = useState(false);
-  const [session, setSession] = useState<PracticeSession | null>(null), [index, setIndex] = useState(0), [results, setResults] = useState<Record<string, string>>({});
+  const [session, setSession] = useState<PracticeSession | null>(null), [index, setIndex] = useState(0), [results, setResults] = useState<Record<string, PracticeRoundResult>>({});
   const [pending, setPending] = useState<PendingAttempt[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const abort = useRef(new AbortController()), running = useRef(false);
   const scope: PracticeScope = { subjectId: subject, ...(topic ? { topicId: topic } : {}), includeArchived: archived };
@@ -64,7 +65,7 @@ export function PracticeAnalysisView() {
       <PracticeQuestionCard key={`${session.id}:${current.sessionItemId}`} question={current} sessionId={session.id} next={() => setIndex(i => i + 1)} onRecorded={result => setResults(previous => ({ ...previous, [current.sessionItemId]: result }))} />
     </> : <section className="rounded-2xl border border-border-subtle bg-surface p-5">
       <h2 className="text-lg font-medium">{session.questions.length ? '本輪完成' : '目前沒有可抽的題目'}</h2>
-      {session.questions.length ? <p className="my-4">已作答 {Object.keys(results).length} 題，答對 {Object.values(results).filter(r => r === 'correct').length} 題；略過 {session.questions.length - Object.keys(results).length} 題。</p>
+      {session.questions.length ? <div className="my-4"><PracticeRoundSummary session={session} results={results} /></div>
         : <p className="my-4">請先確認科目，並重新辨識或人工整理題文；目前抽題僅從有限候選中選取。</p>}
       <button className={button} onClick={() => { setSession(null); }}>回到範圍設定</button>
     </section>)}

@@ -14,6 +14,10 @@ const learning = await load('worker/services/learningQuestions.ts'), practice = 
 const cycles = await load('worker/services/analysisCycles.ts'), analysis = await load('worker/services/personalAnalysis.ts'), context = await load('worker/services/analysisContext.ts');
 const scope = { subjectId: 'math' };
 const data = () => ({ content: { ocrText: '請計算結果', questionType: 'calculation', options: [], correctAnswer: { kind: 'text', text: '3' } }, personal: { originalAnswer: null, errorReasons: [] } });
+const withCorrection = () => ({ ...data(), personal: { originalAnswer: null, correctionSummary: '少檢查一個條件', errorReasons: [
+  { text: '沒有注意參數的範圍限制。', origin: 'ai', accepted: true },
+  { text: '半角公式正負號錯', origin: 'user' },
+] } });
 
 test('subject summaries enforce meaningful stages, retries and receipt boundaries', async t => {
   await mkdir('.wrangler/qa', { recursive: true });
@@ -28,19 +32,21 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
       INSERT INTO taxonomies(id,label,level,user_id) VALUES('private','私人科目',0,'bob');
       INSERT INTO assets(id,storage_key) VALUES('image','image');
       INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES('q1','alice','image','unsolved','math'),('q2','alice','image','unsolved','math'),('foreign','bob','image','unsolved','math'),('legacy-q','alice','image','unsolved','legacy'),('noise','alice','image','unsolved','outside');
+      UPDATE items SET keywords='["半角公式"]',typed_notes='本人筆記原文' WHERE id='q1';
       INSERT INTO collections(id,owner_id,title,public_name,visibility,lifecycle) VALUES('co','bob','集合','作者','public','active');
       INSERT INTO collection_items(id,collection_id,source_item_id,contributor_id,origin_item_key) VALUES('entry','co','foreign','bob','foreign');
       INSERT INTO saved_refs(id,user_id,entry_id,personal_topic_id,classification_state) VALUES('saved','alice','entry','math','manual');
       INSERT INTO saved_snapshots(id,saved_ref_id,image_asset_id,source_title,collection_title,provider_public_name,source_text,source_content_seq,source_shared_seq) VALUES('snap','saved','image','保留題目','集合','作者','保留文字',1,0);
+      UPDATE saved_snapshots SET source_tags='["存入版本標籤"]' WHERE id='snap';
       UPDATE saved_refs SET current_snapshot_id='snap' WHERE id='saved';`);
     const ref = { kind: 'owned', itemId: 'q1' }, savedRef = { kind: 'saved', savedRefId: 'saved' };
     const save = async (reference, value) => { const q = await learning.readLearningQuestion(db, 'alice', reference); return learning.saveLearningQuestion(db, 'alice', reference, { expectedRowVersion: q.rowVersion, expectedSourceVersion: q.sourceVersion, data: value }, 'user'); };
-    let q = await save(ref, data()); const saved = await save(savedRef, data());
+    let q = await save(ref, withCorrection()); const saved = await save(savedRef, data());
     const attempt = (question, id, extra = {}) => ({ id, questionId: question.id, revisionId: question.revisionId, sessionId: 'session', sessionItemId: id, answer: { kind: 'text', text: '2' }, selfResult: 'incorrect', clientAnsweredAt: '2000-01-01T00:00:00.000Z', clientTimezone: 'UTC', usedOriginalImage: false, ...extra });
     const original = attempt(q, 'original'); await practice.submitAttempt(db, 'alice', original);
-    let selectionCalls = 0, reportCalls = 0, fail = false, lastInput;
+    let selectionCalls = 0, reportCalls = 0, fail = false, lastInput, lastSelection;
     const ai = {
-      selectAnalysisQuestions: async input => { selectionCalls++; return input.catalog.map(q => q.id); },
+      selectAnalysisQuestions: async input => { selectionCalls++; lastSelection = input; return { questionIds: input.catalog.map(q => q.id) }; },
       analyzeLearning: async input => { reportCalls++; lastInput = input; if (fail) throw Error('Simulated provider failure'); return { model: 'fake', interpretation: { overview: '根據階段資料整理', findings: [{ title: '比較條件', explanation: '依據原題安排複習', evidenceIds: [input.evidence[0].id], metricIds: ['subject'] }] } }; },
     };
     let baseline;
@@ -51,17 +57,29 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
       const work = await Promise.all([cycles.beginCycleAnalysis(db, 'alice', scope), cycles.beginCycleAnalysis(db, 'alice', scope)]);
       assert.equal(work[0].id, work[1].id); assert.equal(work.filter(w => w.created).length, 1);
       assert.equal((await cycles.analysisEligibility(db, 'alice', scope)).reason, 'in_progress');
+      await db.exec(`UPDATE items SET keywords='["之後修改的標籤"]' WHERE id='q1'`);
       await Promise.all([context.runAnalysis(db, 'alice', work[0].id, ai), context.runAnalysis(db, 'alice', work[0].id, ai)]);
       baseline = await analysis.getAnalysis(db, 'alice', work[0].id);
       assert.equal(baseline.status, 'complete'); assert.equal(baseline.stats.cycle.kind, 'baseline'); assert.equal(baseline.stats.attempts, 1);
       assert.equal(baseline.stats.questions, 3); assert.equal(selectionCalls, 1); assert.equal(reportCalls, 1);
+      const preview = lastSelection.catalog.find(entry => entry.id === q.id), detail = lastInput.evidence.find(entry => entry.id === q.id);
+      assert.deepEqual(preview.tags, ['半角公式']);
+      assert.deepEqual(detail.tags, preview.tags);
+      assert.equal(preview.correctionDigest, '少檢查一個條件');
+      assert.deepEqual(preview.errorTags, [{ code: 'missed_condition', label: '漏查條件或範圍', reasonIndex: 0 }]);
+      assert.deepEqual(detail.errorTags, preview.errorTags);
+      assert.deepEqual(lastInput.errorTagCounts, [{ code: 'missed_condition', label: '漏查條件或範圍', adoptedQuestions: 1, pendingQuestions: 0 }]);
+      assert.deepEqual(preview.errorReasons, withCorrection().personal.errorReasons);
+      assert.deepEqual(detail.errorReasons, preview.errorReasons);
+      assert.deepEqual(lastSelection.catalog.find(entry => entry.id === saved.id).tags, ['存入版本標籤']);
+      assert.doesNotMatch(JSON.stringify([lastSelection, lastInput]), /本人筆記原文/);
       const state = await db.prepare('SELECT * FROM analysis_subject_state WHERE user_id=? AND subject_id=?').bind('alice', 'math').first();
       assert.ok(state.last_completed_at >= baseline.createdAt); assert.equal(state.active_report_id, null);
       await assert.rejects(() => analysis.getAnalysis(db, 'bob', baseline.id), /找不到/);
     });
     await t.test('confirmation, metadata and identical revisions do not unlock a report', async () => {
       await learning.confirmLearningQuestion(db, 'alice', ref, q.rowVersion, q.sourceVersion);
-      q = await save(ref, data());
+      q = await save(ref, withCorrection());
       await db.exec("UPDATE items SET source='更名',keywords='[\"新標籤\"]' WHERE id='q1'");
       const status = await cycles.analysisEligibility(db, 'alice', scope);
       assert.equal(status.reason, 'no_changes'); assert.deepEqual(status.changes, { newQuestions: 0, updatedQuestions: 0, newAttempts: 0, correctedAttempts: 0 });

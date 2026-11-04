@@ -39,7 +39,7 @@ async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
   const pairs = candidates.filter(q => prior.get(q.key)?.prepared && prior.get(q.key)?.revisionId !== q.revisionId)
     .map(q => ({ id: q.id, current: q.revisionId, previous: prior.get(q.key)!.revisionId }));
   // Compare immutable learning data inside D1. Labels, source counters and confirmation alone do not qualify.
-  const reasons = (alias: string) => `(SELECT json_group_array(json_object('text',json_extract(value,'$.text'),'origin',json_extract(value,'$.origin')))
+  const reasons = (alias: string) => `(SELECT json_group_array(json_object('text',json_extract(value,'$.text'),'origin',json_extract(value,'$.origin'),'weaknessId',json_extract(value,'$.weaknessId')))
     FROM json_each(${alias}.personal_json,'$.errorReasons') WHERE json_extract(value,'$.origin')='user' OR json_extract(value,'$.accepted')=1)`;
   const changed = pairs.length ? (await db.prepare(`SELECT j.value->>'$.id' id FROM json_each(?) j
     JOIN learning_question_revisions r ON r.id=j.value->>'$.current' JOIN learning_questions q ON q.id=r.learning_question_id AND q.user_id=?
@@ -58,7 +58,14 @@ async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
       AND (p.received_at>? OR p.id NOT IN (SELECT value FROM json_each(?)))
       AND (p.supersedes_attempt_id IS NULL OR p.voided_at IS NULL OR p.voided_at>?) LIMIT 20001) p GROUP BY learning_question_id`)
     .bind(JSON.stringify(questionIds), uid, from, cutoff, from, state.boundary_json, cutoff).all<{ id: string; newAttempts: number; correctedAttempts: number }>()).results : [];
+  const reviewed = state.last_cutoff_at && questionIds.length ? (await db.prepare(`SELECT DISTINCT w.attempt_id,w.learning_question_id id
+    FROM json_each(?) j CROSS JOIN practice_weakness_reviews w INDEXED BY idx_practice_weakness_scope
+    JOIN practice_attempts p ON p.id=w.attempt_id AND p.user_id=w.user_id
+    WHERE w.user_id=? AND w.learning_question_id=j.value AND w.recorded_at>? AND w.recorded_at<=?
+    AND (p.voided_at IS NULL OR p.voided_at>?) LIMIT 10001`).bind(JSON.stringify(questionIds), uid, from, cutoff, cutoff).all<{ id: string }>()).results : [];
+  if (reviewed.length > 10000) throw new PracticeError(422, '此階段弱點標記超過分析上限');
   const changes = { newQuestions: newQuestions.length, updatedQuestions: changed.length,
+    ...(reviewed.length ? { reviewedAttempts: reviewed.length } : {}),
     newAttempts: receipts.reduce((n, row) => n + row.newAttempts, 0), correctedAttempts: receipts.reduce((n, row) => n + row.correctedAttempts, 0) };
   if (changes.newAttempts + changes.correctedAttempts > 20000) throw new PracticeError(422, '此階段作答資料超過分析上限，請聯絡管理員協助處理');
   const active = state.active_report_id ? await db.prepare('SELECT id,status,lease_until,detail_expires_at FROM analysis_reports WHERE user_id=? AND id=?')
@@ -70,7 +77,7 @@ async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
     : !Object.values(changes).some(Boolean) ? 'no_changes' : availableAt && Date.parse(availableAt) > Date.now() ? 'cooldown' : 'ready';
   const status: AnalysisEligibility = { canGenerate: ['first', 'ready', 'retry'].includes(reason), reason, availableAt,
     latestReportId: state.last_report_id, activeReportId: usableActive?.id || null, baselineCutoff: state.last_cutoff_at, changes };
-  return { state, status, cutoff, material: current, changedIds: changed.map(q => q.id), newIds: newQuestions.map(q => q.id!), receiptIds: receipts.map(q => q.id) };
+  return { state, status, cutoff, material: current, changedIds: changed.map(q => q.id), newIds: newQuestions.map(q => q.id!), receiptIds: [...new Set([...receipts, ...reviewed].map(q => q.id))] };
 }
 
 export async function analysisEligibility(db: D1Database, uid: string, scope: PracticeScope) { return (await inspectCycle(db, uid, scope)).status; }
@@ -94,9 +101,10 @@ export async function beginCycleAnalysis(db: D1Database, uid: string, scope: Pra
     const ids = new Set(snapshot.questions.map(q => q.id));
     previousReport = { id: previous?.id || null, cutoff: state.last_cutoff_at, stats: previous?.stats || null, detailsAvailable: !!previous?.interpretation,
       interpretation: previous?.interpretation ? { overview: previous.interpretation.overview?.slice(0, 2000), findings: previous.interpretation.findings.map(f => ({ ...f,
-        explanation: f.explanation.slice(0, 300), evidenceIds: f.evidenceIds.filter(id => ids.has(id)) })) } : null };
+        explanation: f.explanation.slice(0, 300), evidenceIds: f.evidenceIds.filter(id => ids.has(id)),
+        practiceQuestionIds: f.practiceQuestionIds?.filter(id => ids.has(id)) })) } : null };
   }
-  const context = await buildAnalysisContext(db, uid, { ...snapshot, events: snapshot.contextEvents }, { previousReport,
+  const context = await buildAnalysisContext(db, uid, snapshot, { previousReport,
     changes: { newQuestionIds: inspected.newIds, updatedQuestionIds: inspected.changedIds, practicedQuestionIds: inspected.receiptIds } });
   const material = materials(snapshot.questions);
   const boundary = [...new Set(snapshot.contextEvents.flatMap(e => [...(e.received_at === cutoff ? [e.id] : []), ...(e.root_received_at === cutoff ? [e.root_id!] : [])]))];

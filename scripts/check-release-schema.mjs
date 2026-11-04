@@ -28,5 +28,5 @@ const stages = [
   { file: personalStarMigration, ...personalStarSchemaStatus(execute) },
 ];
 const pending = stages.filter(stage => stage.missing.length).map(({ file, missing }) => ({ file, missing }));
-console.log(JSON.stringify({ target, scope: 'release: 0014–0020', pending }, null, 2));
+console.log(JSON.stringify({ target, scope: 'release: 0014–0021', pending }, null, 2));
 if (pending.length) process.exitCode = 1;

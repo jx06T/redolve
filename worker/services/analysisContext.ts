@@ -1,28 +1,87 @@
-import type { AnalysisCatalogEntry, AIService } from './ai/AIService';
+import type { AnalysisCandidateFinding, AnalysisCatalogEntry, AnalysisErrorTagCount, AIService } from './ai/AIService';
 import { aiFailureDiagnostic,aiFailureMessage } from './ai/providerError';
-import type { AnalysisEvidence, AnalysisFollowup, AnalysisReply, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
+import type { AnalysisErrorReason, AnalysisEvidence, AnalysisFollowup, AnalysisReply, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
 import type { ScopeQuestion } from './practice';
 import { digest, PracticeError } from './practice';
 import { analysisEvidence, getAnalysis, validateInterpretation } from './personalAnalysis';
 import { completeCycleStatement, prepareCycleRun } from './analysisCycles';
+import { classifyErrorReason } from './errorTagConfig';
+import { weaknessTrends } from './weaknessTrends';
+import type { WeaknessTrend } from '../../src/types/weakness';
 
 interface StageContext { previousReport?: PreviousAnalysisContext; changes?: { newQuestionIds: string[]; updatedQuestionIds: string[]; practicedQuestionIds: string[] } }
-interface Context extends StageContext { catalog: AnalysisCatalogEntry[]; questions: ScopeQuestion[]; attemptIds: string[] }
-export async function buildAnalysisContext(db: D1Database, uid: string, snapshot: Parameters<typeof analysisEvidence>[2] & { events: { id: string }[] }, stage: StageContext = {}): Promise<Context> {
+interface Context extends StageContext { catalog: AnalysisCatalogEntry[]; questions: ScopeQuestion[]; attemptIds: string[]; catalogPreviewLimited?: boolean; errorTagCounts?: AnalysisErrorTagCount[]; weaknessTrends?: WeaknessTrend[] }
+export async function buildAnalysisContext(db: D1Database, uid: string, snapshot: Parameters<typeof weaknessTrends>[2], stage: StageContext = {}): Promise<Context> {
   const candidates = snapshot.questions.filter(q => q.id && q.revisionId && q.prepared);
-  const rows = candidates.length ? (await db.prepare(`SELECT r.id,substr(json_extract(r.content_json,'$.ocrText'),1,160) text
+  const [rows, weak] = await Promise.all([candidates.length ? db.prepare(`SELECT r.id,substr(json_extract(r.content_json,'$.ocrText'),1,160) text,
+    substr(json_extract(r.personal_json,'$.correctionSummary'),1,220) correctionDigest,
+    (SELECT json_group_array(json_object('index',e.key,'text',substr(e.value->>'$.text',1,301),'origin',e.value->>'$.origin','accepted',e.value->>'$.accepted'))
+      FROM json_each(r.personal_json,'$.errorReasons') e) reasons,
+    COALESCE(i.keywords,ss.source_tags) tags
     FROM learning_question_revisions r JOIN learning_questions q ON q.id=r.learning_question_id
-    WHERE q.user_id=? AND r.id IN (SELECT value FROM json_each(?))`).bind(uid, JSON.stringify(candidates.map(q => q.revisionId))).all<{ id: string; text: string }>()).results : [];
-  const text = new Map(rows.map(r => [r.id, r.text]));
-  const context: Context = { ...stage, questions: snapshot.questions, attemptIds: snapshot.events.map(e => e.id), catalog: candidates.map(q => {
+    LEFT JOIN items i ON i.id=q.item_id AND i.user_id=q.user_id
+    LEFT JOIN saved_refs s ON s.id=q.saved_ref_id AND s.user_id=q.user_id
+    LEFT JOIN saved_snapshots ss ON ss.id=substr(r.source_version,1,instr(r.source_version,':')-1) AND ss.saved_ref_id=s.id
+    WHERE q.user_id=? AND r.id IN (SELECT value FROM json_each(?))`).bind(uid, JSON.stringify(candidates.map(q => q.revisionId)))
+    .all<{ id: string; text: string; correctionDigest: string | null; reasons: string; tags: string | null }>().then(result => result.results) : [],
+    weaknessTrends(db, uid, snapshot)]);
+  const byRevision = new Map(rows.map(r => [r.id, r]));
+  const errorTagCounts = new Map<string, AnalysisErrorTagCount>();
+  const context: Context = { ...stage, questions: snapshot.questions, attemptIds: (snapshot.stats.cycle ? snapshot.contextEvents : snapshot.events).map(e => e.id), catalog: candidates.map((q): AnalysisCatalogEntry => {
+    const row = byRevision.get(q.revisionId!);
+    if (!row) throw new PracticeError(409, '題目已變更，請重新產生分析');
     const events = snapshot.byQuestion.get(q.id!) || [];
-    return { id: q.id!, topicId: q.topicId, text: text.get(q.revisionId!) || '', attempts: events.length,
-      correct: events.filter(e => e.result === 'correct').length, confirmed: q.confirmationStatus === 'confirmed', hasCorrectAnswer: !q.missingCorrectAnswer };
+    const reasons = (JSON.parse(row.reasons) as { index: number; text: string; origin: AnalysisErrorReason['origin']; accepted: number | null }[])
+      .sort((a, b) => a.index - b.index);
+    const errorTags = reasons.flatMap(({ text, index: reasonIndex }) => {
+      const tag = text.length <= 300 ? classifyErrorReason(text) : undefined;
+      return tag ? [{ ...tag, reasonIndex }] : [];
+    });
+    const adoptedCodes = new Set(errorTags.filter(tag => {
+      const reason = reasons[tag.reasonIndex];
+      return reason.origin === 'user' || reason.accepted === 1;
+    }).map(tag => tag.code));
+    for (const { code, label } of new Map(errorTags.map(tag => [tag.code, tag])).values()) {
+      const count = errorTagCounts.get(code) ?? { code, label, adoptedQuestions: 0, pendingQuestions: 0 };
+      if (adoptedCodes.has(code)) count.adoptedQuestions++;
+      else count.pendingQuestions++;
+      errorTagCounts.set(code, count);
+    }
+    const errorReasons = reasons.slice(0, 4).map(({ text, origin, accepted }) => ({ text: text.slice(0, 96), origin,
+      ...(accepted === null ? {} : { accepted: accepted === 1 }) }));
+    let tags: string[] = [];
+    try {
+      const raw: unknown = JSON.parse(row.tags || '[]');
+      if (Array.isArray(raw)) tags = raw.filter((tag): tag is string => typeof tag === 'string').slice(0, 8).map(tag => tag.slice(0, 60));
+    } catch { /* Older keyword data may not be JSON. */ }
+    return { id: q.id!, topicId: q.topicId, text: row.text || '', attempts: events.length,
+      correct: events.filter(e => e.result === 'correct').length, confirmed: q.confirmationStatus === 'confirmed', hasCorrectAnswer: !q.missingCorrectAnswer,
+      ...(tags.length ? { tags } : {}), ...(row.correctionDigest ? { correctionDigest: row.correctionDigest } : {}),
+      ...(errorReasons.length ? { errorReasons } : {}), ...(errorTags.length ? { errorTags } : {}),
+      ...(weak.correctionIds.has(q.id!) ? { confirmedWeaknessIds: weak.correctionIds.get(q.id!) } : {}),
+      ...(weak.attempts.has(q.id!) ? { weaknessReviews: weak.attempts.get(q.id!) } : {}) };
   }) };
+  if (weak.trends.length) context.weaknessTrends = weak.trends;
+  if (errorTagCounts.size) context.errorTagCounts = [...errorTagCounts.values()];
   // Stay below D1's row/value limit, including multi-byte Chinese text; never drop questions silently.
   const encoder = new TextEncoder();
-  for (let length = 80; encoder.encode(JSON.stringify(context)).length > 1800000 && length >= 0; length = length ? Math.floor(length / 2) : -1)
-    context.catalog.forEach(q => { q.text = q.text.slice(0, length); });
+  for (const length of [80, 40, 0]) {
+    if (encoder.encode(JSON.stringify(context)).length <= 1800000) break;
+    context.catalogPreviewLimited = true;
+    for (const entry of context.catalog) {
+      entry.text = entry.text.slice(0, length);
+      if (length) {
+        if (entry.correctionDigest) entry.correctionDigest = entry.correctionDigest.slice(0, length);
+        entry.errorReasons?.forEach(reason => { reason.text = reason.text.slice(0, length); });
+      } else {
+        delete entry.correctionDigest;
+        delete entry.errorReasons;
+        delete entry.tags;
+        delete entry.errorTags;
+        delete entry.weaknessReviews;
+      }
+    }
+  }
   if (encoder.encode(JSON.stringify(context)).length > 1800000) throw new PracticeError(422, '此科分析資料超過儲存上限，請先整理題庫');
   return context;
 }
@@ -34,13 +93,28 @@ async function readContext(db: D1Database, uid: string, id: string) {
   return { report, context: row ? JSON.parse(row.context_json) as Context : null };
 }
 async function retrieve(db: D1Database, uid: string, context: Context, stats: AnalysisStats, ai: AIService, question?: string) {
-  if (!context.catalog.length) return [];
-  const selected = await ai.selectAnalysisQuestions({ stats, catalog: context.catalog, previousReport: context.previousReport, changes: context.changes, ...(question ? { question } : {}) });
-  // Providers are replaceable; enforce access and size here as well as in the Gemini adapter.
-  if (!Array.isArray(selected) || selected.length > 30 || selected.some(id => !context.catalog.some(q => q.id === id))) throw Error('Invalid retrieval IDs');
-  const evidence = await analysisEvidence(db, uid, { stats, questions: context.questions, byQuestion: new Map() }, selected,
-    new Map(context.catalog.map(q => [q.id, q])), context.attemptIds);
-  return evidence;
+  if (!context.catalog.length) return { evidence: [], candidateFindings: [] };
+  const selection = await ai.selectAnalysisQuestions({ stats, catalog: context.catalog, catalogPreviewLimited: context.catalogPreviewLimited,
+    errorTagCounts: context.errorTagCounts, weaknessTrends: context.weaknessTrends, previousReport: context.previousReport, changes: context.changes, ...(question ? { question } : {}) });
+  const catalog = new Map(context.catalog.map(q => [q.id, q]));
+  if (!Array.isArray(selection?.questionIds) || selection.questionIds.length > 30 || selection.questionIds.some(id => !catalog.has(id))) throw Error('Invalid retrieval IDs');
+  const selected = [...new Set(selection.questionIds)];
+  const hypotheses = question ? [] : selection.candidateFindings ?? [];
+  const candidateFindings = validateCandidateFindings(hypotheses, new Set(selected));
+  const evidence = await analysisEvidence(db, uid, { stats, questions: context.questions, byQuestion: new Map() }, selected, catalog, context.attemptIds);
+  const loaded = new Set(evidence.map(entry => entry.id));
+  return { evidence, candidateFindings: candidateFindings.filter(finding => finding.supportingQuestionIds.every(id => loaded.has(id))) };
+}
+
+function validateCandidateFindings(raw: unknown, selected: Set<string>): AnalysisCandidateFinding[] {
+  if (!Array.isArray(raw) || raw.length > 12) throw Error('Invalid candidate findings');
+  return raw.map(finding => {
+    if (typeof finding?.topic !== 'string' || !finding.topic.trim() || finding.topic.length > 160 ||
+      typeof finding.rationale !== 'string' || !finding.rationale.trim() || finding.rationale.length > 600 ||
+      !Array.isArray(finding.supportingQuestionIds) || finding.supportingQuestionIds.length === 0 ||
+      finding.supportingQuestionIds.length > 30 || finding.supportingQuestionIds.some((id: string) => !selected.has(id))) throw Error('Invalid candidate findings');
+    return { topic: finding.topic.trim(), rationale: finding.rationale.trim(), supportingQuestionIds: [...new Set<string>(finding.supportingQuestionIds)] };
+  });
 }
 export async function runAnalysis(db: D1Database, uid: string, id: string, ai: AIService) {
   const { report, context } = await readContext(db, uid, id);
@@ -55,8 +129,9 @@ export async function runAnalysis(db: D1Database, uid: string, id: string, ai: A
     AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`).bind(lease, id, uid, id, token)]);
   if (!claim.meta.changes) return getAnalysis(db, uid, id);
   try {
-    const evidence = await retrieve(db, uid, context, report.stats, ai);
-    const result = await ai.analyzeLearning({ stats: report.stats, evidence, catalogQuestions: context.catalog.length, previousReport: context.previousReport });
+    const { evidence, candidateFindings } = await retrieve(db, uid, context, report.stats, ai);
+    const result = await ai.analyzeLearning({ stats: report.stats, evidence, catalogQuestions: context.catalog.length,
+      catalogPreviewLimited: context.catalogPreviewLimited, errorTagCounts: context.errorTagCounts, weaknessTrends: context.weaknessTrends, previousReport: context.previousReport, candidateFindings });
     const interpretation = validateInterpretation(result.interpretation, evidence, report.stats);
     await db.batch([db.prepare(`UPDATE analysis_reports SET status='complete',evidence_json=?,interpretation_json=?,model_version=?,error=NULL
       WHERE id=? AND user_id=? AND status='pending' AND EXISTS(SELECT 1 FROM analysis_report_contexts WHERE report_id=? AND run_token=?)`)
@@ -107,9 +182,9 @@ export async function answerFollowup(db: D1Database, uid: string, reportId: stri
       .bind(body.id, uid, reportId, question, hash, token, now, lease, uid, reportId).run();
   if (!claim.meta.changes) throw new PracticeError(409, '另一則追問正在回答，請稍後再試');
   try {
-    const extra = context ? await retrieve(db, uid, context, report.stats, ai, question) : [];
+    const extra = context ? (await retrieve(db, uid, context, report.stats, ai, question)).evidence : [];
     const evidence = [...new Map([...report.evidence, ...extra].map(e => [e.id, e])).values()];
-    const result = await ai.followupLearning({ stats: report.stats, interpretation: report.interpretation, evidence,
+    const result = await ai.followupLearning({ stats: report.stats, interpretation: report.interpretation, evidence, weaknessTrends: context?.weaknessTrends,
       history: history.filter(h => h.status === 'complete').slice(-6).map(h => ({ question: h.question, answer: h.answer })), question });
     const answer = validateReply(result.answer, evidence);
     await db.prepare(`UPDATE analysis_followups SET status='complete',answer_json=?,evidence_json=?,model_version=?,error=NULL WHERE id=? AND user_id=? AND run_token=? AND status='pending'

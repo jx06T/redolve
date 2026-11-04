@@ -26,7 +26,7 @@ const resultTone = {
 const previewControl = 'flex min-h-11 min-w-11 items-center justify-center rounded-xl hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary';
 const previewScales = [1, 1.25, 1.5, 2, 3, 4, 5];
 
-function PracticeImage({ url, close }: { url: string; close: () => void }) {
+export function PracticeImage({ url, close }: { url: string; close: () => void }) {
   const img = useRef<HTMLImageElement>(null), pan = useRef<PanzoomObject | null>(null);
   const [loaded, setLoaded] = useState(false), [scale, setScale] = useState(1.5);
   useEffect(() => {
@@ -52,7 +52,7 @@ function PracticeImage({ url, close }: { url: string; close: () => void }) {
   </AppDialog>;
 }
 export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: {
-  question: PracticeQuestion; sessionId: string; next: () => void; onRecorded: (result: 'correct' | 'incorrect') => void;
+  question: PracticeQuestion; sessionId: string; next: () => void; onRecorded: (result: import('../types/practice').PracticeRoundResult) => void;
 }) {
   const uid = useStore(s => s.currentUser?.id || ''), eventId = useRef(crypto.randomUUID());
   const tool = useStore(s => s.tool), penColor = useStore(s => s.penColor), penWidth = useStore(s => s.penWidth);
@@ -94,7 +94,7 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
         usedOriginalImage: everImage };
       await practiceService.enqueue(uid, payload, target);
       if (!active.current || useStore.getState().currentUser?.id !== uid) return;
-      onRecorded(graded.result);
+      onRecorded({ attemptId: payload.id, question: target, ...graded });
       void syncPractice(uid).catch(() => { /* The page shows the pending event count. */ });
       next();
     } catch (e) { if (active.current) setError((e as Error).message); }

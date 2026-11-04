@@ -9,6 +9,7 @@ import { ANALYSIS_PERIOD_DAYS } from '../types/learning';
 import { AnalysisStatsContent, AnalysisStatsSummary, PersonalAnalysisReport } from '../components/PersonalAnalysisReport';
 import { AnalysisConversation } from '../components/AnalysisConversation';
 import { AnalysisPeriod } from '../components/AnalysisPeriod';
+import { WeaknessTrends } from '../components/WeaknessTrends';
 
 const control = 'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-sm disabled:opacity-40';
 const button = control + ' border-border-subtle bg-surface';
@@ -111,6 +112,7 @@ export function SubjectAnalysis({ uid, subjectId }: { uid: string; subjectId: st
       <div className="flex flex-wrap items-center justify-between gap-4"><h2 className="text-lg font-semibold">最新統計</h2><AnalysisPeriod value={days} change={d => { const next = new URLSearchParams(params); next.set('days', String(d)); navigate({ search: '?' + next, hash: '#latest' }, { replace: true }); }} /></div>
       <p className="text-sm leading-7 text-text-muted">題庫總數是目前持有的所有題目；上方篩選僅限制作答紀錄。這裡不會呼叫 AI。</p>
       {loading ? <p role="status">載入統計…</p> : stats && <><AnalysisStatsSummary stats={stats} /><AnalysisStatsContent stats={stats} showComparison={false} /></>}
+      <WeaknessTrends subjectId={subjectId} days={days} />
     </section> : <>
       <section aria-label="產生階段總結" className="space-y-3 rounded-2xl bg-primary/5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">階段總結</h2><button className={primaryButton} disabled={busy || !eligibility?.canGenerate} onClick={() => void run(async signal => {
@@ -121,7 +123,7 @@ export function SubjectAnalysis({ uid, subjectId }: { uid: string; subjectId: st
           } catch (e) { await refresh(signal); throw e; }
         })}><Sparkles size={16} />{busy ? '處理中…' : eligibility?.reason === 'retry' ? '重試階段總結' : eligibility?.reason === 'first' ? '建立首次基準' : '產生階段總結'}</button></div>
         <p className="text-sm leading-7 text-text-muted">{eligibility ? eligibilityText(eligibility) : loading ? '正在檢查生成條件…' : '生成條件尚未取得，可以按「重新檢查」；既有報告仍可閱讀。'}</p>
-        {eligibility?.baselineCutoff && <p className="text-xs leading-6 text-text-muted">自 {new Date(eligibility.baselineCutoff).toLocaleString()}：新增 {eligibility.changes.newQuestions} 題、更新 {eligibility.changes.updatedQuestions} 題、新作答 {eligibility.changes.newAttempts} 次、結果更正 {eligibility.changes.correctedAttempts} 次。</p>}
+        {eligibility?.baselineCutoff && <p className="text-xs leading-6 text-text-muted">自 {new Date(eligibility.baselineCutoff).toLocaleString()}：新增 {eligibility.changes.newQuestions} 題、更新 {eligibility.changes.updatedQuestions} 題、新作答 {eligibility.changes.newAttempts} 次、結果更正 {eligibility.changes.correctedAttempts} 次{eligibility.changes.reviewedAttempts ? `、弱點標記變更 ${eligibility.changes.reviewedAttempts} 筆` : ''}。</p>}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted"><span>成功完成後至少間隔 3 天，並累積實質新資料；報告不受「最新」的天數篩選影響。</span><button className="min-h-11 underline decoration-border-subtle underline-offset-4" disabled={busy} onClick={() => void run(refresh)}>重新檢查</button>{eligibility?.activeReportId && eligibility.activeReportId !== selected && <button className="min-h-11 underline underline-offset-4" onClick={() => choose(eligibility.activeReportId!)}>開啟處理中的報告</button>}</div>
       </section>
       {!!history.length && <nav aria-label="歷次分析" className="flex flex-wrap items-center gap-2 rounded-2xl border border-border-subtle bg-surface p-3">

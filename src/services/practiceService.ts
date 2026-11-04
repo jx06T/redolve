@@ -2,6 +2,10 @@ import { openDB } from 'idb';
 import { sharingApi, SharingApiError } from './sharingApi';
 import { useStore } from '../store/useStore';
 import type { AttemptInput, AttemptReply, PracticeAttempt, PracticeQuestion, PracticeScope, PracticeSession } from '../types/practice';
+import type { ErrorReason, PersonalQuestionRef } from '../types/learning';
+import type { Weakness, WeaknessReview } from '../types/weakness';
+
+const refParams = (ref: PersonalQuestionRef) => ({ kind: ref.kind, id: ref.kind === 'owned' ? ref.itemId : ref.savedRefId });
 
 export interface PendingAttempt { userId: string; id: string; input: AttemptInput; question: PracticeQuestion; error?: string; blocked?: boolean }
 const db = () => openDB('redolve-practice-events', 1, { upgrade(database) {
@@ -10,6 +14,14 @@ const db = () => openDB('redolve-practice-events', 1, { upgrade(database) {
 const changed = () => window.dispatchEvent(new Event('practice-outbox-changed'));
 const owner = (uid: string) => useStore.getState().currentUser?.id === uid;
 export const practiceService = {
+  weaknesses: (ref: PersonalQuestionRef, signal?: AbortSignal) => sharingApi<{ subjectId: string; items: Weakness[] }>(
+    '/practice/weaknesses?' + new URLSearchParams(refParams(ref)), 'GET', undefined, signal),
+  createWeakness: (subjectId: string, title: string, target: string) => sharingApi<Weakness>('/practice/weaknesses', 'POST', { subjectId, title, target }),
+  suggestWeaknesses: (ref: PersonalQuestionRef, notes: string, excluded: string[], attemptId?: string) => sharingApi<{ items: ErrorReason[] }>(
+    '/practice/weaknesses/suggestions', 'POST', { ...refParams(ref), notes, excluded, attemptId }),
+  weaknessReview: (id: string, signal?: AbortSignal) => sharingApi<WeaknessReview>(`/practice/attempts/${encodeURIComponent(id)}/weaknesses`, 'GET', undefined, signal),
+  saveWeaknessReview: (uid: string, id: string, review: WeaknessReview) => sharingApi<WeaknessReview>(
+    `/practice/attempts/${encodeURIComponent(id)}/weaknesses`, 'PUT', { userId: uid, ...review }),
   start: (scope: PracticeScope, count: number, questionIds?: string[], signal?: AbortSignal) =>
     sharingApi<PracticeSession>('/practice/sessions', 'POST', { scope, count, questionIds }, signal),
   history: (id: string, cursor?: string, signal?: AbortSignal) => sharingApi<{ attempts: PracticeAttempt[]; nextCursor: string | null }>(

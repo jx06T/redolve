@@ -101,7 +101,7 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
         <h3 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h3>
         <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
           <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
-          <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>
+          {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}
         </> : undefined} />
       </article>)}</div> : <p className="py-4 text-sm text-text-muted">目前沒有足夠依據提供具體解讀，可先整理題文、答案或累積重作紀錄。</p>}
     </section>}

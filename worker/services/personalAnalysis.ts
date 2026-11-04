@@ -1,4 +1,5 @@
-import type { AnalysisEvidence, AnalysisInterpretation, AnalysisReport, AnalysisStats } from '../../src/types/analysis';
+import type { AnalysisErrorReason, AnalysisEvidence, AnalysisInterpretation, AnalysisReport, AnalysisStats } from '../../src/types/analysis';
+import type { AnalysisCatalogEntry } from './ai/AIService';
 import type { PracticeScope } from '../../src/types/practice';
 import { ANALYSIS_PERIOD_DAYS } from '../../src/types/learning';
 import { PracticeError, digest, scopeStatement, scopeTopics } from './practice';
@@ -71,7 +72,7 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
   if (window || !includeComparison) delete stats.comparison;
   return { stats, questions, events, byQuestion, previous, contextEvents: allEvents };
 }
-export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pick<Awaited<ReturnType<typeof analysisSnapshot>>, 'stats' | 'questions' | 'byQuestion'>, selectedIds?: string[], counts?: Map<string, { attempts: number; correct: number }>, frozenAttemptIds?: string[]) {
+export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pick<Awaited<ReturnType<typeof analysisSnapshot>>, 'stats' | 'questions' | 'byQuestion'>, selectedIds?: string[], catalog?: Map<string, AnalysisCatalogEntry>, frozenAttemptIds?: string[]) {
   // Representative sample, balanced across units; repeated errors first within a unit.
   const candidates = snapshot.questions.filter(q => q.id && q.revisionId && q.prepared && (!selectedIds || selectedIds.includes(q.id))).sort((a, b) =>
     (snapshot.byQuestion.get(b.id!)?.filter(e => e.result === 'incorrect').length || 0) - (snapshot.byQuestion.get(a.id!)?.filter(e => e.result === 'incorrect').length || 0));
@@ -109,13 +110,16 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pi
   for (const q of picked) {
     const row = rows.find(r => r.id === q.revisionId); if (!row) throw new PracticeError(409, '題目已變更，請重新產生分析');
     const content = JSON.parse(row.content_json), personal = JSON.parse(row.personal_json), events = snapshot.byQuestion.get(q.id!) || [];
+    const entry = catalog?.get(q.id!);
     evidence.push({ id: q.id!, ref: q.itemId ? { kind: 'owned', itemId: q.itemId } : { kind: 'saved', savedRefId: q.savedRefId! },
       revisionId: row.id, topicId: q.topicId, text: [content.ocrText, ...content.options.map((o: { label: string; text: string }) => `${o.label} ${o.text}`)].join('\n').slice(0, 3000),
       originalAnswer: shortAnswer(personal.originalAnswer), correctAnswer: shortAnswer(content.correctAnswer),
-      errorReasons: personal.errorReasons.filter((r: { origin: string; accepted?: boolean }) => r.origin === 'user' || r.accepted === true)
-        .slice(0, 12).map((r: { text: string; origin: string }) => ({ ...r, text: r.text.slice(0, 300) })),
+      errorReasons: (personal.errorReasons as AnalysisErrorReason[]).slice(0, 12).map(r => ({ ...r, text: r.text.slice(0, 300) })),
+      ...(entry?.tags ? { tags: entry.tags } : {}), ...(entry?.errorTags ? { errorTags: entry.errorTags } : {}),
+      ...(entry?.confirmedWeaknessIds ? { confirmedWeaknessIds: entry.confirmedWeaknessIds } : {}),
+      ...(entry?.weaknessReviews ? { weaknessReviews: entry.weaknessReviews } : {}),
       correctionSummary: typeof personal.correctionSummary === 'string' ? personal.correctionSummary.slice(0, 3000) : undefined,
-      attempts: counts?.get(q.id!)?.attempts ?? events.length, correct: counts?.get(q.id!)?.correct ?? events.filter(e => e.result === 'correct').length, confirmationStatus: q.confirmationStatus,
+      attempts: entry?.attempts ?? events.length, correct: entry?.correct ?? events.filter(e => e.result === 'correct').length, confirmationStatus: q.confirmationStatus,
       options: content.options.map((o: { id: string; label: string; text: string }) => ({ id: o.id, label: o.label, text: o.text.slice(0,500) })),
       recentAttempts: attemptSample.filter(a => a.learning_question_id === q.id).reverse().map(a => ({ id: a.id, revisionId: a.revision_id,
         answer: shortAnswer(JSON.parse(a.answer_json)), correctAnswer: shortAnswer(a.correct_answer ? JSON.parse(a.correct_answer) : null), result: a.result,
@@ -136,7 +140,10 @@ export function validateInterpretation(raw: unknown, evidence: AnalysisEvidence[
     if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 160 || typeof f.explanation !== 'string' || f.explanation.length > 3000 ||
       !Array.isArray(f.evidenceIds) || f.evidenceIds.length > 30 || f.evidenceIds.some(id => !evidenceIds.has(id)) ||
       !Array.isArray(f.metricIds) || (!f.evidenceIds.length && !f.metricIds.length) || f.metricIds.some(id => !metrics.has(id))) throw Error('Invalid analysis evidence');
-    return { title: f.title.trim(), explanation: f.explanation.trim(), evidenceIds: [...new Set(f.evidenceIds)], metricIds: [...new Set(f.metricIds)] };
+    const practice = f.practiceQuestionIds;
+    if (practice !== undefined && (!Array.isArray(practice) || practice.length > 5 || practice.some(id => !f.evidenceIds.includes(id)))) throw Error('Invalid practice evidence');
+    return { title: f.title.trim(), explanation: f.explanation.trim(), evidenceIds: [...new Set(f.evidenceIds)], metricIds: [...new Set(f.metricIds)],
+      ...(practice === undefined ? {} : { practiceQuestionIds: [...new Set(practice)] }) };
   }) };
 }
 export async function cleanupAnalysis(db: D1Database) {

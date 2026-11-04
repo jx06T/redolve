@@ -4,6 +4,9 @@ import type { LearningAnswer, LearningContent, LearningQuestion, PersonalQuestio
 export interface PracticeScope { subjectId: string; topicId?: string; includeArchived?: boolean }
 export interface PracticeQuestion extends LearningQuestion { id: string; revisionId: string; topicId: string; imageUrl: string; sessionItemId: string }
 export interface PracticeSession { id: string; policy: string; questions: PracticeQuestion[]; candidateCount: number }
+export interface PracticeRoundResult {
+  attemptId: string; question: PracticeQuestion; answer: LearningAnswer; result: PracticeAttempt['result']; gradingMethod: PracticeAttempt['gradingMethod'];
+}
 export interface AttemptInput {
   id: string; questionId: string; revisionId: string; sessionId: string; sessionItemId: string;
   answer: LearningAnswer; selfResult?: 'correct' | 'incorrect'; clientAnsweredAt: string;

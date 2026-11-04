@@ -3,15 +3,14 @@ import { learningService } from '../services/learningService';
 import { useStore } from '../store/useStore';
 import { PracticeHistory } from './PracticeHistory';
 import { RichText } from './RichText';
+import { WeaknessPicker } from './WeaknessPicker';
 import { learningDataIssues } from '../services/learningDataIssues';
-import { validateLearningData, QUESTION_TYPES } from '../types/learning';
-import type { LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
+import { displayAnswer, validateLearningData, QUESTION_TYPES } from '../types/learning';
+import type { ErrorReason, LearningAnswer, LearningContent, LearningData, LearningQuestion, PersonalQuestionRef } from '../types/learning';
 
 const typeLabels = ['單選', '複選', '填充', '計算', '申論', '其他', '未知'];
 const fieldClass = 'mt-1 w-full rounded-xl border border-border-subtle bg-surface p-2 text-sm text-text-main';
 const buttonClass = 'rounded-xl border border-border-subtle px-3 py-2 text-xs disabled:opacity-40';
-const displayAnswer = (answer: LearningAnswer, content: LearningContent) => !answer ? '尚無資料' : answer.kind === 'text'
-  ? answer.text : answer.optionIds.map(id => content.options.find(o => o.id === id)?.label || id).join('、');
 
 function AnswerInput({ label, answer, content, onChange }: {
   label: string; answer: LearningAnswer; content: LearningContent; onChange: (answer: LearningAnswer) => void;
@@ -45,16 +44,21 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const [current, setCurrent] = useState<LearningQuestion | null>(null);
   const [draft, setDraft] = useState<LearningData | null>(null);
   const [draftBase, setDraftBase] = useState<LearningQuestion | null>(null);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<ErrorReason[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [newWeakness, setNewWeakness] = useState<ErrorReason>();
   const [correctionId, setCorrectionId] = useState<string | undefined>();
   const draftRef = useRef<LearningData | null>(null);
   draftRef.current = draft;
   const recognitionBusyRef = useRef(recognitionBusy);
   recognitionBusyRef.current = recognitionBusy;
   const prepare = (result: LearningQuestion, data: LearningData = { content: result.content, personal: result.personal }) => {
-    setDraftBase(result); setSuggestions([...new Set([...data.personal.errorReasons,
-      ...(result.correction?.adopted ? result.correction.data?.personal.errorReasons || [] : [])].filter(r => r.origin === 'ai').map(r => r.text))]);
-    setDraft(structuredClone({ ...data, personal: { ...data.personal, errorReasons: data.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted) } }));
+    const prior = result.sourceUpdated ? [] : result.personal.errorReasons.filter(reason => reason.origin === 'user' || reason.accepted);
+    const key = (reason: ErrorReason) => reason.weaknessId || reason.text;
+    const candidates = [...data.personal.errorReasons, ...(result.correction?.adopted ? result.correction.data?.personal.errorReasons || [] : [])];
+    setPickerOpen(false); setNewWeakness(undefined); setDraftBase(result); setSuggestions([...new Map([...candidates, ...prior].filter(r => r.origin === 'ai' || r.weaknessId).map(r => [key(r), r])).values()]);
+    const selected = [...new Map([...prior, ...data.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted)].map(r => [key(r), r])).values()];
+    setDraft(structuredClone({ ...data, personal: { ...data.personal, errorReasons: selected } }));
   };
   const adoptLoaded = (result: LearningQuestion) => {
     setCurrent(result); onLoaded?.(result);
@@ -163,8 +167,24 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       <AnswerInput label="原作答" content={content} answer={draft.personal.originalAnswer} onChange={originalAnswer => setDraft({ ...draft, personal: { ...draft.personal, originalAnswer } })} />
       <AnswerInput label="正解" content={content} answer={content.correctAnswer} onChange={correctAnswer => setDraft({ ...draft, content: { ...content, correctAnswer } })} />
       <fieldset className="space-y-2"><legend className="text-sm">你認同哪些可能錯因？</legend><p className="text-xs text-text-muted">AI 建議預設不勾選，可全不選；看不出原因時保持空白即可。</p>
-        {suggestions.map(text => <label key={text} className="flex min-h-11 items-start gap-3 rounded-xl border border-border-subtle p-3 text-sm"><input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => r.text === text && r.accepted)} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: e.target.checked ? [...draft.personal.errorReasons.filter(r => r.text !== text), { text, origin: 'ai', accepted: true }] : draft.personal.errorReasons.filter(r => r.text !== text) } })} /><RichText inline text={text} className="min-w-0" /></label>)}
-        <label className="block text-xs text-text-muted">自行補充錯因（每行一項，選填）<textarea className={fieldClass} rows={2} maxLength={10000} value={draft.personal.errorReasons.filter(r => r.origin === 'user').map(r => r.text).join('\n')} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: [...draft.personal.errorReasons.filter(r => r.origin === 'ai'), ...e.target.value.split('\n').map(text => ({ text, origin: 'user' as const, accepted: true }))] } })} /></label>
+        {suggestions.map(reason => {
+          const key = reason.weaknessId || reason.text;
+          return <div key={key} className="rounded-xl border border-border-subtle p-3 text-sm"><label className="flex min-h-11 items-start gap-3">
+            <input type="checkbox" className="mt-1" checked={draft.personal.errorReasons.some(r => (r.weaknessId || r.text) === key)} onChange={e => {
+              const rest = draft.personal.errorReasons.filter(r => (r.weaknessId || r.text) !== key);
+              setDraft({ ...draft, personal: { ...draft.personal, errorReasons: e.target.checked ? [...rest, { ...reason, accepted: true }] : rest } });
+            }} /><span className="min-w-0"><RichText inline text={reason.text} />{(reason.basis || reason.clue) && <span className="block text-xs text-text-muted">
+              {reason.basis === 'inferred_from_context' ? '情境推測 · ' : ''}{reason.clue || '由 AI 提出，請依本次訂正確認'}</span>}</span>
+          </label>{!reason.weaknessId && reason.target && <button type="button" className={buttonClass} onClick={() => { setNewWeakness(reason); setPickerOpen(true); }}>加入弱點清單</button>}</div>;
+        })}
+        <button type="button" className={buttonClass} aria-expanded={pickerOpen} onClick={() => { setNewWeakness(undefined); setPickerOpen(open => !open); }}>選擇其他弱點</button>
+        {pickerOpen && <WeaknessPicker key={newWeakness?.text || 'catalog'} initialCandidate={newWeakness} questionRef={questionRef} selected={draft.personal.errorReasons.flatMap(reason => reason.weaknessId ? [reason.weaknessId] : [])} onPick={(item, suggestion) => {
+            const reason: ErrorReason = { ...suggestion, text: suggestion?.text || item.title, origin: suggestion?.origin || 'user', accepted: true, weaknessId: item.id };
+            const keep = (r: ErrorReason) => r.weaknessId !== item.id && (!!r.weaknessId || r.text !== suggestion?.text);
+            setSuggestions(old => [...old.filter(keep), reason]);
+            setDraft(old => old && ({ ...old, personal: { ...old.personal, errorReasons: [...old.personal.errorReasons.filter(keep), reason] } }));
+          }} />}
+        <label className="block text-xs text-text-muted">自行補充錯因（每行一項，選填）<textarea className={fieldClass} rows={2} maxLength={10000} value={draft.personal.errorReasons.filter(r => r.origin === 'user' && !r.weaknessId).map(r => r.text).join('\n')} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, errorReasons: [...draft.personal.errorReasons.filter(r => r.origin === 'ai' || r.weaknessId), ...e.target.value.split('\n').map(text => ({ text, origin: 'user' as const, accepted: true }))] } })} /></label>
       </fieldset>
       <label className="block text-xs text-text-muted">訂正重點（可修改或留空）<textarea className={fieldClass} rows={3} maxLength={6000} value={draft.personal.correctionSummary || ''} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, correctionSummary: e.target.value } })} /></label>
       <p className="text-xs text-text-muted">儲存表示確認目前這份資料，原作答、正解與錯因都可以保持空白；確認後不會因缺漏再提醒。</p>
@@ -177,6 +197,6 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     {error && <div className="mt-3 text-sm"><p role="alert">{error}</p><button type="button" disabled={busy} className={buttonClass + ' mt-2'} onClick={() => void run(async signal => {
       const result = await learningService.read(questionRef, signal); if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); }
     })}>重新載入資料</button></div>}
-    {current?.id && <PracticeHistory questionId={current.id} />}
+    {current?.id && <PracticeHistory questionId={current.id} questionRef={questionRef} />}
   </section>;
 }

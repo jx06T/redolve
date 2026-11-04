@@ -1,6 +1,7 @@
 import { emptyLearningData, learningFullText, validateLearningData } from '../../src/types/learning';
 import type { LearningData, LearningQuestion, PersonalQuestionRef } from '../../src/types/learning';
 import { readLatestCorrection } from './correctionStore';
+import { questionWeaknessSubject, weaknessIdsAllowed } from './weaknesses';
 
 type Source = { asset_id: string; storage_key: string; source_version: string; text: string | null };
 type Current = { id: string; current_revision_id: string | null; row_version: number;
@@ -100,6 +101,21 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
   // AI never attributes the source author's handwriting or error reasons to the saver.
   if (actor === 'ai' && ref.kind === 'saved') data.personal = emptyLearningData().personal;
   if (actor === 'user') data.personal.errorReasons = data.personal.errorReasons.filter(reason => reason.origin === 'user' || reason.accepted === true);
+  const weaknessIds = [...new Set(data.personal.errorReasons.flatMap(reason => reason.weaknessId ? [reason.weaknessId] : []))];
+  if (weaknessIds.length) {
+    if (actor !== 'user' || !await weaknessIdsAllowed(db, uid, await questionWeaknessSubject(db, uid, ref), weaknessIds))
+      throw new LearningError(422, 'INVALID_DATA', '弱點不屬於這道題目的科目或帳號');
+    const prior = await db.prepare(`SELECT r.personal_json,r.created_at FROM learning_questions q JOIN learning_question_revisions r ON r.id=q.current_revision_id
+      WHERE q.user_id=? AND q.${refColumn(ref)}=? AND q.row_version=?`)
+      .bind(uid, refId(ref), write.expectedRowVersion).first<{ personal_json: string; created_at: string }>();
+    const previous = prior ? (JSON.parse(prior.personal_json) as LearningData['personal']).errorReasons : [];
+    const now = new Date().toISOString();
+    for (const reason of data.personal.errorReasons) {
+      if (!reason.weaknessId) continue;
+      const old = previous.find(candidate => candidate.weaknessId === reason.weaknessId && (candidate.origin === 'user' || candidate.accepted));
+      reason.confirmedAt = old ? old.confirmedAt ?? prior!.created_at : now;
+    }
+  }
   const questionId = crypto.randomUUID(), revisionId = crypto.randomUUID();
   const publicText = learningFullText(data.content);
   const source = sourceQuery(ref), column = refColumn(ref);
