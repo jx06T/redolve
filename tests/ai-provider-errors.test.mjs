@@ -31,16 +31,17 @@ test('upstream AI failures classify billing before quota and never expose input 
       else data=await ai.followupLearning({stats:{},interpretation:{},evidence:[],history:[],question:'synthetic'});
       return Response.json({ok:true,data});}catch(error){return Response.json({ok:false,code:error.code,message:error.message,diagnostic:error.diagnostic,allowFallback:error.allowFallback});}}
     }`,loader:'ts',resolveDir:process.cwd()},bundle:true,format:'esm',platform:'browser',write:false,logLevel:'silent'});
-  let status=402,afterFirst=402;const calls=[];
+  let status=402,afterFirst=402;const calls=[], configs=[];
   mf=new Miniflare({modules:true,script:worker.outputFiles[0].text,compatibilityDate:'2025-04-01',compatibilityFlags:['nodejs_compat'],bindings:{KEY:key},outboundService:async request=>{
-    calls.push(new URL(request.url).pathname);const current=calls.length===1?status:afterFirst;
+    calls.push(new URL(request.url).pathname);configs.push((await request.json()).generationConfig);const current=calls.length===1?status:afterFirst;
     if(current===200)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({topic_id:null,keywords:[],keyword_tokens:[],ocr_text:'synthetic'})}]}}]}),{headers:{'Content-Type':'application/json'}});
     return new MFResponse(JSON.stringify({error:{code:current,status:current===402||current===429?'RESOURCE_EXHAUSTED':'UNAVAILABLE',message:current===402?'Your prepayment credits are depleted.':'synthetic error'}}),{status:current,headers:{'Content-Type':'application/json'}});
   }});
   for(const operation of ['recognition','correction','selection','report','followup']){
-    calls.length=0;const result=await(await mf.dispatchFetch('https://test/'+operation)).json();
+    calls.length=0;configs.length=0;const result=await(await mf.dispatchFetch('https://test/'+operation)).json();
     assert.equal(result.code,'AI_BILLING_REQUIRED',operation);assert.equal(result.diagnostic.httpStatus,402);assert.equal(calls.length,1,'402 must not retry or fall back for '+operation);
-    assert(calls[0].includes(operation==='recognition'?'gemini-3.1-flash-lite':'gemini-3.1-pro-preview'),'existing per-operation model is preserved');
+    assert(calls[0].includes(operation==='recognition'?'gemini-3.1-flash-lite':'gemini-3.6-flash'),'each operation uses its configured default');
+    if(operation!=='recognition') assert.equal(configs[0].thinkingConfig.thinkingLevel,'LOW');
     assert(!JSON.stringify(result).includes(key));
   }
   for(const [http,code]of [[401,'AI_AUTH_FAILED'],[403,'AI_ACCESS_DENIED'],[429,'AI_RATE_LIMITED']]){

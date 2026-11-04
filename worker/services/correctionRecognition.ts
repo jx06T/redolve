@@ -8,6 +8,7 @@ import { CORRECTION_PROMPT_VERSION } from './ai/correctionPrompts';
 import { emptyLearningData, validateLearningData } from '../../src/types/learning';
 import { aiFailureDiagnostic,aiFailureMessage } from './ai/providerError';
 import { weaknessContext } from './weaknesses';
+import { DEFAULT_GEMINI_STUDY_MODEL } from './ai/models';
 
 export async function recognizeCorrection(db: D1Database, uid: string, ref: PersonalQuestionRef,
   input: { image: ArrayBuffer; sourceIdentity: string; notes: string; force: boolean; model?: string }, ai: AIService) {
@@ -20,7 +21,7 @@ export async function recognizeCorrection(db: D1Database, uid: string, ref: Pers
   if (progress?.status !== 'resolved' && !(progress?.status === 'archived' && progress.review_count > 0))
     throw new LearningError(409, 'CORRECTION_NOT_SYNCED', '訂正完成尚未同步，連線後可重試整理');
   const imageHash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', input.image))].map(n => n.toString(16).padStart(2, '0')).join('');
-  const hash = await digest({ ref, imageHash, source: identity, notes: input.notes, prompt: CORRECTION_PROMPT_VERSION, model: input.model || 'gemini-3.1-pro-preview',
+  const hash = await digest({ ref, imageHash, source: identity, notes: input.notes, prompt: CORRECTION_PROMPT_VERSION, model: input.model || DEFAULT_GEMINI_STUDY_MODEL,
     ...(input.force ? { version: current.rowVersion, sourceVersion: current.sourceVersion } : {}) });
   const now = new Date().toISOString(), token = crypto.randomUUID(), lease = new Date(Date.now() + 120000).toISOString();
   const existing = await db.prepare('SELECT * FROM learning_corrections WHERE user_id=? AND input_hash=?').bind(uid, hash).first<CorrectionRow>();

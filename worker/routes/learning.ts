@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import type { Bindings, Variables, TaxonomyNode } from '../types';
 import { authMiddleware } from '../middleware/auth';
-import { createAIService } from '../services/ai';
+import { correctionRecognitionModel, createAIService } from '../services/ai';
 import { LearningError, confirmLearningQuestion, learningSource, parsePersonalRef, readLearningQuestion, saveLearningQuestion } from '../services/learningQuestions';
 import { normalizeRecognition } from '../../src/types/learning';
 import { recognizeCorrection } from '../services/correctionRecognition';
@@ -46,7 +46,7 @@ learningRouter.post('/:kind/:id/correction', async c => {
     throw new LearningError(422, 'INVALID_DATA', '請提供有效的合成圖片與訂正筆記');
   const bytes = await image.arrayBuffer(), header = new Uint8Array(bytes);
   if (header[0] !== 255 || header[1] !== 216 || header[2] !== 255) throw new LearningError(422, 'INVALID_DATA', '合成圖片須為 JPEG');
-  return aiResponse(c, () => recognizeCorrection(c.env.DB, uid, ref, { image: bytes, sourceIdentity, notes, force: form.get('force') === 'true', model: c.env.GEMINI_CORRECTION_MODEL?.trim() }, createAIService(c.env)));
+  return aiResponse(c, () => recognizeCorrection(c.env.DB, uid, ref, { image: bytes, sourceIdentity, notes, force: form.get('force') === 'true', model: correctionRecognitionModel(c.env) }, createAIService(c.env)));
 });
 
 learningRouter.post('/:kind/:id/confirm', async c => {

@@ -1,3 +1,4 @@
+import { DEFAULT_GEMINI_STUDY_MODEL } from './ai/models';
 import type { AnalysisEligibility, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
 import type { PracticeScope } from '../../src/types/practice';
 import { analysisSnapshot, getAnalysis } from './personalAnalysis';
@@ -82,7 +83,7 @@ async function inspectCycle(db: D1Database, uid: string, scope: PracticeScope) {
 
 export async function analysisEligibility(db: D1Database, uid: string, scope: PracticeScope) { return (await inspectCycle(db, uid, scope)).status; }
 
-export async function beginCycleAnalysis(db: D1Database, uid: string, scope: PracticeScope, timezone = 'UTC', model = 'gemini-3.1-pro-preview') {
+export async function beginCycleAnalysis(db: D1Database, uid: string, scope: PracticeScope, timezone = 'UTC', model = DEFAULT_GEMINI_STUDY_MODEL) {
   const inspected = await inspectCycle(db, uid, scope), { state, status, cutoff } = inspected;
   if (status.activeReportId) return { id: status.activeReportId, created: false };
   if (status.reason === 'no_changes' && status.latestReportId) return { id: status.latestReportId, created: false };

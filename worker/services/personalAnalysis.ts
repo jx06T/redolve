@@ -1,3 +1,4 @@
+import { DEFAULT_GEMINI_STUDY_MODEL } from './ai/models';
 import type { AnalysisErrorReason, AnalysisEvidence, AnalysisInterpretation, AnalysisReport, AnalysisStats } from '../../src/types/analysis';
 import type { AnalysisCatalogEntry } from './ai/AIService';
 import type { PracticeScope } from '../../src/types/practice';
@@ -158,7 +159,7 @@ export async function cleanupAnalysis(db: D1Database) {
   ]);
   return result[2].meta.changes;
 }
-export async function beginAnalysis(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', model = 'gemini-3.1-pro-preview') {
+export async function beginAnalysis(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', model = DEFAULT_GEMINI_STUDY_MODEL) {
   if (scope?.topicId) throw new PracticeError(422, '分析以整科為單位，請移除單元範圍');
   const subject = await db.prepare('SELECT id FROM taxonomies WHERE id=? AND parent_id IS NULL AND (user_id IS NULL OR user_id=?)').bind(scope?.subjectId ?? '', uid).first();
   if (!subject) throw new PracticeError(422, '請選擇科目');

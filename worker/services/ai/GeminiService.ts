@@ -1,3 +1,4 @@
+import { DEFAULT_GEMINI_STUDY_MODEL } from './models';
 import { AIService, TagResult } from './AIService';
 import { normalizeRecognition } from '../../../src/types/learning';
 import { TaxonomyNode } from '../../types';
@@ -55,7 +56,7 @@ export class GeminiService implements AIService {
   private preferredModel: string;
   private aiClient: GoogleGenAI | null = null;
 
-  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite', analysisModel = 'gemini-3.1-pro-preview', correctionModel = 'gemini-3.1-pro-preview',
+  constructor(apiKey: string, modelName = 'gemini-3.1-flash-lite', analysisModel = DEFAULT_GEMINI_STUDY_MODEL, correctionModel = DEFAULT_GEMINI_STUDY_MODEL,
     analysisRoles?: { selection?: string; followup?: string }) {
     this.apiKey = apiKey;
     this.preferredModel = modelName;

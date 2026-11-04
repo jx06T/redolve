@@ -56,7 +56,7 @@ wrangler secret put ADMIN_EMAILS
 
 ### 本地開發
 
-整科報告／追問預設使用獨立 `gemini-3.1-pro-preview`，可由 Worker 的 `GEMINI_ANALYSIS_MODEL` 覆寫，一般圖片辨識維持原設定。訂正後整理預設同樣使用 Pro，可由獨立的 `GEMINI_CORRECTION_MODEL` 覆寫；另需補 0018，見 [訂正後整理與提示詞位置](./CORRECTION_RECOGNITION_FLOW_2026-11-02.md)。最新範圍及 0017 migration 見 [整科分析紀錄](./PERSONAL_ANALYSIS_GLOBAL_2026-11-02.md)。
+整科報告、追問和訂正後整理預設使用 `gemini-3.6-flash`，推理等級設為 `LOW`。整科分析可由 Worker 的 `GEMINI_ANALYSIS_MODEL` 覆寫，訂正與額外錯因建議可由 `GEMINI_CORRECTION_MODEL` 覆寫。一般上傳辨識使用原有的 `gemini-3.1-flash-lite`。
 
 可選的 Worker 角色設定為 `GEMINI_ANALYSIS_SELECTION_MODEL`（報告與追問的選題）、`GEMINI_ANALYSIS_REPORT_MODEL`（報告撰寫）及 `GEMINI_ANALYSIS_FOLLOWUP_MODEL`（追問回答）。各角色未設定時使用 `GEMINI_ANALYSIS_MODEL`，再回退到程式預設。三項皆可留空。
 

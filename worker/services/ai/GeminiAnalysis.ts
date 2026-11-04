@@ -1,11 +1,12 @@
 import { buildAnalysisSelectionPrompt, buildAnalysisReportPrompt, buildAnalysisFollowupPrompt } from './analysisPrompts';
-import { GoogleGenAI, Type } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import type { Schema } from '@google/genai';
 import type { AIService, AnalysisSelection } from './AIService';
 import { buildCorrectionPrompt, buildCorrectionSchema, CORRECTION_PROMPT_VERSION } from './correctionPrompts';
 import { normalizeRecognition, validateLearningData } from '../../../src/types/learning';
 import { reportProviderError } from './providerError';
 import { candidateRules, normalizeWeaknessCandidates, weaknessCandidateSchema } from './weaknessCandidates';
+import { DEFAULT_GEMINI_STUDY_MODEL } from './models';
 
 const strings = { type: Type.ARRAY, items: { type: Type.STRING } };
 const candidateFindings: Schema = { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
@@ -24,7 +25,7 @@ const promptVersions = {
 
 /** Separate client and model: recognition retains its existing timeout and model policy. */
 export class GeminiAnalysis {
-  constructor(private apiKey: string, private model = 'gemini-3.1-pro-preview',
+  constructor(private apiKey: string, private model = DEFAULT_GEMINI_STUDY_MODEL,
     private roles: { selection?: string; followup?: string } = {}) {}
   private async json(operation: keyof typeof promptVersions, prompt: string, responseSchema: Schema, imageBytes?: ArrayBuffer, model = this.model) {
     if (!this.apiKey) throw Error('AI unavailable');
@@ -34,7 +35,8 @@ export class GeminiAnalysis {
       let encoded = '';
       if (imageBytes) { const bytes = new Uint8Array(imageBytes); for (let i = 0; i < bytes.length; i += 8192) encoded += String.fromCharCode(...bytes.subarray(i, i + 8192)); }
       const response = await client.models.generateContent({ model, contents: imageBytes ? [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: 'image/jpeg', data: btoa(encoded) } }] }] : prompt,
-        config: { responseMimeType: 'application/json', responseSchema, temperature: 0.2, maxOutputTokens: 12000 } });
+        config: { responseMimeType: 'application/json', responseSchema, temperature: 0.2, maxOutputTokens: 12000,
+          ...(model === DEFAULT_GEMINI_STUDY_MODEL ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } } : {}) } });
       const text = (response.text || '').trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
       const data = JSON.parse(text);
       console.info('[AIModelRun]', { provider: 'gemini', operation, model, promptVersion: promptVersions[operation], durationMs: Date.now() - started,
