@@ -1,6 +1,7 @@
 import { mathWeaknesses } from '../../src/types/weakness';
 import type { Weakness, WeaknessReview } from '../../src/types/weakness';
-import type { LearningData, PersonalQuestionRef } from '../../src/types/learning';
+import type { ErrorReason, LearningData, PersonalQuestionRef } from '../../src/types/learning';
+import type { AttemptReasonCandidate } from '../../src/types/weakness';
 
 export async function questionWeaknessSubject(db: D1Database, uid: string, ref: PersonalQuestionRef) {
   const table = ref.kind === 'owned' ? 'items' : 'saved_refs';
@@ -62,14 +63,47 @@ export async function createWeakness(db: D1Database, uid: string, subjectId: str
 }
 
 export async function readWeaknessReview(db: D1Database, uid: string, attemptId: string) {
-  const row = await db.prepare(`SELECT q.item_id,q.saved_ref_id,COALESCE(w.version,0) version,COALESCE(w.weakness_ids,'[]') ids
+  const row = await db.prepare(`SELECT q.id question_id,q.item_id,q.saved_ref_id,r.revision_no,r.personal_json,r.source_version,p.answered_at,
+    COALESCE(w.version,0) version,COALESCE(w.weakness_ids,'[]') ids
     FROM practice_attempts p JOIN learning_questions q ON q.id=p.learning_question_id AND q.user_id=p.user_id
+    JOIN learning_question_revisions r ON r.id=p.revision_id
     LEFT JOIN practice_weakness_reviews w ON w.attempt_id=p.id AND w.version=(SELECT MAX(version) FROM practice_weakness_reviews WHERE attempt_id=p.id)
     WHERE p.id=? AND p.user_id=? AND p.result='incorrect' AND p.voided_at IS NULL`)
-    .bind(attemptId, uid).first<{ item_id: string | null; saved_ref_id: string | null; version: number; ids: string }>();
+    .bind(attemptId, uid).first<{ question_id: string; item_id: string | null; saved_ref_id: string | null; revision_no: number; personal_json: string; source_version: string; answered_at: string; version: number; ids: string }>();
   if (!row) return null;
   const ref: PersonalQuestionRef = row.item_id ? { kind: 'owned', itemId: row.item_id } : { kind: 'saved', savedRefId: row.saved_ref_id! };
-  return { ref, review: { ids: JSON.parse(row.ids) as string[], version: row.version } satisfies WeaknessReview };
+  return { ref, questionId: row.question_id, revisionNo: row.revision_no, sourceVersion: row.source_version, answeredAt: row.answered_at,
+    reasons: (JSON.parse(row.personal_json) as LearningData['personal']).errorReasons,
+    review: { ids: JSON.parse(row.ids) as string[], version: row.version } satisfies WeaknessReview };
+}
+
+export async function attemptReasonCandidates(db: D1Database, uid: string, attempt: NonNullable<Awaited<ReturnType<typeof readWeaknessReview>>>) {
+  const { ref, sourceVersion, answeredAt, reasons } = attempt;
+  const owned = ref.kind === 'owned';
+  // Owned versions are sequence:asset. Saved versions are snapshot:sequence.
+  const sourceKey = owned ? sourceVersion.slice(sourceVersion.indexOf(':') + 1) : sourceVersion.split(':')[0];
+  const sourceColumn = owned ? "substr(source_version,instr(source_version,':')+1)" : "substr(source_version,1,instr(source_version,':')-1)";
+  const correction = await db.prepare(`SELECT data_json FROM learning_corrections WHERE user_id=? AND ${owned ? 'item_id' : 'saved_ref_id'}=?
+    AND status='complete' AND created_at<=? AND ${sourceColumn}=?
+    ORDER BY created_at DESC,id DESC LIMIT 1`)
+    .bind(uid, owned ? ref.itemId : ref.savedRefId, answeredAt, sourceKey).first<{ data_json: string | null }>();
+  const recognition = correction?.data_json ? null : await db.prepare(`SELECT personal_json FROM learning_question_revisions
+    WHERE learning_question_id=? AND revision_no<=? AND created_by='ai' AND ${sourceColumn}=? ORDER BY revision_no DESC LIMIT 1`)
+    .bind(attempt.questionId, attempt.revisionNo, sourceKey).first<{ personal_json: string }>();
+  const proposed = correction?.data_json ? (JSON.parse(correction.data_json) as LearningData).personal.errorReasons
+    : recognition ? (JSON.parse(recognition.personal_json) as LearningData['personal']).errorReasons : [];
+  const byText = new Map<string, ErrorReason>();
+  for (const reason of [...proposed, ...reasons]) {
+    if (reason.origin !== 'ai' || !reason.text.trim()) continue;
+    const text = reason.text.normalize('NFKC').trim();
+    if (!byText.has(text) || reason.weaknessId) byText.set(text, reason);
+  }
+  const candidates = await Promise.all([...byText].map(async ([normalized, reason]): Promise<AttemptReasonCandidate> => {
+    if (reason.weaknessId) return { id: reason.weaknessId, text: reason.text };
+    const bytes = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized)));
+    return { id: 'ai-reason-' + [...bytes].map(value => value.toString(16).padStart(2, '0')).join(''), text: reason.text };
+  }));
+  return [...new Map(candidates.map(candidate => [candidate.id, candidate])).values()];
 }
 
 export async function appendWeaknessReview(db: D1Database, uid: string, attemptId: string, version: number, ids: string[]) {

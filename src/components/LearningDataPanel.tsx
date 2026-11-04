@@ -197,6 +197,6 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     {error && <div className="mt-3 text-sm"><p role="alert">{error}</p><button type="button" disabled={busy} className={buttonClass + ' mt-2'} onClick={() => void run(async signal => {
       const result = await learningService.read(questionRef, signal); if (!signal.aborted) { setCurrent(result); setDraft(null); setDraftBase(null); setPreview(false); }
     })}>重新載入資料</button></div>}
-    {current?.id && <PracticeHistory questionId={current.id} questionRef={questionRef} />}
+    {current?.id && <PracticeHistory questionId={current.id} />}
   </section>;
 }

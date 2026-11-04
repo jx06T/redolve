@@ -210,27 +210,49 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       const bob=(await call('/practice/weaknesses','bob','POST',custom)).data;
       assert.notEqual(alice.id,bob.id);
       assert.equal((await call('/practice/weaknesses','alice','POST',custom)).data.id,alice.id);
-      const q=questions[0], attempt=await practice.submitAttempt(db,'alice',make(q,'weakness-attempt'));
+      const ref={kind:'owned',itemId:'q1'}, current=await learning.readLearningQuestion(db,'alice',ref);
+      const revised={content:{...current.content,correctAnswer:{kind:'choice',optionIds:['one']}},personal:{...current.personal,errorReasons:[
+        {text:'條件改變後仍用舊範圍',origin:'ai',accepted:true,weaknessId:alice.id},
+        {text:'不熟悉三角函數恆等式運算',origin:'ai',accepted:true},
+        {text:'本人補充',origin:'user'},
+      ]}};
+      const q=await learning.saveLearningQuestion(db,'alice',ref,{expectedRowVersion:current.rowVersion,expectedSourceVersion:current.sourceVersion,data:revised},'user');
+      const correction={...revised,personal:{...revised.personal,errorReasons:[{text:'當時尚未採用的候選',origin:'ai'}]}};
+      await db.prepare(`INSERT INTO learning_corrections(id,user_id,item_id,input_hash,source_version,base_row_version,status,run_token,lease_until,created_at,data_json)
+        VALUES('review-candidate','alice','q1','review-candidate',?,?,'complete','token',?,?,?)`)
+        .bind(q.sourceVersion,q.rowVersion,new Date().toISOString(),new Date(Date.now()-1000).toISOString(),JSON.stringify(correction)).run();
+      const attempt=await practice.submitAttempt(db,'alice',make(q,'weakness-attempt'));
       assert.equal(attempt.result,'incorrect');
       const path='/practice/attempts/'+attempt.id+'/weaknesses';
-      assert.deepEqual((await call(path)).data,{ids:[],version:0});
+      const review=(await call(path)).data;
+      assert.deepEqual(review.ids,[]);assert.equal(review.version,0);
+      assert.deepEqual(review.candidates.map(reason=>reason.text),['當時尚未採用的候選','條件改變後仍用舊範圍','不熟悉三角函數恆等式運算']);
+      const legacy=review.candidates.find(reason=>reason.text==='不熟悉三角函數恆等式運算').id;
       assert.equal((await call(path,'bob')).status,404);
       const put=(ids,version)=>call(path,'alice','PUT',{userId:'alice',ids,version});
       assert.equal((await put([bob.id],0)).status,422);
-      const marked=await put([alice.id,alice.id],0);
-      assert.deepEqual(marked.data,{ids:[alice.id],version:1});
-      assert.deepEqual((await put([alice.id],0)).data,marked.data,'retries keep a single review');
+      assert.equal((await put(['math-domain'],0)).status,422);
+      const marked=await put([alice.id,alice.id,legacy],0);
+      assert.deepEqual(marked.data,{ids:[alice.id,legacy].sort(),version:1});
+      assert.deepEqual((await put([alice.id,legacy],0)).data,marked.data,'retries keep a single review');
       assert.equal((await put([],0)).status,409);
       const trends=await call('/analysis/weaknesses?subjectId=math&days=30');
       assert.equal(trends.data.trends.find(row=>row.id===alice.id).confirmedAttempts,1);
-      assert.equal(trends.data.trends.find(row=>row.id===alice.id).recurringAttempts,0);
+      assert.equal(trends.data.trends.find(row=>row.id===alice.id).recurringAttempts,1);
       const snapshot=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},60);
       assert.deepEqual((await put([],1)).data,{ids:[],version:2});
-      assert.equal((await call('/analysis/weaknesses?subjectId=math&days=30')).data.trends.some(row=>row.id===alice.id),false);
+      assert.equal((await call('/analysis/weaknesses?subjectId=math&days=30')).data.trends.find(row=>row.id===alice.id).confirmedAttempts,0);
       assert.equal((await db.prepare('SELECT COUNT(*) n FROM practice_weakness_reviews WHERE attempt_id=?').bind(attempt.id).first()).n,2);
       const {data: generated}=await call('/analysis/reports/'+snapshot.id+'/run','alice','POST',{});
       assert.equal(generated.data.status,'complete');
       assert.ok(generated.data.evidence.find(e=>e.id===q.id).weaknessReviews.some(review=>review.attemptId===attempt.id && review.weaknessIds.includes(alice.id)));
+      await db.exec("INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES('legacy-ocr','alice','image','unsolved','other')");
+      const legacyRef={kind:'owned',itemId:'legacy-ocr'}, legacyBefore=await learning.readLearningQuestion(db,'alice',legacyRef);
+      const aiRevision=await learning.saveLearningQuestion(db,'alice',legacyRef,{expectedRowVersion:legacyBefore.rowVersion,expectedSourceVersion:legacyBefore.sourceVersion,
+        data:{...data(),personal:{originalAnswer:null,errorReasons:[{text:'最初的 AI 候選',origin:'ai'}]}}},'ai');
+      const confirmed=await learning.saveLearningQuestion(db,'alice',legacyRef,{expectedRowVersion:aiRevision.rowVersion,expectedSourceVersion:aiRevision.sourceVersion,data:data()},'user');
+      const legacyAttempt=await practice.submitAttempt(db,'alice',make(confirmed,'legacy-ocr-review'));
+      assert.deepEqual((await call('/practice/attempts/'+legacyAttempt.id+'/weaknesses')).data.candidates.map(reason=>reason.text),['最初的 AI 候選']);
     });
     await t.test('reports deduplicate input, keep snapshots, expire details and delete with personal sources',async()=>{
       const work=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},30),again=await analysis.beginAnalysis(db,'alice',{subjectId:'math'},30);assert.equal(work.id,again.id);assert.equal(again.created,false);

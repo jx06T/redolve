@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/auth';
 import { authorizedImage } from '../services/authorizedImage';
 import { PracticeError, createPractice, presentAttempt, submitAttempt } from '../services/practice';
 import type { AttemptInput, AttemptReply } from '../../src/types/practice';
-import { appendWeaknessReview, createWeakness, listWeaknesses, questionWeaknessSubject, readWeaknessReview, weaknessContext, weaknessIdsAllowed } from '../services/weaknesses';
+import { appendWeaknessReview, attemptReasonCandidates, createWeakness, listWeaknesses, questionWeaknessSubject, readWeaknessReview, weaknessContext } from '../services/weaknesses';
 import { createAIService } from '../services/ai';
 import { LearningError, readLearningQuestion } from '../services/learningQuestions';
 
@@ -78,9 +78,9 @@ practiceRouter.post('/weaknesses/suggestions', async c => {
   return c.json({ items });
 });
 practiceRouter.get('/attempts/:id/weaknesses', async c => {
-  const row = await readWeaknessReview(c.env.DB, c.get('userId'), c.req.param('id'));
+  const uid = c.get('userId'), row = await readWeaknessReview(c.env.DB, uid, c.req.param('id'));
   if (!row) throw new PracticeError(404, '找不到已同步且有效的答錯紀錄');
-  return c.json(row.review);
+  return c.json({ ...row.review, candidates: await attemptReasonCandidates(c.env.DB, uid, row) });
 });
 practiceRouter.put('/attempts/:id/weaknesses', async c => {
   const body = await c.req.json().catch(() => null), uid = c.get('userId'), attemptId = c.req.param('id');
@@ -91,8 +91,9 @@ practiceRouter.put('/attempts/:id/weaknesses', async c => {
   if (!existing) throw new PracticeError(404, '找不到已同步且有效的答錯紀錄');
   if (JSON.stringify(existing.review.ids) === JSON.stringify(ids)) return c.json(existing.review);
   if (existing.review.version !== body.version) throw new PracticeError(409, '這筆弱點已更新，請重新載入');
-  if (!await weaknessIdsAllowed(c.env.DB, uid, await questionWeaknessSubject(c.env.DB, uid, existing.ref), ids))
-    throw new PracticeError(422, '弱點不屬於這道題目的科目或帳號');
+  const candidates = await attemptReasonCandidates(c.env.DB, uid, existing);
+  const allowed = new Set([...existing.review.ids, ...candidates.map(candidate => candidate.id)]);
+  if (ids.some(id => !allowed.has(id))) throw new PracticeError(422, '只能勾選這道題目原有的 AI 錯因');
   const result = await appendWeaknessReview(c.env.DB, uid, attemptId, body.version, ids);
   if (!result.meta.changes) {
     const latest = await readWeaknessReview(c.env.DB, uid, attemptId);

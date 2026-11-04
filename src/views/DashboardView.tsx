@@ -163,17 +163,14 @@ export const DashboardView: React.FC = () => {
   </section>;
   const resume = studyResumeUrl(widgets.channel.account);
   const hero = <header data-dashboard-hero className="relative shrink-0 overflow-hidden rounded-3xl border border-border-subtle bg-surface p-4 md:p-5">
-    <div className="relative z-10 flex items-center justify-between gap-3"><div className="min-w-0 flex-1 space-y-1.5">
+    <div className="relative z-10 min-w-0 space-y-1.5">
       <span className="inline-flex items-center gap-1.5 rounded-xl bg-primary-50 px-2.5 py-1 text-[10px] font-semibold text-primary md:text-xs"><Sparkles size={13} />Overview</span>
       <h1 className="text-xl font-bold tracking-tight md:text-2xl">保持心流，完成今日訂正
 
         {resume && <button type="button" aria-label="接續上次刷題" title="接續上次刷題" onClick={() => navigate(resume)} className=" inline-block p-0.5 ml-1.5 align-middle mb-1.5 cursor-pointer"><ArrowRight size={24} aria-hidden="true" /></button>}
       </h1>
       <p className="text-xs text-text-muted">{loading ? <span className="inline-flex items-center gap-1"><Loader2 size={12} className="animate-spin" />正在讀取進度…</span> : loadError ? '進度暫時無法載入。' : <>累積 {summary.total} 張錯題，已解決 {summary.resolved} 題 ({completionRate}% 訂正率)。</>}</p>
-    </div><div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-      {!isGuest && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/practice')}>原題練習</button>}
-      {!isGuest && <button className="min-h-11 rounded-xl border border-border-subtle bg-surface px-3 text-xs" onClick={() => navigate('/analysis')}>各科分析</button>}
-    </div></div>
+    </div>
     <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-linear-to-l from-accent-300/20 via-accent-100/15 to-transparent" />
   </header>;
   return <div data-dashboard className="flex h-full min-h-0 flex-col gap-3">

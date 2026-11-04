@@ -1,5 +1,6 @@
 export interface Weakness { id: string; title: string; target: string; subjectId: string }
 export interface WeaknessReview { ids: string[]; version: number }
+export interface AttemptReasonCandidate { id: string; text: string }
 export type WeaknessBasis = 'user_explicit' | 'observed_steps' | 'inferred_from_context';
 export interface WeaknessTrend extends Weakness {
   questions: number; confirmedAttempts: number; recurringAttempts: number; sameQuestionCorrect: number; delayedCorrect: number; needsReview: number;
