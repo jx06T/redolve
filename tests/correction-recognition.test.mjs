@@ -26,6 +26,7 @@ test('correction composites, confirmation, stale results and replay', async t =>
           error_reasons: ['將條件事件放在錯誤的分母位置', '忽略已知事件的範圍'], correction_summary: '先標出已知事件，再選擇分母。' };
         if (mode === 'structured') raw.weakness_candidates = [
           { text: '算條件機率時仍使用原樣本空間', weaknessId: 'math-conditional-sample', basis: 'observed_steps', clue: '分母仍用總樣本數', target: '改用條件後的分母' },
+          { text: '抄寫時把次數記反', weaknessId: null, basis: 'observed_steps', clue: '將正反面的次數對調', target: '核對表格標題和次數' },
           { text: '錯誤的未知 ID', weaknessId: 'math-foreign-id', basis: 'observed_steps', clue: '', target: '' },
         ];
         return new MFResponse(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(raw) }] } }] }), { headers: { 'Content-Type': 'application/json' } });
@@ -130,13 +131,16 @@ test('correction composites, confirmation, stale results and replay', async t =>
       const form = composite(11); form.delete('notes');
       const result = (await call('owned/q/correction', 'alice', 'POST', form)).data.data;
       assert.equal(result.status, 'complete');
-      assert.deepEqual(result.data.personal.errorReasons.map(r => r.weaknessId), ['math-conditional-sample']);
+      assert.deepEqual(result.data.personal.errorReasons.map(r => r.weaknessId), ['math-conditional-sample', undefined]);
+      assert.equal(result.data.personal.errorReasons[1].text, '抄寫時把次數記反');
       assert.equal(result.data.personal.errorReasons[0].accepted, undefined);
       const current = (await call('owned/q')).data, data = structuredClone(result.data);
       data.personal.errorReasons[0].accepted = true;
+      data.personal.errorReasons[1].accepted = true;
       const adopted = await save(current, data, result.id);
       assert.equal(adopted.status, 200, JSON.stringify(adopted.data));
       assert.ok(adopted.data.personal.errorReasons[0].confirmedAt);
+      assert.equal(adopted.data.personal.errorReasons[1].text, '抄寫時把次數記反');
     });
     await t.test('deleting a personal source cleans its recognition candidates', async () => {
       await db.exec("DELETE FROM items WHERE id='q';");

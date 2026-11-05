@@ -16,7 +16,7 @@ const finding = { type: Type.OBJECT, properties: { title: { type: Type.STRING },
   required: ['title', 'explanation', 'evidenceIds', 'metricIds', 'practiceQuestionIds'] };
 const promptVersions = {
   correction: CORRECTION_PROMPT_VERSION,
-  'weakness-suggestions': 'weakness-suggestions-v1',
+  'weakness-suggestions': 'weakness-suggestions-v2',
   'analysis-selection': 'analysis-selection-v2',
   'analysis-report': 'analysis-report-v2',
   'analysis-followup': 'analysis-followup-v2',
