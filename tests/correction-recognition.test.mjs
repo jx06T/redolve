@@ -131,6 +131,9 @@ test('correction composites, confirmation, stale results and replay', async t =>
       const form = composite(11); form.delete('notes');
       const result = (await call('owned/q/correction', 'alice', 'POST', form)).data.data;
       assert.equal(result.status, 'complete');
+      const mathPrompt = bodies.at(-1).contents[0].parts[0].text;
+      assert.match(mathPrompt, /乘以已知負數後未反轉不等號/);
+      assert.doesNotMatch(mathPrompt, /代入速率公式前未統一時間單位/);
       assert.deepEqual(result.data.personal.errorReasons.map(r => r.weaknessId), ['math-conditional-sample', undefined]);
       assert.equal(result.data.personal.errorReasons[1].text, '抄寫時把次數記反');
       assert.equal(result.data.personal.errorReasons[0].accepted, undefined);
@@ -141,6 +144,18 @@ test('correction composites, confirmation, stale results and replay', async t =>
       assert.equal(adopted.status, 200, JSON.stringify(adopted.data));
       assert.ok(adopted.data.personal.errorReasons[0].confirmedAt);
       assert.equal(adopted.data.personal.errorReasons[1].text, '抄寫時把次數記反');
+    });
+    await t.test('a subject without a weakness catalog still gets its own correction examples', async () => {
+      await sql(`INSERT INTO taxonomies(id,label,level) VALUES('physics','物理',0);
+        INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES('q-physics','alice','image','resolved','physics');`);
+      mode = 'valid';
+      const result = (await call('owned/q-physics/correction', 'alice', 'POST', composite(12))).data.data;
+      assert.equal(result.status, 'complete');
+      const prompt = bodies.at(-1).contents[0].parts[0].text;
+      assert.match(prompt, /代入速率公式前未統一時間單位/);
+      assert.match(prompt, /把位置時間圖的縱座標當成速度/);
+      assert.doesNotMatch(prompt, /乘以已知負數後未反轉不等號/);
+      assert.deepEqual(JSON.parse(prompt.split('資料：').at(-1)).catalog, []);
     });
     await t.test('deleting a personal source cleans its recognition candidates', async () => {
       await db.exec("DELETE FROM items WHERE id='q';");

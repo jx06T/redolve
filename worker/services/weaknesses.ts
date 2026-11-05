@@ -39,7 +39,7 @@ export async function weaknessContext(db: D1Database, uid: string, ref: Personal
     score: known.has(item.id) ? 100 : supplement.includes(item.title) || preview.includes(item.title) ? 50 : scores.get(item.id) ?? 0,
   })).filter(entry => entry.score > 0).sort((a, b) => b.score - a.score).slice(0, 12).map(entry => entry.item);
   const catalog = ranked.length || subjectId !== 'math' ? ranked : available.filter(item => item.id.startsWith('math-'));
-  return { catalog, tags };
+  return { catalog, tags, subjectId };
 }
 
 export async function weaknessIdsAllowed(db: D1Database, uid: string, subjectId: string | null, ids: string[]) {
