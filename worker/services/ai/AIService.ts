@@ -1,5 +1,5 @@
 import { TaxonomyNode } from '../../types';
-import type { AnalysisErrorReason, AnalysisErrorTag } from '../../../src/types/analysis';
+import type { AnalysisErrorReason, AnalysisErrorTag, AnalysisUnitResultChange } from '../../../src/types/analysis';
 import type { WeaknessAttemptEvidence, WeaknessTrend } from '../../../src/types/weakness';
 
 export interface TagResult {
@@ -26,6 +26,7 @@ export interface AIService {
   tagProblem(imageBytes: ArrayBuffer, taxonomyTree: TaxonomyNode[]): Promise<TagResult | null>;
 }
 export interface AnalysisCatalogEntry { id: string; topicId: string; text: string; attempts: number; correct: number; confirmed: boolean; hasCorrectAnswer: boolean;
+  unitResultChange?: AnalysisUnitResultChange;
   tags?: string[]; correctionDigest?: string; errorReasons?: AnalysisErrorReason[]; errorTags?: AnalysisErrorTag[];
   confirmedWeaknessIds?: string[]; weaknessReviews?: WeaknessAttemptEvidence[] }
 export interface AnalysisCandidateFinding { topic: string; rationale: string; supportingQuestionIds: string[] }

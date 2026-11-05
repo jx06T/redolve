@@ -163,6 +163,48 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
       const second = await cycles.beginCycleAnalysis(db, 'alice', { subjectId: 'stage-b' });
       assert.notEqual(first.id, second.id); assert.equal((await analysis.getAnalysis(db, 'alice', second.id)).stats.scope.subjectId, 'stage-b');
     });
+    await t.test('unit performance separates distinct questions, repeated attempts and frozen stage outcomes', async () => {
+      await sql(`INSERT INTO taxonomies(id,label,level) VALUES('biology','生物',0);
+        INSERT INTO taxonomies(id,label,level,parent_id) VALUES('division','細胞分裂',1,'biology'),('genetics','遺傳',1,'biology');
+        INSERT INTO items(id,user_id,image_url,status,topic_id) VALUES
+          ('division-one','alice','image','unsolved','division'),('division-two','alice','image','unsolved','division'),('moved','alice','image','unsolved','genetics');`);
+      const biology = { subjectId: 'biology' };
+      const [one, two, moved] = await Promise.all(['division-one', 'division-two', 'moved'].map(itemId => save({ kind: 'owned', itemId }, data())));
+      const firstAttempt = attempt(one, 'unit-first', { selfResult: 'correct', clientAnsweredAt: new Date(Date.now() - 120000).toISOString() });
+      const lastAttempt = attempt(one, 'unit-last', { clientAnsweredAt: new Date(Date.now() - 60000).toISOString() });
+      await practice.submitAttempt(db, 'alice', firstAttempt);
+      await practice.submitAttempt(db, 'alice', lastAttempt);
+      await practice.submitAttempt(db, 'alice', attempt(moved, 'unit-moved-before'));
+      const first = await cycles.beginCycleAnalysis(db, 'alice', biology);
+      const priorReport = await context.runAnalysis(db, 'alice', first.id, ai);
+      const prior = priorReport.stats.units.find(u => u.id === 'division');
+      assert.equal(prior.questions, 2);
+      assert.equal(prior.attempts, 2);
+      assert.deepEqual(prior.practice, { attemptedQuestions: 1, latestCorrect: 0, repeatedQuestions: 1, changedToCorrect: 0, changedToIncorrect: 1 });
+      const state = await db.prepare("SELECT material_json FROM analysis_subject_state WHERE user_id='alice' AND subject_id='biology'").first();
+      assert.ok(JSON.parse(state.material_json).every(row => !row.unitOutcome), 'per-question outcomes only live on the deletable report snapshot');
+
+      await db.prepare("UPDATE analysis_reports SET detail_expires_at='2000-01-01' WHERE id=?").bind(first.id).run();
+      await analysis.cleanupAnalysis(db);
+      await db.exec("UPDATE analysis_subject_state SET last_completed_at='2000-01-01' WHERE user_id='alice' AND subject_id='biology'");
+      await db.exec("UPDATE items SET topic_id='division' WHERE id='moved'");
+      await practice.submitAttempt(db, 'alice', { ...lastAttempt, id: 'unit-corrected', supersedesAttemptId: lastAttempt.id, selfResult: 'correct' });
+      await practice.submitAttempt(db, 'alice', attempt(one, 'unit-again', { selfResult: 'correct' }));
+      await practice.submitAttempt(db, 'alice', attempt(two, 'unit-new'));
+      await practice.submitAttempt(db, 'alice', attempt(moved, 'unit-moved-after', { selfResult: 'correct' }));
+      const nextStage = await cycles.beginCycleAnalysis(db, 'alice', biology);
+      const current = await context.runAnalysis(db, 'alice', nextStage.id, ai);
+      const unit = current.stats.units.find(u => u.id === 'division');
+      assert.equal(unit.questions, 3);
+      assert.equal(unit.attempts, 3, 'the corrected prior result is not a fourth attempt');
+      assert.equal(unit.practice.attemptedQuestions, 3);
+      assert.deepEqual(unit.previous, { attemptedQuestions: 1, attempts: 2, correct: 1 });
+      assert.deepEqual(unit.sameQuestions, { count: 1, changedToCorrect: 1, changedToIncorrect: 0 });
+      assert.equal(lastInput.previousReport.detailsAvailable, false);
+      assert.equal(lastSelection.catalog.find(entry => entry.id === one.id).unitResultChange, 'incorrect_to_correct');
+      assert.equal(lastInput.evidence.find(entry => entry.id === one.id).unitResultChange, 'incorrect_to_correct');
+      assert.equal(lastInput.evidence.find(entry => entry.id === moved.id).unitResultChange, undefined, 'a moved question is not paired across units');
+    });
     await t.test('indexed eligibility reads do not grow with unrelated attempt history', async () => {
       const noise = await save({ kind: 'owned', itemId: 'noise' }, data());
       const seed = async (start, end) => db.prepare(`WITH RECURSIVE n(x) AS (SELECT ? UNION ALL SELECT x+1 FROM n WHERE x<?)

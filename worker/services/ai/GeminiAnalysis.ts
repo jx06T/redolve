@@ -12,14 +12,16 @@ const strings = { type: Type.ARRAY, items: { type: Type.STRING } };
 const candidateFindings: Schema = { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
   topic: { type: Type.STRING }, rationale: { type: Type.STRING }, supportingQuestionIds: strings,
 }, required: ['topic', 'rationale', 'supportingQuestionIds'] } };
-const finding = { type: Type.OBJECT, properties: { title: { type: Type.STRING }, explanation: { type: Type.STRING }, evidenceIds: strings, metricIds: strings, practiceQuestionIds: strings },
-  required: ['title', 'explanation', 'evidenceIds', 'metricIds', 'practiceQuestionIds'] };
+const finding: Schema = { type: Type.OBJECT, properties: {
+  kind: { type: Type.STRING, enum: ['unit_performance', 'error_pattern', 'other'] },
+  title: { type: Type.STRING }, explanation: { type: Type.STRING }, evidenceIds: strings, metricIds: strings, practiceQuestionIds: strings },
+  required: ['kind', 'title', 'explanation', 'evidenceIds', 'metricIds', 'practiceQuestionIds'] };
 const promptVersions = {
   correction: CORRECTION_PROMPT_VERSION,
   'weakness-suggestions': 'weakness-suggestions-v2',
-  'analysis-selection': 'analysis-selection-v2',
-  'analysis-report': 'analysis-report-v2',
-  'analysis-followup': 'analysis-followup-v2',
+  'analysis-selection': 'analysis-selection-v3',
+  'analysis-report': 'analysis-report-v3',
+  'analysis-followup': 'analysis-followup-v3',
 };
 
 

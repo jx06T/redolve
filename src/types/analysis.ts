@@ -1,6 +1,16 @@
 import type { PracticeScope } from './practice';
 import type { LearningData, PersonalQuestionRef } from './learning';
-export interface AnalysisMetric { id: string; label: string; questions: number; attempts: number; correct: number; automatic: number; self: number; viewedImage: number }
+export interface AnalysisUnitPractice {
+  attemptedQuestions: number; latestCorrect: number;
+  repeatedQuestions: number; changedToCorrect: number; changedToIncorrect: number;
+}
+export type AnalysisUnitResultChange = 'incorrect_to_correct' | 'correct_to_incorrect' | 'unchanged';
+export interface AnalysisMetric {
+  id: string; label: string; questions: number; attempts: number; correct: number; automatic: number; self: number; viewedImage: number;
+  practice?: AnalysisUnitPractice;
+  previous?: { attempts: number; correct: number; attemptedQuestions?: number };
+  sameQuestions?: { count: number; changedToCorrect: number; changedToIncorrect: number };
+}
 export interface AnalysisStats {
   scope: PracticeScope; days: number; from: string; cutoff: string; questions: number; prepared: number; confirmed: number;
   attempts: number; correct: number; automatic: number; self: number; viewedImage: number;
@@ -22,6 +32,7 @@ export type AnalysisErrorReason = LearningData['personal']['errorReasons'][numbe
 export interface AnalysisErrorTag { code: string; label: string; reasonIndex: number }
 export interface AnalysisEvidence { id: string; ref: PersonalQuestionRef; revisionId: string; topicId: string; text: string; originalAnswer: unknown; correctAnswer: unknown; errorReasons: unknown; attempts: number; correct: number;
   confirmationStatus?: 'ai' | 'confirmed';
+  unitResultChange?: AnalysisUnitResultChange;
   tags?: string[];
   errorTags?: AnalysisErrorTag[];
   confirmedWeaknessIds?: string[];
@@ -31,7 +42,10 @@ export interface AnalysisEvidence { id: string; ref: PersonalQuestionRef; revisi
   recentAttempts?: { id: string; revisionId: string; answer: unknown; correctAnswer: unknown; answerDisplay?: string; correctAnswerDisplay?: string;
     result: string; gradingMethod: string; answeredAt: string; usedOriginalImage: boolean }[];
 }
-export interface AnalysisFinding { title: string; explanation: string; evidenceIds: string[]; metricIds: string[]; practiceQuestionIds?: string[] }
+export interface AnalysisFinding {
+  kind?: 'unit_performance' | 'error_pattern' | 'other';
+  title: string; explanation: string; evidenceIds: string[]; metricIds: string[]; practiceQuestionIds?: string[];
+}
 export interface AnalysisInterpretation { overview?: string; findings: AnalysisFinding[] }
 export interface AnalysisReport { id: string; status: 'pending' | 'complete' | 'failed'; stats: AnalysisStats;
   interpretation: AnalysisInterpretation | null; evidence: AnalysisEvidence[]; createdAt: string; detailExpiresAt: string; expired: boolean; error: string | null;

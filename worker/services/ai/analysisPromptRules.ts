@@ -11,6 +11,8 @@ errorTagCounts 是後端依可辨識的分類按題去重的計數；adoptedQues
 confirmedWeaknessIds 是本人確認的訂正關聯；weaknessReviews 是本人為特定答錯作答確認的弱點。只有這兩類能計入特定弱點 ID；已採用的自由文字仍可用於單題觀察。weaknessTrends 的 confirmedAttempts 是本期已確認的答錯事件，可能是首次標記；recurringAttempts 是當中有更早有效證據的事件。sameQuestionCorrect 和 delayedCorrect 只反映同題表現，不能當作方法已驗證。
 沒有重作時可整理題目內容與訂正觀察，不能宣稱進退或掌握度。原作答與正解不足時不可猜具體錯因。自評與看原圖紀錄不能當無提示自動測驗。
 comparison 是前一段不重疊、相同天數的紀錄；樣本組合與數量可能不同。matchedQuestions 是兩期間皆做過的同題，仍不能當整科能力改變。
+stats.units 以題目所屬分類分組。questions 是收錄題數；attempts、correct 是作答次數；practice.attemptedQuestions 是做過的不同題數，latestCorrect 是這些題本期最後一次答對的題數。practice.changedToCorrect／changedToIncorrect 比較本期同題首次與末次。previous 是前期作答統計；sameQuestions 比較同一單元、兩期都做過的題，各取該期末次有效結果。沒有 sameQuestions 時只比較各期樣本。單元表現可以指出複習範圍，無法單靠計數推知具體錯法；無重作時只能描述收錄或訂正內容。
+題目的 unitResultChange 對應兩期同題末次結果，incorrect_to_correct 是錯轉對，correct_to_incorrect 是對轉錯，unchanged 是結果相同。結果更正可能出現在題目明細中，描述跨期變化時以已計算的 unitResultChange 為準。
 recentAttempts 保存當時答案與判分，不可用目前正解重判歷史。AI 辨識資料未必經本人確認。不得引用他人共享筆記為本人錯因。correctionSummary 是使用者採用的訂正整理，不能當成一次獨立重作或已掌握的證明。
 引用只用提供的原始 ID；不要自己製造網址、題目 ID、Markdown 連結或引用標記。前端負責渲染 evidenceIds。資料不足時明說，提供具體可行的下一步。
 ${mathContentRules}`;

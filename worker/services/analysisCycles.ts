@@ -1,13 +1,15 @@
 import { DEFAULT_GEMINI_STUDY_MODEL } from './ai/models';
 import type { AnalysisEligibility, AnalysisStats, PreviousAnalysisContext } from '../../src/types/analysis';
 import type { PracticeScope } from '../../src/types/practice';
-import { analysisSnapshot, getAnalysis } from './personalAnalysis';
+import { analysisSnapshot, compareUnitPractice, getAnalysis } from './personalAnalysis';
+import type { UnitOutcome } from './personalAnalysis';
 import { buildAnalysisContext } from './analysisContext';
 import { digest, PracticeError, scopeStatement, scopeTopics } from './practice';
 import type { ScopeQuestion } from './practice';
 
 export const ANALYSIS_COOLDOWN_MS = 3 * 86400000;
 interface Material { key: string; id: string | null; revisionId: string | null; prepared: number }
+interface ReportMaterial extends Material { unitOutcome?: UnitOutcome }
 interface State { last_report_id: string | null; last_cutoff_at: string | null; last_completed_at: string | null; material_json: string; boundary_json: string; active_report_id: string | null }
 const materials = (questions: ScopeQuestion[]): Material[] => questions.map(q => ({ key: q.itemId ? `owned:${q.itemId}` : `saved:${q.savedRefId}`, id: q.id, revisionId: q.revisionId, prepared: q.prepared }));
 
@@ -98,7 +100,20 @@ export async function beginCycleAnalysis(db: D1Database, uid: string, scope: Pra
     from: snapshot.stats.from, cutoff, changes: status.changes };
   let previousReport: PreviousAnalysisContext | undefined;
   if (state.last_cutoff_at) {
-    const previous = state.last_report_id ? await getAnalysis(db, uid, state.last_report_id).catch(e => { if (e instanceof PracticeError && e.status === 404) return null; throw e; }) : null;
+    const [previous, priorCycle] = state.last_report_id ? await Promise.all([
+      getAnalysis(db, uid, state.last_report_id).catch(e => { if (e instanceof PracticeError && e.status === 404) return null; throw e; }),
+      db.prepare(`SELECT c.material_json FROM analysis_report_cycles c JOIN analysis_reports r ON r.id=c.report_id
+        WHERE r.user_id=? AND c.report_id=?`).bind(uid, state.last_report_id).first<{ material_json: string }>(),
+    ]) : [null, null];
+    if (previous) {
+      const previousUnits = new Map(previous.stats.units.map(unit => [unit.id, { attempts: unit.attempts, correct: unit.correct,
+        attemptedQuestions: unit.practice?.attemptedQuestions }]));
+      const previousOutcomes = new Map<string, UnitOutcome>();
+      if (priorCycle) for (const row of JSON.parse(priorCycle.material_json) as ReportMaterial[]) {
+        if (row.id && row.unitOutcome) previousOutcomes.set(row.id, row.unitOutcome);
+      }
+      snapshot.unitResultChanges = compareUnitPractice(snapshot.stats.units, previousUnits, snapshot.unitOutcomes, previousOutcomes);
+    }
     const ids = new Set(snapshot.questions.map(q => q.id));
     previousReport = { id: previous?.id || null, cutoff: state.last_cutoff_at, stats: previous?.stats || null, detailsAvailable: !!previous?.interpretation,
       interpretation: previous?.interpretation ? { overview: previous.interpretation.overview?.slice(0, 2000), findings: previous.interpretation.findings.map(f => ({ ...f,
@@ -107,9 +122,12 @@ export async function beginCycleAnalysis(db: D1Database, uid: string, scope: Pra
   }
   const context = await buildAnalysisContext(db, uid, snapshot, { previousReport,
     changes: { newQuestionIds: inspected.newIds, updatedQuestionIds: inspected.changedIds, practicedQuestionIds: inspected.receiptIds } });
-  const material = materials(snapshot.questions);
+  const material: ReportMaterial[] = inspected.material.map(q => {
+    const unitOutcome = q.id ? snapshot.unitOutcomes.get(q.id) : undefined;
+    return unitOutcome ? { ...q, unitOutcome } : q;
+  });
   const boundary = [...new Set(snapshot.contextEvents.flatMap(e => [...(e.received_at === cutoff ? [e.id] : []), ...(e.root_received_at === cutoff ? [e.root_id!] : [])]))];
-  const hash = await digest({ subjectId: scope.subjectId, stage: state.last_cutoff_at || 'initial', material, attempts: context.attemptIds, timezone, model, prompt: 'subject-cycle-v1' });
+  const hash = await digest({ subjectId: scope.subjectId, stage: state.last_cutoff_at || 'initial', material, attempts: context.attemptIds, timezone, model, prompt: 'subject-cycle-v2' });
   const id = crypto.randomUUID(), expires = new Date(Date.now() + 90 * 86400000).toISOString(), lease = new Date(Date.now() + 240000).toISOString();
   await db.batch([
     db.prepare(`INSERT OR IGNORE INTO analysis_subject_state(user_id,subject_id,last_report_id,last_cutoff_at,last_completed_at,material_json,boundary_json)
@@ -118,7 +136,7 @@ export async function beginCycleAnalysis(db: D1Database, uid: string, scope: Pra
       (SELECT id FROM analysis_reports WHERE detail_expires_at<=?)`).bind(uid, scope.subjectId, cutoff),
     db.prepare(`UPDATE analysis_reports SET input_hash=input_hash||':expired:'||id WHERE user_id=? AND input_hash=? AND detail_expires_at<=?`).bind(uid, hash, cutoff),
     db.prepare(`INSERT OR IGNORE INTO analysis_reports(id,user_id,subject_id,topic_id,days,input_hash,status,stats_json,evidence_json,prompt_version,created_at,detail_expires_at,lease_until)
-      SELECT ?,?,?,NULL,30,?,'pending',?,'[]','subject-cycle-v1',?,?,? FROM analysis_subject_state
+      SELECT ?,?,?,NULL,30,?,'pending',?,'[]','subject-cycle-v2',?,?,? FROM analysis_subject_state
       WHERE user_id=? AND subject_id=? AND last_report_id IS ? AND last_cutoff_at IS ? AND active_report_id IS NULL`)
       .bind(id, uid, scope.subjectId, hash, JSON.stringify(snapshot.stats), cutoff, expires, lease, uid, scope.subjectId, state.last_report_id, state.last_cutoff_at),
     db.prepare(`INSERT INTO analysis_report_questions(report_id,source_key,item_id,saved_ref_id,revision_id)
@@ -149,8 +167,10 @@ export async function prepareCycleRun(db: D1Database, uid: string, id: string) {
 }
 
 export function completeCycleStatement(db: D1Database, uid: string, id: string, token: string) {
+  // Per-question outcomes stay in the report snapshot, which is removed with its source questions.
   return db.prepare(`UPDATE analysis_subject_state SET last_report_id=?,last_completed_at=?,last_cutoff_at=(SELECT cutoff_at FROM analysis_report_cycles WHERE report_id=?),
-    material_json=(SELECT material_json FROM analysis_report_cycles WHERE report_id=?),boundary_json=(SELECT boundary_json FROM analysis_report_cycles WHERE report_id=?),active_report_id=NULL
+    material_json=(SELECT json_group_array(json_remove(j.value,'$.unitOutcome')) FROM analysis_report_cycles c,json_each(c.material_json) j WHERE c.report_id=?),
+    boundary_json=(SELECT boundary_json FROM analysis_report_cycles WHERE report_id=?),active_report_id=NULL
     WHERE user_id=? AND active_report_id=? AND EXISTS(SELECT 1 FROM analysis_report_cycles WHERE report_id=?)
     AND EXISTS(SELECT 1 FROM analysis_reports r JOIN analysis_report_contexts c ON c.report_id=r.id WHERE r.id=? AND r.user_id=? AND r.status='complete' AND c.run_token=?)`)
     .bind(id, new Date().toISOString(), id, id, id, uid, id, id, id, uid, token);

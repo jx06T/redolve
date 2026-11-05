@@ -1,5 +1,5 @@
 import { DEFAULT_GEMINI_STUDY_MODEL } from './ai/models';
-import type { AnalysisErrorReason, AnalysisEvidence, AnalysisInterpretation, AnalysisReport, AnalysisStats } from '../../src/types/analysis';
+import type { AnalysisErrorReason, AnalysisEvidence, AnalysisInterpretation, AnalysisMetric, AnalysisReport, AnalysisStats, AnalysisUnitResultChange } from '../../src/types/analysis';
 import type { AnalysisCatalogEntry } from './ai/AIService';
 import type { PracticeScope } from '../../src/types/practice';
 import { ANALYSIS_PERIOD_DAYS } from '../../src/types/learning';
@@ -9,6 +9,32 @@ import { buildAnalysisContext } from './analysisContext';
 
 interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string; received_at: string; root_id?: string; root_received_at?: string }
 export interface CycleWindow { from: string; cutoff: string; boundaryIds: string[] }
+export interface UnitOutcome { topicId: string; correct: boolean }
+
+export function compareUnitPractice(
+  units: AnalysisMetric[], previousUnits: ReadonlyMap<string, NonNullable<AnalysisMetric['previous']>>,
+  currentOutcomes: ReadonlyMap<string, UnitOutcome>, previousOutcomes: ReadonlyMap<string, UnitOutcome>,
+) {
+  const byTopic = new Map(units.map(unit => [unit.id, unit]));
+  const changes = new Map<string, AnalysisUnitResultChange>();
+  for (const unit of units) {
+    const prior = previousUnits.get(unit.id);
+    if (prior?.attempts) unit.previous = prior;
+  }
+  for (const [id, current] of currentOutcomes) {
+    const prior = previousOutcomes.get(id);
+    if (!prior || prior.topicId !== current.topicId) continue;
+    const unit = byTopic.get(current.topicId)!;
+    const matched = unit.sameQuestions ??= { count: 0, changedToCorrect: 0, changedToIncorrect: 0 };
+    matched.count++;
+    const change = prior.correct === current.correct ? 'unchanged' : current.correct ? 'incorrect_to_correct' : 'correct_to_incorrect';
+    changes.set(id, change);
+    if (change === 'incorrect_to_correct') matched.changedToCorrect++;
+    if (change === 'correct_to_incorrect') matched.changedToIncorrect++;
+  }
+  return changes;
+}
+
 export async function analysisSnapshot(db: D1Database, uid: string, scope: PracticeScope, days: number, timezone = 'UTC', window?: CycleWindow, includeComparison = true) {
   if (!window && !ANALYSIS_PERIOD_DAYS.some(d => d === days)) throw new PracticeError(422, '請選擇 7、15、30、60 或 90 天');
   let dateFormatter: Intl.DateTimeFormat;
@@ -36,7 +62,8 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
   const previous = window ? [] : allEvents.filter(e => e.answered_at < from);
   if (questions.length > 2000) throw new PracticeError(422, '此科超過目前 2,000 題的分析上限；縮短期間不會排除舊題');
   if (allEvents.length > 20000 || events.length > 10000 || previous.length > 10000) throw new PracticeError(422, window ? '此階段超過 10,000 筆作答的分析上限，請聯絡管理員協助處理' : '本期或前期超過 10,000 筆作答，請縮短期間');
-  const units = topics.ids.map(id => ({ id, label: topics.labels[id], questions: 0, attempts: 0, correct: 0, automatic: 0, self: 0, viewedImage: 0 }));
+  const units = topics.ids.map(id => ({ id, label: topics.labels[id], questions: 0, attempts: 0, correct: 0, automatic: 0, self: 0, viewedImage: 0,
+    practice: { attemptedQuestions: 0, latestCorrect: 0, repeatedQuestions: 0, changedToCorrect: 0, changedToIncorrect: 0 } }));
   const byTopic = new Map(units.map(u => [u.id, u])), byQuestion = new Map<string, Event[]>();
   for (const q of questions) byTopic.get(q.topicId)!.questions++;
   for (const e of events) {
@@ -44,7 +71,34 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
     u.automatic += e.grading_method === 'automatic' ? 1 : 0; u.self += e.grading_method === 'self' ? 1 : 0; u.viewedImage += e.used_original_image;
     const questionEvents = byQuestion.get(e.learning_question_id) || []; questionEvents.push(e); byQuestion.set(e.learning_question_id, questionEvents);
   }
-  const repeated = [...byQuestion.values()].filter(es => es.length >= 2);
+  const unitOutcomes = new Map<string, UnitOutcome>();
+  for (const [id, attempts] of byQuestion) {
+    const { topicId, result } = attempts.at(-1)!;
+    const correct = result === 'correct';
+    unitOutcomes.set(id, { topicId, correct });
+    const unit = byTopic.get(topicId)!.practice;
+    unit.attemptedQuestions++;
+    if (correct) unit.latestCorrect++;
+    if (attempts.length < 2) continue;
+    unit.repeatedQuestions++;
+    if (!correct && attempts[0].result === 'correct') unit.changedToIncorrect++;
+    if (correct && attempts[0].result === 'incorrect') unit.changedToCorrect++;
+  }
+  let unitResultChanges = new Map<string, AnalysisUnitResultChange>();
+  if (previous.length) {
+    const previousUnits = new Map<string, { attempts: number; correct: number; attemptedQuestions: number }>();
+    const previousOutcomes = new Map<string, UnitOutcome>();
+    for (const event of previous) {
+      const correct = event.result === 'correct';
+      const unit = previousUnits.get(event.topicId) ?? { attempts: 0, correct: 0, attemptedQuestions: 0 };
+      unit.attempts++;
+      if (correct) unit.correct++;
+      if (!previousOutcomes.has(event.learning_question_id)) unit.attemptedQuestions++;
+      previousUnits.set(event.topicId, unit);
+      previousOutcomes.set(event.learning_question_id, { topicId: event.topicId, correct });
+    }
+    unitResultChanges = compareUnitPractice(units, previousUnits, unitOutcomes, previousOutcomes);
+  }
   const daily = new Map<string, { date: string; attempts: number; correct: number; automatic: number; self: number }>();
   for (const event of events) {
     const date = dateFormatter.format(new Date(window ? event.root_received_at! : event.answered_at));
@@ -68,10 +122,11 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
     sources: { owned: questions.filter(q => q.itemId).length, saved: questions.filter(q => q.savedRefId).length }, daily: [...daily.values()],
     attempts: events.length, correct: events.filter(e => e.result === 'correct').length, automatic: events.filter(e => e.grading_method === 'automatic').length,
     self: events.filter(e => e.grading_method === 'self').length, viewedImage: events.filter(e => e.used_original_image).length,
-    repeatedQuestions: repeated.length, changedToCorrect: repeated.filter(es => es[0].result === 'incorrect' && es.at(-1)!.result === 'correct').length,
-    changedToIncorrect: repeated.filter(es => es[0].result === 'correct' && es.at(-1)!.result === 'incorrect').length, units: units.filter(u => u.questions || u.attempts) };
+    repeatedQuestions: units.reduce((n, u) => n + u.practice.repeatedQuestions, 0),
+    changedToCorrect: units.reduce((n, u) => n + u.practice.changedToCorrect, 0),
+    changedToIncorrect: units.reduce((n, u) => n + u.practice.changedToIncorrect, 0), units: units.filter(u => u.questions || u.attempts) };
   if (window || !includeComparison) delete stats.comparison;
-  return { stats, questions, events, byQuestion, previous, contextEvents: allEvents };
+  return { stats, questions, events, byQuestion, previous, contextEvents: allEvents, unitOutcomes, unitResultChanges };
 }
 export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pick<Awaited<ReturnType<typeof analysisSnapshot>>, 'stats' | 'questions' | 'byQuestion'>, selectedIds?: string[], catalog?: Map<string, AnalysisCatalogEntry>, frozenAttemptIds?: string[]) {
   // Representative sample, balanced across units; repeated errors first within a unit.
@@ -114,6 +169,7 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pi
     const entry = catalog?.get(q.id!);
     evidence.push({ id: q.id!, ref: q.itemId ? { kind: 'owned', itemId: q.itemId } : { kind: 'saved', savedRefId: q.savedRefId! },
       revisionId: row.id, topicId: q.topicId, text: [content.ocrText, ...content.options.map((o: { label: string; text: string }) => `${o.label} ${o.text}`)].join('\n').slice(0, 3000),
+      ...(entry?.unitResultChange ? { unitResultChange: entry.unitResultChange } : {}),
       originalAnswer: shortAnswer(personal.originalAnswer), correctAnswer: shortAnswer(content.correctAnswer),
       errorReasons: (personal.errorReasons as AnalysisErrorReason[]).slice(0, 12).map(r => ({ ...r, text: r.text.slice(0, 300) })),
       ...(entry?.tags ? { tags: entry.tags } : {}), ...(entry?.errorTags ? { errorTags: entry.errorTags } : {}),
@@ -135,15 +191,20 @@ export async function analysisEvidence(db: D1Database, uid: string, snapshot: Pi
 export function validateInterpretation(raw: unknown, evidence: AnalysisEvidence[], stats: AnalysisStats): AnalysisInterpretation {
   const value = raw as AnalysisInterpretation;
   if (!value || !Array.isArray(value.findings) || value.findings.length > Math.max(10, evidence.length * 3)) throw Error('Invalid analysis response');
-  const evidenceIds = new Set(evidence.map(e => e.id)), metrics = new Set(['subject', ...stats.units.map(u => u.id)]);
+  const evidenceTopics = new Map(evidence.map(e => [e.id, e.topicId])), metrics = new Set(['subject', ...stats.units.map(u => u.id)]);
   if (value.overview !== undefined && (typeof value.overview !== 'string' || value.overview.length > 6000)) throw Error('Invalid overview');
   return { ...(value.overview ? { overview: value.overview.trim() } : {}), findings: value.findings.map(f => {
     if (typeof f.title !== 'string' || !f.title.trim() || f.title.length > 160 || typeof f.explanation !== 'string' || f.explanation.length > 3000 ||
-      !Array.isArray(f.evidenceIds) || f.evidenceIds.length > 30 || f.evidenceIds.some(id => !evidenceIds.has(id)) ||
+      !Array.isArray(f.evidenceIds) || f.evidenceIds.length > 30 || f.evidenceIds.some(id => !evidenceTopics.has(id)) ||
       !Array.isArray(f.metricIds) || (!f.evidenceIds.length && !f.metricIds.length) || f.metricIds.some(id => !metrics.has(id))) throw Error('Invalid analysis evidence');
+    if (f.kind !== undefined && f.kind !== 'other' && f.kind !== 'unit_performance' && f.kind !== 'error_pattern') throw Error('Invalid finding kind');
+    if (f.kind === 'unit_performance' && (!f.metricIds.some(id => id !== 'subject') ||
+      f.evidenceIds.some(id => !f.metricIds.includes(evidenceTopics.get(id)!)))) throw Error('Invalid finding evidence');
+    if (f.kind === 'error_pattern' && !f.evidenceIds.length) throw Error('Invalid finding evidence');
     const practice = f.practiceQuestionIds;
     if (practice !== undefined && (!Array.isArray(practice) || practice.length > 5 || practice.some(id => !f.evidenceIds.includes(id)))) throw Error('Invalid practice evidence');
     return { title: f.title.trim(), explanation: f.explanation.trim(), evidenceIds: [...new Set(f.evidenceIds)], metricIds: [...new Set(f.metricIds)],
+      ...(f.kind ? { kind: f.kind } : {}),
       ...(practice === undefined ? {} : { practiceQuestionIds: [...new Set(practice)] }) };
   }) };
 }

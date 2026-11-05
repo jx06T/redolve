@@ -38,7 +38,7 @@ test('practice submissions, corrections, analysis snapshots and private retentio
         if(body.generationConfig.responseSchema.properties.text)return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({text:'依據報告當時資料，請比較條件並重新作答。',evidenceIds:[providerMode==='invalid-evidence'?'foreign':input.evidence[0].id]})}]}}]}),{headers:{'Content-Type':'application/json'}});
         const id=providerMode==='invalid-evidence'?'foreign':input.evidence[0].id;
         assert.ok(input.candidateFindings.every(f=>f.supportingQuestionIds.every(id=>input.evidence.some(e=>e.id===id))));
-        const findings=Array.from({length:4},(_,i)=>({title:'考點 '+i,explanation:'請比較題目條件並用原題驗證。',evidenceIds:[id],metricIds:[input.stats.units[0].id],practiceQuestionIds:i===0?[id]:[]}));
+        const findings=Array.from({length:4},(_,i)=>({kind:i===0?'unit_performance':'error_pattern',title:'考點 '+i,explanation:'請比較題目條件並用原題驗證。',evidenceIds:[id],metricIds:[input.evidence[0].topicId],practiceQuestionIds:i===0?[id]:[]}));
         return new MFResponse(JSON.stringify({candidates:[{content:{parts:[{text:JSON.stringify({overview:'整科統計顯示目前只能解讀個人重作紀錄。',findings})}]},finishReason:'STOP'}],modelVersion:'qa-model'}),{headers:{'Content-Type':'application/json'}});
       }});
     const db=await mf.getD1Database('DB');const sql=async text=>{for(const q of unstable_splitSqlQuery(text.replace(/^\s*--[^\r\n]*$/gm,'')))await db.exec(q.replace(/\r?\n/g,' '));};
@@ -104,6 +104,10 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.throws(()=>analysis.validateInterpretation({findings:[{title:'假的',explanation:'假的',evidenceIds:['foreign'],metricIds:[]}]},evidence,snap.stats),/Invalid/);
       assert.throws(()=>analysis.validateInterpretation({findings:[{title:'觀察',explanation:'假的重作引用',evidenceIds:[questions[0].id],metricIds:[],practiceQuestionIds:['foreign']}]},evidence,snap.stats),/Invalid practice evidence/);
       assert.equal(analysis.validateInterpretation({findings:[{title:'觀察',explanation:'請比較條件',evidenceIds:[questions[0].id],metricIds:['math']}]},evidence,snap.stats).findings.length,1);
+      const unitFinding={kind:'unit_performance',title:'單元',explanation:'這個單元值得回看',evidenceIds:[questions[0].id],metricIds:['subject']};
+      assert.throws(()=>analysis.validateInterpretation({findings:[unitFinding]},evidence,snap.stats),/Invalid finding evidence/);
+      assert.throws(()=>analysis.validateInterpretation({findings:[{...unitFinding,metricIds:['math']} ]},[{...detail,topicId:'other'}],snap.stats),/Invalid finding evidence/);
+      assert.throws(()=>analysis.validateInterpretation({findings:[{...unitFinding,kind:'error_pattern',evidenceIds:[]}]},evidence,snap.stats),/Invalid finding evidence/);
     });
     await t.test('manual report generation reaches the provider and reuses only valid scoped results',async()=>{
       const waitFor=async id=>{const run=await call('/analysis/reports/'+id+'/run','alice','POST',{});assert.equal(run.data.ok,true,JSON.stringify(run.data));for(let tries=0;tries<100;tries++){const r=await call('/analysis/reports/'+id);if(r.data.status!=='pending')return r.data;await new Promise(resolve=>setTimeout(resolve,20));}throw Error('Report did not finish');};
@@ -113,6 +117,7 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       assert.deepEqual(providerModels.slice(-2), ['qa-select:generateContent','qa-report:generateContent']);
       assert.deepEqual(report.interpretation.findings[0].practiceQuestionIds, report.interpretation.findings[0].evidenceIds);
       assert.deepEqual(report.interpretation.findings[1].practiceQuestionIds, []);
+      assert.deepEqual(report.interpretation.findings.map(f=>f.kind),['unit_performance','error_pattern','error_pattern','error_pattern']);
       const reportPrompt=providerRequests.at(-1).contents.flatMap(c=>c.parts.map(p=>p.text||'')).join('\n');
       assert.equal(JSON.parse(reportPrompt.split('資料：').at(-1)).candidateFindings[0].topic,'條件檢查');
       const calls=providerRequests.length;const reused=await call('/analysis/reports','alice','POST',{scope:{subjectId:'math'},days:90,timezone:'Asia/Taipei'});
@@ -139,9 +144,11 @@ test('practice submissions, corrections, analysis snapshots and private retentio
         FROM practice_attempts WHERE id=?`).bind(prior,prior,prior,replacement.id).run();
       const numeric=(await call('/analysis/stats','alice','POST',{scope:{subjectId:'math'},days:30})).data;
       assert.equal(numeric.comparison,undefined,'latest statistics read only the selected interval');
+      assert.equal(numeric.units.find(u=>u.id==='math').practice.attemptedQuestions,3);
       const legacyStats=(await analysis.analysisSnapshot(db,'alice',{subjectId:'math'},30)).stats;
       assert.equal(legacyStats.comparison.attempts,1);assert.equal(legacyStats.comparison.matchedQuestions,1);
       assert.ok(legacyStats.comparison.currentMatchedAttempts>=2);assert.equal(legacyStats.comparison.previousMatchedAttempts,1);
+      assert.equal(legacyStats.units.find(u=>u.id==='math').sameQuestions.count,1);
       const calls=providerRequests.length,overview=await call('/analysis/overview?days=30');
       assert.equal(providerRequests.length,calls,'overview does not call AI');
       assert.equal(overview.data.subjects.find(s=>s.id==='math').questions,4);assert.equal(overview.data.subjects.find(s=>s.id==='math').attempts,numeric.attempts);

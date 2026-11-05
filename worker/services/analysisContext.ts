@@ -54,7 +54,9 @@ export async function buildAnalysisContext(db: D1Database, uid: string, snapshot
       const raw: unknown = JSON.parse(row.tags || '[]');
       if (Array.isArray(raw)) tags = raw.filter((tag): tag is string => typeof tag === 'string').slice(0, 8).map(tag => tag.slice(0, 60));
     } catch { /* Older keyword data may not be JSON. */ }
+    const unitResultChange = snapshot.unitResultChanges.get(q.id!);
     return { id: q.id!, topicId: q.topicId, text: row.text || '', attempts: events.length,
+      ...(unitResultChange ? { unitResultChange } : {}),
       correct: events.filter(e => e.result === 'correct').length, confirmed: q.confirmationStatus === 'confirmed', hasCorrectAnswer: !q.missingCorrectAnswer,
       ...(tags.length ? { tags } : {}), ...(row.correctionDigest ? { correctionDigest: row.correctionDigest } : {}),
       ...(errorReasons.length ? { errorReasons } : {}), ...(errorTags.length ? { errorTags } : {}),

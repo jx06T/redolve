@@ -2,10 +2,29 @@ import { ArrowRight, ChevronDown } from 'lucide-react';
 import { AnalysisCitations } from './AnalysisCitations';
 import { ExpandableAnalysisText } from './ExpandableAnalysisText';
 import { RichText } from './RichText';
-import type { AnalysisReport, AnalysisStats } from '../types/analysis';
+import type { AnalysisMetric, AnalysisReport, AnalysisStats } from '../types/analysis';
 
 const button = 'min-h-11 rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
 const tableClass = 'w-full text-left text-sm [&_th]:pb-3 [&_th]:font-medium [&_th]:text-text-muted [&_td]:py-3 [&_td]:pr-3';
+
+function UnitPracticeResult({ unit, previousLabel, showComparison }: { unit: AnalysisMetric; previousLabel: string; showComparison: boolean }) {
+  const { practice, previous, sameQuestions } = unit;
+  return <div className="space-y-1 tabular-nums">
+    {unit.attempts ? <p>{practice && <>重作 {practice.attemptedQuestions} 題 · </>}答對 {unit.correct}／{unit.attempts} 次</p> : <p>尚無作答</p>}
+    {practice && practice.attemptedQuestions > 0 && practice.attemptedQuestions < unit.attempts && <p className="text-xs text-text-muted">
+      各題末次答對 {practice.latestCorrect} 題
+    </p>}
+    {!!practice?.repeatedQuestions && <p className="text-xs text-text-muted">
+      期內同題 {practice.repeatedQuestions} 題 · 錯轉對 {practice.changedToCorrect} 題 · 對轉錯 {practice.changedToIncorrect} 題
+    </p>}
+    {showComparison && previous && <p className="text-xs text-text-muted">
+      {previousLabel} · {previous.attemptedQuestions !== undefined && <>重作 {previous.attemptedQuestions} 題 · </>}答對 {previous.correct}／{previous.attempts} 次
+    </p>}
+    {showComparison && sameQuestions && <p className="text-xs text-text-muted">
+      兩期同題 {sameQuestions.count} 題 · 錯轉對 {sameQuestions.changedToCorrect} 題 · 對轉錯 {sameQuestions.changedToIncorrect} 題
+    </p>}
+  </div>;
+}
 
 export function AnalysisStatsSummary({ stats }: { stats: AnalysisStats }) {
   return <div className="space-y-3">
@@ -42,13 +61,16 @@ export function AnalysisStatsContent({ stats, showComparison = true }: { stats: 
       <p className="text-xs leading-6 text-text-muted">以上反映產品中的重作結果；不同題目組合、自評或查看原圖都可能影響表現，不能當作整科能力分數。</p>
     </section>
     <div className="grid gap-6 border-t border-border-subtle pt-6 md:grid-cols-2 md:gap-8">
-      <section aria-label="各單元" className="min-w-0 space-y-4">
-        <h3 className="font-medium">各單元</h3>
+      <section aria-label="單元表現" className="min-w-0 space-y-4">
+        <h3 className="font-medium">單元表現</h3>
         {stats.units.length ? <div className="overflow-x-auto"><table className={tableClass}>
           <caption className="sr-only">各單元題數與重作結果</caption>
-          <thead><tr><th>單元</th><th className="whitespace-nowrap">題數</th><th className="whitespace-nowrap">答對／作答</th></tr></thead>
-          <tbody className="divide-y divide-border-subtle">{stats.units.map(unit => <tr key={unit.id}><td>{unit.label}</td><td>{unit.questions}</td><td className="whitespace-nowrap">{unit.attempts ? `${unit.correct}／${unit.attempts}` : '尚無作答'}</td></tr>)}</tbody>
+          <thead><tr><th>單元</th><th className="whitespace-nowrap">收錄</th><th>重作結果</th></tr></thead>
+          <tbody className="divide-y divide-border-subtle align-top">{stats.units.map(unit => <tr key={unit.id}><td className="break-words">{unit.label}</td><td className="tabular-nums">{unit.questions}</td><td>
+            <UnitPracticeResult unit={unit} showComparison={showComparison} previousLabel={stats.cycle ? '上份報告' : '前期'} />
+          </td></tr>)}</tbody>
         </table></div> : <p className="text-sm text-text-muted">尚無單元資料。</p>}
+        {showComparison && stats.units.some(unit => unit.sameQuestions) && <p className="text-xs leading-6 text-text-muted">兩期同題以各期最後一次有效作答比較。</p>}
       </section>
       <section aria-label="資料組成" className="min-w-0 space-y-4">
         <h3 className="font-medium">資料組成</h3>
@@ -81,6 +103,11 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
   report: AnalysisReport; busy: boolean; onPractice: (ids: string[]) => void; onReload: () => void;
 }) {
   const findings = report.expired ? [] : report.interpretation?.findings || [];
+  const groups = [
+    { label: '單元表現', findings: findings.filter(f => f.kind === 'unit_performance') },
+    { label: '具體錯法', findings: findings.filter(f => f.kind === 'error_pattern') },
+    { label: '其他觀察', findings: findings.filter(f => f.kind !== 'unit_performance' && f.kind !== 'error_pattern') },
+  ].filter(group => group.findings.length);
   return <section className="space-y-7 rounded-3xl border border-border-subtle bg-surface p-5 md:p-7" aria-label="分析報告">
     <section aria-label="報告總覽" className="space-y-4">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -97,13 +124,16 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
     </section>
     {!report.expired && report.status === 'complete' && <section aria-label="分析重點" className="border-t border-border-subtle pt-6">
       <div className="mb-2 flex items-baseline justify-between gap-3"><h2 className="text-lg font-semibold">分析重點</h2><span className="text-xs text-text-muted">{findings.length} 項觀察</span></div>
-      {findings.length ? <div className="divide-y divide-border-subtle">{findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-2 py-4">
-        <h3 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h3>
-        <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
-          <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
-          {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}
-        </> : undefined} />
-      </article>)}</div> : <p className="py-4 text-sm text-text-muted">目前沒有足夠依據提供具體解讀，可先整理題文、答案或累積重作紀錄。</p>}
+      {groups.length ? <div className="space-y-6">{groups.map(group => <section key={group.label} aria-label={group.label}>
+        <h3 className="mt-4 text-sm font-semibold text-text-muted">{group.label}</h3>
+        <div className="divide-y divide-border-subtle">{group.findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-2 py-4">
+          <h4 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h4>
+          <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
+            <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
+            {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}
+          </> : undefined} />
+        </article>)}</div>
+      </section>)}</div> : <p className="py-4 text-sm text-text-muted">目前沒有足夠依據提供具體解讀，可先整理題文、答案或累積重作紀錄。</p>}
     </section>}
     <details className="group border-t border-border-subtle pt-5">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-xl focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden"><h2 className="font-semibold"><span>數據詳情</span><span className="mt-1 block text-xs font-normal text-text-muted">報告當時的變化、各單元與資料組成</span></h2><ChevronDown size={17} className="shrink-0 text-text-muted group-open:rotate-180" aria-hidden="true" /></summary>
