@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown } from 'lucide-react';
+import { ArrowRight, BarChart3, ChevronDown, Search, NotebookPen } from 'lucide-react';
 import { AnalysisCitations } from './AnalysisCitations';
 import { ExpandableAnalysisText } from './ExpandableAnalysisText';
 import { RichText } from './RichText';
@@ -104,9 +104,15 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
 }) {
   const findings = report.expired ? [] : report.interpretation?.findings || [];
   const groups = [
-    { label: '單元表現', findings: findings.filter(f => f.kind === 'unit_performance') },
-    { label: '具體錯法', findings: findings.filter(f => f.kind === 'error_pattern') },
-    { label: '其他觀察', findings: findings.filter(f => f.kind !== 'unit_performance' && f.kind !== 'error_pattern') },
+    { label: '單元表現', description: '從重作紀錄安排複習重點', icon: BarChart3,
+      tone: 'bg-primary/8 border-primary/15', iconTone: 'bg-primary/10 text-primary-600 dark:text-primary-700',
+      findings: findings.filter(f => f.kind === 'unit_performance') },
+    { label: '具體錯法', description: '核對訂正線索與可能的混淆', icon: Search,
+      tone: 'bg-status-warning/8 border-status-warning/20', iconTone: 'bg-status-warning/15 text-text-main',
+      findings: findings.filter(f => f.kind === 'error_pattern') },
+    { label: '其他觀察', description: '補充線索與後續複習方向', icon: NotebookPen,
+      tone: 'bg-page-bg/70 border-border-subtle', iconTone: 'bg-page-bg text-text-soft',
+      findings: findings.filter(f => f.kind !== 'unit_performance' && f.kind !== 'error_pattern') },
   ].filter(group => group.findings.length);
   return <section className="space-y-7 rounded-3xl border border-border-subtle bg-surface p-5 md:p-7" aria-label="分析報告">
     <section aria-label="報告總覽" className="space-y-4">
@@ -119,17 +125,30 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
       {report.error && <p role="alert" className="text-sm">{report.error}</p>}
       {report.status === 'failed' && !report.expired && <p className="text-sm text-text-muted">這份統計仍保留，可按下方按鈕沿用原資料重試。</p>}
       {!report.expired && (report.status === 'pending' || report.status === 'failed') && <button className={button} disabled={busy} onClick={onReload}>{report.status === 'pending' ? '繼續／重新載入報告' : '重試這份報告'}</button>}
-      {report.interpretation?.overview && !report.expired && <div className="rounded-2xl bg-primary/5 px-4 py-3"><ExpandableAnalysisText text={report.interpretation.overview} /></div>}
+      {report.interpretation?.overview && !report.expired && <div className="space-y-2 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-4 sm:px-5">
+        <h3 className="text-sm font-semibold text-primary-600 dark:text-primary-700">本期摘要</h3>
+        <ExpandableAnalysisText text={report.interpretation.overview} />
+      </div>}
       {report.expired && <p className="text-sm text-text-muted">詳細解讀已到期，保留當時的數字摘要。</p>}
     </section>
     {!report.expired && report.status === 'complete' && <section aria-label="分析重點" className="border-t border-border-subtle pt-6">
-      <div className="mb-2 flex items-baseline justify-between gap-3"><h2 className="text-lg font-semibold">分析重點</h2><span className="text-xs text-text-muted">{findings.length} 項觀察</span></div>
-      {groups.length ? <div className="space-y-6">{groups.map(group => <section key={group.label} aria-label={group.label}>
-        <h3 className="mt-4 text-sm font-semibold text-text-muted">{group.label}</h3>
-        <div className="divide-y divide-border-subtle">{group.findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-2 py-4">
-          <h4 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h4>
-          {!!finding.metricIds.length && <details className="text-xs text-text-muted">
-            <summary className="min-h-11 cursor-pointer py-3 underline decoration-border-subtle underline-offset-4">查看統計依據</summary>
+      <div className="mb-5 flex items-baseline justify-between gap-3"><h2 className="text-lg font-semibold">分析重點</h2><span className="text-xs text-text-muted">{findings.length} 項觀察</span></div>
+      {groups.length ? <div className="space-y-5">{groups.map(group => <section key={group.label} aria-label={group.label} className={'min-w-0 rounded-2xl border p-3 sm:p-4 ' + group.tone}>
+        <header className="mb-3 flex items-center gap-3 px-1">
+          <span className={'flex size-10 shrink-0 items-center justify-center rounded-xl ' + group.iconTone}><group.icon size={19} aria-hidden="true" /></span>
+          <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{group.label}</h3><p className="mt-1 text-xs leading-5 text-text-soft">{group.description}</p></div>
+          <span className="shrink-0 text-xs tabular-nums text-text-soft">{group.findings.length} 項</span>
+        </header>
+        <div className="space-y-3">{group.findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-3 rounded-xl border border-border-subtle bg-surface p-4 sm:p-5">
+          <h4 className="break-words text-base font-semibold leading-7"><RichText inline text={finding.title} /></h4>
+          <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
+            <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
+            {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-primary/8 px-3 text-sm text-primary-600 hover:bg-primary/12 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-700" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}
+          </> : undefined} />
+          {!!finding.metricIds.length && <details className="group/metric border-t border-border-subtle pt-1 text-xs text-text-soft">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-2 rounded-xl focus-visible:outline-2 focus-visible:outline-primary [&::-webkit-details-marker]:hidden">
+              查看統計依據<ChevronDown size={14} className="shrink-0 group-open/metric:rotate-180" aria-hidden="true" />
+            </summary>
             <ul className="space-y-3 rounded-xl bg-page-bg p-3">{finding.metricIds.map(id => {
               const unit = report.stats.units.find(value => value.id === id);
               return id === 'subject' ? <li key={id}>全科收錄 {report.stats.questions} 題 · 答對 {report.stats.correct}／{report.stats.attempts} 次</li>
@@ -138,10 +157,6 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
                 </li> : null;
             })}</ul>
           </details>}
-          <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
-            <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
-            {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}
-          </> : undefined} />
         </article>)}</div>
       </section>)}</div> : <p className="py-4 text-sm text-text-muted">目前沒有足夠依據提供具體解讀，可先整理題文、答案或累積重作紀錄。</p>}
     </section>}
