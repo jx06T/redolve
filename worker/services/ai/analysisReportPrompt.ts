@@ -3,6 +3,7 @@ import { analysisPromptRules as rules } from './analysisPromptRules';
 
 export function buildAnalysisReportPrompt(input: Parameters<AIService['analyzeLearning']>[0]) { return `${rules}
 任務：撰寫整科的全局報告。先用 overview 綜合說明目前能確定的整體狀況、變化與資料限制，接著 findings 依有效資料量組織成「值得注意的考點、跨題可能混淆、趨勢與下一步」等有意義段落，不固定三項、不湊數或重複。
+overview 通常二至四句；每項 explanation 通常二至四句，依序說明觀察、必要的不確定處及一項可執行的複習動作。不要逐項抄錄統計表、重複總覽或輸出完整詳解。同一證據若支持同一結論，合併敘述。篇幅隨新證據增加，不能只為填滿各分類而增加段落。
 每項先寫從作答、訂正或本人採用的錯因能直接觀察的事，再寫有待核對的推測。單題只能支持單題觀察或待驗證假設，跨題模式須引用多道有關證據。只有一筆實質變化時簡短交代新證據；資料不足時 findings 可以是空陣列。
 candidateFindings 是選題階段從短預覽提出的假設。用詳細證據核對，可以保留、縮小或捨棄候選；反例應減弱推論。候選文字本身不能當作證據。
 每個 finding 依證據標記 kind：

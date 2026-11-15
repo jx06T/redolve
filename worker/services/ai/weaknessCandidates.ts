@@ -6,6 +6,7 @@ export const candidateRules = `在同一次回應內依序完成兩步，只輸�
 第一步先依本人明說的內容與可見作答步驟，寫出有證據的具體錯誤操作和可用異題驗證的動作，最多四項。catalog 只在第二步使用。不得從考點、答錯或訂正時使用的公式推斷原先作答。缺乏足以指向具體失誤的線索時回傳空陣列。
 第二步再逐項比對 catalog。只有既有項目描述同一個錯誤操作時才附上該 weaknessId。主題相同、措辭相近或只有上位概念都不足以配對。沒有相同項目或 catalog 為空時，保留具體候選並把 weaknessId 設為 null。
 basis 使用 user_explicit（本人明說）、observed_steps（可見步驟）、inferred_from_context（有線索但仍屬推測）。clue 要指出可核對的線索，屬於推測時說明不確定處。只有最後答案或訂正後正解時，不得標為 observed_steps。候選須由使用者確認。
+text 通常 8～24 個中文字，寫一個具體錯誤操作，避免僅寫子單元名或「觀念不清」。clue 用一句指出本題證據，target 用一句說明下一題可檢查的動作。text 不含本題數字或選項，clue 可保留必要細節。不要在三個欄位重複同一句話，不猜測使用者個性、動機或整科能力。
 不等式中，漏用已知條件、已知為負但未反向、符號未知而漏分類是不同操作。線索不足以區分時，只描述能確認的部分，或留空。`;
 
 export const weaknessCandidateSchema = { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {

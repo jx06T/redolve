@@ -16,7 +16,7 @@ import type { LearningAnswer } from '../types/learning';
 import { useStore } from '../store/useStore';
 import { API_BASE } from '../services/api';
 const button = 'rounded-xl border border-border-subtle bg-surface px-4 py-2 text-sm disabled:opacity-40';
-const actionControl = 'inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40';
+const actionControl = 'inline-flex h-12 w-full min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-xl border px-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 sm:px-3 sm:text-sm';
 const actionButton = actionControl + ' border-border-subtle bg-surface';
 const primaryAction = actionControl + ' border-primary/30 bg-primary/10 text-primary-600 hover:bg-primary/15 dark:text-primary-300';
 const resultTone = {
@@ -139,21 +139,21 @@ export function PracticeQuestionCard({ question, sessionId, next, onRecorded }: 
       </section>
       <FloatingPenToolbar />
     </section>
-    <div role="group" aria-label="練習操作" className="fixed inset-x-2 bottom-16 z-20 mx-auto max-w-6xl rounded-2xl border border-border-subtle bg-surface p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_4px_20px_rgba(0,0,0,0.03)] sm:inset-x-4 md:bottom-3">
-      <div className="overflow-x-scroll">
-        <div className="flex min-w-max items-center gap-1.5">
+    <div role="group" aria-label="練習操作" aria-busy={busy} className="fixed inset-x-2 bottom-16 z-20 mx-auto max-w-2xl rounded-2xl border border-border-subtle bg-surface p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_4px_20px_rgba(0,0,0,0.03)] sm:inset-x-4 md:bottom-3">
+        <div className="grid grid-cols-[1fr_1fr_2fr_0.75fr] items-center gap-1.5">
           <button type="button" className={actionButton} onClick={() => { setOpenImage(true); setEverImage(true); }}>檢視原圖</button>
-          {!revealed ? <button type="button" disabled={busy} className={primaryAction} onClick={reveal}>查看答案</button> : <>
-            <button type="button" disabled={busy} className={actionControl + ' border-status-warning/40 bg-status-warning/10 text-text-main hover:bg-status-warning/20'} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
-            {automatic ? <button type="button" disabled={busy || !automaticResult} className={actionControl + ' ' + (automaticResult ? resultTone[automaticResult] : 'border-primary/30 bg-primary/10 text-primary')} onClick={() => void commit()}>
-              {automaticResult === 'correct' ? <Check size={16} aria-hidden="true" /> : <X size={16} aria-hidden="true" />}確認結果並下一題</button> : <>
-              <button type="button" disabled={busy} className={actionControl + ' ' + resultTone.correct + ' hover:bg-status-resolved/25'} onClick={() => void commit('correct')}><Check size={16} aria-hidden="true" />這次答對</button>
-              <button type="button" disabled={busy} className={actionControl + ' ' + resultTone.incorrect + ' hover:bg-status-eraser/25'} onClick={() => void commit('incorrect')}><X size={16} aria-hidden="true" />這次答錯</button>
-            </>}
-          </>}
+          <button type="button" disabled={busy || !revealed} className={actionControl + ' border-status-warning/40 bg-status-warning/10 text-text-main hover:bg-status-warning/20' + (!revealed ? ' invisible' : '')} onClick={() => setEditKey(true)}>{key ? '答案有誤' : '補齊正解'}</button>
+          <div className="min-w-0">
+            {!revealed ? <button type="button" disabled={busy} className={primaryAction} onClick={reveal}>查看答案</button>
+              : automatic ? <button type="button" disabled={busy || !automaticResult} className={actionControl + ' ' + (automaticResult ? resultTone[automaticResult] : 'border-primary/30 bg-primary/10 text-primary')} onClick={() => void commit()}>
+                {busy ? '儲存中…' : '確認並下一題'}
+              </button> : <div className="grid grid-cols-2 gap-1.5">
+                <button type="button" aria-label="這次答對，記錄並前往下一題" disabled={busy} className={actionControl + ' ' + resultTone.correct + ' hover:bg-status-resolved/25'} onClick={() => void commit('correct')}><Check size={16} className="hidden sm:block" aria-hidden="true" />答對</button>
+                <button type="button" aria-label="這次答錯，記錄並前往下一題" disabled={busy} className={actionControl + ' ' + resultTone.incorrect + ' hover:bg-status-eraser/25'} onClick={() => void commit('incorrect')}><X size={16} className="hidden sm:block" aria-hidden="true" />答錯</button>
+              </div>}
+          </div>
           <button type="button" disabled={busy} className={actionButton} onClick={next}>略過</button>
         </div>
-      </div>
     </div>
     {editKey && <LearningDataDialog questionRef={question.ref} initialQuestion={currentQuestion} onClose={() => setEditKey(false)} onSaved={q => {
       if (!q.id || !q.revisionId) { setError('題目目前無法使用'); return; }
