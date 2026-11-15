@@ -9,7 +9,7 @@ import { buildAnalysisContext } from './analysisContext';
 
 interface Event { id: string; learning_question_id: string; result: string; grading_method: string; used_original_image: number; answered_at: string; topicId: string; received_at: string; root_id?: string; root_received_at?: string }
 export interface CycleWindow { from: string; cutoff: string; boundaryIds: string[] }
-export interface UnitOutcome { topicId: string; correct: boolean }
+export interface UnitOutcome { topicId: string; correct: boolean; answeredAt?: string }
 
 export function compareUnitPractice(
   units: AnalysisMetric[], previousUnits: ReadonlyMap<string, NonNullable<AnalysisMetric['previous']>>,
@@ -23,7 +23,8 @@ export function compareUnitPractice(
   }
   for (const [id, current] of currentOutcomes) {
     const prior = previousOutcomes.get(id);
-    if (!prior || prior.topicId !== current.topicId) continue;
+    if (!prior || prior.topicId !== current.topicId || !prior.answeredAt || !current.answeredAt ||
+      Date.parse(current.answeredAt) <= Date.parse(prior.answeredAt)) continue;
     const unit = byTopic.get(current.topicId)!;
     const matched = unit.sameQuestions ??= { count: 0, changedToCorrect: 0, changedToIncorrect: 0 };
     matched.count++;
@@ -73,9 +74,9 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
   }
   const unitOutcomes = new Map<string, UnitOutcome>();
   for (const [id, attempts] of byQuestion) {
-    const { topicId, result } = attempts.at(-1)!;
+    const { topicId, result, answered_at: answeredAt } = attempts.at(-1)!;
     const correct = result === 'correct';
-    unitOutcomes.set(id, { topicId, correct });
+    unitOutcomes.set(id, { topicId, correct, answeredAt });
     const unit = byTopic.get(topicId)!.practice;
     unit.attemptedQuestions++;
     if (correct) unit.latestCorrect++;
@@ -95,7 +96,7 @@ export async function analysisSnapshot(db: D1Database, uid: string, scope: Pract
       if (correct) unit.correct++;
       if (!previousOutcomes.has(event.learning_question_id)) unit.attemptedQuestions++;
       previousUnits.set(event.topicId, unit);
-      previousOutcomes.set(event.learning_question_id, { topicId: event.topicId, correct });
+      previousOutcomes.set(event.learning_question_id, { topicId: event.topicId, correct, answeredAt: event.answered_at });
     }
     unitResultChanges = compareUnitPractice(units, previousUnits, unitOutcomes, previousOutcomes);
   }

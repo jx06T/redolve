@@ -70,7 +70,7 @@ export function AnalysisStatsContent({ stats, showComparison = true }: { stats: 
             <UnitPracticeResult unit={unit} showComparison={showComparison} previousLabel={stats.cycle ? '上份報告' : '前期'} />
           </td></tr>)}</tbody>
         </table></div> : <p className="text-sm text-text-muted">尚無單元資料。</p>}
-        {showComparison && stats.units.some(unit => unit.sameQuestions) && <p className="text-xs leading-6 text-text-muted">兩期同題以各期最後一次有效作答比較。</p>}
+        {showComparison && stats.units.some(unit => unit.sameQuestions) && <p className="text-xs leading-6 text-text-muted">兩期同題以各期最後一次有效作答比較，且本期作答時間須晚於前期。</p>}
       </section>
       <section aria-label="資料組成" className="min-w-0 space-y-4">
         <h3 className="font-medium">資料組成</h3>
@@ -128,6 +128,16 @@ export function PersonalAnalysisReport({ report, busy, onPractice, onReload }: {
         <h3 className="mt-4 text-sm font-semibold text-text-muted">{group.label}</h3>
         <div className="divide-y divide-border-subtle">{group.findings.map((finding, index) => <article key={`${index}:${finding.title}`} className="min-w-0 space-y-2 py-4">
           <h4 className="break-words font-medium leading-7"><RichText inline text={finding.title} /></h4>
+          {!!finding.metricIds.length && <details className="text-xs text-text-muted">
+            <summary className="min-h-11 cursor-pointer py-3 underline decoration-border-subtle underline-offset-4">查看統計依據</summary>
+            <ul className="space-y-3 rounded-xl bg-page-bg p-3">{finding.metricIds.map(id => {
+              const unit = report.stats.units.find(value => value.id === id);
+              return id === 'subject' ? <li key={id}>全科收錄 {report.stats.questions} 題 · 答對 {report.stats.correct}／{report.stats.attempts} 次</li>
+                : unit ? <li key={id}><p className="mb-1 font-medium">{unit.label} · 收錄 {unit.questions} 題</p>
+                  <UnitPracticeResult unit={unit} showComparison previousLabel={report.stats.cycle ? '上份報告' : '前期'} />
+                </li> : null;
+            })}</ul>
+          </details>}
           <ExpandableAnalysisText text={finding.explanation} lines={2} footer={finding.evidenceIds.length ? <>
             <AnalysisCitations ids={finding.evidenceIds} evidence={report.evidence} />
             {finding.practiceQuestionIds?.length !== 0 && <button type="button" disabled={busy} className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-xl text-sm text-primary-600 focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-40 dark:text-primary-300" onClick={() => onPractice(finding.practiceQuestionIds ?? finding.evidenceIds)}>練習本組<ArrowRight size={15} aria-hidden="true" /></button>}

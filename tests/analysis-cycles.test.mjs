@@ -19,6 +19,21 @@ const withCorrection = () => ({ ...data(), personal: { originalAnswer: null, cor
   { text: '半角公式正負號錯', origin: 'user' },
 ] } });
 
+test('late offline answers and undated legacy outcomes cannot imply progress', () => {
+  const unit = { id: 'math', label: '數學', questions: 4, attempts: 4, correct: 4 };
+  const earlier = { topicId: 'math', correct: false, answeredAt: '2026-11-01T12:00:00.000Z' };
+  const prior = new Map(['late', 'equal', 'later', 'legacy'].map(id => [id, id === 'legacy' ? { topicId: 'math', correct: false } : earlier]));
+  const current = new Map([
+    ['late', { ...earlier, correct: true, answeredAt: '2026-10-01T12:00:00.000Z' }],
+    ['equal', { ...earlier, correct: true }],
+    ['later', { ...earlier, correct: true, answeredAt: '2026-11-02T12:00:00.000Z' }],
+    ['legacy', { ...earlier, correct: true }],
+  ]);
+  const changes = analysis.compareUnitPractice([unit], new Map(), current, prior);
+  assert.deepEqual([...changes], [['later', 'incorrect_to_correct']]);
+  assert.deepEqual(unit.sameQuestions, { count: 1, changedToCorrect: 1, changedToIncorrect: 0 });
+});
+
 test('subject summaries enforce meaningful stages, retries and receipt boundaries', async t => {
   await mkdir('.wrangler/qa', { recursive: true });
   const dir = await mkdtemp(resolve('.wrangler/qa/cycles-'));
@@ -189,7 +204,7 @@ test('subject summaries enforce meaningful stages, retries and receipt boundarie
       await db.exec("UPDATE analysis_subject_state SET last_completed_at='2000-01-01' WHERE user_id='alice' AND subject_id='biology'");
       await db.exec("UPDATE items SET topic_id='division' WHERE id='moved'");
       await practice.submitAttempt(db, 'alice', { ...lastAttempt, id: 'unit-corrected', supersedesAttemptId: lastAttempt.id, selfResult: 'correct' });
-      await practice.submitAttempt(db, 'alice', attempt(one, 'unit-again', { selfResult: 'correct' }));
+      await practice.submitAttempt(db, 'alice', attempt(one, 'unit-again', { selfResult: 'correct', clientAnsweredAt: new Date().toISOString() }));
       await practice.submitAttempt(db, 'alice', attempt(two, 'unit-new'));
       await practice.submitAttempt(db, 'alice', attempt(moved, 'unit-moved-after', { selfResult: 'correct' }));
       const nextStage = await cycles.beginCycleAnalysis(db, 'alice', biology);
