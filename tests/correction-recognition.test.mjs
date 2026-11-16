@@ -157,6 +157,22 @@ test('correction composites, confirmation, stale results and replay', async t =>
       assert.doesNotMatch(prompt, /乘以已知負數後未反轉不等號/);
       assert.deepEqual(JSON.parse(prompt.split('資料：').at(-1)).catalog, []);
     });
+    await t.test('explicit reruns have stable retry IDs and distinct new-run IDs', async () => {
+      const request = (id) => { const f = composite(15); f.set('force', 'true'); f.set('requestId', id); return f; };
+      const before = calls;
+      const first = (await call('owned/q/correction', 'alice', 'POST', request('manual-one'))).data.data;
+      assert.equal(first.status, 'complete'); assert.equal(calls, before + 1);
+      assert.equal((await call('owned/q/correction', 'alice', 'POST', request('manual-one'))).data.data.id, first.id);
+      assert.equal(calls, before + 1, 'transport retry must not call Google twice');
+      const next = (await call('owned/q/correction', 'alice', 'POST', request('manual-two'))).data.data;
+      assert.notEqual(next.id, first.id); assert.equal(calls, before + 2);
+      const current = (await call('owned/q')).data;
+      assert.equal(current.correction.promptVersion, 'correction-v9'); assert.ok(current.correction.model);
+      await db.prepare("UPDATE items SET draw_seq=draw_seq+1 WHERE id='q'").run();
+      const changed = (await call('owned/q')).data;
+      assert.equal(changed.correction.stale, true);
+      assert.equal((await save(changed, next.data, next.id)).status, 409, 'changed ink invalidates adoption even with unchanged learning row version');
+    });
     await t.test('deleting a personal source cleans its recognition candidates', async () => {
       await db.exec("DELETE FROM items WHERE id='q';");
       assert.equal((await db.prepare("SELECT count(*) n FROM learning_corrections WHERE item_id='q'").first()).n, 0);

@@ -46,7 +46,9 @@ learningRouter.post('/:kind/:id/correction', async c => {
     throw new LearningError(422, 'INVALID_DATA', '請提供有效的合成圖片與訂正筆記');
   const bytes = await image.arrayBuffer(), header = new Uint8Array(bytes);
   if (header[0] !== 255 || header[1] !== 216 || header[2] !== 255) throw new LearningError(422, 'INVALID_DATA', '合成圖片須為 JPEG');
-  return aiResponse(c, () => recognizeCorrection(c.env.DB, uid, ref, { image: bytes, sourceIdentity, notes, force: form.get('force') === 'true', model: correctionRecognitionModel(c.env) }, createAIService(c.env)));
+  const requestId = form.get('requestId');
+  if (requestId !== null && (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,100}$/.test(requestId))) throw new LearningError(422, 'INVALID_DATA', '辨識工作編號不正確');
+  return aiResponse(c, () => recognizeCorrection(c.env.DB, uid, ref, { image: bytes, sourceIdentity, notes, force: form.get('force') === 'true', requestId: requestId || undefined, model: correctionRecognitionModel(c.env) }, createAIService(c.env)));
 });
 
 learningRouter.post('/:kind/:id/confirm', async c => {

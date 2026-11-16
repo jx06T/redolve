@@ -45,6 +45,7 @@ async function processTasks(uid: string, signal: AbortSignal) {
     try {
       const form = new FormData(); form.set('image', new Blob([task.image], { type: 'image/jpeg' }), 'correction.jpg');
       form.set('sourceIdentity', task.sourceIdentity); form.set('notes', task.notes); form.set('force', String(task.force));
+      form.set('requestId', task.id);
       const response = await fetch(`${API_BASE}/learning/${task.ref.kind}/${encodeURIComponent(task.ref.kind === 'owned' ? task.ref.itemId : task.ref.savedRefId)}/correction`,
         { method: 'POST', credentials: 'include', cache: 'no-store', body: form, signal });
       const result = await response.json() as { ok?: boolean; data?: CorrectionRecognition; error?: { code?: string; message?: string } };

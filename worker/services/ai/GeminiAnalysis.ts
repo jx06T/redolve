@@ -3,7 +3,7 @@ import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import type { Schema } from '@google/genai';
 import type { AIService, AnalysisSelection } from './AIService';
 import { buildCorrectionPrompt, buildCorrectionSchema, CORRECTION_PROMPT_VERSION } from './correctionPrompts';
-import { normalizeRecognition, validateLearningData } from '../../../src/types/learning';
+import { normalizeCorrectionResult } from './correctionResult';
 import { reportProviderError } from './providerError';
 import { normalizeWeaknessCandidates, weaknessCandidateSchema } from './weaknessCandidates';
 import { buildWeaknessSuggestionPrompt, WEAKNESS_SUGGESTION_PROMPT_VERSION } from './weaknessSuggestionPrompt';
@@ -50,15 +50,7 @@ export class GeminiAnalysis {
   }
   async correction(image: ArrayBuffer, input: Parameters<AIService['recognizeCorrection']>[1]) {
     const raw = await this.json('correction',buildCorrectionPrompt(input), buildCorrectionSchema(), image);
-    const data = normalizeRecognition(raw);
-    if (Array.isArray(raw.weakness_candidates)) data.personal.errorReasons = normalizeWeaknessCandidates(raw.weakness_candidates, input.catalog ?? []);
-    data.content = { ...data.content, ocrText: input.current.content.ocrText || data.content.ocrText,
-      questionType: input.current.content.questionType === 'unknown' ? data.content.questionType : input.current.content.questionType,
-      options: input.current.content.options.length ? input.current.content.options : data.content.options,
-      correctAnswer: data.content.correctAnswer || input.current.content.correctAnswer };
-    if (input.saved || !data.personal.originalAnswer) data.personal.originalAnswer = input.current.personal.originalAnswer;
-    data.personal.correctionSummary = typeof raw.correction_summary === 'string' ? raw.correction_summary.slice(0, 6000) : '';
-    return { data: validateLearningData(data), model: this.model };
+    return { data: normalizeCorrectionResult(raw, input), model: this.model };
   }
   async select(input: Parameters<AIService['selectAnalysisQuestions']>[0]): Promise<AnalysisSelection> {
     const properties: Record<string, Schema> = { questionIds: strings };

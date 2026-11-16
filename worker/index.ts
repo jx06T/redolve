@@ -4,6 +4,7 @@ import { Bindings, Variables } from './types';
 import { errorHandler } from './middleware/error';
 import { corsMiddleware } from './middleware/cors';
 import { adminRouter } from './routes/admin';
+import { correctionBatchesRouter } from './routes/correctionBatches';
 import { problemsRouter } from './routes/problems';
 import { keysRouter } from './routes/keys';
 import { sharesRouter } from './routes/shares';
@@ -54,6 +55,7 @@ app.get('/api/health', (c) => {
 app.route('/api/auth', authRouter);
 app.route('/api/taxonomy', taxonomyRouter);
 app.route('/api/admin', adminRouter);
+app.route('/api/admin/correction-batches', correctionBatchesRouter);
 app.route('/api/problems', problemsRouter);
 app.route('/api/keys', keysRouter);
 app.route('/api/search', searchRouter);

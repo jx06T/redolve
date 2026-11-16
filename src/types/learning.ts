@@ -39,6 +39,7 @@ export interface LearningQuestion extends LearningData {
 export interface CorrectionRecognition {
   id: string; status: 'pending' | 'complete' | 'failed'; data: LearningData | null;
   baseRowVersion: number; sourceVersion: string; adopted: boolean; stale: boolean; error: string | null; createdAt: string;
+  promptVersion?: string; model?: string; batchId?: string;
 }
 
 export const emptyLearningData = (): LearningData => ({

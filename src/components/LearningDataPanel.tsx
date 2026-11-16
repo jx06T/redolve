@@ -49,6 +49,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const [organizeMessage, setOrganizeMessage] = useState('');
   const [correctionId, setCorrectionId] = useState<string | undefined>();
   const draftRef = useRef<LearningData | null>(null);
+  const dismissedCandidate = useRef<string>();
   draftRef.current = draft;
   const recognitionBusyRef = useRef(recognitionBusy);
   recognitionBusyRef.current = recognitionBusy;
@@ -62,7 +63,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const adoptLoaded = (result: LearningQuestion) => {
     setCurrent(result); onLoaded?.(result);
     const candidate = result.correction;
-    if (candidate?.status === 'complete' && !candidate.adopted && !candidate.stale && candidate.data && !draftRef.current && !recognitionBusyRef.current) {
+    if (candidate?.status === 'complete' && !candidate.adopted && !candidate.stale && candidate.data && candidate.id !== dismissedCandidate.current && !draftRef.current && !recognitionBusyRef.current) {
       prepare(result, candidate.data); setCorrectionId(candidate.id); setPreview(true);
     }
   };
@@ -74,7 +75,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const kind = questionRef.kind, id = kind === 'owned' ? questionRef.itemId : questionRef.savedRefId;
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort;
-    setCurrent(null); setDraft(null); setDraftBase(null); setError(''); setPreview(false); setCorrectionId(undefined); setSuggestions([]); setOperation(null); running.current = false;
+    setCurrent(null); setDraft(null); setDraftBase(null); setError(''); setPreview(false); setCorrectionId(undefined); setSuggestions([]); setOperation(null); running.current = false; dismissedCandidate.current = undefined;
     void (initialQuestion ? Promise.resolve(initialQuestion) : learningService.read(questionRef, abort.signal)).then(result => { if (!abort.signal.aborted) adoptLoaded(result); })
       .catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
@@ -143,13 +144,20 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       </dl>
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => { setCorrectionId(undefined); prepare(current); }}>修改／確認資料</button>
+        {current.correction?.status === 'complete' && !current.correction.adopted && !current.correction.stale && current.correction.data &&
+          <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => {
+            const candidate = current.correction;
+            if (!candidate?.data) return;
+            prepare(current, candidate.data); setCorrectionId(candidate.id); setPreview(true);
+          }}>檢視 AI 建議</button>}
         {onRecognize && <button type="button" disabled={busy || recognizing} className={buttonClass} onClick={() => void run(async signal => {
           const result = await onRecognize();
           if (!signal.aborted) adoptLoaded(result);
         }, 'recognize')}>{recognizing ? 'AI 整理中…' : '依目前筆跡重新整理'}</button>}
       </div>
     </>}
-    {recognizing && <p role="status" className="mt-3 text-xs text-text-muted">AI 正在背景整理，可關閉視窗並繼續其他題目，完成後再回來確認。</p>}
+    {recognizing && <p role="status" className="mt-3 text-xs text-text-muted">{current?.correction?.batchId ? '批次整理中，可離開此頁。稍後到管理頁更新進度並匯入結果。' : 'AI 正在背景整理，可關閉視窗並繼續其他題目，完成後再回來確認。'}</p>}
+    {current?.correction?.promptVersion && <p className="mt-2 text-xs text-text-muted break-words">辨識版本 {current.correction.promptVersion} · {current.correction.model}</p>}
     {recognitionError && recognitionError !== current?.correction?.error && recognitionError !== error && <p role="alert" className="mt-3 text-xs text-text-muted">{recognitionError}</p>}
     {current?.correction?.error && <p role="alert" className="mt-3 text-xs text-text-muted">{current.correction.error}</p>}
     {current?.correction?.stale && !current.correction.adopted && <p className="mt-3 text-xs text-text-muted">題目資料已有修改，這份 AI 整理不會覆蓋目前內容。可依目前筆跡重新整理。</p>}
@@ -216,7 +224,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       <label className="block text-xs text-text-muted">訂正重點（可修改或留空）<textarea className={fieldClass} rows={3} maxLength={6000} value={draft.personal.correctionSummary || ''} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, correctionSummary: e.target.value } })} /></label>
       <p className="text-xs text-text-muted">儲存表示確認目前這份資料，原作答、正解與錯因都可以保持空白；確認後不會因缺漏再提醒。</p>
       <div className="flex gap-2">
-        <button type="button" className={buttonClass} onClick={() => { setDraft(null); setDraftBase(null); setPreview(false); setError(''); }}>取消</button>
+        <button type="button" className={buttonClass} onClick={() => { if (preview) dismissedCandidate.current = correctionId;
+          setDraft(null); setDraftBase(null); setPreview(false); setCorrectionId(undefined); setError(''); }}>取消</button>
         <button type="button" className={buttonClass + ' bg-primary/10 text-primary'} onClick={save}>{preview ? '採用並確認' : '儲存並確認'}</button>
       </div>
     </fieldset>}

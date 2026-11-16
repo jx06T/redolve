@@ -2,6 +2,7 @@ import { emptyLearningData, learningFullText, validateLearningData } from '../..
 import type { LearningData, LearningQuestion, PersonalQuestionRef } from '../../src/types/learning';
 import { readLatestCorrection } from './correctionStore';
 import { questionWeaknessSubject, weaknessIdsAllowed } from './weaknesses';
+import { workspaceVersionSql } from './correctionVersion';
 
 type Source = { asset_id: string; storage_key: string; source_version: string; text: string | null };
 type Current = { id: string; current_revision_id: string | null; row_version: number;
@@ -121,6 +122,8 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
   const source = sourceQuery(ref), column = refColumn(ref);
   const guard = `EXISTS(SELECT 1 FROM (${source}) s WHERE s.source_version=?)`;
   const correctionGate = write.correctionId ? `AND EXISTS(SELECT 1 FROM learning_corrections WHERE id=? AND user_id=? AND status='complete' AND adopted_revision_id IS NULL AND base_row_version=? AND source_version=?
+    AND NOT EXISTS(SELECT 1 FROM correction_run_metadata m WHERE m.correction_id=learning_corrections.id
+      AND m.workspace_version != COALESCE((${workspaceVersionSql(ref)}),''))
     AND id=(SELECT id FROM learning_corrections WHERE user_id=? AND ${refColumn(ref)}=? ORDER BY created_at DESC,id DESC LIMIT 1))` : '';
   const gate = `EXISTS(SELECT 1 FROM learning_questions WHERE user_id=? AND ${column}=? AND current_revision_id=?)`;
   const gateArgs = [uid, refId(ref), revisionId];
@@ -132,7 +135,7 @@ export async function saveLearningQuestion(db: D1Database, uid: string, ref: Per
       ${actor === 'ai' ? "AND confirmation_status='ai'" : ''} AND ${guard} ${correctionGate}`)
       .bind(revisionId, JSON.stringify(data.content), JSON.stringify(data.personal), write.expectedSourceVersion, actor,
         uid, refId(ref), write.expectedRowVersion, refId(ref), uid, write.expectedSourceVersion,
-        ...(write.correctionId ? [write.correctionId, uid, write.expectedRowVersion, write.expectedSourceVersion, uid, refId(ref)] : [])),
+        ...(write.correctionId ? [write.correctionId, uid, write.expectedRowVersion, write.expectedSourceVersion, refId(ref), uid, uid, refId(ref)] : [])),
     db.prepare(`UPDATE learning_questions SET current_revision_id=?,row_version=row_version+1,confirmation_status=?,
       confirmed_at=${actor === 'user' ? 'CURRENT_TIMESTAMP' : 'NULL'} WHERE user_id=? AND ${column}=? AND row_version=?
       AND EXISTS(SELECT 1 FROM learning_question_revisions WHERE id=? AND learning_question_id=learning_questions.id)`)

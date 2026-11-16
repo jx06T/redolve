@@ -1,3 +1,4 @@
+import { practiceMigrations } from '../scripts/practice-schema.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
@@ -5,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const files = ['0014_learning_foundation.sql', '0015_practice_attempts.sql', '0016_personal_analysis.sql', '0017_analysis_context_and_followups.sql', '0018_correction_recognition.sql', '0019_analysis_cycles.sql'];
+const files = ['0014_learning_foundation.sql', ...practiceMigrations.map(file => file.split('/').at(-1))];
 function fixture(initial, action) {
   mkdirSync('.wrangler/qa', { recursive: true });
   const dir = mkdtempSync(resolve('.wrangler/qa/schema-cli-')), statePath = join(dir, 'state.json'), callsPath = join(dir, 'calls.jsonl');

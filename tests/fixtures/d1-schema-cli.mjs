@@ -1,3 +1,4 @@
+import { practiceMigrations } from '../../scripts/practice-schema.mjs';
 // Preloaded only by migration tests. Every Wrangler subprocess is replaced; no network or D1 access.
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
@@ -7,8 +8,7 @@ import { unstable_splitSqlQuery } from 'wrangler';
 
 const statePath = process.env.D1_SCHEMA_FIXTURE_STATE, logPath = process.env.D1_SCHEMA_FIXTURE_CALLS;
 assert.ok(statePath && logPath, 'Fixture paths are required');
-const migrations = ['0014_learning_foundation.sql', '0015_practice_attempts.sql', '0016_personal_analysis.sql',
-  '0017_analysis_context_and_followups.sql', '0018_correction_recognition.sql', '0019_analysis_cycles.sql'];
+const migrations = ['0014_learning_foundation.sql', ...practiceMigrations.map(file => file.split('/').at(-1))];
 const definitions = new Map(migrations.map(file => [file, unstable_splitSqlQuery(readFileSync('worker/migrations/' + file, 'utf8').replace(/^\s*--[^\r\n]*$/gm, ''))
   .flatMap(sql => { const match = sql.match(/^CREATE\s+(TABLE|INDEX|TRIGGER|VIEW)\s+(\w+)/i); return match ? [{ name: match[2], sql }] : []; })]));
 const response = (results = []) => ({ status: 0, stdout: JSON.stringify([{ success: true, results }]), stderr: '' });

@@ -35,5 +35,5 @@ export function ProfileSettingsSection({children}:{children:ReactNode}) {
     <p className="text-xs text-text-muted">原題會保留在自己的題庫。每次上傳可另選目的地。</p>
     <button disabled={busy||saving} onClick={()=>void save(()=>sharingApi('/me/upload-preferences','PATCH',{default_collection_id:destination||null}))} className="rounded-xl bg-primary/10 px-4 py-2 text-sm text-primary disabled:opacity-40">儲存預設</button>
     </section>
-  <div className="border-t border-border-subtle pt-5">{children}</div></section><IndependentShareLinks key={currentUser!.id}/><ReceivedInvitations/>{isAdmin&&<Link className="inline-block rounded-xl border border-border-subtle px-4 py-2 text-sm text-text-muted" to="/admin/sharing">平台管理 · 分享內容檢查</Link>}</div>;
+  <div className="border-t border-border-subtle pt-5">{children}</div></section><IndependentShareLinks key={currentUser!.id}/><ReceivedInvitations/>{isAdmin&&<><Link className="inline-block rounded-xl border border-border-subtle px-4 py-2 text-sm text-text-muted" to="/admin/sharing">平台管理 · 分享內容檢查</Link><Link className="ml-2 inline-block rounded-xl border border-border-subtle px-4 py-2 text-sm text-text-muted" to="/admin/correction-batches">管理員 · 舊題批次整理</Link></>}</div>;
 }
