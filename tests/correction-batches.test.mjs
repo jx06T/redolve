@@ -204,5 +204,31 @@ test('admin correction batches: durable jobs, versions, recovery and safe import
       await db.prepare("DELETE FROM items WHERE id='q6'").run();
       assert.equal((await db.prepare('SELECT count(*) n FROM correction_run_metadata WHERE context_json IS NOT NULL').first()).n, 0);
     });
+    await t.test('all-batch review is owner-scoped, deduplicated and paginated beyond one page', async () => {
+      assert.equal((await call(`${base}/review-queue`, 'GET', undefined, 'bob')).status, 403);
+      assert.deepEqual((await call(`${base}/review-queue`, 'GET', undefined, 'carol')).data.items, []);
+      assert.equal((await call(`${base}/review-queue?cursor=bad`)).status, 422);
+      const latest = await db.prepare("SELECT c.id,m.batch_id FROM learning_corrections c JOIN correction_run_metadata m ON m.correction_id=c.id WHERE c.item_id='q4' ORDER BY c.created_at DESC,c.id DESC LIMIT 1").first();
+      await db.prepare(`INSERT INTO learning_corrections(id,user_id,item_id,input_hash,source_version,base_row_version,status,run_token,lease_until,created_at)
+        VALUES('old-result','alice','q4','old-result','1',0,'complete','old','2000-01-01','2000-01-01')`).run();
+      await db.prepare(`INSERT INTO correction_run_metadata(correction_id,prompt_version,model,workspace_version,input_fingerprint,batch_id,batch_position)
+        VALUES('old-result','old','old','0','old',?,50)`).bind(latest.batch_id).run();
+      const original = (await call(`${base}/review-queue`)).data;
+      assert.equal(original.items.filter(i => i.ref.itemId === 'q4').length, 1);
+      assert.equal(original.items.find(i => i.ref.itemId === 'q4').id, latest.id);
+      const ids = Array.from({ length: 105 }, (_, i) => `review-${String(i).padStart(3, '0')}`);
+      await db.prepare(`INSERT INTO items(id,user_id,image_url,status) SELECT value,'alice','image','resolved' FROM json_each(?)`).bind(JSON.stringify(ids)).run();
+      await db.prepare(`INSERT INTO learning_corrections(id,user_id,item_id,input_hash,source_version,base_row_version,status,run_token,lease_until,created_at)
+        SELECT value,'alice',value,value,'1',0,'complete','run','2090-01-01','2090-01-01' FROM json_each(?)`).bind(JSON.stringify(ids)).run();
+      await db.prepare(`INSERT INTO correction_run_metadata(correction_id,prompt_version,model,workspace_version,input_fingerprint,batch_id,batch_position)
+        SELECT value,'test','test','0',value,?,100+CAST(key AS INTEGER) FROM json_each(?)`).bind(latest.batch_id, JSON.stringify(ids)).run();
+      const first = (await call(`${base}/review-queue`)).data;
+      assert.equal(first.items.length, 100); assert.ok(first.next);
+      const second = (await call(`${base}/review-queue?cursor=${encodeURIComponent(first.next)}`)).data;
+      assert.equal(second.next, null);
+      const all = [...first.items, ...second.items];
+      assert.equal(all.length, original.items.length + ids.length);
+      assert.equal(new Set(all.map(i => i.id)).size, all.length);
+    });
   } finally { if (mf) await mf.dispose(); await rm(dir, { recursive: true, force: true }); }
 });

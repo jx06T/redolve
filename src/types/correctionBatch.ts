@@ -13,3 +13,7 @@ export interface CorrectionBatchJob {
   model: string; promptVersion: string; createdAt: string; error: string | null; cleaned: boolean;
   items: { id: string; ref: PersonalQuestionRef; status: 'pending' | 'complete' | 'failed'; error: string | null; adopted: boolean }[];
 }
+export interface CorrectionReviewQueue {
+  items: (CorrectionBatchJob['items'][number] & { batchId: string })[];
+  next: string | null;
+}

@@ -5,7 +5,7 @@ import { sharingApi } from '../services/sharingApi';
 import { useStore } from '../store/useStore';
 import { LearningDataPanel } from '../components/LearningDataPanel';
 import { CorrectionImageCompare } from '../components/CorrectionImageCompare';
-import type { CorrectionBatchJob } from '../types/correctionBatch';
+import type { CorrectionBatchJob, CorrectionReviewQueue } from '../types/correctionBatch';
 import type { LearningQuestion } from '../types/learning';
 
 const button = 'inline-flex min-h-11 items-center justify-center gap-1 rounded-xl border border-border-subtle px-3 text-sm disabled:opacity-40';
@@ -14,7 +14,8 @@ export function AdminCorrectionReviewView() {
   const { batchId = '' } = useParams();
   const uid = useStore(state => state.currentUser?.id);
   const [params, setParams] = useSearchParams(), navigate = useNavigate();
-  const [job, setJob] = useState<CorrectionBatchJob>(), [error, setError] = useState('');
+  const allBatches = batchId === 'all';
+  const [job, setJob] = useState<Pick<CorrectionBatchJob, 'items'>>(), [error, setError] = useState('');
   const [dirty, setDirty] = useState(false), [saving, setSaving] = useState(false);
   const [current, setCurrent] = useState<LearningQuestion>(), [message, setMessage] = useState('');
   const [reload, setReload] = useState(0);
@@ -24,11 +25,21 @@ export function AdminCorrectionReviewView() {
 
   useEffect(() => {
     const abort = new AbortController(); setJob(undefined); setError('');
-    if (uid) void sharingApi<CorrectionBatchJob>(`/admin/correction-batches/${encodeURIComponent(batchId)}`, 'GET', undefined, abort.signal)
+    const load = async () => {
+      if (!allBatches) return sharingApi<CorrectionBatchJob>(`/admin/correction-batches/${encodeURIComponent(batchId)}`, 'GET', undefined, abort.signal);
+      const items: CorrectionReviewQueue['items'] = [];
+      let cursor: string | null = '';
+      do {
+        const page: CorrectionReviewQueue = await sharingApi(`/admin/correction-batches/review-queue?cursor=${encodeURIComponent(cursor)}`, 'GET', undefined, abort.signal);
+        items.push(...page.items); cursor = page.next;
+      } while (cursor && !abort.signal.aborted);
+      return { items };
+    };
+    if (uid) void load()
       .then(value => { if (!abort.signal.aborted) setJob(value); })
       .catch(e => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
-  }, [uid, batchId, reload]);
+  }, [uid, batchId, allBatches, reload]);
   useEffect(() => {
     if (job?.items.length && index < 0) setParams({ question: job.items[0].id }, { replace: true });
   }, [job, index, setParams]);
@@ -56,7 +67,7 @@ export function AdminCorrectionReviewView() {
   };
   return <div className="flex h-full min-h-0 flex-col gap-3 text-text-main">
     <header className="flex shrink-0 flex-wrap items-center justify-between gap-2">
-      <div className="flex items-center gap-3"><button className={button} disabled={saving} onClick={back}><ArrowLeft size={16} />返回批次</button><h1 className="text-lg font-semibold">批次校正</h1></div>
+      <div className="flex items-center gap-3"><button className={button} disabled={saving} onClick={back}><ArrowLeft size={16} />返回批次</button><h1 className="text-lg font-semibold">{allBatches ? '全部題目校正' : '批次校正'}</h1></div>
       {job && <div className="flex items-center gap-2"><button className={button} aria-label="上一題" disabled={saving || activeIndex === 0} onClick={() => go(activeIndex - 1)}><ChevronLeft size={18} /></button>
         <label className="sr-only" htmlFor="review-question">切換校正題目</label>
         <select id="review-question" className="min-h-11 max-w-44 rounded-xl border border-border-subtle bg-surface px-2 text-sm" value={item?.id || ''} disabled={saving} onChange={event => go(job.items.findIndex(entry => entry.id === event.target.value))}>
@@ -67,7 +78,7 @@ export function AdminCorrectionReviewView() {
     {error && <div className="space-y-2 rounded-2xl border border-border-subtle bg-surface p-4"><p role="alert">{error}</p><button className={button} onClick={() => setReload(value => value + 1)}>重新載入</button></div>}
     {!uid && <p>請先登入管理員帳號。</p>}
     {uid && !job && !error && <p role="status">載入批次題目…</p>}
-    {job && !item && <p>這組工作目前沒有可校正的題目。</p>}
+    {job && !item && <p>目前沒有可校正的題目。</p>}
     {item && <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 text-xs text-text-muted">
         <span className="break-all">{item.ref.kind === 'owned' ? '上傳題' : '存入題'} · {item.ref.kind === 'owned' ? item.ref.itemId : item.ref.savedRefId}</span>

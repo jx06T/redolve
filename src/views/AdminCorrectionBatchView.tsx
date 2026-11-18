@@ -182,6 +182,8 @@ export function AdminCorrectionBatchView() {
         {failures.length > 0 && <details open><summary className="text-sm">未送出 {failures.length} 題</summary><ul className="mt-2 space-y-1 break-words text-xs text-text-muted">{failures.map((message, i) => <li key={i}>{message}</li>)}</ul></details>}
       </section>
       <section className="space-y-3" aria-labelledby="batch-jobs"><div className="flex flex-wrap items-center justify-between gap-2"><h2 id="batch-jobs" className="font-medium">批次工作</h2><button className={button} disabled={busy} onClick={refreshAll}><RefreshCw size={15} className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''} />{refreshing ? '更新中…' : '更新全部進度'}</button></div>
+        <Link className={button + ' bg-primary/10 text-primary-600 dark:text-primary-700'} to="/admin/correction-batches/all/review">校正全部題目</Link>
+        <p className="text-xs text-text-muted">合併所有批次，依最新辨識排序，同一題保留最新批次結果。</p>
         {refreshProgress && <p role="status" className="text-sm text-text-muted">{refreshProgress}</p>}
         {!jobs.length && <p className="py-4 text-sm text-text-muted">尚無批次工作。</p>}
         {jobs.map(job => <article key={job.id} className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-4">

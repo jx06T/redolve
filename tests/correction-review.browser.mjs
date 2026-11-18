@@ -29,6 +29,9 @@ try {
       else if (path.endsWith('/admin/me')) json = { isAdmin: true };
       else if (path.endsWith('/correction-batches')) json = { jobs: [job] };
       else if (path.endsWith('/correction-batches/job')) json = job;
+      else if (path.endsWith('/review-queue')) json = new URL(request.url()).searchParams.get('cursor')
+        ? { items: [{ ...job.items[1], batchId: 'another-job' }], next: null }
+        : { items: [{ ...job.items[0], batchId: 'job' }], next: 'next-page' };
       else if (path.includes('/correction-batches/input/')) json = { imagePath: '/problems/q1/image', notes: '我忘了將分鐘換成秒。',
         ink: JSON.stringify({ strokes: [{ color: '#dc2626', width: 4, tool: 'pen', points: [[100, 120, 0.5], [250, 170, 0.5], [400, 130, 0.5]] }], eraserMasks: [], baseWidth: 800, calcSpaceHeight: 300 }) };
       else if (path.endsWith('/image')) {
@@ -81,6 +84,16 @@ try {
     });
     assert.ok(sizes.every(size => size > 200));
     await page.screenshot({ path: `.wrangler/qa/batch-review-${width}.png`, fullPage: true });
+    await page.getByRole('button', { name: '返回批次', exact: true }).click();
+    await page.getByRole('link', { name: '校正全部題目', exact: true }).click();
+    await page.getByRole('heading', { name: '全部題目校正', exact: true }).waitFor();
+    await page.getByRole('button', { name: '下一題', exact: true }).click();
+    await page.waitForURL('**/all/review?question=two');
+    await page.getByRole('textbox', { name: '正解', exact: true }).waitFor();
+    assert.equal(await page.locator('#review-question option').count(), 2);
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.ok(page.url().includes('/all/review?question=two'));
+    await page.getByRole('textbox', { name: '正解', exact: true }).waitFor();
     assert.deepEqual(errors, []); console.log(JSON.stringify({ width, passed: true }));
     await context.close();
   }

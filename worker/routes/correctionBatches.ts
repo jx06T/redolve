@@ -9,7 +9,7 @@ import { CORRECTION_PROMPT_VERSION } from '../services/ai/correctionPrompts';
 import { geminiCorrectionBatch } from '../services/ai/GeminiCorrectionBatch';
 import { batchInput } from '../services/correctionBatchInput';
 import { listBatches, readBatch, refreshBatch, submitBatch } from '../services/correctionBatches';
-import type { CorrectionBatchCandidate, CorrectionBatchInput } from '../../src/types/correctionBatch';
+import type { CorrectionBatchCandidate, CorrectionBatchInput, CorrectionReviewQueue } from '../../src/types/correctionBatch';
 
 export const correctionBatchesRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 correctionBatchesRouter.use('*', authMiddleware);
@@ -80,6 +80,32 @@ correctionBatchesRouter.get('/refresh-targets', async c => {
     AND (status IN ('submitting','unknown','running') OR cleaned_at IS NULL) ORDER BY id LIMIT 51`)
     .bind(c.get('userId'), after).all<{ id: string }>()).results;
   return c.json({ ids: rows.slice(0, 50).map(row => row.id), next: rows.length > 50 ? rows[49].id : null });
+});
+correctionBatchesRouter.get('/review-queue', async c => {
+  const cursor = c.req.query('cursor');
+  let before: string[] = [];
+  if (cursor) {
+    let value: unknown;
+    try { value = JSON.parse(cursor); } catch { throw new LearningError(422, 'INVALID_CURSOR', '校正清單游標不正確'); }
+    if (!Array.isArray(value) || value.length !== 2 || value.some(part => typeof part !== 'string' || part.length > 100))
+      throw new LearningError(422, 'INVALID_CURSOR', '校正清單游標不正確');
+    before = value;
+  }
+  const rows = (await c.env.DB.prepare(`SELECT c.id,c.item_id,c.saved_ref_id,c.status,c.error,c.adopted_revision_id,c.created_at,m.batch_id
+    FROM learning_corrections c JOIN correction_run_metadata m ON m.correction_id=c.id AND m.batch_id IS NOT NULL
+    WHERE c.user_id=? ${before.length ? 'AND (c.created_at,c.id)<(?,?)' : ''}
+    AND NOT EXISTS(SELECT 1 FROM learning_corrections newer JOIN correction_run_metadata nm ON nm.correction_id=newer.id AND nm.batch_id IS NOT NULL
+      WHERE newer.user_id=c.user_id AND (newer.item_id=c.item_id OR newer.saved_ref_id=c.saved_ref_id)
+      AND (newer.created_at,newer.id)>(c.created_at,c.id))
+    ORDER BY c.created_at DESC,c.id DESC LIMIT 101`).bind(c.get('userId'), ...before).all<{
+      id: string; item_id: string | null; saved_ref_id: string | null; status: 'pending' | 'complete' | 'failed';
+      error: string | null; adopted_revision_id: string | null; created_at: string; batch_id: string;
+    }>()).results;
+  const result: CorrectionReviewQueue = { items: rows.slice(0, 100).map(row => ({
+    id: row.id, ref: row.item_id ? { kind: 'owned', itemId: row.item_id } : { kind: 'saved', savedRefId: row.saved_ref_id! },
+    status: row.status, error: row.error, adopted: !!row.adopted_revision_id, batchId: row.batch_id,
+  })), next: rows.length > 100 ? JSON.stringify([rows[99].created_at, rows[99].id]) : null };
+  return c.json(result);
 });
 correctionBatchesRouter.get('/', async c => c.json({ jobs: await listBatches(c.env.DB, c.get('userId'), c.req.query('before')) }));
 correctionBatchesRouter.get('/:id', async c => c.json(await readBatch(c.env.DB, c.get('userId'), c.req.param('id'))));
