@@ -6,7 +6,6 @@ import { API_BASE } from '../services/api';
 import { sharingApi } from '../services/sharingApi';
 import { composeProblemImage } from '../utils/exportImage';
 import { PersonalTopicSelect } from '../components/PersonalTopicSelect';
-import { LearningDataDialog } from '../components/LearningDataButton';
 import type { PersonalQuestionRef } from '../types/learning';
 import type { CorrectionBatchCandidate, CorrectionBatchInput, CorrectionBatchJob, CorrectionBatchMode } from '../types/correctionBatch';
 
@@ -31,7 +30,6 @@ export function AdminCorrectionBatchView() {
   const [refreshProgress, setRefreshProgress] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [progress, setProgress] = useState(''), [failures, setFailures] = useState<string[]>([]);
-  const [review, setReview] = useState<PersonalQuestionRef | null>(null);
   const controller = useRef(new AbortController()), stop = useRef(false), running = useRef(false);
   const sessionValid = () => !controller.current.signal.aborted && useStore.getState().currentUser?.id === uid;
   const fetchJobs = async (older = false) => {
@@ -41,7 +39,7 @@ export function AdminCorrectionBatchView() {
   };
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort; stop.current = false; running.current = false;
-    setAllowed(null); setPage(null); setSelected([]); setJobs([]); setReview(null); setBusy(false); setSubmitting(false); setProgress(''); setFailures([]); setError(''); setRefreshProgress(''); setRefreshing(false);
+    setAllowed(null); setPage(null); setSelected([]); setJobs([]); setBusy(false); setSubmitting(false); setProgress(''); setFailures([]); setError(''); setRefreshProgress(''); setRefreshing(false);
     if (uid) void sharingApi<{ isAdmin: boolean }>('/admin/me', 'GET', undefined, abort.signal).then(async me => {
       if (abort.signal.aborted) return;
       setAllowed(me.isAdmin); if (me.isAdmin) await fetchJobs();
@@ -190,15 +188,15 @@ export function AdminCorrectionBatchView() {
           <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{statuses[job.status]} · {job.items.length} 題</h3><time className="text-xs text-text-muted">{new Date(job.createdAt).toLocaleString('zh-TW')}</time></div>
           <p className="break-words text-xs text-text-muted">{job.promptVersion} · {job.model} · 成功 {job.items.filter(i => i.status === 'complete').length}／失敗 {job.items.filter(i => i.status === 'failed').length}</p>
           {job.error && <p className="text-sm text-text-muted">{job.error}</p>}
+          {job.items.length > 0 && <Link className={button + ' bg-primary/10 text-primary-600 dark:text-primary-700'} to={`/admin/correction-batches/${encodeURIComponent(job.id)}/review`}>開啟校正工作區</Link>}
           <div className="flex flex-wrap gap-2">{(!job.cleaned || ['running', 'submitting', 'unknown'].includes(job.status)) && <button className={button} disabled={busy} onClick={() => void act(async () => { const result = await sharingApi<CorrectionBatchJob>(`${base}/${job.id}/refresh`, 'POST', {}, controller.current.signal); if (sessionValid()) updateJob(result); })}>更新進度並匯入</button>}
             {['running', 'unknown', 'submitting'].includes(job.status) && <button className={button} disabled={busy} onClick={() => void act(async () => { const result = await sharingApi<CorrectionBatchJob>(`${base}/${job.id}/cancel`, 'POST', {}, controller.current.signal); if (sessionValid()) updateJob(result); })}>取消並清理</button>}
             {job.items.some(i => i.status === 'failed') && <button className={button} disabled={busy} onClick={() => { setSelected(job.items.filter(i => i.status === 'failed').map(i => i.ref)); setProgress('已選取這組失敗題目，可按上方提交重試。'); }}>選取失敗題目重試</button>}
           </div>
-          <details><summary className="cursor-pointer text-sm text-text-muted">逐題結果與確認</summary><ul className="mt-3 space-y-2">{job.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-page-bg p-3 text-xs"><span className="min-w-0 break-all">{keyFor(item.ref)} · {item.adopted ? '已採用' : item.status === 'complete' ? '待確認建議' : item.status === 'pending' ? '處理中' : item.error || '未完成'}</span>{item.status === 'complete' && <button className={button} disabled={busy} onClick={() => setReview(item.ref)}>檢視目前建議</button>}</li>)}</ul></details>
+          <details><summary className="cursor-pointer text-sm text-text-muted">逐題結果與確認</summary><ul className="mt-3 space-y-2">{job.items.map(item => <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-page-bg p-3 text-xs"><span className="min-w-0 break-all">{keyFor(item.ref)} · {item.adopted ? '已採用' : item.status === 'complete' ? '待確認建議' : item.status === 'pending' ? '處理中' : item.error || '未完成'}</span><Link className={button} to={`/admin/correction-batches/${encodeURIComponent(job.id)}/review?question=${encodeURIComponent(item.id)}`}>檢視圖片與校正</Link></li>)}</ul></details>
         </article>)}
         {jobs.length >= 20 && <button className={button} disabled={busy} onClick={() => void act(() => fetchJobs(true))}>載入較早工作</button>}
       </section>
     </>}
-    {review && <LearningDataDialog questionRef={review} onClose={() => setReview(null)} onSaved={() => { window.dispatchEvent(new Event('redolve:corrections')); void fetchJobs().catch(() => {}); }} />}
   </main>;
 }

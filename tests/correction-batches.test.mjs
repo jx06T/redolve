@@ -107,6 +107,9 @@ test('admin correction batches: durable jobs, versions, recovery and safe import
       assert.equal((await call(base, 'POST', form(inputs))).status, 409); assert.equal(creates, 1);
       assert.equal((await call(`${base}/candidates`)).data.candidates.length, 4);
       assert.equal((await call(base, 'GET', undefined, 'carol')).data.jobs.length, 0);
+      assert.equal((await call(`${base}/${job.id}`, 'GET', undefined, 'carol')).status, 404);
+      assert.equal((await call(`${base}/${job.id}`, 'GET', undefined, 'bob')).status, 403);
+      assert.equal((await call(`${base}/${job.id}`)).data.items[0].id, job.items[0].id);
       assert.equal((await call(`${base}/${job.id}/refresh`, 'POST', {}, 'carol')).status, 404);
       assert.deepEqual((await call(`${base}/refresh-targets`)).data.ids, [job.id]);
       assert.deepEqual((await call(`${base}/refresh-targets`, 'GET', undefined, 'carol')).data.ids, []);

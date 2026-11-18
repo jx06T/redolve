@@ -23,6 +23,7 @@ const AboutView = lazy(() => import('./views/AboutView').then(module => ({ defau
 const LegalView = lazy(() => import('./views/LegalView').then(module => ({ default: module.LegalView })));
 const AdminSharingView = lazy(() => import('./views/AdminSharingView').then(m=>({default:m.AdminSharingView})));
 const AdminCorrectionBatchView = lazy(() => import('./views/AdminCorrectionBatchView').then(m=>({default:m.AdminCorrectionBatchView})));
+const AdminCorrectionReviewView = lazy(() => import('./views/AdminCorrectionReviewView').then(m=>({default:m.AdminCorrectionReviewView})));
 const CollectionDetailView = lazy(() => import('./views/CollectionDetailView').then(m=>({default:m.CollectionDetailView})));
 const AccessClaimView = lazy(() => import('./views/AccessClaimView').then(m=>({default:m.AccessClaimView})));
 
@@ -153,6 +154,7 @@ export default function App() {
                       <Route path="/my/collections" element={<Navigate replace to="/settings#collections" />} />
                       <Route path="/admin/sharing" element={<AdminSharingView />} />
                       <Route path="/admin/correction-batches" element={<AdminCorrectionBatchView />} />
+                      <Route path="/admin/correction-batches/:batchId/review" element={<AdminCorrectionReviewView />} />
                       <Route path="/collections/:id" element={<CollectionReaderView mode="collection" />} />
                       <Route path="/settings/collections/:id" element={<CollectionDetailView />} />
                       <Route path="/extended" element={<CollectionReaderView mode="extended" />} />

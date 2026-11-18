@@ -34,12 +34,14 @@ function AnswerInput({ label, answer, content, onChange }: {
 }
 
 /** Personal data editor used inside the recognition dialog. */
-export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onCloseBlockedChange, onLoaded, onErrorChange, onRecognize, recognitionBusy = false, recognitionError }: {
+export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onCloseBlockedChange, onLoaded, onErrorChange, onRecognize, recognitionBusy = false, recognitionError, onDirtyChange, stickyActions = false }: {
   questionRef: PersonalQuestionRef; onSaved?: (question: LearningQuestion) => void;
   initialQuestion?: LearningQuestion | null; onCloseBlockedChange?: (blocked: boolean) => void;
   recognitionBusy?: boolean; recognitionError?: string;
   onRecognize?: () => Promise<LearningQuestion>;
   onLoaded?: (question: LearningQuestion) => void; onErrorChange?: (error: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  stickyActions?: boolean;
 }) {
   const account = useStore(s => s.currentUser?.id || '');
   const [current, setCurrent] = useState<LearningQuestion | null>(null);
@@ -50,6 +52,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   const [correctionId, setCorrectionId] = useState<string | undefined>();
   const draftRef = useRef<LearningData | null>(null);
   const dismissedCandidate = useRef<string>();
+  const initialDraft = useRef('');
   draftRef.current = draft;
   const recognitionBusyRef = useRef(recognitionBusy);
   recognitionBusyRef.current = recognitionBusy;
@@ -58,7 +61,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
     const candidates = [...data.personal.errorReasons, ...(result.correction?.adopted ? result.correction.data?.personal.errorReasons || [] : [])];
     setOrganizeMessage(''); setDraftBase(result); setSuggestions([...new Map([...candidates, ...prior].filter(r => r.origin === 'ai' || r.weaknessId).map(r => [reasonKey(r), r])).values()]);
     const selected = [...new Map([...prior, ...data.personal.errorReasons.filter(r => r.origin === 'user' || r.accepted)].map(r => [reasonKey(r), r])).values()];
-    setDraft(structuredClone({ ...data, personal: { ...data.personal, errorReasons: selected } }));
+    const next = structuredClone({ ...data, personal: { ...data.personal, errorReasons: selected } });
+    initialDraft.current = JSON.stringify(next); setDraft(next);
   };
   const adoptLoaded = (result: LearningQuestion) => {
     setCurrent(result); onLoaded?.(result);
@@ -82,6 +86,8 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
   }, [account, kind, id]);
   useEffect(() => { const update = () => { const signal = controller.current.signal; if (!draftRef.current) void learningService.read(questionRef, signal).then(value => { if (!signal.aborted) adoptLoaded(value); }).catch(() => {}); }; window.addEventListener('redolve:corrections', update); return () => window.removeEventListener('redolve:corrections', update); }, [account, kind, id]);
   useEffect(() => { onCloseBlockedChange?.(operation === 'save'); }, [operation, onCloseBlockedChange]);
+  const dirty = !!draft && JSON.stringify(draft) !== initialDraft.current;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => {
     if (!recognitionBusy && current && !draftRef.current) adoptLoaded(current);
   }, [recognitionBusy, current]);
@@ -223,7 +229,7 @@ export function LearningDataPanel({ questionRef, onSaved, initialQuestion, onClo
       </fieldset>
       <label className="block text-xs text-text-muted">訂正重點（可修改或留空）<textarea className={fieldClass} rows={3} maxLength={6000} value={draft.personal.correctionSummary || ''} onChange={e => setDraft({ ...draft, personal: { ...draft.personal, correctionSummary: e.target.value } })} /></label>
       <p className="text-xs text-text-muted">儲存表示確認目前這份資料，原作答、正解與錯因都可以保持空白；確認後不會因缺漏再提醒。</p>
-      <div className="flex gap-2">
+      <div className={stickyActions ? 'sticky bottom-0 z-10 flex gap-2 border-t border-border-subtle bg-page-bg py-3' : 'flex gap-2'}>
         <button type="button" className={buttonClass} onClick={() => { if (preview) dismissedCandidate.current = correctionId;
           setDraft(null); setDraftBase(null); setPreview(false); setCorrectionId(undefined); setError(''); }}>取消</button>
         <button type="button" className={buttonClass + ' bg-primary/10 text-primary'} onClick={save}>{preview ? '採用並確認' : '儲存並確認'}</button>

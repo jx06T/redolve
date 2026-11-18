@@ -8,7 +8,7 @@ import { correctionRecognitionModel } from '../services/ai';
 import { CORRECTION_PROMPT_VERSION } from '../services/ai/correctionPrompts';
 import { geminiCorrectionBatch } from '../services/ai/GeminiCorrectionBatch';
 import { batchInput } from '../services/correctionBatchInput';
-import { listBatches, refreshBatch, submitBatch } from '../services/correctionBatches';
+import { listBatches, readBatch, refreshBatch, submitBatch } from '../services/correctionBatches';
 import type { CorrectionBatchCandidate, CorrectionBatchInput } from '../../src/types/correctionBatch';
 
 export const correctionBatchesRouter = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -70,7 +70,7 @@ correctionBatchesRouter.get('/input/:kind/:id', async c => {
   const p = await batchInput(c.env, c.get('userId'), ref, true);
   const id = ref.kind === 'owned' ? ref.itemId : ref.savedRefId;
   const result: CorrectionBatchInput = { ref, sourceVersion: p.current.sourceVersion, rowVersion: p.current.rowVersion,
-    workspaceVersion: p.workspaceVersion, imagePath: `/${ref.kind === 'owned' ? 'problems' : 'saved'}/${encodeURIComponent(id)}/image`, ink: p.ink };
+    workspaceVersion: p.workspaceVersion, imagePath: `/${ref.kind === 'owned' ? 'problems' : 'saved'}/${encodeURIComponent(id)}/image`, ink: p.ink, notes: p.context.notes };
   return c.json(result);
 });
 correctionBatchesRouter.get('/refresh-targets', async c => {
@@ -82,6 +82,7 @@ correctionBatchesRouter.get('/refresh-targets', async c => {
   return c.json({ ids: rows.slice(0, 50).map(row => row.id), next: rows.length > 50 ? rows[49].id : null });
 });
 correctionBatchesRouter.get('/', async c => c.json({ jobs: await listBatches(c.env.DB, c.get('userId'), c.req.query('before')) }));
+correctionBatchesRouter.get('/:id', async c => c.json(await readBatch(c.env.DB, c.get('userId'), c.req.param('id'))));
 correctionBatchesRouter.post('/', async c => {
   if (!c.env.GEMINI_API_KEY) return c.json({ error: { code: 'AI_UNAVAILABLE', message: '尚未設定 Gemini 金鑰' } }, 503);
   const form = await c.req.formData(), id = form.get('id'), raw = form.get('inputs');

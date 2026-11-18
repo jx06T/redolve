@@ -6,7 +6,7 @@ export interface CorrectionBatchCandidate {
 }
 export interface CorrectionBatchInput {
   ref: PersonalQuestionRef; sourceVersion: string; rowVersion: number; workspaceVersion: string;
-  imagePath: string; ink: string | null;
+  imagePath: string; ink: string | null; notes?: string;
 }
 export interface CorrectionBatchJob {
   id: string; status: 'submitting' | 'unknown' | 'running' | 'complete' | 'failed' | 'cancelled';
