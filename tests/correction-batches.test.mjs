@@ -108,6 +108,9 @@ test('admin correction batches: durable jobs, versions, recovery and safe import
       assert.equal((await call(`${base}/candidates`)).data.candidates.length, 4);
       assert.equal((await call(base, 'GET', undefined, 'carol')).data.jobs.length, 0);
       assert.equal((await call(`${base}/${job.id}/refresh`, 'POST', {}, 'carol')).status, 404);
+      assert.deepEqual((await call(`${base}/refresh-targets`)).data.ids, [job.id]);
+      assert.deepEqual((await call(`${base}/refresh-targets`, 'GET', undefined, 'carol')).data.ids, []);
+      assert.equal((await call(`${base}/refresh-targets`, 'GET', undefined, 'bob')).status, 403);
       const pending = await call(`${base}/${job.id}/refresh`, 'POST', {}); assert.equal(pending.data.status, 'running');
       const question = (await call('learning/owned/q1')).data;
       assert.equal(question.correction.status, 'pending'); assert.equal(question.correction.batchId, job.id);
@@ -123,6 +126,7 @@ test('admin correction batches: durable jobs, versions, recovery and safe import
       await db.prepare("UPDATE items SET draw_seq=draw_seq+1 WHERE id='q2'").run(); complete();
       const result = await call(`${base}/${job.id}/refresh`, 'POST', {}); assert.equal(result.status, 200, JSON.stringify(result.data));
       assert.equal(result.data.status, 'complete'); assert.equal(result.data.cleaned, true); assert.equal(deletes, 1);
+      assert.deepEqual((await call(`${base}/refresh-targets`)).data.ids, []);
       assert.equal(result.data.items.filter(i => i.status === 'complete').length, 1);
       assert.equal(result.data.items.filter(i => i.status === 'failed').length, 1);
       const q = (await call('learning/owned/q1')).data;
@@ -173,6 +177,21 @@ test('admin correction batches: durable jobs, versions, recovery and safe import
       const expired = (await call(`${base}/${missing.id}/refresh`, 'POST', {})).data;
       assert.equal(expired.status, 'failed'); assert.equal(expired.items[0].status, 'failed'); assert.equal(creates, count);
       assert.ok((await call(`${base}/candidates`)).data.candidates.some(c => c.ref.itemId === 'q3'));
+    });
+    await t.test('refresh targets include older pending jobs and cleanup with stable pagination', async () => {
+      const now = new Date().toISOString();
+      const inserted = [];
+      for (let i = 0; i < 55; i++) {
+        const id = `older-${String(i).padStart(3, '0')}`; inserted.push(id);
+        await db.prepare(`INSERT INTO correction_batches(id,user_id,status,model,prompt_version,request_hash,created_at,updated_at)
+          VALUES(?,'carol',?,'qa-batch','test',?,?,?)`).bind(id, i % 2 ? 'running' : 'complete', id, now, now).run();
+      }
+      const first = (await call(`${base}/refresh-targets`, 'GET', undefined, 'carol')).data;
+      assert.deepEqual(first.ids, inserted.slice(0, 50)); assert.equal(first.next, inserted[49]);
+      await db.prepare('UPDATE correction_batches SET cleaned_at=? WHERE user_id=? AND id<=?').bind(now, 'carol', inserted[49]).run();
+      const next = (await call(`${base}/refresh-targets?after=${first.next}`, 'GET', undefined, 'carol')).data;
+      assert.deepEqual(next.ids, inserted.slice(50)); assert.equal(next.next, null);
+      await db.prepare('DELETE FROM correction_batches WHERE user_id=?').bind('carol').run();
     });
     await t.test('model and prompt version filters are explicit; deleting questions removes contexts', async () => {
       const before = (await call(`${base}/candidates?mode=outdated`)).data.candidates.map(c => c.ref.itemId);

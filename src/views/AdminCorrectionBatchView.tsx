@@ -28,6 +28,8 @@ export function AdminCorrectionBatchView() {
   const [page, setPage] = useState<Page | null>(null), [selected, setSelected] = useState<PersonalQuestionRef[]>([]);
   const [jobs, setJobs] = useState<CorrectionBatchJob[]>([]), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [refreshProgress, setRefreshProgress] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
   const [progress, setProgress] = useState(''), [failures, setFailures] = useState<string[]>([]);
   const [review, setReview] = useState<PersonalQuestionRef | null>(null);
   const controller = useRef(new AbortController()), stop = useRef(false), running = useRef(false);
@@ -39,7 +41,7 @@ export function AdminCorrectionBatchView() {
   };
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort; stop.current = false; running.current = false;
-    setAllowed(null); setPage(null); setSelected([]); setJobs([]); setReview(null); setBusy(false); setSubmitting(false); setProgress(''); setFailures([]); setError('');
+    setAllowed(null); setPage(null); setSelected([]); setJobs([]); setReview(null); setBusy(false); setSubmitting(false); setProgress(''); setFailures([]); setError(''); setRefreshProgress(''); setRefreshing(false);
     if (uid) void sharingApi<{ isAdmin: boolean }>('/admin/me', 'GET', undefined, abort.signal).then(async me => {
       if (abort.signal.aborted) return;
       setAllowed(me.isAdmin); if (me.isAdmin) await fetchJobs();
@@ -59,6 +61,49 @@ export function AdminCorrectionBatchView() {
   });
   const changeScope = (fn: () => void) => { fn(); setPage(null); setSelected([]); };
   const updateJob = (job: CorrectionBatchJob) => { setJobs(old => [job, ...old.filter(j => j.id !== job.id)].sort((a, b) => b.createdAt.localeCompare(a.createdAt))); window.dispatchEvent(new Event('redolve:corrections')); };
+  const refreshAll = () => void act(async () => {
+    setRefreshing(true); setRefreshProgress('正在取得所有待更新工作…');
+    const signal = controller.current.signal;
+    try {
+      // Collect IDs first so imports cannot change the pagination while scanning.
+      const ids = new Set<string>();
+      let after: string | null = '';
+      do {
+        const result: { ids: string[]; next: string | null } = await sharingApi(
+          `${base}/refresh-targets?after=${encodeURIComponent(after)}`, 'GET', undefined, signal);
+        if (!sessionValid()) return;
+        result.ids.forEach(id => ids.add(id));
+        after = result.next;
+      } while (after);
+      await fetchJobs();
+      let checked = 0, completed = 0, pending = 0;
+      const failed: string[] = [];
+      for (const id of ids) {
+        if (!sessionValid()) return;
+        setRefreshProgress(`正在向 Google 更新 ${checked + 1}／${ids.size} 組`);
+        try {
+          const job = await sharingApi<CorrectionBatchJob>(`${base}/${encodeURIComponent(id)}/refresh`, 'POST', {}, signal);
+          if (!sessionValid()) return;
+          updateJob(job);
+          if (job.status === 'complete') completed++;
+          if (['submitting', 'unknown', 'running'].includes(job.status)) pending++;
+        } catch (e) {
+          if (!sessionValid()) return;
+          failed.push(`${id}：${e instanceof Error ? e.message : '查詢失敗'}`);
+        }
+        checked++;
+      }
+      if (sessionValid()) {
+        setRefreshProgress(ids.size ? `已更新 ${checked} 組，${completed} 組已匯入、${pending} 組仍待完成${failed.length ? `、${failed.length} 組查詢失敗` : ''}。` : '所有工作狀態已更新，目前沒有待處理工作。');
+        if (failed.length) setError(failed.join('\n'));
+      }
+    } catch (e) {
+      if (sessionValid()) setRefreshProgress('更新尚未完成，可再次按「更新全部進度」繼續。');
+      throw e;
+    } finally {
+      if (sessionValid()) setRefreshing(false);
+    }
+  });
   const submit = () => void act(async () => {
     stop.current = false; setFailures([]); setSubmitting(true);
     const refs = [...selected]; let sent = 0;
@@ -134,11 +179,12 @@ export function AdminCorrectionBatchView() {
           {page.next && <button className={button} disabled={busy} onClick={() => search(page.next!)}>下一頁題目（清除目前勾選）</button>}
         </>}
         <div className="flex flex-wrap items-center gap-3 border-t border-border-subtle pt-4"><button className={button + ' bg-primary/10 text-primary-600 dark:text-primary-700'} disabled={busy || !selected.length} onClick={submit}>提交 {selected.length || ''} 題至 Google Batch</button>{submitting && <button className={button} onClick={() => { stop.current = true; }}>停止後續送出</button>}</div>
-        <p className="text-xs text-text-muted">準備與送出期間請留在此頁；送出後可關閉。再次進入後按「更新進度並匯入」。尚未送出的圖片不會保存到伺服器。</p>
+        <p className="text-xs text-text-muted">準備與送出期間請留在此頁；送出後可關閉。再次進入後按「更新全部進度」收取結果。</p>
         {progress && <p role="status" className="text-sm">{progress}</p>}
         {failures.length > 0 && <details open><summary className="text-sm">未送出 {failures.length} 題</summary><ul className="mt-2 space-y-1 break-words text-xs text-text-muted">{failures.map((message, i) => <li key={i}>{message}</li>)}</ul></details>}
       </section>
-      <section className="space-y-3" aria-labelledby="batch-jobs"><div className="flex flex-wrap items-center justify-between gap-2"><h2 id="batch-jobs" className="font-medium">批次工作</h2><button className={button} disabled={busy} onClick={() => void act(() => fetchJobs())}><RefreshCw size={15} />重新載入清單</button></div>
+      <section className="space-y-3" aria-labelledby="batch-jobs"><div className="flex flex-wrap items-center justify-between gap-2"><h2 id="batch-jobs" className="font-medium">批次工作</h2><button className={button} disabled={busy} onClick={refreshAll}><RefreshCw size={15} className={refreshing ? 'animate-spin motion-reduce:animate-none' : ''} />{refreshing ? '更新中…' : '更新全部進度'}</button></div>
+        {refreshProgress && <p role="status" className="text-sm text-text-muted">{refreshProgress}</p>}
         {!jobs.length && <p className="py-4 text-sm text-text-muted">尚無批次工作。</p>}
         {jobs.map(job => <article key={job.id} className="space-y-3 rounded-2xl border border-border-subtle bg-surface p-4">
           <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-medium">{statuses[job.status]} · {job.items.length} 題</h3><time className="text-xs text-text-muted">{new Date(job.createdAt).toLocaleString('zh-TW')}</time></div>

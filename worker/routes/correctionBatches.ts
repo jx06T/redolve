@@ -73,6 +73,14 @@ correctionBatchesRouter.get('/input/:kind/:id', async c => {
     workspaceVersion: p.workspaceVersion, imagePath: `/${ref.kind === 'owned' ? 'problems' : 'saved'}/${encodeURIComponent(id)}/image`, ink: p.ink };
   return c.json(result);
 });
+correctionBatchesRouter.get('/refresh-targets', async c => {
+  const after = c.req.query('after') || '';
+  if (after.length > 200) throw new LearningError(422, 'INVALID_FILTER', '工作游標不正確');
+  const rows = (await c.env.DB.prepare(`SELECT id FROM correction_batches WHERE user_id=? AND id>?
+    AND (status IN ('submitting','unknown','running') OR cleaned_at IS NULL) ORDER BY id LIMIT 51`)
+    .bind(c.get('userId'), after).all<{ id: string }>()).results;
+  return c.json({ ids: rows.slice(0, 50).map(row => row.id), next: rows.length > 50 ? rows[49].id : null });
+});
 correctionBatchesRouter.get('/', async c => c.json({ jobs: await listBatches(c.env.DB, c.get('userId'), c.req.query('before')) }));
 correctionBatchesRouter.post('/', async c => {
   if (!c.env.GEMINI_API_KEY) return c.json({ error: { code: 'AI_UNAVAILABLE', message: '尚未設定 Gemini 金鑰' } }, 503);
