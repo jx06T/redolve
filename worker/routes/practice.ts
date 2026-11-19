@@ -22,7 +22,7 @@ practiceRouter.onError((error, c) => {
 practiceRouter.post('/sessions', async c => {
   const body = await c.req.json().catch(() => null);
   if (!body) throw new PracticeError(422, '請提供練習範圍');
-  return c.json(await createPractice(c.env.DB, c.get('userId'), body.scope, body.count, body.questionIds));
+  return c.json(await createPractice(c.env.DB, c.get('userId'), body.scope, body.count, body.questionIds, body.recentQuestionIds));
 });
 practiceRouter.post('/attempts/batch', async c => {
   const body = await c.req.json().catch(() => null);

@@ -2,6 +2,7 @@ import { validateLearningData } from '../../src/types/learning';
 import { gradePractice } from '../../src/types/practice';
 import type { AttemptInput, PracticeAttempt, PracticeQuestion, PracticeScope, PracticeSession } from '../../src/types/practice';
 import { readLearningQuestion } from './learningQuestions';
+import { selectPracticeCandidates } from './practiceSelection';
 
 export class PracticeError extends Error { constructor(public status: 404 | 409 | 410 | 422, message: string) { super(message); } }
 export async function digest(value: unknown) {
@@ -38,7 +39,8 @@ export function scopeStatement(db: D1Database, uid: string, ids: string[], inclu
     FROM items i LEFT JOIN learning_questions q ON q.user_id=i.user_id AND q.item_id=i.id
     LEFT JOIN learning_question_revisions r ON r.id=q.current_revision_id
     WHERE i.user_id=? AND i.topic_id IN (SELECT value FROM json_each(?)) AND (?=1 OR i.status!='archived') AND (?=0 OR i.status!='processing')
-    AND i.id>=? AND (? IS NULL OR q.id IN (SELECT value FROM json_each(?))) LIMIT ?)
+    AND i.id>=? AND (? IS NULL OR q.id IN (SELECT value FROM json_each(?)))
+    ${practiceOnly ? "AND LENGTH(json_extract(r.content_json,'$.ocrText'))>0 ORDER BY i.id" : ''} LIMIT ?)
     UNION ALL SELECT * FROM (SELECT q.id,NULL,s.id,q.current_revision_id,s.personal_topic_id,COALESCE(q.confirmation_status,'ai'),
     CASE WHEN LENGTH(json_extract(r.content_json,'$.ocrText'))>0 THEN 1 ELSE 0 END,
     CASE WHEN json_type(r.content_json,'$.correctAnswer')='object' THEN 0 ELSE 1 END,
@@ -46,39 +48,30 @@ export function scopeStatement(db: D1Database, uid: string, ids: string[], inclu
     FROM saved_refs s LEFT JOIN learning_questions q ON q.user_id=s.user_id AND q.saved_ref_id=s.id
     LEFT JOIN learning_question_revisions r ON r.id=q.current_revision_id
     WHERE s.user_id=? AND s.personal_topic_id IN (SELECT value FROM json_each(?)) AND (?=1 OR s.status!='archived') AND s.id>=?
-    AND (? IS NULL OR q.id IN (SELECT value FROM json_each(?))) LIMIT ?) LIMIT ?`)
+    AND (? IS NULL OR q.id IN (SELECT value FROM json_each(?)))
+    ${practiceOnly ? "AND LENGTH(json_extract(r.content_json,'$.ocrText'))>0 ORDER BY s.id" : ''} LIMIT ?) LIMIT ?`)
     .bind(uid, JSON.stringify(ids), includeArchived ? 1 : 0, practiceOnly ? 1 : 0, pivot, selected ? JSON.stringify(selected) : null, selected ? JSON.stringify(selected) : null, perSource,
       uid, JSON.stringify(ids), includeArchived ? 1 : 0, pivot, selected ? JSON.stringify(selected) : null, selected ? JSON.stringify(selected) : null, perSource, limit);
 }
-export async function createPractice(db: D1Database, uid: string, scope: PracticeScope, count: number, recommended?: string[]): Promise<PracticeSession> {
+export async function createPractice(db: D1Database, uid: string, scope: PracticeScope, count: number, recommended?: string[], recentQuestionIds: string[] = []): Promise<PracticeSession> {
   if (![3, 5, 10].includes(count)) throw new PracticeError(422, '每輪可選 3、5 或 10 題');
   if (recommended && (!Array.isArray(recommended) || recommended.length > 50 || recommended.some(id => typeof id !== 'string'))) throw new PracticeError(422, '建議題目格式不正確');
+  if (!Array.isArray(recentQuestionIds) || recentQuestionIds.length > 50 || recentQuestionIds.some(id => typeof id !== 'string' || id.length > 200))
+    throw new PracticeError(422, '近期抽題資料格式不正確');
   const topics = await scopeTopics(db, uid, scope);
   const pivot = recommended ? '' : crypto.randomUUID();
   let pool = (await scopeStatement(db, uid, topics.ids, !!scope.includeArchived, 500, pivot, recommended, 250, true).all<ScopeQuestion>()).results;
   if (pool.length < 500 && pivot) {
     const earlier = (await scopeStatement(db, uid, topics.ids, !!scope.includeArchived, 500, '', undefined, 250, true).all<ScopeQuestion>()).results;
-    const seen = new Set(pool.map(q => q.itemId || q.savedRefId));
-    pool = [...pool, ...earlier.filter(q => !seen.has(q.itemId || q.savedRefId))].slice(0, 500);
+    const seen = new Set(pool.map(q => q.id));
+    pool = [...pool, ...earlier.filter(q => !seen.has(q.id))].slice(0, 500);
   }
   pool = pool.filter(q => q.id && q.revisionId && q.prepared && (!recommended || recommended.includes(q.id)));
   const latest = pool.length ? (await db.prepare(`SELECT j.value question_id,a.result,a.answered_at FROM json_each(?) j
     LEFT JOIN practice_attempts a ON a.id=(SELECT id FROM practice_attempts WHERE user_id=? AND learning_question_id=j.value
     AND voided_at IS NULL ORDER BY answered_at DESC,received_at DESC,id DESC LIMIT 1)`)
     .bind(JSON.stringify(pool.map(q => q.id)), uid).all<{ question_id: string; result: string | null; answered_at: string | null }>()).results : [];
-  const latestById = new Map(latest.map(a => [a.question_id, a]));
-  const groups: ScopeQuestion[][] = [[], [], [], []]; const now = Date.now();
-  pool.forEach(q => {
-    const attempt = latestById.get(q.id!);
-    const age = attempt?.answered_at ? (now - Date.parse(attempt.answered_at)) / 86400000 : Infinity;
-    groups[attempt?.result === 'incorrect' && age <= 30 ? 0 : !attempt?.answered_at ? 2 : age >= 7 ? 1 : 3].push(q);
-  });
-  const picked: ScopeQuestion[] = [], weights = [40, 30, 20, 10];
-  while (picked.length < count && groups.some(g => g.length)) {
-    const total = groups.reduce((sum, g, i) => sum + (g.length ? weights[i] : 0), 0); let draw = Math.random() * total;
-    const group = groups.find((g, i) => g.length && (draw -= weights[i]) < 0)!;
-    picked.push(group.splice(Math.floor(Math.random() * group.length), 1)[0]);
-  }
+  const picked = selectPracticeCandidates(pool, count, latest, recentQuestionIds);
   const questions: PracticeQuestion[] = [];
   for (const q of picked) {
     const ref = q.itemId ? { kind: 'owned' as const, itemId: q.itemId } : { kind: 'saved' as const, savedRefId: q.savedRefId! };
@@ -88,7 +81,7 @@ export async function createPractice(db: D1Database, uid: string, scope: Practic
         topicId: q.topicId, sessionItemId: crypto.randomUUID(), imageUrl: `/api/practice/questions/${current.id}/revisions/${current.revisionId}/image` });
     } catch { /* Removed or quarantined candidates are not available for practice. */ }
   }
-  return { id: crypto.randomUUID(), policy: 'mixed-v1', questions, candidateCount: pool.length };
+  return { id: crypto.randomUUID(), policy: 'mixed-v2', questions, candidateCount: pool.length };
 }
 type AttemptRow = Record<string, string | number | null>;
 export function presentAttempt(row: AttemptRow): PracticeAttempt {

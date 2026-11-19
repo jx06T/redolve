@@ -19,8 +19,22 @@ export const practiceService = {
   weaknessReview: (id: string, signal?: AbortSignal) => sharingApi<WeaknessReview & { candidates: AttemptReasonCandidate[] }>(`/practice/attempts/${encodeURIComponent(id)}/weaknesses`, 'GET', undefined, signal),
   saveWeaknessReview: (uid: string, id: string, review: WeaknessReview) => sharingApi<WeaknessReview>(
     `/practice/attempts/${encodeURIComponent(id)}/weaknesses`, 'PUT', { userId: uid, ...review }),
-  start: (scope: PracticeScope, count: number, questionIds?: string[], signal?: AbortSignal) =>
-    sharingApi<PracticeSession>('/practice/sessions', 'POST', { scope, count, questionIds }, signal),
+  async start(scope: PracticeScope, count: number, questionIds?: string[], signal?: AbortSignal) {
+    const uid = useStore.getState().currentUser?.id;
+    if (!uid) throw Error('請先登入以使用原題練習');
+    const key = `redolve-practice-recent:${uid}`;
+    let recentQuestionIds: string[] = [];
+    try {
+      const value: unknown = JSON.parse(sessionStorage.getItem(key) || '[]');
+      if (Array.isArray(value)) recentQuestionIds = value.filter((id): id is string => typeof id === 'string' && id.length <= 200).slice(0, 50);
+    } catch { /* Practice remains usable when browser storage is unavailable. */ }
+    const session = await sharingApi<PracticeSession>('/practice/sessions', 'POST', { scope, count, questionIds, recentQuestionIds }, signal);
+    if (owner(uid) && !signal?.aborted) {
+      try { sessionStorage.setItem(key, JSON.stringify([...new Set([...session.questions.map(question => question.id), ...recentQuestionIds])].slice(0, 50))); }
+      catch { /* Server-side attempt cooldown still applies. */ }
+    }
+    return session;
+  },
   history: (id: string, cursor?: string, signal?: AbortSignal) => sharingApi<{ attempts: PracticeAttempt[]; nextCursor: string | null }>(
     `/practice/questions/${encodeURIComponent(id)}/attempts${cursor ? '?cursor=' + encodeURIComponent(cursor) : ''}`, 'GET', undefined, signal),
   pending: async (uid: string): Promise<PendingAttempt[]> => (await db()).getAllFromIndex('outbox', 'userId', uid),

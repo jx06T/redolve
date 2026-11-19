@@ -65,6 +65,23 @@ test('practice submissions, corrections, analysis snapshots and private retentio
       const restricted=await practice.createPractice(db,'alice',{subjectId:'math'},3,[questions[2].id]);assert.equal(restricted.questions.length,1);assert.equal(restricted.questions[0].id,questions[2].id);
       assert.equal((await call('/practice/attempts/batch','bob','POST',{userId:'alice',attempts:[first]})).status,409);
     });
+    await t.test('prepared candidates survive large legacy pools and recent draws rotate across rounds',async()=>{
+      await db.prepare("INSERT INTO taxonomies(id,label,level) VALUES('sampling','抽題測試',0)").run();
+      const legacy = Array.from({length:260},(_,i)=>`legacy-${i}`), ready = Array.from({length:12},(_,i)=>`ready-${i}`);
+      await db.prepare(`INSERT INTO items(id,user_id,image_url,status,topic_id) SELECT value,'alice','image','unsolved','sampling' FROM json_each(?)`).bind(JSON.stringify([...legacy,...ready])).run();
+      for(const id of ready){
+        const ref={kind:'owned',itemId:id}, current=await learning.readLearningQuestion(db,'alice',ref);
+        await learning.saveLearningQuestion(db,'alice',ref,{expectedRowVersion:current.rowVersion,expectedSourceVersion:current.sourceVersion,data:data()},'user');
+      }
+      const one=await call('/practice/sessions','alice','POST',{scope:{subjectId:'sampling'},count:5});
+      assert.equal(one.data.candidateCount,12); assert.equal(one.data.questions.length,5);
+      const recent=one.data.questions.map(q=>q.id);
+      const two=await call('/practice/sessions','alice','POST',{scope:{subjectId:'sampling'},count:5,recentQuestionIds:recent});
+      assert.equal(two.data.questions.length,5);assert.ok(two.data.questions.every(q=>!recent.includes(q.id)));
+      assert.equal((await call('/practice/sessions','alice','POST',{scope:{subjectId:'sampling'},count:5,recentQuestionIds:'bad'})).status,422);
+      await db.prepare("DELETE FROM items WHERE topic_id='sampling'").run();
+      await db.prepare("DELETE FROM taxonomies WHERE id='sampling'").run();
+    });
     await t.test('server grading, set equality and independent replay-safe attempts',async()=>{
       const result=await practice.submitAttempt(db,'alice',{...first,selfResult:'correct'});assert.equal(result.result,'incorrect');first={...first,selfResult:'correct'};
       assert.deepEqual(await practice.submitAttempt(db,'alice',first),result);
